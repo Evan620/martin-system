@@ -17,7 +17,7 @@ psycopg2-binary==2.9.9
 asyncpg==0.29.0
 
 # Vector Database
-chromadb==0.4.22
+pinecone==5.0.0
 sentence-transformers==2.3.1
 
 # Authentication & Security
@@ -84,6 +84,10 @@ sentry-sdk[fastapi]==1.40.0
 # Data Processing
 pandas==2.2.0
 numpy==1.26.3
+
+# Document Ingestion
+tiktoken==0.5.2
+tqdm==4.66.1
 
 # WebSocket Support
 websockets==12.0

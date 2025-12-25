@@ -39,26 +39,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ChromaDB Vector Database
-  chromadb:
-    image: chromadb/chroma:latest
-    container_name: ecowas-chromadb
-    restart: unless-stopped
-    ports:
-      - "${CHROMA_PORT:-8001}:8000"
-    volumes:
-      - chroma_data:/chroma/chroma
-    environment:
-      - IS_PERSISTENT=TRUE
-      - ANONYMIZED_TELEMETRY=FALSE
-    networks:
-      - ecowas-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   # Backend API
   backend:
     build:
@@ -71,8 +51,9 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-ecowas_user}:${POSTGRES_PASSWORD:-change_this_password}@postgres:5432/${POSTGRES_DB:-ecowas_summit_db}
       - REDIS_URL=redis://redis:6379/0
-      - CHROMA_HOST=chromadb
-      - CHROMA_PORT=8000
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT:-us-east-1}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-ecowas-summit-knowledge}
     env_file:
       - ./backend/.env
     volumes:
@@ -83,8 +64,6 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      chromadb:
         condition: service_healthy
     networks:
       - ecowas-network
@@ -169,6 +148,4 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
-    driver: local
-  chroma_data:
     driver: local

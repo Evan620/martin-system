@@ -89,7 +89,7 @@ Martins System/
 │   │   │
 │   │   ├── core/                      # Core Logic (✓ Structure created)
 │   │   │   ├── __init__.py
-│   │   │   ├── knowledge_base.py      # [TODO] ChromaDB integration
+│   │   │   ├── knowledge_base.py      # [TODO] Pinecone integration
 │   │   │   ├── templates.py           # [TODO] Document templates
 │   │   │   ├── scheduler.py           # [TODO] Background tasks
 │   │   │   └── orchestrator.py        # [TODO] Agent coordination
@@ -113,8 +113,7 @@ Martins System/
 │   │
 │   ├── storage/                       # Local File Storage (✓ Created)
 │   ├── logs/                          # Application Logs (✓ Created)
-│   ├── credentials/                   # API Credentials (✓ Created)
-│   └── chroma_data/                   # ChromaDB Data (✓ Created)
+│   └── credentials/                   # API Credentials (✓ Created)
 │
 ├── frontend/                          # React TypeScript Frontend
 │   ├── README.md                      # Frontend documentation (✓ Created)
@@ -357,7 +356,7 @@ docker-compose down
 - FastAPI (web framework)
 - LangGraph + LangChain (agents)
 - PostgreSQL (database)
-- ChromaDB (vector database)
+- Pinecone (vector database)
 - Redis (cache/queue)
 - Celery (background tasks)
 
@@ -374,7 +373,7 @@ docker-compose down
 - Nginx (reverse proxy)
 - PostgreSQL 15
 - Redis 7
-- ChromaDB
+- Pinecone (Cloud)
 
 ## File Naming Conventions
 

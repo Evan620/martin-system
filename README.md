@@ -26,7 +26,7 @@ The system uses a **federated multi-agent architecture** built with LangGraph, w
 - Python 3.11
 - FastAPI (async web framework)
 - LangGraph & LangChain (agent orchestration)
-- ChromaDB (vector database for RAG)
+- Pinecone (vector database for RAG)
 - SQLAlchemy (ORM)
 - PostgreSQL (relational database)
 

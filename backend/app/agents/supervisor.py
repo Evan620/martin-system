@@ -14,17 +14,29 @@ from app.agents.base_agent import BaseAgent
 class SupervisorAgent(BaseAgent):
     """Supervisor agent for coordinating all TWG agents"""
 
-    def __init__(self, keep_history: bool = True):
+    def __init__(
+        self,
+        keep_history: bool = True,
+        session_id: Optional[str] = None,
+        use_redis: bool = False,
+        memory_ttl: Optional[int] = None
+    ):
         """
         Initialize the Supervisor agent.
 
         Args:
             keep_history: Whether to maintain conversation history (default: True)
+            session_id: Session identifier for Redis memory (optional)
+            use_redis: If True, use Redis for persistent memory
+            memory_ttl: TTL for Redis keys in seconds (optional)
         """
         super().__init__(
             agent_id="supervisor",
             keep_history=keep_history,
-            max_history=20  # Supervisors may need longer context
+            max_history=20,  # Supervisors may need longer context
+            session_id=session_id,
+            use_redis=use_redis,
+            memory_ttl=memory_ttl
         )
 
         # Registry of all TWG agents
@@ -235,18 +247,32 @@ I have consulted the following TWG agents and received these responses:
 
 
 # Convenience function to create a supervisor agent
-def create_supervisor(keep_history: bool = True, auto_register: bool = True) -> SupervisorAgent:
+def create_supervisor(
+    keep_history: bool = True,
+    auto_register: bool = True,
+    session_id: Optional[str] = None,
+    use_redis: bool = False,
+    memory_ttl: Optional[int] = None
+) -> SupervisorAgent:
     """
     Create and return a Supervisor agent instance.
 
     Args:
         keep_history: Whether to maintain conversation history
         auto_register: If True, automatically register all TWG agents
+        session_id: Session identifier for Redis memory (optional)
+        use_redis: If True, use Redis for persistent memory
+        memory_ttl: TTL for Redis keys in seconds (optional)
 
     Returns:
         Configured SupervisorAgent instance
     """
-    supervisor = SupervisorAgent(keep_history=keep_history)
+    supervisor = SupervisorAgent(
+        keep_history=keep_history,
+        session_id=session_id,
+        use_redis=use_redis,
+        memory_ttl=memory_ttl
+    )
 
     if auto_register:
         supervisor.register_all_agents()

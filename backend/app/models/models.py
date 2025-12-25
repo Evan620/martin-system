@@ -75,8 +75,11 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     full_name: Mapped[str] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(255))
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.TWG_MEMBER)
     organization: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -87,6 +90,7 @@ class User(Base):
     meetings: Mapped[List["Meeting"]] = relationship(
         secondary=meeting_participants, back_populates="participants"
     )
+    refresh_tokens: Mapped[List["RefreshToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 class TWG(Base):
     __tablename__ = "twgs"
@@ -200,3 +204,16 @@ class Document(Base):
     
     # Relationships
     twg: Mapped[Optional["TWG"]] = relationship(back_populates="documents")
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    token: Mapped[str] = mapped_column(String(512), unique=True, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user: Mapped["User"] = relationship(back_populates="refresh_tokens")

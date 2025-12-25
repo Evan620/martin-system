@@ -12,7 +12,14 @@ class Settings(BaseSettings):
     
     # Security
     SECRET_KEY: str
+    JWT_SECRET_KEY: Optional[str] = None
+    JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    
+    # Password Policy
+    PASSWORD_MIN_LENGTH: int = 8
+    REQUIRE_SPECIAL_CHAR: bool = True
     
     # CORS
     CORS_ORIGINS: Union[str, List[str]] = "http://localhost:5173,http://localhost:3000"

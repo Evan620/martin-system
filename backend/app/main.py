@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.core.config import settings
-from backend.app.api.routes import twgs, meetings
+from backend.app.api.routes import twgs, meetings, auth
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -20,6 +20,7 @@ if settings.CORS_ORIGINS:
     )
 
 # Register routers
+app.include_router(auth.router, prefix=f"{settings.API_V1_STR}", tags=["Authentication"])
 app.include_router(twgs.router, prefix=f"{settings.API_V1_STR}/twgs", tags=["TWGs"])
 app.include_router(meetings.router, prefix=f"{settings.API_V1_STR}/meetings", tags=["Meetings"])
 

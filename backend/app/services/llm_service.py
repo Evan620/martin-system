@@ -18,7 +18,7 @@ class OllamaLLMService:
         base_url: str = "http://localhost:11434",
         model: str = "qwen2.5:0.5b",
         temperature: float = 0.7,
-        timeout: int = 30
+        timeout: int = 120
     ):
         """
         Initialize the Ollama LLM service.
@@ -27,7 +27,7 @@ class OllamaLLMService:
             base_url: Ollama server URL
             model: Model name to use
             temperature: Sampling temperature (0-1)
-            timeout: Request timeout in seconds
+            timeout: Request timeout in seconds (default: 120)
         """
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -35,7 +35,7 @@ class OllamaLLMService:
         self.timeout = timeout
         self.api_endpoint = f"{self.base_url}/api/generate"
 
-        logger.info(f"Initialized Ollama LLM Service: {self.model} @ {self.base_url}")
+        logger.info(f"Initialized Ollama LLM Service: {self.model} @ {self.base_url} (timeout: {timeout}s)")
 
     def check_connection(self) -> bool:
         """
@@ -105,13 +105,17 @@ class OllamaLLMService:
             return response_text
 
         except requests.exceptions.Timeout:
-            logger.error("Ollama request timed out")
-            raise Exception(f"Request timed out after {self.timeout} seconds")
+            logger.error(f"Ollama request timed out after {self.timeout}s")
+            raise Exception(
+                f"LLM request timed out after {self.timeout} seconds. "
+                f"The model '{self.model}' may be slow or not loaded. "
+                f"Try running: ollama run {self.model}"
+            )
         except requests.exceptions.ConnectionError:
             logger.error("Cannot connect to Ollama server")
             raise Exception(
                 f"Cannot connect to Ollama at {self.base_url}. "
-                "Make sure Ollama is running: ollama serve"
+                f"Make sure Ollama is running: ollama serve"
             )
         except Exception as e:
             logger.error(f"Ollama API error: {e}")

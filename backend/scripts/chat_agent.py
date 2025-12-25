@@ -70,6 +70,18 @@ def print_info(agent):
     print(f"History Enabled: {info['keep_history']}")
     print(f"Max History: {info['max_history']}")
     print(f"Current History Length: {info['history_length']}")
+
+    # Show Redis info if available
+    if hasattr(agent, 'use_redis'):
+        print(f"\nRedis Memory:")
+        print(f"  Enabled: {agent.use_redis}")
+        if agent.use_redis:
+            print(f"  Session ID: {agent.session_id}")
+            print(f"  TTL: {agent.memory_ttl or 'default (24h)'}")
+            if hasattr(agent, 'redis_memory') and agent.redis_memory:
+                health = agent.redis_memory.health_check()
+                print(f"  Connection: {'✓ Healthy' if health else '✗ Failed'}")
+
     print(f"\nSystem Prompt Preview:")
     print(f"{info['system_prompt']}")
     print("="*70 + "\n")
@@ -111,6 +123,19 @@ Examples:
     )
 
     parser.add_argument(
+        "--no-redis",
+        action="store_true",
+        help="Disable Redis memory (use in-memory only)"
+    )
+
+    parser.add_argument(
+        "--session-id",
+        type=str,
+        default=None,
+        help="Session ID for Redis memory (default: auto-generated)"
+    )
+
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="Enable debug logging"
@@ -123,11 +148,40 @@ Examples:
         logger.remove()
         logger.add(sys.stderr, level="WARNING")
 
+    # Generate session ID if not provided
+    import uuid
+    session_id = args.session_id or f"cli-{uuid.uuid4().hex[:8]}"
+
     # Create agent
     try:
         print(f"\nInitializing {args.agent} agent...")
-        agent = AGENT_FACTORY[args.agent](keep_history=not args.no_history)
+
+        # Create with Redis support if not disabled
+        use_redis = not args.no_redis
+
+        if args.agent == "supervisor":
+            agent = AGENT_FACTORY[args.agent](
+                keep_history=not args.no_history,
+                session_id=session_id,
+                use_redis=use_redis,
+                memory_ttl=3600  # 1 hour for CLI sessions
+            )
+        else:
+            # Other agents (they'll need similar updates to their factory functions)
+            agent = AGENT_FACTORY[args.agent](keep_history=not args.no_history)
+
         print("✓ Agent initialized successfully!")
+
+        # Show Redis status
+        if use_redis:
+            print(f"✓ Redis memory enabled (Session: {session_id})")
+            if hasattr(agent, 'redis_memory') and agent.redis_memory:
+                if agent.redis_memory.health_check():
+                    print("✓ Redis connection healthy")
+                else:
+                    print("⚠️  Redis connection failed - using in-memory fallback")
+        else:
+            print("ℹ️  Using in-memory storage (use --no-redis to change)")
 
         # If supervisor, show registered agents
         if args.agent == "supervisor" and hasattr(agent, 'get_supervisor_status'):

@@ -1,0 +1,89 @@
+# Core Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# LangChain & LangGraph for AI Agents
+langchain==0.1.0
+langchain-openai==0.0.2
+langchain-anthropic==0.0.1
+langgraph==0.0.20
+langsmith==0.0.77
+
+# Database & ORM
+sqlalchemy==2.0.25
+alembic==1.13.1
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+
+# Vector Database
+chromadb==0.4.22
+sentence-transformers==2.3.1
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-dotenv==1.0.0
+cryptography==42.0.0
+
+# Pydantic for Data Validation
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Redis for Caching/Queue
+redis==5.0.1
+hiredis==2.3.2
+
+# Celery for Background Tasks
+celery==5.3.6
+
+# Email & Calendar Integration
+google-api-python-client==2.116.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.0
+sendgrid==6.11.0
+msal==1.26.0
+
+# Document Processing
+pypdf2==3.0.1
+python-docx==1.1.0
+reportlab==4.0.9
+markdown==3.5.2
+jinja2==3.1.3
+
+# ICS/Calendar file generation
+icalendar==5.0.11
+
+# HTTP Client
+httpx==0.26.0
+aiohttp==3.9.3
+
+# Date/Time Handling
+python-dateutil==2.8.2
+pytz==2024.1
+
+# Utilities
+pyyaml==6.0.1
+python-slugify==8.0.1
+
+# Testing
+pytest==8.0.0
+pytest-asyncio==0.23.4
+pytest-cov==4.1.0
+httpx==0.26.0
+
+# Code Quality
+black==24.1.1
+flake8==7.0.0
+mypy==1.8.0
+
+# Logging & Monitoring
+loguru==0.7.2
+sentry-sdk[fastapi]==1.40.0
+
+# Data Processing
+pandas==2.2.0
+numpy==1.26.3
+
+# WebSocket Support
+websockets==12.0

@@ -42,7 +42,7 @@ The ECOWAS Summit TWG Support System uses a federated multi-agent architecture w
                │              │              │
                ▼              ▼              ▼
     ┌─────────────┐  ┌──────────────┐  ┌──────────┐
-    │ PostgreSQL  │  │   ChromaDB   │  │  Redis   │
+    │ PostgreSQL  │  │   Pinecone   │  │  Redis   │
     │ (Relational)│  │   (Vector)   │  │ (Cache)  │
     └─────────────┘  └──────────────┘  └──────────┘
 ```
@@ -173,7 +173,7 @@ users ─────┐
            └──► projects     └──► documents
 ```
 
-#### ChromaDB (Vector Database)
+#### Pinecone (Vector Database)
 Stores unstructured knowledge:
 - Summit concept notes
 - Policy documents
@@ -358,7 +358,7 @@ Key metrics to track:
 - `/health` - Overall system health
 - `/health/db` - Database connectivity
 - `/health/redis` - Redis connectivity
-- `/health/chroma` - Vector DB connectivity
+- `/health/pinecone` - Vector DB connectivity
 
 ## Deployment Architecture
 
@@ -370,7 +370,6 @@ services:
   - backend (FastAPI with reload)
   - postgres
   - redis
-  - chromadb
   - celery_worker
   - celery_beat
 ```
@@ -388,8 +387,8 @@ services:
     ┌─────────────────────┼─────────────────┐
     │                     │                 │
 ┌───▼────┐        ┌───────▼──────┐   ┌──────▼────┐
-│ Postgres│       │    Redis     │   │  ChromaDB │
-│  (RDS)  │       │ (ElastiCache)│   │  (Pod)    │
+│ Postgres│       │    Redis     │   │  Pinecone │
+│  (RDS)  │       │ (ElastiCache)│   │  (Cloud)  │
 └─────────┘       └──────────────┘   └───────────┘
 ```
 
@@ -401,7 +400,7 @@ services:
 | Backend Framework | FastAPI | Async support, auto docs, Pydantic validation |
 | Agent Framework | LangGraph | Purpose-built for multi-agent systems, flexible |
 | Database | PostgreSQL | Reliable, ACID, JSON support, full-text search |
-| Vector DB | ChromaDB | Simple, embeddable, good for RAG |
+| Vector DB | Pinecone | Scalable, managed, optimized for production RAG |
 | Cache/Queue | Redis | Fast, versatile, Celery integration |
 | LLM | OpenAI/Anthropic | Best performance for complex reasoning |
 

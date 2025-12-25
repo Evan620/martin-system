@@ -106,11 +106,39 @@ Get document metadata.
 #### GET /documents/{document_id}/download
 Download document file.
 
-#### POST /documents
-Upload document.
+#### POST /documents/upload
+Upload document and trigger ingestion.
 
-#### PUT /documents/{document_id}
-Update document metadata.
+**Request**: `multipart/form-data`
+- `file`: The document file
+- `twg`: TWG identifier
+
+#### POST /documents/ingest/batch
+Trigger batch ingestion from the server's local storage (default: `backend/data/test_docs`).
+**Admin Only**.
+
+#### GET /documents/search
+Semantic search across the knowledge base.
+
+**Query Parameters**:
+- `query`: Search string
+- `twg`: Optional TWG filter
+- `top_k`: Number of results (default: 5)
+
+**Response**:
+```json
+[
+  {
+    "id": "chunk_id",
+    "score": 0.89,
+    "metadata": {
+      "filename": "policy.pdf",
+      "text": "Extracted text chunk...",
+      "twg": "energy"
+    }
+  }
+]
+```
 
 ### Projects
 

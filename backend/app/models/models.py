@@ -1,0 +1,202 @@
+import uuid
+import enum
+from datetime import datetime
+from typing import List, Optional
+from decimal import Decimal
+from sqlalchemy import String, DateTime, Enum, ForeignKey, Column, Table, Text, Numeric, Float, Boolean, JSON
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from backend.app.core.database import Base
+
+# --- Enums ---
+
+class UserRole(str, enum.Enum):
+    ADMIN = "admin"
+    TWG_FACILITATOR = "twg_facilitator"
+    TWG_MEMBER = "twg_member"
+    SECRETARIAT_LEAD = "secretariat_lead"
+
+class TWGPillar(str, enum.Enum):
+    ENERGY = "energy"
+    AGRIBUSINESS = "agribusiness"
+    MINERALS = "minerals"
+    DIGITAL = "digital"
+    LOGISTICS = "logistics"
+    RESOURCE_MOBILIZATION = "resource_mobilization"
+
+class MeetingStatus(str, enum.Enum):
+    SCHEDULED = "scheduled"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+
+class ActionItemStatus(str, enum.Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    OVERDUE = "overdue"
+
+class ActionItemPriority(str, enum.Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    URGENT = "urgent"
+
+class ProjectStatus(str, enum.Enum):
+    IDENTIFIED = "identified"
+    VETTING = "vetting"
+    BANKABLE = "bankable"
+    PRESENTED = "presented"
+
+# --- Association Tables ---
+
+twg_members = Table(
+    "twg_members",
+    Base.metadata,
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True),
+    Column("twg_id", UUID(as_uuid=True), ForeignKey("twgs.id"), primary_key=True),
+    Column("joined_at", DateTime, default=datetime.utcnow)
+)
+
+meeting_participants = Table(
+    "meeting_participants",
+    Base.metadata,
+    Column("meeting_id", UUID(as_uuid=True), ForeignKey("meetings.id"), primary_key=True),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True),
+    Column("rsvp_status", String(50), default="pending"), # pending, accepted, declined
+    Column("attended", Boolean, default=False)
+)
+
+# --- Models ---
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    full_name: Mapped[str] = mapped_column(String(255))
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.TWG_MEMBER)
+    organization: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    twgs: Mapped[List["TWG"]] = relationship(
+        secondary=twg_members, back_populates="members"
+    )
+    owned_action_items: Mapped[List["ActionItem"]] = relationship(back_populates="owner")
+    meetings: Mapped[List["Meeting"]] = relationship(
+        secondary=meeting_participants, back_populates="participants"
+    )
+
+class TWG(Base):
+    __tablename__ = "twgs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255))
+    pillar: Mapped[TWGPillar] = mapped_column(Enum(TWGPillar))
+    status: Mapped[str] = mapped_column(String(50), default="active")
+    
+    political_lead_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    technical_lead_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+
+    # Relationships
+    members: Mapped[List["User"]] = relationship(
+        secondary=twg_members, back_populates="twgs"
+    )
+    meetings: Mapped[List["Meeting"]] = relationship(back_populates="twg")
+    projects: Mapped[List["Project"]] = relationship(back_populates="twg")
+    action_items: Mapped[List["ActionItem"]] = relationship(back_populates="twg")
+    documents: Mapped[List["Document"]] = relationship(back_populates="twg")
+
+class Meeting(Base):
+    __tablename__ = "meetings"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    twg_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("twgs.id"))
+    title: Mapped[str] = mapped_column(String(255))
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime)
+    duration_minutes: Mapped[int] = mapped_column(default=60)
+    location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    status: Mapped[MeetingStatus] = mapped_column(Enum(MeetingStatus), default=MeetingStatus.SCHEDULED)
+    meeting_type: Mapped[str] = mapped_column(String(50), default="virtual") # virtual, in-person
+    
+    # Relationships
+    twg: Mapped["TWG"] = relationship(back_populates="meetings")
+    participants: Mapped[List["User"]] = relationship(
+        secondary=meeting_participants, back_populates="meetings"
+    )
+    agenda: Mapped[Optional["Agenda"]] = relationship(back_populates="meeting", uselist=False)
+    minutes: Mapped[Optional["Minutes"]] = relationship(back_populates="meeting", uselist=False)
+    action_items: Mapped[List["ActionItem"]] = relationship(back_populates="meeting")
+
+class Agenda(Base):
+    __tablename__ = "agendas"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    meeting_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("meetings.id"), unique=True)
+    content: Mapped[str] = mapped_column(Text) # Markdown or HTML
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    meeting: Mapped["Meeting"] = relationship(back_populates="agenda")
+
+class Minutes(Base):
+    __tablename__ = "minutes"
+    
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    meeting_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("meetings.id"), unique=True)
+    content: Mapped[str] = mapped_column(Text) # Markdown or HTML
+    key_decisions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    meeting: Mapped["Meeting"] = relationship(back_populates="minutes")
+
+class ActionItem(Base):
+    __tablename__ = "action_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    twg_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("twgs.id"))
+    meeting_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("meetings.id"), nullable=True)
+    description: Mapped[str] = mapped_column(Text)
+    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    due_date: Mapped[datetime] = mapped_column(DateTime)
+    status: Mapped[ActionItemStatus] = mapped_column(Enum(ActionItemStatus), default=ActionItemStatus.PENDING)
+    priority: Mapped[ActionItemPriority] = mapped_column(Enum(ActionItemPriority), default=ActionItemPriority.MEDIUM)
+    
+    # Relationships
+    twg: Mapped["TWG"] = relationship(back_populates="action_items")
+    meeting: Mapped[Optional["Meeting"]] = relationship(back_populates="action_items")
+    owner: Mapped["User"] = relationship(back_populates="owned_action_items")
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    twg_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("twgs.id"))
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text)
+    investment_size: Mapped[Decimal] = mapped_column(Numeric(15, 2))
+    currency: Mapped[str] = mapped_column(String(10), default="USD")
+    readiness_score: Mapped[float] = mapped_column(Float, default=0.0)
+    status: Mapped[ProjectStatus] = mapped_column(Enum(ProjectStatus), default=ProjectStatus.IDENTIFIED)
+    metadata_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    
+    # Relationships
+    twg: Mapped["TWG"] = relationship(back_populates="projects")
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    twg_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("twgs.id"), nullable=True)
+    file_name: Mapped[str] = mapped_column(String(255))
+    file_path: Mapped[str] = mapped_column(String(512))
+    file_type: Mapped[str] = mapped_column(String(50)) # pdf, docx, etc.
+    uploaded_by_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    is_confidential: Mapped[bool] = mapped_column(Boolean, default=False)
+    metadata_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    twg: Mapped[Optional["TWG"]] = relationship(back_populates="documents")

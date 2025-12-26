@@ -110,13 +110,28 @@ class Settings(BaseSettings):
             return [i.strip() for i in v.split(",")]
         return v
 
-    # Email Settings (for future use)
-    SMTP_HOST: Optional[str] = None
-    SMTP_PORT: Optional[int] = 587
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    EMAIL_FROM: Optional[str] = None
-
+    # PINECONE
+    PINECONE_API_KEY: str = Field(..., description="Pinecone API key")
+    PINECONE_ENVIRONMENT: str = Field(..., description="Pinecone environment")
+    PINECONE_INDEX_NAME: str = Field(..., description="Pinecone index name")
+    EMBEDDING_MODEL: str = Field(default="text-embedding-3-small", description="Embedding model name")
+    EMBEDDING_DIMENSION: int = Field(default=1536, description="Embedding dimension")
+    
+    # Email
+    SMTP_SERVER: str = Field(default="localhost", description="SMTP server host")
+    SMTP_PORT: int = Field(default=1025, description="SMTP server port")
+    SMTP_USER: Optional[str] = Field(default=None, description="SMTP username")
+    SMTP_PASSWORD: Optional[str] = Field(default=None, description="SMTP password")
+    EMAILS_FROM_EMAIL: str = Field(default="martin@ecowas.int", description="Sender email address")
+    EMAILS_FROM_NAME: str = Field(default="Martin (ECOWAS Summit)", description="Sender name")
+    EMAILS_ENABLED: bool = Field(default=False, description="Whether emails are enabled")
+    SMTP_TLS: bool = Field(default=False, description="Whether to use TLS for SMTP")
+    
+    # Document Processing
+    CHUNK_SIZE: int = Field(default=1000, description="Document chunk size")
+    CHUNK_OVERLAP: int = Field(default=200, description="Document chunk overlap")
+    MAX_CHUNKS_PER_DOC: int = Field(default=100, description="Maximum chunks per document")
+    
     # Storage
     UPLOAD_DIR: str = Field(
         default="./uploads",
@@ -126,12 +141,6 @@ class Settings(BaseSettings):
         default=10485760,  # 10MB
         description="Maximum upload size in bytes"
     )
-    
-    # Vector DB
-    PINECONE_API_KEY: Optional[str] = None
-    PINECONE_ENVIRONMENT: Optional[str] = None
-    PINECONE_INDEX_NAME: Optional[str] = None
-
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,

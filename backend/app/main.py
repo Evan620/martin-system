@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.core.config import settings
-from backend.app.api.routes import twgs, meetings, auth, projects, action_items, documents
+from backend.app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -26,6 +26,7 @@ app.include_router(meetings.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(projects.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(action_items.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(documents.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(audit.router, prefix=f"{settings.API_V1_STR}")
 
 @app.get("/")
 async def root():

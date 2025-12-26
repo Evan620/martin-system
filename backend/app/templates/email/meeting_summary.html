@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block header_title %}Meeting Summary - {{ meeting_date | default('') }}{% endblock %}
+
+{% block content %}
+<h2>Meeting Summary</h2>
+
+<div style="background-color: white; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin: 20px 0;">
+    <p><strong>Date:</strong> {{ meeting_date | default('N/A') }}</p>
+    <p><strong>Time:</strong> {{ meeting_time | default('N/A') }}</p>
+    <p><strong>Duration:</strong> {{ duration | default('N/A') }}</p>
+    {% if location %}
+    <p><strong>Location:</strong> {{ location }}</p>
+    {% endif %}
+</div>
+
+{% if participants %}
+<h3>Participants</h3>
+<ul>
+    {% for participant in participants %}
+    <li>{{ participant }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+{% if agenda %}
+<h3>Agenda</h3>
+<ol>
+    {% for item in agenda %}
+    <li>{{ item }}</li>
+    {% endfor %}
+</ol>
+{% endif %}
+
+{% if discussion_points %}
+<h3>Discussion Points</h3>
+<div style="background-color: #F5F5F5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+    {% for point in discussion_points %}
+    <div style="margin-bottom: 15px;">
+        <strong>{{ point.topic }}</strong>
+        <p style="margin: 5px 0 0 20px;">{{ point.summary }}</p>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if action_items %}
+<h3>Action Items</h3>
+<table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+    <thead>
+        <tr style="background-color: #4A90E2; color: white;">
+            <th style="padding: 10px; text-align: left;">Action</th>
+            <th style="padding: 10px; text-align: left;">Owner</th>
+            <th style="padding: 10px; text-align: left;">Due Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for action in action_items %}
+        <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 10px;">{{ action.description }}</td>
+            <td style="padding: 10px;">{{ action.owner }}</td>
+            <td style="padding: 10px;">{{ action.due_date }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% if decisions %}
+<h3>Decisions Made</h3>
+<div style="background-color: #E8F4F8; padding: 15px; border-left: 4px solid #4A90E2; margin: 20px 0;">
+    <ul>
+        {% for decision in decisions %}
+        <li>{{ decision }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if next_meeting %}
+<div style="background-color: #FFF9E6; padding: 15px; border-left: 4px solid #FFA500; margin: 20px 0;">
+    <strong>Next Meeting:</strong>
+    <p>{{ next_meeting }}</p>
+</div>
+{% endif %}
+
+{% if notes %}
+<h3>Additional Notes</h3>
+<p>{{ notes }}</p>
+{% endif %}
+{% endblock %}

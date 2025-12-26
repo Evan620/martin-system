@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block header_title %}{{ report_title | default('Report') }}{% endblock %}
+
+{% block content %}
+<h2>{{ report_title | default('Report') }}</h2>
+
+<p><strong>Generated:</strong> {{ generated_date | default('N/A') }}</p>
+<p><strong>Period:</strong> {{ period | default('N/A') }}</p>
+
+{% if summary %}
+<div style="background-color: #E8F4F8; padding: 20px; border-radius: 5px; margin: 20px 0;">
+    <h3 style="margin-top: 0; color: #4A90E2;">Summary</h3>
+    <p>{{ summary }}</p>
+</div>
+{% endif %}
+
+{% if metrics %}
+<h3>Key Metrics</h3>
+<table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+    <thead>
+        <tr style="background-color: #4A90E2; color: white;">
+            <th style="padding: 10px; text-align: left;">Metric</th>
+            <th style="padding: 10px; text-align: right;">Value</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for metric in metrics %}
+        <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 10px;">{{ metric.name }}</td>
+            <td style="padding: 10px; text-align: right;">{{ metric.value }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% if data_sections %}
+{% for section in data_sections %}
+<div style="margin: 30px 0;">
+    <h3>{{ section.title }}</h3>
+    <p>{{ section.content }}</p>
+
+    {% if section.items %}
+    <ul>
+        {% for item in section.items %}
+        <li>{{ item }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{% if notes %}
+<div style="background-color: #FFF9E6; padding: 15px; border-left: 4px solid #FFA500; margin: 20px 0;">
+    <strong>Notes:</strong>
+    <p>{{ notes }}</p>
+</div>
+{% endif %}
+{% endblock %}

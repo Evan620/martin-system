@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from loguru import logger
-from app.agents.supervisor import create_supervisor
+from app.agents.supervisor_with_tools import create_supervisor_with_tools
 from app.agents.energy_agent import create_energy_agent
 from app.agents.agriculture_agent import create_agriculture_agent
 from app.agents.minerals_agent import create_minerals_agent
@@ -31,11 +31,12 @@ from app.agents.digital_agent import create_digital_agent
 from app.agents.protocol_agent import create_protocol_agent
 from app.agents.resource_mobilization_agent import create_resource_mobilization_agent
 from app.agents.prompts import list_agents
+import asyncio
 
 
 # Agent factory mapping
 AGENT_FACTORY = {
-    "supervisor": create_supervisor,
+    "supervisor": create_supervisor_with_tools,
     "energy": create_energy_agent,
     "agriculture": create_agriculture_agent,
     "minerals": create_minerals_agent,
@@ -502,8 +503,10 @@ Examples:
             try:
                 print(f"\033[92m{args.agent.title()}:\033[0m ", end="", flush=True)
 
-                # Use smart_chat for supervisor if available
-                if args.agent == "supervisor" and hasattr(agent, 'smart_chat'):
+                # Use chat_with_tools for supervisor (async), smart_chat or regular chat for others
+                if args.agent == "supervisor" and hasattr(agent, 'chat_with_tools'):
+                    response = asyncio.run(agent.chat_with_tools(user_input))
+                elif args.agent == "supervisor" and hasattr(agent, 'smart_chat'):
                     response = agent.smart_chat(user_input)
                 else:
                     response = agent.chat(user_input)

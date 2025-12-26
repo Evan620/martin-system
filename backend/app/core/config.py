@@ -40,6 +40,23 @@ class Settings(BaseSettings):
     PINECONE_API_KEY: str
     PINECONE_ENVIRONMENT: str
     PINECONE_INDEX_NAME: str
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    EMBEDDING_DIMENSION: int = 1536
+    
+    # Email
+    SMTP_SERVER: Optional[str] = "localhost"
+    SMTP_PORT: int = 1025
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    EMAILS_FROM_EMAIL: str = "martin@ecowas.int"
+    EMAILS_FROM_NAME: str = "Martin (ECOWAS Summit)"
+    EMAILS_ENABLED: bool = False
+    SMTP_TLS: bool = False
+    
+    # Document Processing
+    CHUNK_SIZE: int = 1000
+    CHUNK_OVERLAP: int = 200
+    MAX_CHUNKS_PER_DOC: int = 100
     
     model_config = SettingsConfigDict(
         env_file=".env",

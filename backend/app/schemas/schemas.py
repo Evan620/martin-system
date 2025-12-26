@@ -170,3 +170,15 @@ class Token(SchemaBase):
 
 class TokenData(SchemaBase):
     email: Optional[str] = None
+
+# --- Audit Schemas ---
+
+class AuditLogRead(SchemaBase):
+    id: uuid.UUID
+    user_id: Optional[uuid.UUID] = None
+    action: str
+    resource_type: str
+    resource_id: Optional[uuid.UUID] = None
+    details: Optional[dict] = None
+    ip_address: Optional[str] = None
+    created_at: datetime

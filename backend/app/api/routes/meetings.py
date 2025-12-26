@@ -8,6 +8,8 @@ from backend.app.core.database import get_db
 from backend.app.models.models import Meeting, Agenda, Minutes, User, UserRole
 from backend.app.schemas.schemas import MeetingCreate, MeetingRead
 from backend.app.api.deps import get_current_active_user, require_facilitator, require_twg_access, has_twg_access
+from backend.app.services.email_service import email_service
+from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/meetings", tags=["Meetings"])
 
@@ -115,3 +117,65 @@ async def get_meeting_minutes(
     if not db_minutes:
         raise HTTPException(status_code=404, detail="Minutes not found")
     return db_minutes
+
+@router.post("/{meeting_id}/schedule", status_code=status.HTTP_200_OK)
+async def schedule_meeting_trigger(
+    meeting_id: uuid.UUID,
+    current_user: User = Depends(require_facilitator),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Finalize and schedule a meeting. 
+    Triggers automated email invitations and calendar invites.
+    """
+    # Verify meeting exists and access rights
+    query = select(Meeting).where(Meeting.id == meeting_id).options(
+        selectinload(Meeting.participants),
+        selectinload(Meeting.twg)
+    )
+    result = await db.execute(query)
+    db_meeting = result.scalar_one_or_none()
+    
+    if not db_meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+        
+    if not has_twg_access(current_user, db_meeting.twg_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not db_meeting.participants:
+        raise HTTPException(status_code=400, detail="No participants assigned to this meeting")
+
+    # Change status
+    db_meeting.status = MeetingStatus.SCHEDULED
+    
+    # Send emails
+    participant_emails = [u.email for u in db_meeting.participants]
+    
+    try:
+        await email_service.send_meeting_invite(
+            to_emails=participant_emails,
+            subject=f"INVITATION: {db_meeting.title}",
+            template_name="meeting_invite.html",
+            template_context={
+                "user_name": "Valued Participant", # Simplified
+                "meeting_title": db_meeting.title,
+                "meeting_date": db_meeting.scheduled_at.strftime("%Y-%m-%d"),
+                "meeting_time": db_meeting.scheduled_at.strftime("%H:%M UTC"),
+                "location": db_meeting.location or "Virtual",
+                "pillar_name": db_meeting.twg.pillar.value,
+                "portal_url": "https://summit.ecowas.int/twg/portal" # Placeholder
+            },
+            meeting_details={
+                "title": db_meeting.title,
+                "start_time": db_meeting.scheduled_at,
+                "duration": db_meeting.duration_minutes,
+                "location": db_meeting.location
+            }
+        )
+    except Exception as e:
+        # Log error but don't fail the whole request? 
+        # Actually, for scheduling, we want to know if it failed.
+        raise HTTPException(status_code=500, detail=f"Failed to send invitations: {str(e)}")
+
+    await db.commit()
+    return {"status": "successfully scheduled", "emails_sent": len(participant_emails)}

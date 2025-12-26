@@ -91,6 +91,22 @@ class User(Base):
         secondary=meeting_participants, back_populates="participants"
     )
     refresh_tokens: Mapped[List["RefreshToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    audit_logs: Mapped[List["AuditLog"]] = relationship(back_populates="user")
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    action: Mapped[str] = mapped_column(String(255))
+    resource_type: Mapped[str] = mapped_column(String(100)) # e.g., "meeting", "document", "project"
+    resource_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    details: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True) # Contextual info
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user: Mapped[Optional["User"]] = relationship(back_populates="audit_logs")
 
 class TWG(Base):
     __tablename__ = "twgs"

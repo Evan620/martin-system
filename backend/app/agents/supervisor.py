@@ -43,13 +43,32 @@ class SupervisorAgent(BaseAgent):
         self._agent_registry: Dict[str, BaseAgent] = {}
 
         # Agent domain keywords for intelligent routing
+        # Primary keywords (strong signals) and secondary keywords (weak signals)
         self._agent_domains = {
-            "energy": ["energy", "power", "electricity", "renewable", "solar", "wind", "grid", "transmission", "wapp"],
-            "agriculture": ["agriculture", "food", "farming", "crop", "livestock", "agribusiness", "fertilizer", "irrigation"],
-            "minerals": ["mining", "mineral", "cobalt", "lithium", "gold", "bauxite", "industrialization", "extraction"],
-            "digital": ["digital", "technology", "internet", "broadband", "cybersecurity", "fintech", "e-government", "ai"],
-            "protocol": ["meeting", "schedule", "logistics", "protocol", "venue", "registration", "deadline"],
-            "resource_mobilization": ["investment", "financing", "deal room", "project", "funding", "investor", "bankable"]
+            "energy": {
+                "primary": ["energy", "power", "electricity", "renewable", "solar", "wind", "wapp"],
+                "secondary": ["grid", "transmission", "hydroelectric", "fuel", "petroleum"]
+            },
+            "agriculture": {
+                "primary": ["agriculture", "agricultural", "food security", "farming", "crop", "livestock", "agribusiness"],
+                "secondary": ["fertilizer", "irrigation", "harvest", "rural", "farmer", "food production"]
+            },
+            "minerals": {
+                "primary": ["mining", "mineral", "cobalt", "lithium", "gold", "bauxite", "extraction"],
+                "secondary": ["industrialization", "ore", "quarry", "geology"]
+            },
+            "digital": {
+                "primary": ["digital", "technology", "internet", "broadband", "fintech", "e-commerce", "e-government"],
+                "secondary": ["cybersecurity", "ai", "software", "tech", "online", "platform"]
+            },
+            "protocol": {
+                "primary": ["meeting", "schedule", "logistics", "protocol", "venue", "registration"],
+                "secondary": ["deadline", "agenda", "ceremony", "security", "vip"]
+            },
+            "resource_mobilization": {
+                "primary": ["investment", "financing", "deal room", "funding", "investor", "bankable"],
+                "secondary": ["finance", "capital", "donor", "partner", "budget"]
+            }
         }
 
     def register_agent(self, agent_id: str, agent: BaseAgent) -> None:
@@ -91,20 +110,56 @@ class SupervisorAgent(BaseAgent):
 
     def identify_relevant_agents(self, query: str) -> List[str]:
         """
-        Identify which TWG agents are relevant for a given query.
+        Identify which TWG agents are relevant for a given query using keyword scoring.
+
+        Scoring system:
+        - Primary keyword match: 10 points
+        - Secondary keyword match: 3 points
+        - Threshold for relevance: 5 points
+        - This allows detection of cross-TWG queries
 
         Args:
             query: User query or message
 
         Returns:
-            List of relevant agent IDs
+            List of relevant agent IDs (sorted by relevance score)
         """
         query_lower = query.lower()
-        relevant = []
+        agent_scores = {}
 
+        # Score each agent based on keyword matches
         for agent_id, keywords in self._agent_domains.items():
-            if any(keyword in query_lower for keyword in keywords):
-                relevant.append(agent_id)
+            score = 0
+
+            # Check primary keywords (strong signal)
+            for keyword in keywords.get("primary", []):
+                if keyword in query_lower:
+                    score += 10
+                    logger.debug(f"Primary match '{keyword}' for {agent_id} (+10)")
+
+            # Check secondary keywords (weak signal)
+            for keyword in keywords.get("secondary", []):
+                if keyword in query_lower:
+                    score += 3
+                    logger.debug(f"Secondary match '{keyword}' for {agent_id} (+3)")
+
+            if score > 0:
+                agent_scores[agent_id] = score
+
+        # Filter agents that meet the threshold (5 points minimum)
+        # This means at least 1 primary keyword OR 2 secondary keywords
+        relevant_threshold = 5
+        relevant = [
+            agent_id for agent_id, score in agent_scores.items()
+            if score >= relevant_threshold
+        ]
+
+        # Sort by score (highest first)
+        relevant.sort(key=lambda x: agent_scores[x], reverse=True)
+
+        if relevant:
+            scores_str = ", ".join([f"{a}({agent_scores[a]})" for a in relevant])
+            logger.info(f"Relevant agents identified: {scores_str}")
 
         return relevant
 
@@ -157,29 +212,54 @@ class SupervisorAgent(BaseAgent):
         """
         Synthesize multiple agent responses into a coherent answer.
 
+        Now displays individual agent responses clearly before synthesis.
+
         Args:
             query: Original query
             responses: Dictionary of agent responses
 
         Returns:
-            Synthesized response
+            Synthesized response with clear agent attribution
         """
         if not responses:
             return "I couldn't get responses from the relevant agents."
 
-        # Build synthesis prompt
+        # Build header showing which agents were consulted
+        agent_list = ", ".join([agent_id.upper() for agent_id in responses.keys()])
+        output = f"[Consulted {len(responses)} TWGs: {agent_list}]\n\n"
+        output += "=" * 70 + "\n"
+
+        # Display each agent's response clearly
+        for i, (agent_id, response) in enumerate(responses.items(), 1):
+            output += f"\n📋 {agent_id.upper()} TWG Response:\n"
+            output += "-" * 70 + "\n"
+            output += response + "\n"
+
+            if i < len(responses):  # Not the last one
+                output += "\n" + "=" * 70 + "\n"
+
+        output += "\n" + "=" * 70 + "\n"
+
+        # Build synthesis prompt for the supervisor
         synthesis_prompt = f"""Original Question: {query}
 
-I have consulted the following TWG agents and received these responses:
+I have consulted {len(responses)} TWG agents and received these responses:
 
 """
         for agent_id, response in responses.items():
-            synthesis_prompt += f"\n{agent_id.upper()} TWG Response:\n{response}\n"
+            synthesis_prompt += f"\n{agent_id.upper()} TWG:\n{response}\n"
 
-        synthesis_prompt += "\nAs the Supervisor, synthesize these responses into a coherent, strategic answer that maintains consistency and highlights cross-TWG synergies or dependencies."
+        synthesis_prompt += "\n\nAs the Supervisor, provide a brief (2-3 sentence) strategic synthesis that highlights how these TWG perspectives complement each other and what the key takeaways are."
 
-        # Use supervisor's own LLM to synthesize
-        return super().chat(synthesis_prompt)
+        # Get supervisor's synthesis
+        synthesis = super().chat(synthesis_prompt)
+
+        # Add synthesis at the end
+        output += f"\n🎯 SUPERVISOR'S SYNTHESIS:\n"
+        output += "-" * 70 + "\n"
+        output += synthesis + "\n"
+
+        return output
 
     def smart_chat(self, message: str, auto_delegate: bool = True) -> str:
         """

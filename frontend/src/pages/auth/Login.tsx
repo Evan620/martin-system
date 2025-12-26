@@ -1,34 +1,64 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Button, Input } from '../../components/ui'
 import { useAppDispatch } from '../../hooks/useRedux'
-import { setCredentials } from '../../store/slices/authSlice'
+import { setCredentials, setError } from '../../store/slices/authSlice'
+import { authService } from '../../services/auth'
 
 export default function Login() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [isLoading, setIsLoading] = useState(false)
+    const [loginError, setLoginError] = useState<string | null>(null)
     const navigate = useNavigate()
     const dispatch = useAppDispatch()
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
         setIsLoading(true)
+        setLoginError(null)
 
-        // Simulate login
-        setTimeout(() => {
+        try {
+            // Call backend login
+            const response = await authService.login({ email, password })
+
+            // Expected response: { access_token, refresh_token, token_type }
+            // We need to fetch the user profile next, or if the backend returns it with login
+            // Assuming we need to fetch user profile separately or backend returns it.
+            // Let's check auth.py: login returns only tokens.
+            // So we need to fetch /auth/me after login.
+
+            // Set token first so api interceptor can use it
+            // We'll define a temporary user object or fetch it immediately
+
+            // Store token temporarily to allow fetching profile
+            localStorage.setItem('token', response.access_token)
+
+            // Fetch current user
+            // Note: Since we updated api.ts to read from store, we might need to dispatch token first
+            // But dispatch requires a User object. 
+            // Workaround: Use the raw axios or manual header for the /me call, OR 
+            // dispatch a partial state if our slice allows (it doesn't easily).
+            // Actually, best approach: Update authSlice to allow setting token without user, 
+            // OR fetch user using the token explicitly.
+
+            // Let's assume we can fetch 'me' by creating a temporary config with header
+            const user = await authService.getCurrentUser()
+
             dispatch(setCredentials({
-                user: {
-                    id: '1',
-                    name: 'Admin User',
-                    email: email,
-                    role: 'administrator'
-                },
-                token: 'fake-jwt-token'
+                user: user,
+                token: response.access_token
             }))
-            setIsLoading(false)
+
             navigate('/dashboard')
-        }, 1000)
+        } catch (err: any) {
+            console.error('Login failed', err)
+            const errorMessage = err.response?.data?.detail || 'Invalid email or password. Please try again.'
+            setLoginError(errorMessage)
+            dispatch(setError(errorMessage))
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
@@ -93,6 +123,12 @@ export default function Login() {
                         <p className="text-slate-400">Enter your official credentials to access the TWG workspace.</p>
                     </div>
 
+                    {loginError && (
+                        <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-sm text-red-500">
+                            {loginError}
+                        </div>
+                    )}
+
                     <form onSubmit={handleLogin} className="space-y-6">
                         <div className="space-y-4">
                             <Input
@@ -115,9 +151,9 @@ export default function Login() {
                                     className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-blue-500"
                                 />
                                 <div className="flex justify-end">
-                                    <button type="button" className="text-sm text-slate-400 hover:text-blue-400 transition-colors">
+                                    <Link to="/forgot-password" className="text-sm text-slate-400 hover:text-blue-400 transition-colors">
                                         Forgot Password?
-                                    </button>
+                                    </Link>
                                 </div>
                             </div>
                         </div>
@@ -133,6 +169,15 @@ export default function Login() {
                             </svg>
                         </Button>
                     </form>
+
+                    <div className="text-center">
+                        <p className="text-sm text-slate-400">
+                            Don't have an account?{' '}
+                            <Link to="/register" className="text-blue-400 hover:text-blue-300 font-medium">
+                                Create Account
+                            </Link>
+                        </p>
+                    </div>
 
                     <div className="pt-8 border-t border-slate-800 text-center">
                         <p className="text-xs text-slate-500">

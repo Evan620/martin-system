@@ -139,6 +139,7 @@ class Meeting(Base):
     location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     status: Mapped[MeetingStatus] = mapped_column(Enum(MeetingStatus), default=MeetingStatus.SCHEDULED)
     meeting_type: Mapped[str] = mapped_column(String(50), default="virtual") # virtual, in-person
+    transcript: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # Text or link to transcript
     
     # Relationships
     twg: Mapped["TWG"] = relationship(back_populates="meetings")
@@ -167,6 +168,7 @@ class Minutes(Base):
     meeting_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("meetings.id"), unique=True)
     content: Mapped[str] = mapped_column(Text) # Markdown or HTML
     key_decisions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[MinutesStatus] = mapped_column(Enum(MinutesStatus), default=MinutesStatus.DRAFT)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -200,10 +202,12 @@ class Project(Base):
     currency: Mapped[str] = mapped_column(String(10), default="USD")
     readiness_score: Mapped[float] = mapped_column(Float, default=0.0)
     status: Mapped[ProjectStatus] = mapped_column(Enum(ProjectStatus), default=ProjectStatus.IDENTIFIED)
+    investment_memo_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
     metadata_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     
     # Relationships
     twg: Mapped["TWG"] = relationship(back_populates="projects")
+    investment_memo: Mapped[Optional["Document"]] = relationship(foreign_keys=[investment_memo_id])
 
 class Document(Base):
     __tablename__ = "documents"

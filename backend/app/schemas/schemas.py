@@ -182,3 +182,28 @@ class AuditLogRead(SchemaBase):
     details: Optional[dict] = None
     ip_address: Optional[str] = None
     created_at: datetime
+
+# --- Agent Interaction Schemas ---
+
+class AgentChatRequest(SchemaBase):
+    message: str
+    conversation_id: Optional[uuid.UUID] = None
+    twg_id: Optional[uuid.UUID] = None
+
+class AgentChatResponse(SchemaBase):
+    response: str
+    conversation_id: uuid.UUID
+    citations: List[dict] = []
+    agent_id: str
+
+class AgentTaskRequest(SchemaBase):
+    task_type: str # drafting, research, analysis, synthesis
+    twg_id: uuid.UUID
+    details: dict
+    title: str
+
+class AgentStatus(SchemaBase):
+    status: str
+    swarm_ready: bool
+    active_agents: List[str]
+    version: str

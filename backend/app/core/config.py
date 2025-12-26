@@ -62,6 +62,64 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: str = "gpt-4-turbo-preview"
 
+    # Message Bus Settings
+    MESSAGE_BUS_ENABLED: bool = Field(
+        default=True,
+        description="Enable Redis message bus for agent communication"
+    )
+    MESSAGE_BUS_MAX_QUEUE_SIZE: int = Field(
+        default=1000,
+        description="Maximum messages per agent queue"
+    )
+    MESSAGE_BUS_DEFAULT_TIMEOUT: int = Field(
+        default=30,
+        description="Default timeout for blocking operations (seconds)"
+    )
+    MESSAGE_BUS_MESSAGE_TTL: int = Field(
+        default=3600,
+        description="Message TTL in seconds (1 hour)"
+    )
+
+    # Enhanced Routing Settings
+    AGENT_USE_ENHANCED_ROUTING: bool = Field(
+        default=False,
+        description="Use enhanced confidence-based routing (feature flag)"
+    )
+    ROUTING_CONFIDENCE_THRESHOLD: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=1.0,
+        description="Minimum confidence to select an agent"
+    )
+    ROUTING_MULTI_AGENT_THRESHOLD: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Confidence threshold for multi-agent consultation"
+    )
+    ROUTING_MAX_PARALLEL_AGENTS: int = Field(
+        default=3,
+        ge=1,
+        le=6,
+        description="Maximum agents to consult in parallel"
+    )
+
+    # Peer Delegation Settings
+    AGENT_PEER_DELEGATION_ENABLED: bool = Field(
+        default=False,
+        description="Allow agents to delegate to peers (feature flag)"
+    )
+    AGENT_MAX_DELEGATION_DEPTH: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Maximum delegation chain depth"
+    )
+    AGENT_RESPONSE_TIMEOUT: int = Field(
+        default=30,
+        description="Timeout for agent responses (seconds)"
+    )
+
     # Agent Settings
     AGENT_USE_REDIS_MEMORY: bool = Field(
         default=True,
@@ -111,27 +169,33 @@ class Settings(BaseSettings):
         return v
 
     # PINECONE
-    PINECONE_API_KEY: str = Field(..., description="Pinecone API key")
-    PINECONE_ENVIRONMENT: str = Field(..., description="Pinecone environment")
-    PINECONE_INDEX_NAME: str = Field(..., description="Pinecone index name")
+    PINECONE_API_KEY: str = Field(default="test-key", description="Pinecone API key")
+    PINECONE_ENVIRONMENT: str = Field(default="gcp-starter", description="Pinecone environment")
+    PINECONE_INDEX_NAME: str = Field(default="martin-index", description="Pinecone index name")
     EMBEDDING_MODEL: str = Field(default="text-embedding-3-small", description="Embedding model name")
     EMBEDDING_DIMENSION: int = Field(default=1536, description="Embedding dimension")
     
     # Email
     SMTP_SERVER: str = Field(default="localhost", description="SMTP server host")
-    SMTP_PORT: int = Field(default=1025, description="SMTP server port")
+    SMTP_PORT: int = Field(default=587, description="SMTP server port")
     SMTP_USER: Optional[str] = Field(default=None, description="SMTP username")
     SMTP_PASSWORD: Optional[str] = Field(default=None, description="SMTP password")
-    EMAILS_FROM_EMAIL: str = Field(default="martin@ecowas.int", description="Sender email address")
+    EMAILS_FROM_EMAIL: str = Field(default="martin@ecowas-summit.org", description="Sender email address")
     EMAILS_FROM_NAME: str = Field(default="Martin (ECOWAS Summit)", description="Sender name")
-    EMAILS_ENABLED: bool = Field(default=False, description="Whether emails are enabled")
-    SMTP_TLS: bool = Field(default=False, description="Whether to use TLS for SMTP")
-    
+    EMAILS_ENABLED: bool = Field(default=True, description="Whether emails are enabled")
+    SMTP_TLS: bool = Field(default=True, description="Whether to use TLS for SMTP")
+
     # Document Processing
-    CHUNK_SIZE: int = Field(default=1000, description="Document chunk size")
-    CHUNK_OVERLAP: int = Field(default=200, description="Document chunk overlap")
-    MAX_CHUNKS_PER_DOC: int = Field(default=100, description="Maximum chunks per document")
+    CHUNK_SIZE: int = Field(default=500, description="Document chunk size")
+    CHUNK_OVERLAP: int = Field(default=50, description="Document chunk overlap")
+    MAX_CHUNKS_PER_DOC: int = Field(default=1000, description="Maximum chunks per document")
     
+    @property
+    def cors_origins_list(self) -> list:
+        """Parse CORS_ORIGINS string into a list"""
+        if isinstance(self.CORS_ORIGINS, list):
+            return self.CORS_ORIGINS
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
     # Storage
     UPLOAD_DIR: str = Field(
         default="./uploads",

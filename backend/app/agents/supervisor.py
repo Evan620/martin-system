@@ -5,7 +5,7 @@ Central coordinator and orchestrator for all TWG agents.
 Routes requests, synthesizes outputs, and maintains global consistency.
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from loguru import logger
 from uuid import UUID
 
@@ -25,6 +25,9 @@ from backend.app.schemas.broadcast_messages import (
     create_document_broadcast
 )
 from datetime import datetime
+
+# Import email tools
+from app.tools import email_tools
 
 
 class SupervisorAgent(BaseAgent):
@@ -1182,6 +1185,346 @@ Format: 2-3 paragraphs in formal ministerial voice."""
             >>> print(f"Conflicts: {summary['total_conflicts']}")
         """
         return self.global_scheduler.get_scheduling_summary()
+
+    # =========================================================================
+    # EMAIL TOOLS INTEGRATION
+    # =========================================================================
+
+    async def send_email(
+        self,
+        to: Union[str, List[str]],
+        subject: str,
+        message: str,
+        html_body: Optional[str] = None,
+        cc: Optional[Union[str, List[str]]] = None,
+        bcc: Optional[Union[str, List[str]]] = None,
+        attachments: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Send an email via Gmail.
+
+        Args:
+            to: Recipient email address(es)
+            subject: Email subject
+            message: Plain text body
+            html_body: Optional HTML body
+            cc: Optional CC recipients
+            bcc: Optional BCC recipients
+            attachments: Optional file paths to attach
+
+        Returns:
+            Dict with status and message_id
+
+        Example:
+            >>> result = await supervisor.send_email(
+            ...     to="team@ecowas.org",
+            ...     subject="Summit Update",
+            ...     message="Latest summit preparations...",
+            ...     html_body="<h1>Summit Update</h1>..."
+            ... )
+        """
+        logger.info(f"Supervisor sending email to {to}: {subject}")
+        result = await email_tools.send_email(
+            to=to,
+            subject=subject,
+            message=message,
+            html_body=html_body,
+            cc=cc,
+            bcc=bcc,
+            attachments=attachments
+        )
+
+        if result.get('status') == 'success':
+            logger.info(f"✓ Email sent successfully: {result.get('message_id')}")
+        else:
+            logger.error(f"✗ Email failed: {result.get('error')}")
+
+        return result
+
+    async def send_meeting_summary_email(
+        self,
+        to: Union[str, List[str]],
+        meeting_data: Dict[str, Any],
+        cc: Optional[Union[str, List[str]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Send a formatted meeting summary email using template.
+
+        Args:
+            to: Recipient email address(es)
+            meeting_data: Dictionary with meeting details:
+                - meeting_date: Meeting date
+                - meeting_time: Meeting time
+                - duration: Duration
+                - participants: List of participants
+                - action_items: List of action items
+                - decisions: List of decisions made
+                - etc.
+            cc: Optional CC recipients
+
+        Returns:
+            Dict with status and message_id
+
+        Example:
+            >>> result = await supervisor.send_meeting_summary_email(
+            ...     to="twg-members@ecowas.org",
+            ...     meeting_data={
+            ...         "meeting_date": "December 26, 2025",
+            ...         "participants": ["Energy TWG", "Agriculture TWG"],
+            ...         "action_items": [{"description": "...", "owner": "...", "due_date": "..."}],
+            ...         "decisions": ["Approved energy roadmap"]
+            ...     }
+            ... )
+        """
+        subject = meeting_data.get('subject', f"Meeting Summary - {meeting_data.get('meeting_date', 'TBD')}")
+
+        logger.info(f"Supervisor sending meeting summary to {to}")
+        result = await email_tools.send_email_from_template(
+            template_name="meeting_summary",
+            to=to,
+            subject=subject,
+            variables=meeting_data,
+            cc=cc
+        )
+
+        if result.get('status') == 'success':
+            logger.info(f"✓ Meeting summary sent: {result.get('message_id')}")
+        else:
+            logger.error(f"✗ Meeting summary failed: {result.get('error')}")
+
+        return result
+
+    async def send_report_email(
+        self,
+        to: Union[str, List[str]],
+        report_data: Dict[str, Any],
+        subject: Optional[str] = None,
+        cc: Optional[Union[str, List[str]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Send a formatted report email using template.
+
+        Args:
+            to: Recipient email address(es)
+            report_data: Dictionary with report details:
+                - report_title: Report title
+                - generated_date: Generation date
+                - period: Report period
+                - summary: Executive summary
+                - metrics: List of {name, value} dicts
+                - data_sections: List of {title, content, items} dicts
+            subject: Optional custom subject (default: from report_title)
+            cc: Optional CC recipients
+
+        Returns:
+            Dict with status and message_id
+
+        Example:
+            >>> result = await supervisor.send_report_email(
+            ...     to="ministers@ecowas.org",
+            ...     report_data={
+            ...         "report_title": "Summit Readiness Report",
+            ...         "generated_date": "Dec 26, 2025",
+            ...         "summary": "All TWGs on track...",
+            ...         "metrics": [{"name": "Progress", "value": "85%"}]
+            ...     }
+            ... )
+        """
+        if not subject:
+            subject = report_data.get('report_title', 'Report')
+
+        logger.info(f"Supervisor sending report to {to}")
+        result = await email_tools.send_email_from_template(
+            template_name="report",
+            to=to,
+            subject=subject,
+            variables=report_data,
+            cc=cc
+        )
+
+        if result.get('status') == 'success':
+            logger.info(f"✓ Report sent: {result.get('message_id')}")
+        else:
+            logger.error(f"✗ Report failed: {result.get('error')}")
+
+        return result
+
+    async def send_notification_email(
+        self,
+        to: Union[str, List[str]],
+        heading: str,
+        message: str,
+        subject: Optional[str] = None,
+        details: Optional[str] = None,
+        action_url: Optional[str] = None,
+        action_text: Optional[str] = None,
+        cc: Optional[Union[str, List[str]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Send a notification email using template.
+
+        Args:
+            to: Recipient email address(es)
+            heading: Notification heading
+            message: Main message content
+            subject: Email subject (default: same as heading)
+            details: Optional details box content
+            action_url: Optional action button URL
+            action_text: Optional action button text
+            cc: Optional CC recipients
+
+        Returns:
+            Dict with status and message_id
+
+        Example:
+            >>> result = await supervisor.send_notification_email(
+            ...     to="twg-energy@ecowas.org",
+            ...     heading="New Document Available",
+            ...     message="The Summit Concept Note v2.0 has been finalized.",
+            ...     details="Please review by January 5, 2026",
+            ...     action_url="https://portal.ecowas.org/documents/concept-note",
+            ...     action_text="View Document"
+            ... )
+        """
+        if not subject:
+            subject = heading
+
+        variables = {
+            "title": subject,
+            "heading": heading,
+            "message": message
+        }
+
+        if details:
+            variables["details"] = details
+        if action_url:
+            variables["action_url"] = action_url
+        if action_text:
+            variables["action_text"] = action_text
+
+        logger.info(f"Supervisor sending notification to {to}")
+        result = await email_tools.send_email_from_template(
+            template_name="notification",
+            to=to,
+            subject=subject,
+            variables=variables,
+            cc=cc
+        )
+
+        if result.get('status') == 'success':
+            logger.info(f"✓ Notification sent: {result.get('message_id')}")
+        else:
+            logger.error(f"✗ Notification failed: {result.get('error')}")
+
+        return result
+
+    async def broadcast_email_to_all_twgs(
+        self,
+        subject: str,
+        message: str,
+        html_body: Optional[str] = None,
+        twg_emails: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Send an email to all registered TWG coordinators.
+
+        Args:
+            subject: Email subject
+            message: Plain text message
+            html_body: Optional HTML body
+            twg_emails: Optional dict mapping agent_id to email address.
+                       If None, uses default TWG email pattern.
+
+        Returns:
+            Dict mapping agent_id to send result
+
+        Example:
+            >>> results = await supervisor.broadcast_email_to_all_twgs(
+            ...     subject="Summit Preparations Update",
+            ...     message="All TWGs please submit final deliverables by Jan 15.",
+            ...     twg_emails={
+            ...         "energy": "twg-energy@ecowas.org",
+            ...         "agriculture": "twg-agriculture@ecowas.org"
+            ...     }
+            ... )
+        """
+        if twg_emails is None:
+            # Default email pattern
+            twg_emails = {
+                agent_id: f"twg-{agent_id}@ecowas.org"
+                for agent_id in self.get_registered_agents()
+            }
+
+        results = {}
+        logger.info(f"Broadcasting email to {len(twg_emails)} TWGs")
+
+        for agent_id, email in twg_emails.items():
+            try:
+                result = await email_tools.send_email(
+                    to=email,
+                    subject=f"[{agent_id.upper()} TWG] {subject}",
+                    message=message,
+                    html_body=html_body
+                )
+                results[agent_id] = result
+
+                if result.get('status') == 'success':
+                    logger.info(f"✓ Sent to {agent_id} TWG")
+                else:
+                    logger.warning(f"✗ Failed to send to {agent_id} TWG: {result.get('error')}")
+
+            except Exception as e:
+                logger.error(f"✗ Error sending to {agent_id} TWG: {e}")
+                results[agent_id] = {"status": "error", "error": str(e)}
+
+        successful = sum(1 for r in results.values() if r.get('status') == 'success')
+        logger.info(f"Broadcast complete: {successful}/{len(results)} emails sent successfully")
+
+        return results
+
+    async def search_emails(
+        self,
+        query: str,
+        max_results: int = 10,
+        include_body: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Search emails using Gmail query syntax.
+
+        Args:
+            query: Gmail search query
+            max_results: Max results to return
+            include_body: Include full email body
+
+        Returns:
+            Dict with search results
+
+        Example:
+            >>> results = await supervisor.search_emails(
+            ...     query="from:ministers@ecowas.org is:unread",
+            ...     max_results=20
+            ... )
+        """
+        logger.info(f"Supervisor searching emails: {query}")
+        return await email_tools.search_emails(
+            query=query,
+            max_results=max_results,
+            include_body=include_body
+        )
+
+    async def get_email_tools_status(self) -> Dict[str, Any]:
+        """
+        Get status of email tools integration.
+
+        Returns:
+            Dict with email tools status
+        """
+        return {
+            "email_tools_available": True,
+            "available_tools": [tool['name'] for tool in email_tools.EMAIL_TOOLS],
+            "tool_count": len(email_tools.EMAIL_TOOLS),
+            "templates_available": ["base", "notification", "report", "meeting_summary"]
+        }
 
 
 # Convenience function to create a supervisor agent

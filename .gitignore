@@ -80,6 +80,12 @@ frontend/build/
 .env.production
 .env.development
 
+# Gmail OAuth Credentials (SECURITY: Never commit these!)
+backend/credentials/gmail_credentials.json
+backend/credentials/gmail_token.json
+credentials/gmail_credentials.json
+credentials/gmail_token.json
+
 # Database
 *.db
 *.sqlite

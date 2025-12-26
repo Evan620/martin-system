@@ -196,6 +196,38 @@ class Settings(BaseSettings):
         if isinstance(self.CORS_ORIGINS, list):
             return self.CORS_ORIGINS
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+
+    # Email Settings (for future use)
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: Optional[int] = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    EMAIL_FROM: Optional[str] = None
+
+    # Gmail API Configuration
+    GMAIL_CREDENTIALS_FILE: str = Field(
+        default="./credentials/gmail_credentials.json",
+        description="Path to Gmail OAuth credentials file"
+    )
+    GMAIL_TOKEN_FILE: str = Field(
+        default="./credentials/gmail_token.json",
+        description="Path to Gmail token file"
+    )
+    GMAIL_SCOPES: List[str] = Field(
+        default=["https://mail.google.com/"],
+        description="Gmail API scopes"
+    )
+
+    # Email Templates
+    EMAIL_TEMPLATES_DIR: str = Field(
+        default="./app/templates/email",
+        description="Directory for email templates"
+    )
+    DEFAULT_EMAIL_FROM: Optional[str] = Field(
+        default=None,
+        description="Default sender email address"
+    )
+
     # Storage
     UPLOAD_DIR: str = Field(
         default="./uploads",

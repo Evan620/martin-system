@@ -36,7 +36,7 @@ from backend.app.agents.prompts import list_agents
 
 # Agent factory mapping
 AGENT_FACTORY = {
-    "supervisor": create_supervisor,
+    "supervisor": create_supervisor_with_tools,
     "energy": create_energy_agent,
     "agriculture": create_agriculture_agent,
     "minerals": create_minerals_agent,
@@ -503,8 +503,10 @@ Examples:
             try:
                 print(f"\033[92m{args.agent.title()}:\033[0m ", end="", flush=True)
 
-                # Use smart_chat for supervisor if available
-                if args.agent == "supervisor" and hasattr(agent, 'smart_chat'):
+                # Use chat_with_tools for supervisor (async), smart_chat or regular chat for others
+                if args.agent == "supervisor" and hasattr(agent, 'chat_with_tools'):
+                    response = asyncio.run(agent.chat_with_tools(user_input))
+                elif args.agent == "supervisor" and hasattr(agent, 'smart_chat'):
                     response = agent.smart_chat(user_input)
                 else:
                     response = agent.chat(user_input)

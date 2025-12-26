@@ -24,7 +24,7 @@ from loguru import logger
 import redis
 from redis.exceptions import RedisError, ConnectionError
 
-from app.schemas.agent_messages import (
+from backend.app.schemas.agent_messages import (
     AgentMessage,
     AgentEvent,
     MessageStatus,
@@ -486,7 +486,7 @@ class RedisMessageBus:
         Returns:
             Appropriate AgentMessage subclass
         """
-        from app.schemas.agent_messages import (
+        from backend.app.schemas.agent_messages import (
             DelegationRequest,
             AgentResponse,
             ErrorMessage

@@ -5,7 +5,7 @@ Unit tests for Redis-based conversation memory and state management.
 """
 
 import pytest
-from app.services.redis_memory import RedisMemoryService
+from backend.app.services.redis_memory import RedisMemoryService
 
 
 @pytest.fixture

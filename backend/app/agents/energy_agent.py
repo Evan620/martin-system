@@ -5,7 +5,7 @@ Expert advisor for Energy & Infrastructure Technical Working Group.
 Focuses on regional power integration and renewable energy transition.
 """
 
-from app.agents.base_agent import BaseAgent
+from backend.app.agents.base_agent import BaseAgent
 
 
 class EnergyAgent(BaseAgent):

@@ -25,6 +25,12 @@ class MeetingStatus(str, enum.Enum):
     CANCELLED = "cancelled"
     COMPLETED = "completed"
 
+class MinutesStatus(str, enum.Enum):
+    DRAFT = "draft"
+    REVIEW = "review"
+    APPROVED = "approved"
+    FINAL = "final"
+
 class ActionItemStatus(str, enum.Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
@@ -101,12 +107,42 @@ class MeetingBase(SchemaBase):
     location: Optional[str] = None
     status: MeetingStatus = MeetingStatus.SCHEDULED
     meeting_type: str = "virtual"
+    transcript: Optional[str] = None
 
 class MeetingCreate(MeetingBase):
     pass
 
+class MeetingUpdate(SchemaBase):
+    title: Optional[str] = None
+    scheduled_at: Optional[datetime] = None
+    duration_minutes: Optional[int] = None
+    location: Optional[str] = None
+    status: Optional[MeetingStatus] = None
+    meeting_type: Optional[str] = None
+    transcript: Optional[str] = None
+
 class MeetingRead(MeetingBase):
     id: uuid.UUID
+
+# --- Minutes Schemas ---
+
+class MinutesBase(SchemaBase):
+    content: str
+    key_decisions: Optional[str] = None
+    status: MinutesStatus = MinutesStatus.DRAFT
+
+class MinutesCreate(MinutesBase):
+    meeting_id: uuid.UUID
+
+class MinutesUpdate(SchemaBase):
+    content: Optional[str] = None
+    key_decisions: Optional[str] = None
+    status: Optional[MinutesStatus] = None
+
+class MinutesRead(MinutesBase):
+    id: uuid.UUID
+    meeting_id: uuid.UUID
+    created_at: datetime
 
 # --- Action Item Schemas ---
 
@@ -135,6 +171,7 @@ class ProjectBase(SchemaBase):
     currency: str = "USD"
     readiness_score: float = 0.0
     status: ProjectStatus = ProjectStatus.IDENTIFIED
+    investment_memo_id: Optional[uuid.UUID] = None
     metadata_json: Optional[dict] = None
 
 class ProjectCreate(ProjectBase):
@@ -182,3 +219,28 @@ class AuditLogRead(SchemaBase):
     details: Optional[dict] = None
     ip_address: Optional[str] = None
     created_at: datetime
+
+# --- Agent Interaction Schemas ---
+
+class AgentChatRequest(SchemaBase):
+    message: str
+    conversation_id: Optional[uuid.UUID] = None
+    twg_id: Optional[uuid.UUID] = None
+
+class AgentChatResponse(SchemaBase):
+    response: str
+    conversation_id: uuid.UUID
+    citations: List[dict] = []
+    agent_id: str
+
+class AgentTaskRequest(SchemaBase):
+    task_type: str # drafting, research, analysis, synthesis
+    twg_id: uuid.UUID
+    details: dict
+    title: str
+
+class AgentStatus(SchemaBase):
+    status: str
+    swarm_ready: bool
+    active_agents: List[str]
+    version: str

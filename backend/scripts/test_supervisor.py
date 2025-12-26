@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from loguru import logger
-from app.agents.supervisor import create_supervisor
+from backend.app.agents.supervisor import create_supervisor
 
 # Test queries for different scenarios
 TEST_QUERIES = {
@@ -234,7 +234,7 @@ def main():
 if __name__ == "__main__":
     # Check if Ollama is available
     print("\n🔍 Checking Ollama availability...")
-    from app.services.llm_service import get_llm_service
+    from backend.app.services.llm_service import get_llm_service
 
     llm = get_llm_service()
     if not llm.check_connection():

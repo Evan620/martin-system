@@ -19,18 +19,19 @@ import sys
 import argparse
 from pathlib import Path
 
-# Add parent directory to path so we can import app modules
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root directory to path to allow importing backend modules
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 from loguru import logger
-from app.agents.supervisor import create_supervisor
-from app.agents.energy_agent import create_energy_agent
-from app.agents.agriculture_agent import create_agriculture_agent
-from app.agents.minerals_agent import create_minerals_agent
-from app.agents.digital_agent import create_digital_agent
-from app.agents.protocol_agent import create_protocol_agent
-from app.agents.resource_mobilization_agent import create_resource_mobilization_agent
-from app.agents.prompts import list_agents
+from backend.app.agents.supervisor import create_supervisor
+from backend.app.agents.energy_agent import create_energy_agent
+from backend.app.agents.agriculture_agent import create_agriculture_agent
+from backend.app.agents.minerals_agent import create_minerals_agent
+from backend.app.agents.digital_agent import create_digital_agent
+from backend.app.agents.protocol_agent import create_protocol_agent
+from backend.app.agents.resource_mobilization_agent import create_resource_mobilization_agent
+from backend.app.agents.prompts import list_agents
 
 
 # Agent factory mapping

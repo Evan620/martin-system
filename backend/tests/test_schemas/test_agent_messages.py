@@ -10,7 +10,7 @@ import json
 from uuid import uuid4, UUID
 from datetime import datetime
 
-from app.schemas.agent_messages import (
+from backend.app.schemas.agent_messages import (
     MessageType,
     MessageStatus,
     MessagePriority,

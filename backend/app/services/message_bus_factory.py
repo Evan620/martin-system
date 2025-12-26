@@ -5,7 +5,7 @@ Provides singleton factory function for creating and accessing the
 RedisMessageBus instance with configuration from app settings.
 
 Usage:
-    from app.services.message_bus_factory import get_message_bus
+    from backend.app.services.message_bus_factory import get_message_bus
 
     message_bus = get_message_bus()
     message_bus.send_message(...)
@@ -17,8 +17,8 @@ from loguru import logger
 import redis
 from redis.exceptions import ConnectionError
 
-from app.services.redis_message_bus import RedisMessageBus
-from app.core.config import get_settings
+from backend.app.services.redis_message_bus import RedisMessageBus
+from backend.app.core.config import get_settings
 
 
 # Global singleton instance

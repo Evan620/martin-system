@@ -9,13 +9,13 @@ from typing import Dict, List, Optional, Any
 from loguru import logger
 from uuid import UUID
 
-from app.agents.base_agent import BaseAgent
-from app.services.broadcast_service import BroadcastService
-from app.services.conflict_detector import ConflictDetector
-from app.services.negotiation_service import NegotiationService
-from app.services.document_synthesizer import DocumentSynthesizer, DocumentType as SynthDocType, SynthesisStyle
-from app.services.global_scheduler import GlobalScheduler, EventType, EventPriority, ScheduledEvent
-from app.schemas.broadcast_messages import (
+from backend.app.agents.base_agent import BaseAgent
+from backend.app.services.broadcast_service import BroadcastService
+from backend.app.services.conflict_detector import ConflictDetector
+from backend.app.services.negotiation_service import NegotiationService
+from backend.app.services.document_synthesizer import DocumentSynthesizer, DocumentType as SynthDocType, SynthesisStyle
+from backend.app.services.global_scheduler import GlobalScheduler, EventType, EventPriority, ScheduledEvent
+from backend.app.schemas.broadcast_messages import (
     ContextBroadcast,
     DocumentBroadcast,
     BroadcastType,
@@ -112,12 +112,12 @@ class SupervisorAgent(BaseAgent):
         Automatically register all TWG agents.
         This creates instances of all available agents.
         """
-        from app.agents.energy_agent import create_energy_agent
-        from app.agents.agriculture_agent import create_agriculture_agent
-        from app.agents.minerals_agent import create_minerals_agent
-        from app.agents.digital_agent import create_digital_agent
-        from app.agents.protocol_agent import create_protocol_agent
-        from app.agents.resource_mobilization_agent import create_resource_mobilization_agent
+        from backend.app.agents.energy_agent import create_energy_agent
+        from backend.app.agents.agriculture_agent import create_agriculture_agent
+        from backend.app.agents.minerals_agent import create_minerals_agent
+        from backend.app.agents.digital_agent import create_digital_agent
+        from backend.app.agents.protocol_agent import create_protocol_agent
+        from backend.app.agents.resource_mobilization_agent import create_resource_mobilization_agent
 
         agents = {
             "energy": create_energy_agent(keep_history=False),

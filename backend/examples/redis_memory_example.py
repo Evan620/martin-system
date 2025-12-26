@@ -10,8 +10,8 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.services.redis_memory import get_redis_memory
-from app.agents.redis_agent import RedisAgent
+from backend.app.services.redis_memory import get_redis_memory
+from backend.app.agents.redis_agent import RedisAgent
 from loguru import logger
 
 

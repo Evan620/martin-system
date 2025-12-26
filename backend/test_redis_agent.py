@@ -7,9 +7,9 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from app.agents.supervisor import create_supervisor
-from app.services.redis_memory import get_redis_memory
-from app.services.redis_factory import create_redis_memory_from_config
+from backend.app.agents.supervisor import create_supervisor
+from backend.app.services.redis_memory import get_redis_memory
+from backend.app.services.redis_factory import create_redis_memory_from_config
 import os
 
 def main():

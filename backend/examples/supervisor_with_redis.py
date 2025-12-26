@@ -12,7 +12,7 @@ import uuid
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.agents.supervisor import create_supervisor
+from backend.app.agents.supervisor import create_supervisor
 from loguru import logger
 
 
@@ -110,7 +110,7 @@ def main():
 
     print("\n📚 To use in your application:")
     print("""
-    from app.agents.supervisor import create_supervisor
+    from backend.app.agents.supervisor import create_supervisor
 
     # Create with Redis memory
     supervisor = create_supervisor(

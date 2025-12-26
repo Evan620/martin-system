@@ -108,3 +108,18 @@ async def test_document_ingestion_api(client: AsyncClient, admin_token_headers):
     bogus_id = str(uuid.uuid4())
     response = await client.post(f"{settings.API_V1_STR}/documents/{bogus_id}/ingest", headers=admin_token_headers)
     assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_agent_interaction(client: AsyncClient, admin_token_headers):
+    """Test Agent API skeleton endpoints."""
+    # 1. Check status
+    response = await client.get(f"{settings.API_V1_STR}/agents/status", headers=admin_token_headers)
+    assert response.status_code == 200
+    assert response.json()["status"] == "operational"
+    
+    # 2. Test chat
+    chat_data = {"message": "Hello Martin", "twg_id": str(uuid.uuid4())}
+    response = await client.post(f"{settings.API_V1_STR}/agents/chat", json=chat_data, headers=admin_token_headers)
+    assert response.status_code == 200
+    assert "citations" in response.json()
+    assert "conversation_id" in response.json()

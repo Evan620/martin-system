@@ -2,21 +2,69 @@ import { useState } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { ThemeToggle, Avatar } from '../components/ui'
 import FloatingChatbot from '../components/FloatingChatbot'
+import { useAppSelector } from '../hooks/useRedux'
+import { UserRole } from '../types/auth'
 
 export default function DashboardLayout() {
     const [sidebarOpen, setSidebarOpen] = useState(true)
     const location = useLocation()
 
+    const { user } = useAppSelector((state) => state.auth)
+
     const navigation = [
-        { name: 'Dashboard', path: '/dashboard', icon: DashboardIcon },
-        { name: 'My TWGs', path: '/my-twgs', icon: WorkspaceIcon },
-        { name: 'Documents', path: '/documents', icon: DocumentIcon },
-        { name: 'Summit Schedule', path: '/schedule', icon: CalendarIcon },
-        { name: 'Knowledge Base', path: '/knowledge-base', icon: SearchIcon },
-        { name: 'Deal Pipeline', path: '/deal-pipeline', icon: PipelineIcon },
-        { name: 'Action Items', path: '/actions', icon: TaskIcon },
-        { name: 'Settings', path: '/integrations', icon: SettingsIcon },
+        {
+            name: 'Dashboard',
+            path: '/dashboard',
+            icon: DashboardIcon,
+            roles: [UserRole.ADMIN, UserRole.FACILITATOR, UserRole.MEMBER, UserRole.SECRETARIAT_LEAD]
+        },
+        {
+            name: 'My TWGs',
+            path: '/my-twgs',
+            icon: WorkspaceIcon,
+            roles: [UserRole.ADMIN, UserRole.FACILITATOR, UserRole.MEMBER, UserRole.SECRETARIAT_LEAD]
+        },
+        {
+            name: 'Documents',
+            path: '/documents',
+            icon: DocumentIcon,
+            roles: [UserRole.ADMIN, UserRole.FACILITATOR, UserRole.MEMBER, UserRole.SECRETARIAT_LEAD]
+        },
+        {
+            name: 'Summit Schedule',
+            path: '/schedule',
+            icon: CalendarIcon,
+            roles: [UserRole.ADMIN, UserRole.FACILITATOR, UserRole.MEMBER, UserRole.SECRETARIAT_LEAD]
+        },
+        {
+            name: 'Knowledge Base',
+            path: '/knowledge-base',
+            icon: SearchIcon,
+            roles: [UserRole.ADMIN, UserRole.FACILITATOR, UserRole.SECRETARIAT_LEAD] // Hidden for members? Optional 
+        },
+        {
+            name: 'Deal Pipeline',
+            path: '/deal-pipeline',
+            icon: PipelineIcon,
+            roles: [UserRole.ADMIN, UserRole.FACILITATOR, UserRole.SECRETARIAT_LEAD] // Hidden for members
+        },
+        {
+            name: 'Action Items',
+            path: '/actions',
+            icon: TaskIcon,
+            roles: [UserRole.ADMIN, UserRole.FACILITATOR, UserRole.MEMBER, UserRole.SECRETARIAT_LEAD]
+        },
+        {
+            name: 'Settings',
+            path: '/integrations',
+            icon: SettingsIcon,
+            roles: [UserRole.ADMIN] // Admin only
+        },
     ]
+
+    const filteredNavigation = navigation.filter(item =>
+        user && item.roles.includes(user.role as UserRole)
+    )
 
     return (
         <div className="flex h-screen bg-slate-50 dark:bg-dark-bg">
@@ -41,7 +89,7 @@ export default function DashboardLayout() {
 
                 {/* Navigation */}
                 <nav className="flex-1 px-3 py-4 space-y-1">
-                    {navigation.map((item) => {
+                    {filteredNavigation.map((item) => {
                         const isActive = location.pathname === item.path
                         const Icon = item.icon
                         return (
@@ -127,8 +175,8 @@ export default function DashboardLayout() {
                 </main>
             </div>
 
-            {/* Floating Chatbot */}
-            <FloatingChatbot />
+            {/* Floating Chatbot - Only for non-members */}
+            {user?.role !== UserRole.MEMBER && <FloatingChatbot />}
         </div>
     )
 }

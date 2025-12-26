@@ -12,6 +12,8 @@ from backend.app.core.database import get_db
 from backend.app.models.models import Document, User
 from backend.app.schemas.schemas import DocumentRead
 from backend.app.api.deps import get_current_active_user, has_twg_access
+from backend.app.core.knowledge_base import get_knowledge_base
+from backend.app.utils.document_processor import get_document_processor
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -109,3 +111,86 @@ async def download_document(
         raise HTTPException(status_code=404, detail="File on disk not found")
         
     return FileResponse(path=db_doc.file_path, filename=db_doc.file_name, media_type=db_doc.file_type)
+
+@router.post("/{doc_id}/ingest", status_code=status.HTTP_200_OK)
+async def ingest_document(
+    doc_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Ingest a document into the vector database (Pinecone).
+    """
+    result = await db.execute(select(Document).where(Document.id == doc_id))
+    db_doc = result.scalar_one_or_none()
+    
+    if not db_doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+        
+    if not has_twg_access(current_user, db_doc.twg_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    processor = get_document_processor()
+    kb = get_knowledge_base()
+
+    try:
+        # Process document
+        processed = processor.process_document(
+            db_doc.file_path,
+            additional_metadata={
+                'twg_id': str(db_doc.twg_id),
+                'doc_id': str(db_doc.id),
+                'file_name': db_doc.file_name
+            }
+        )
+        
+        if processed['status'] != 'success':
+            raise HTTPException(status_code=500, detail=f"Processing failed: {processed.get('error')}")
+
+        # Prepare chunks for Pinecone
+        documents = []
+        for i, chunk in enumerate(processed['chunks']):
+            documents.append({
+                'id': f"{db_doc.id}_chunk_{i}",
+                'text': chunk['text'],
+                'metadata': chunk['metadata']
+            })
+
+        # Upsert to Pinecone
+        namespace = f"twg-{str(db_doc.twg_id)}"
+        upsert_result = kb.upsert_documents(documents=documents, namespace=namespace)
+
+        return {
+            "status": "success",
+            "chunks_ingested": upsert_result['total_upserted'],
+            "namespace": namespace
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
+
+@router.get("/search", response_model=List[dict])
+async def search_documents_content(
+    query: str,
+    twg_id: Optional[uuid.UUID] = None,
+    limit: int = 5,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Search document content using vector similarity.
+    """
+    kb = get_knowledge_base()
+    
+    namespace = None
+    if twg_id:
+        if not has_twg_access(current_user, twg_id):
+            raise HTTPException(status_code=403, detail="Access denied to this TWG")
+        namespace = f"twg-{str(twg_id)}"
+
+    # If no TWG specified, we could search across all user's TWGs
+    # But for now, require twg_id or admin (simpler)
+    if not twg_id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=400, detail="twg_id is required for non-admin search")
+
+    results = kb.search(query=query, namespace=namespace, top_k=limit)
+    return results

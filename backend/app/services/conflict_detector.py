@@ -10,7 +10,7 @@ from datetime import datetime, UTC
 from loguru import logger
 import re
 
-from app.schemas.broadcast_messages import (
+from backend.app.schemas.broadcast_messages import (
     ConflictAlert,
     NegotiationRequest,
     create_conflict_alert,

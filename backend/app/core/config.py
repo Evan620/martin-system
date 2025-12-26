@@ -53,7 +53,7 @@ class Settings(BaseSettings):
         description="LLM sampling temperature"
     )
     LLM_TIMEOUT: int = Field(
-        default=30,
+        default=300,
         description="LLM request timeout in seconds"
     )
     
@@ -168,6 +168,28 @@ class Settings(BaseSettings):
             return [i.strip() for i in v.split(",")]
         return v
 
+    # PINECONE
+    PINECONE_API_KEY: str = Field(default="test-key", description="Pinecone API key")
+    PINECONE_ENVIRONMENT: str = Field(default="gcp-starter", description="Pinecone environment")
+    PINECONE_INDEX_NAME: str = Field(default="martin-index", description="Pinecone index name")
+    EMBEDDING_MODEL: str = Field(default="text-embedding-3-small", description="Embedding model name")
+    EMBEDDING_DIMENSION: int = Field(default=1536, description="Embedding dimension")
+    
+    # Email
+    SMTP_SERVER: str = Field(default="localhost", description="SMTP server host")
+    SMTP_PORT: int = Field(default=587, description="SMTP server port")
+    SMTP_USER: Optional[str] = Field(default=None, description="SMTP username")
+    SMTP_PASSWORD: Optional[str] = Field(default=None, description="SMTP password")
+    EMAILS_FROM_EMAIL: str = Field(default="martin@ecowas-summit.org", description="Sender email address")
+    EMAILS_FROM_NAME: str = Field(default="Martin (ECOWAS Summit)", description="Sender name")
+    EMAILS_ENABLED: bool = Field(default=True, description="Whether emails are enabled")
+    SMTP_TLS: bool = Field(default=True, description="Whether to use TLS for SMTP")
+
+    # Document Processing
+    CHUNK_SIZE: int = Field(default=500, description="Document chunk size")
+    CHUNK_OVERLAP: int = Field(default=50, description="Document chunk overlap")
+    MAX_CHUNKS_PER_DOC: int = Field(default=1000, description="Maximum chunks per document")
+    
     @property
     def cors_origins_list(self) -> list:
         """Parse CORS_ORIGINS string into a list"""
@@ -215,12 +237,6 @@ class Settings(BaseSettings):
         default=10485760,  # 10MB
         description="Maximum upload size in bytes"
     )
-    
-    # Vector DB
-    PINECONE_API_KEY: Optional[str] = None
-    PINECONE_ENVIRONMENT: Optional[str] = None
-    PINECONE_INDEX_NAME: Optional[str] = None
-
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
@@ -243,3 +259,5 @@ def get_settings() -> Settings:
     if _settings is None:
         _settings = Settings()
     return _settings
+
+settings = get_settings()

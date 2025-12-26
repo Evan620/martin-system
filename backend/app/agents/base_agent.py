@@ -12,8 +12,8 @@ Provides common functionality for all TWG agents including:
 from typing import List, Dict, Optional
 from loguru import logger
 
-from app.services.llm_service import get_llm_service
-from app.agents.prompts import get_prompt
+from backend.app.services.llm_service import get_llm_service
+from backend.app.agents.prompts import get_prompt
 
 
 class BaseAgent:
@@ -64,7 +64,7 @@ class BaseAgent:
         self.redis_memory = None
         if self.use_redis:
             try:
-                from app.services.redis_memory import get_redis_memory
+                from backend.app.services.redis_memory import get_redis_memory
                 self.redis_memory = get_redis_memory()
 
                 # Load existing history from Redis

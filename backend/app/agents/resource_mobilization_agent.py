@@ -5,7 +5,7 @@ Expert coordinator for Resource Mobilization.
 Manages investment pipeline and Deal Room for flagship projects.
 """
 
-from app.agents.base_agent import BaseAgent
+from backend.app.agents.base_agent import BaseAgent
 
 
 class ResourceMobilizationAgent(BaseAgent):

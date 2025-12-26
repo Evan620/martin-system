@@ -10,7 +10,7 @@ from datetime import datetime, UTC
 from loguru import logger
 from uuid import UUID
 
-from app.schemas.broadcast_messages import (
+from backend.app.schemas.broadcast_messages import (
     BroadcastMessage,
     BroadcastType,
     BroadcastPriority,

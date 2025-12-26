@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from typing import List
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc
+from typing import List, Optional
 import uuid
 
 from backend.app.core.database import get_db
@@ -38,18 +39,17 @@ async def list_projects(
     limit: int = 100,
     twg_id: uuid.UUID = None,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    sort_by: Optional[str] = None # "score_desc", "date_desc"
 ):
     """
     List projects. Optional filter by TWG.
+    Optional sorting by readiness_score (Top 20 logic).
     """
     query = select(Project).offset(skip).limit(limit)
     
     if twg_id:
         query = query.where(Project.twg_id == twg_id)
-        # If user is not admin, ensure they have access to this TWG (optional strictness)
-        # For now, simplistic read access for all authenticated users to see projects?
-        # Let's enforce visibility if not admin.
     
     if current_user.role != UserRole.ADMIN:
         # Filter to only show projects from TWGs the user belongs to
@@ -59,6 +59,12 @@ async def list_projects(
                  raise HTTPException(status_code=403, detail="Access denied to this TWG's projects")
         else:
             query = query.where(Project.twg_id.in_(user_twg_ids))
+            
+    # Sorting logic
+    if sort_by == "score_desc":
+        query = query.order_by(desc(Project.readiness_score))
+    elif sort_by == "date_desc":
+        query = query.order_by(desc(Project.created_at))
             
     result = await db.execute(query)
     return result.scalars().all()
@@ -103,6 +109,36 @@ async def update_project(
     update_data = project_in.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_project, key, value)
+        
+    await db.commit()
+    await db.refresh(db_project)
+    return db_project
+
+@router.put("/{project_id}/score", response_model=ProjectRead)
+async def update_project_score(
+    project_id: uuid.UUID,
+    score: float,
+    current_user: User = Depends(require_facilitator),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update the readiness score of a project (AfCEN algorithm result).
+    """
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    db_project = result.scalar_one_or_none()
+    
+    if not db_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+        
+    if not has_twg_access(current_user, db_project.twg_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    db_project.readiness_score = score
+    
+    # Auto-update status based on score thresholds (Example logic)
+    if score >= 80.0:
+        from backend.app.models.models import ProjectStatus
+        db_project.status = ProjectStatus.BANKABLE
         
     await db.commit()
     await db.refresh(db_project)

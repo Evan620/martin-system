@@ -5,7 +5,7 @@ Expert advisor for Critical Minerals & Industrialization Technical Working Group
 Focuses on mining value chain development and industrial transformation.
 """
 
-from app.agents.base_agent import BaseAgent
+from backend.app.agents.base_agent import BaseAgent
 
 
 class MineralsAgent(BaseAgent):

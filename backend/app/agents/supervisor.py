@@ -13,6 +13,8 @@ from app.agents.base_agent import BaseAgent
 from app.services.broadcast_service import BroadcastService
 from app.services.conflict_detector import ConflictDetector
 from app.services.negotiation_service import NegotiationService
+from app.services.document_synthesizer import DocumentSynthesizer, DocumentType as SynthDocType, SynthesisStyle
+from app.services.global_scheduler import GlobalScheduler, EventType, EventPriority, ScheduledEvent
 from app.schemas.broadcast_messages import (
     ContextBroadcast,
     DocumentBroadcast,
@@ -22,6 +24,7 @@ from app.schemas.broadcast_messages import (
     create_context_broadcast,
     create_document_broadcast
 )
+from datetime import datetime
 
 
 class SupervisorAgent(BaseAgent):
@@ -59,6 +62,10 @@ class SupervisorAgent(BaseAgent):
         self.broadcast_service = BroadcastService()
         self.conflict_detector = ConflictDetector(llm_client=self.llm)
         self.negotiation_service = NegotiationService(supervisor_llm=self.llm)
+
+        # Initialize document synthesis and scheduling services
+        self.document_synthesizer = DocumentSynthesizer(llm_client=self.llm)
+        self.global_scheduler = GlobalScheduler()
 
         # Agent domain keywords for intelligent routing
         # Primary keywords (strong signals) and secondary keywords (weak signals)
@@ -926,6 +933,255 @@ I have consulted {len(responses)} TWG agents and received these responses:
     def get_negotiation_summary(self) -> Dict[str, Any]:
         """Get summary of all negotiations"""
         return self.negotiation_service.get_negotiation_summary()
+
+    # =========================================================================
+    # DOCUMENT SYNTHESIS
+    # =========================================================================
+
+    def synthesize_declaration(
+        self,
+        title: str = "ECOWAS Summit 2026 Declaration",
+        preamble: Optional[str] = None,
+        knowledge_base: Optional[Dict[str, Any]] = None,
+        collect_from_twgs: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Synthesize TWG sections into a coherent Declaration.
+
+        This compiles disparate TWG outputs into a unified document with:
+        - Consistent voice and terminology
+        - Proper formatting
+        - Citation of sources
+        - One coherent narrative
+
+        Args:
+            title: Declaration title
+            preamble: Optional preamble text
+            knowledge_base: Knowledge base for citation verification
+            collect_from_twgs: If True, automatically collect sections from TWGs
+
+        Returns:
+            Dict with synthesized declaration and metadata
+
+        Example:
+            >>> # Collect sections from all TWGs
+            >>> result = supervisor.synthesize_declaration(
+            ...     title="ECOWAS Summit 2026 Declaration",
+            ...     collect_from_twgs=True
+            ... )
+            >>> print(result['document'])
+            >>> print(f"Coherence: {result['metadata']['coherence_score']:.1%}")
+        """
+        logger.info("Synthesizing Declaration from TWG sections")
+
+        # Collect sections from TWGs if requested
+        if collect_from_twgs:
+            twg_sections = self._collect_declaration_sections()
+        else:
+            # Use placeholder - would be provided by user
+            twg_sections = {}
+
+        # Synthesize using document synthesizer
+        result = self.document_synthesizer.synthesize_declaration(
+            twg_sections=twg_sections,
+            title=title,
+            preamble=preamble,
+            knowledge_base=knowledge_base
+        )
+
+        logger.info(
+            f"✓ Declaration synthesized: {result['metadata']['word_count']} words, "
+            f"{len(twg_sections)} sections, "
+            f"coherence: {result['metadata']['coherence_score']:.1%}"
+        )
+
+        return result
+
+    def _collect_declaration_sections(self) -> Dict[str, str]:
+        """Collect Declaration draft sections from all TWGs"""
+        sections = {}
+
+        query = """Please provide your draft section for the ECOWAS Summit 2026 Declaration.
+
+Include:
+- Key commitments and policy directions
+- Specific targets and timelines
+- Expected outcomes
+- Resource mobilization needs
+
+Format: 2-3 paragraphs in formal ministerial voice."""
+
+        for agent_id in self.get_registered_agents():
+            try:
+                logger.info(f"Collecting Declaration section from {agent_id}...")
+                response = self.delegate_to_agent(agent_id, query)
+
+                if response:
+                    sections[agent_id] = response
+                    logger.info(f"✓ Received section from {agent_id}")
+
+            except Exception as e:
+                logger.error(f"Failed to collect from {agent_id}: {e}")
+
+        return sections
+
+    def add_terminology_standard(
+        self,
+        twg_id: str,
+        abbreviation: str,
+        full_term: str
+    ) -> None:
+        """
+        Add a terminology standard for consistent usage across documents.
+
+        Example:
+            >>> supervisor.add_terminology_standard(
+            ...     twg_id="energy",
+            ...     abbreviation="WAPP",
+            ...     full_term="West African Power Pool"
+            ... )
+        """
+        self.document_synthesizer.add_terminology_standard(
+            twg_id, abbreviation, full_term
+        )
+
+    # =========================================================================
+    # GLOBAL SCHEDULING
+    # =========================================================================
+
+    def schedule_event(
+        self,
+        event_type: str,
+        title: str,
+        start_time: datetime,
+        duration_minutes: int,
+        required_twgs: List[str],
+        priority: str = "medium",
+        description: Optional[str] = None,
+        optional_twgs: Optional[List[str]] = None,
+        vip_attendees: Optional[List[str]] = None,
+        location: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Schedule a cross-TWG event with conflict detection.
+
+        This ensures proper sequencing, prevents overlaps, and coordinates
+        VIP engagements across multiple TWGs.
+
+        Args:
+            event_type: Type (ministerial_prep, vip_engagement, etc.)
+            title: Event title
+            start_time: Start time
+            duration_minutes: Duration in minutes
+            required_twgs: TWGs that must participate
+            priority: Priority level (critical, high, medium, low)
+            description: Event description
+            optional_twgs: Optional TWG participants
+            vip_attendees: VIP attendees
+            location: Event location
+
+        Returns:
+            Dict with scheduling result and any conflicts
+
+        Example:
+            >>> result = supervisor.schedule_event(
+            ...     event_type="ministerial_prep",
+            ...     title="Pre-Summit Ministerial Coordination",
+            ...     start_time=datetime(2026, 3, 15, 14, 0),
+            ...     duration_minutes=180,
+            ...     required_twgs=["energy", "agriculture", "minerals"],
+            ...     priority="critical",
+            ...     vip_attendees=["Minister of Energy"]
+            ... )
+            >>> if result['status'] == 'conflict':
+            ...     print(f"Conflicts: {result['conflicts']}")
+            ...     print(f"Alternatives: {result['alternative_times']}")
+        """
+        # Convert string enums
+        event_type_enum = EventType(event_type)
+        priority_enum = EventPriority(priority)
+
+        result = self.global_scheduler.schedule_event(
+            event_type=event_type_enum,
+            title=title,
+            start_time=start_time,
+            duration_minutes=duration_minutes,
+            required_twgs=required_twgs,
+            priority=priority_enum,
+            description=description,
+            optional_twgs=optional_twgs,
+            vip_attendees=vip_attendees,
+            location=location
+        )
+
+        if result['status'] == 'scheduled':
+            logger.info(f"✓ Scheduled: {title}")
+        else:
+            logger.warning(f"⚠️ Scheduling conflict: {title}")
+
+        return result
+
+    def get_twg_schedule(
+        self,
+        twg_id: str,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> List[ScheduledEvent]:
+        """
+        Get schedule for a specific TWG.
+
+        Example:
+            >>> events = supervisor.get_twg_schedule(
+            ...     twg_id="energy",
+            ...     start_date=datetime(2026, 3, 1),
+            ...     end_date=datetime(2026, 3, 31)
+            ... )
+            >>> for event in events:
+            ...     print(f"{event.title}: {event.start_time}")
+        """
+        return self.global_scheduler.get_twg_schedule(
+            twg_id, start_date, end_date
+        )
+
+    def get_global_schedule(
+        self,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> List[ScheduledEvent]:
+        """
+        Get global schedule across all TWGs.
+
+        Example:
+            >>> schedule = supervisor.get_global_schedule(
+            ...     start_date=datetime(2026, 3, 1)
+            ... )
+            >>> print(f"Total events: {len(schedule)}")
+        """
+        return self.global_scheduler.get_global_schedule(
+            start_date, end_date
+        )
+
+    def detect_schedule_conflicts(self) -> List[Any]:
+        """
+        Detect all scheduling conflicts.
+
+        Example:
+            >>> conflicts = supervisor.detect_schedule_conflicts()
+            >>> for conflict in conflicts:
+            ...     print(f"{conflict.severity}: {conflict.description}")
+        """
+        return self.global_scheduler.detect_all_conflicts()
+
+    def get_scheduling_summary(self) -> Dict[str, Any]:
+        """
+        Get summary of current schedule.
+
+        Example:
+            >>> summary = supervisor.get_scheduling_summary()
+            >>> print(f"Total events: {summary['total_events']}")
+            >>> print(f"Conflicts: {summary['total_conflicts']}")
+        """
+        return self.global_scheduler.get_scheduling_summary()
 
 
 # Convenience function to create a supervisor agent

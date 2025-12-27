@@ -9,8 +9,13 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-    const { user, token } = useAppSelector((state) => state.auth)
+    const { user, token, initialCheckDone } = useAppSelector((state) => state.auth)
     const location = useLocation()
+
+    // If initial check is not done and there is a token, wait (don't redirect yet)
+    if (!initialCheckDone && token) {
+        return null // App.tsx handles the global loader, so we can return null here
+    }
 
     if (!token) {
         // Redirect to login page but save the attempted location

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Button, Input } from '../../components/ui'
 import { useAppDispatch } from '../../hooks/useRedux'
-import { setCredentials, setError } from '../../store/slices/authSlice'
+import { setCredentials, setToken, setError } from '../../store/slices/authSlice'
 import { authService } from '../../services/auth'
 
 export default function Login() {
@@ -28,21 +28,13 @@ export default function Login() {
             // Let's check auth.py: login returns only tokens.
             // So we need to fetch /auth/me after login.
 
-            // Set token first so api interceptor can use it
-            // We'll define a temporary user object or fetch it immediately
-
             // Store token temporarily to allow fetching profile
             localStorage.setItem('token', response.access_token)
 
-            // Fetch current user
-            // Note: Since we updated api.ts to read from store, we might need to dispatch token first
-            // But dispatch requires a User object. 
-            // Workaround: Use the raw axios or manual header for the /me call, OR 
-            // dispatch a partial state if our slice allows (it doesn't easily).
-            // Actually, best approach: Update authSlice to allow setting token without user, 
-            // OR fetch user using the token explicitly.
+            // Dispatch token to store so api interceptor can use it for subsequent calls
+            dispatch(setToken(response.access_token))
 
-            // Let's assume we can fetch 'me' by creating a temporary config with header
+            // Fetch current user
             const user = await authService.getCurrentUser()
 
             dispatch(setCredentials({

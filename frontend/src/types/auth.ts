@@ -21,6 +21,7 @@ export interface AuthState {
     isAuthenticated: boolean;
     loading: boolean;
     error: string | null;
+    initialCheckDone: boolean;
 }
 
 export interface UserRegister {

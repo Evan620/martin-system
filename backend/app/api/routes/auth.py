@@ -11,6 +11,7 @@ from backend.app.core.database import get_db
 from backend.app.schemas.auth import (
     UserRegister,
     UserLogin,
+    GoogleLogin,
     Token,
     TokenRefresh,
     AccessToken,
@@ -45,7 +46,7 @@ async def register(
     user, access_token, refresh_token = await auth_service.register_user(user_data)
     
     return UserWithToken(
-        user=UserResponse.from_orm(user),
+        user=UserResponse.model_validate(user),
         access_token=access_token,
         refresh_token=refresh_token
     )
@@ -107,6 +108,29 @@ async def logout(
     return None
 
 
+
+
+@router.post("/google", response_model=Token)
+async def google_login(
+    google_data: GoogleLogin,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Authenticate user via Google.
+    
+    - **id_token**: Google ID token obtained from frontend
+    
+    Returns access and refresh tokens.
+    """
+    auth_service = AuthService(db)
+    user, access_token, refresh_token = await auth_service.authenticate_google_user(google_data.id_token)
+    
+    return Token(
+        access_token=access_token,
+        refresh_token=refresh_token
+    )
+
+
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
     current_user: User = Depends(get_current_active_user)
@@ -116,7 +140,7 @@ async def get_current_user_info(
     
     Requires valid access token in Authorization header.
     """
-    return UserResponse.from_orm(current_user)
+    return UserResponse.model_validate(current_user)
 
 
 @router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)

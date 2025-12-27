@@ -43,6 +43,11 @@ class UserLogin(BaseModel):
     password: str
 
 
+class GoogleLogin(BaseModel):
+    """Schema for Google login."""
+    id_token: str
+
+
 class Token(BaseModel):
     """Schema for token response."""
     access_token: str
@@ -104,3 +109,11 @@ class UserWithToken(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+
+
+class UserUpdate(BaseModel):
+    """Schema for updating user data (Admin only)."""
+    full_name: Optional[str] = None
+    role: Optional[UserRole] = None
+    organization: Optional[str] = None
+    is_active: Optional[bool] = None

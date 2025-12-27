@@ -150,6 +150,10 @@ class Settings(BaseSettings):
         default=7,
         description="Refresh token expiration in days"
     )
+
+    # Google OAuth
+    GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, description="Google OAuth Client ID")
+    GOOGLE_CLIENT_SECRET: Optional[str] = Field(default=None, description="Google OAuth Client Secret")
     
     # Password Policy
     PASSWORD_MIN_LENGTH: int = 8

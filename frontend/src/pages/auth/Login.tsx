@@ -1,9 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Button, Input } from '../../components/ui'
 import { useAppDispatch } from '../../hooks/useRedux'
 import { setCredentials, setToken, setError } from '../../store/slices/authSlice'
 import { authService } from '../../services/auth'
+
+declare global {
+    interface Window {
+        google: any;
+    }
+}
 
 export default function Login() {
     const [email, setEmail] = useState('')
@@ -12,6 +18,48 @@ export default function Login() {
     const [loginError, setLoginError] = useState<string | null>(null)
     const navigate = useNavigate()
     const dispatch = useAppDispatch()
+
+    useEffect(() => {
+        // Initialize Google Login
+        if (window.google) {
+            window.google.accounts.id.initialize({
+                client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+                callback: handleGoogleLogin,
+            });
+            window.google.accounts.id.renderButton(
+                document.getElementById("googleSync"),
+                { theme: "dark", size: "large", width: "250" }
+            );
+        }
+    }, []);
+
+    const handleGoogleLogin = async (response: any) => {
+        setIsLoading(true);
+        setLoginError(null);
+        try {
+            const result = await authService.loginWithGoogle(response.credential);
+
+            localStorage.setItem('token', result.access_token);
+            dispatch(setToken(result.access_token));
+
+            const user = await authService.getCurrentUser();
+            dispatch(setCredentials({
+                user: user,
+                token: result.access_token
+            }));
+
+            navigate('/dashboard');
+        } catch (err: any) {
+            console.error('Google login failed', err);
+            if (err.response?.status === 403) {
+                navigate('/pending-approval');
+            } else {
+                setLoginError('Google authentication failed. Please try again.');
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -45,9 +93,13 @@ export default function Login() {
             navigate('/dashboard')
         } catch (err: any) {
             console.error('Login failed', err)
-            const errorMessage = err.response?.data?.detail || 'Invalid email or password. Please try again.'
-            setLoginError(errorMessage)
-            dispatch(setError(errorMessage))
+            if (err.response?.status === 403) {
+                navigate('/pending-approval')
+            } else {
+                const errorMessage = err.response?.data?.detail || 'Invalid email or password. Please try again.'
+                setLoginError(errorMessage)
+                dispatch(setError(errorMessage))
+            }
         } finally {
             setIsLoading(false)
         }
@@ -150,16 +202,26 @@ export default function Login() {
                             </div>
                         </div>
 
-                        <Button
-                            type="submit"
-                            isLoading={isLoading}
-                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
-                        >
-                            Access Dashboard
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                            </svg>
-                        </Button>
+                        <div className="space-y-4">
+                            <Button
+                                type="submit"
+                                isLoading={isLoading}
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
+                            >
+                                Access Dashboard
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                            </Button>
+
+                            <div className="relative flex items-center gap-4">
+                                <div className="flex-1 h-px bg-slate-800"></div>
+                                <span className="text-xs text-slate-500 font-medium">OR</span>
+                                <div className="flex-1 h-px bg-slate-800"></div>
+                            </div>
+
+                            <div id="googleSync" className="w-full flex justify-center"></div>
+                        </div>
                     </form>
 
                     <div className="text-center">

@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi import HTTPException, status
 import uuid
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 from backend.app.models.models import User, RefreshToken, UserRole
 from backend.app.schemas.auth import UserRegister, UserLogin
@@ -96,7 +98,7 @@ class AuthService:
             full_name=user_data.full_name,
             role=user_data.role,
             organization=user_data.organization,
-            is_active=True
+            is_active=False
         )
         
         self.db.add(new_user)
@@ -161,6 +163,80 @@ class AuthService:
         await self._store_refresh_token(user.id, refresh_token_str)
         
         return user, access_token, refresh_token_str
+
+    async def authenticate_google_user(self, google_id_token: str) -> Tuple[User, str, str]:
+        """
+        Authenticate user via Google ID token.
+        
+        Args:
+            google_id_token: Google ID token from frontend
+            
+        Returns:
+            Tuple of (User, access_token, refresh_token)
+        """
+        from backend.app.core.config import settings
+        
+        try:
+            # Verify the ID token
+            id_info = id_token.verify_oauth2_token(
+                google_id_token, 
+                google_requests.Request(), 
+                settings.GOOGLE_CLIENT_ID
+            )
+            
+            # ID token is valid. Get user details from payload
+            email = id_info.get("email")
+            full_name = id_info.get("name", "")
+            
+            if not email:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Google account must have an email address"
+                )
+                
+            # Check if user exists
+            user = await self.get_user_by_email(email)
+            
+            if not user:
+                # Create user if it doesn't exist
+                # Google users won't have a local password. 
+                # We leave hashed_password as None or a random string.
+                user = User(
+                    email=email,
+                    hashed_password="oauth_user_no_password",
+                    full_name=full_name,
+                    role=UserRole.TWG_MEMBER,
+                    is_active=False
+                )
+                self.db.add(user)
+                await self.db.commit()
+                await self.db.refresh(user)
+            
+            if not user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Account is inactive"
+                )
+                
+            # Update last login
+            user.last_login = datetime.utcnow()
+            await self.db.commit()
+            
+            # Generate tokens
+            access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
+            refresh_token_str = create_refresh_token(data={"sub": str(user.id)})
+            
+            # Store refresh token
+            await self._store_refresh_token(user.id, refresh_token_str)
+            
+            return user, access_token, refresh_token_str
+            
+        except ValueError:
+            # Invalid token
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Google ID token"
+            )
     
     async def refresh_access_token(self, refresh_token_str: str) -> str:
         """

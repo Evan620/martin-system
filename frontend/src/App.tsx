@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAppSelector } from './hooks/useRedux'
+import { useAppDispatch, useAppSelector } from './hooks/useRedux'
 import { UserRole } from './types/auth'
+import { hydrateUser, setError, setInitialCheckDone } from './store/slices/authSlice'
+import { authService } from './services/auth'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 import ForgotPassword from './pages/auth/ForgotPassword'
@@ -33,6 +35,26 @@ function HomeRedirect() {
 
 function App() {
     const theme = useAppSelector((state) => state.theme.mode)
+    const { token, user, initialCheckDone } = useAppSelector((state) => state.auth)
+    const dispatch = useAppDispatch()
+
+    useEffect(() => {
+        const initializeAuth = async () => {
+            if (token && !user) {
+                try {
+                    const userData = await authService.getCurrentUser()
+                    dispatch(hydrateUser(userData))
+                } catch (err) {
+                    console.error('Failed to hydrate user session', err)
+                    dispatch(setError('Session expired. Please log in again.'))
+                }
+            } else {
+                dispatch(setInitialCheckDone(true))
+            }
+        }
+
+        initializeAuth()
+    }, [dispatch, token, user])
 
     useEffect(() => {
         // Apply theme class to html element
@@ -42,6 +64,17 @@ function App() {
             document.documentElement.classList.remove('dark')
         }
     }, [theme])
+
+    if (!initialCheckDone && token && !user) {
+        return (
+            <div className="h-screen w-screen flex items-center justify-center bg-[#020617]">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-blue-200 font-medium">Restoring session...</p>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <Routes>

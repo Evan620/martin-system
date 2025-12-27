@@ -9,13 +9,16 @@ import Register from './pages/auth/Register'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
 import Dashboard from './pages/dashboard/Dashboard'
+import CommandCenter from './pages/dashboard/CommandCenter'
 import TwgWorkspace from './pages/workspace/TwgWorkspace'
 import MyWorkspaces from './pages/workspace/MyWorkspaces'
 import TwgAgent from './pages/workspace/TwgAgent'
-import Integrations from './pages/settings/Integrations'
+import Settings from './pages/settings/Settings'
 import ActionTracker from './pages/actions/ActionTracker'
 import KnowledgeBase from './pages/knowledge/KnowledgeBase'
-import DealPipeline from './pages/resource/DealPipeline'
+import DealPipeline from './pages/workspace/DealPipeline'
+import ProjectDetails from './pages/workspace/ProjectDetails'
+import ProjectMemo from './pages/workspace/ProjectMemo'
 import UserProfile from './pages/profile/UserProfile'
 import AgentAssistant from './pages/assistant/AgentAssistant'
 import SummitSchedule from './pages/schedule/SummitSchedule'
@@ -119,6 +122,21 @@ function App() {
                     <Settings />
                 </ProtectedRoute>
             } />
+            <Route path="/deal-pipeline" element={
+                <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.FACILITATOR, UserRole.SECRETARIAT_LEAD]}>
+                    <DealPipeline />
+                </ProtectedRoute>
+            } />
+            <Route path="/deal-pipeline/:id" element={
+                <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.FACILITATOR, UserRole.SECRETARIAT_LEAD]}>
+                    <ProjectDetails />
+                </ProtectedRoute>
+            } />
+            <Route path="/deal-pipeline/:id/memo" element={
+                <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.FACILITATOR, UserRole.SECRETARIAT_LEAD]}>
+                    <ProjectMemo />
+                </ProtectedRoute>
+            } />
             <Route path="/" element={
                 <ProtectedRoute>
                     <DashboardLayout />
@@ -130,11 +148,6 @@ function App() {
                 <Route path="workspace/:id" element={<TwgWorkspace />} />
                 <Route path="schedule" element={<SummitSchedule />} />
                 <Route path="knowledge-base" element={<KnowledgeBase />} />
-                <Route path="deal-pipeline" element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.FACILITATOR, UserRole.SECRETARIAT_LEAD]}>
-                        <DealPipeline />
-                    </ProtectedRoute>
-                } />
                 <Route path="actions" element={<ActionTracker />} />
                 <Route path="profile" element={<UserProfile />} />
                 <Route path="assistant" element={<AgentAssistant />} />

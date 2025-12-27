@@ -1,8 +1,8 @@
 import pytest
 from httpx import AsyncClient
 import uuid
-from backend.app.models.models import UserRole, MeetingStatus
-from backend.app.core.config import settings
+from app.models.models import UserRole, MeetingStatus
+from app.core.config import settings
 
 @pytest.mark.asyncio
 async def test_health_check(client: AsyncClient):

@@ -10,10 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 import uuid
 
-from backend.app.core.database import get_db
-from backend.app.models.models import User, UserRole
-from backend.app.schemas.auth import UserResponse, UserUpdate
-from backend.app.api.deps import require_admin
+from app.core.database import get_db
+from app.models.models import User, UserRole
+from app.schemas.auth import UserResponse, UserUpdate
+from app.api.deps import require_admin
 
 router = APIRouter(prefix="/users", tags=["User Management"])
 

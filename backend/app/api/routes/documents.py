@@ -8,12 +8,12 @@ import os
 import shutil
 from datetime import datetime
 
-from backend.app.core.database import get_db
-from backend.app.models.models import Document, User
-from backend.app.schemas.schemas import DocumentRead
-from backend.app.api.deps import get_current_active_user, has_twg_access
-from backend.app.core.knowledge_base import get_knowledge_base
-from backend.app.utils.document_processor import get_document_processor
+from app.core.database import get_db
+from app.models.models import Document, User
+from app.schemas.schemas import DocumentRead
+from app.api.deps import get_current_active_user, has_twg_access
+from app.core.knowledge_base import get_knowledge_base
+from app.utils.document_processor import get_document_processor
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 

@@ -8,8 +8,8 @@ Supports session-based conversations with distributed state management.
 from typing import List, Dict, Optional
 from loguru import logger
 
-from backend.app.agents.base_agent import BaseAgent
-from backend.app.services.redis_memory import get_redis_memory
+from app.agents.base_agent import BaseAgent
+from app.services.redis_memory import get_redis_memory
 
 
 class RedisAgent(BaseAgent):

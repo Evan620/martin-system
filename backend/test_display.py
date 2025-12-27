@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from backend.app.agents.supervisor import create_supervisor
+from app.agents.supervisor import create_supervisor
 
 def main():
     print("\n" + "=" * 70)

@@ -7,7 +7,7 @@ including semantic search, context retrieval, and document discovery.
 
 from typing import List, Dict, Any, Optional
 import logging
-from backend.app.core.knowledge_base import get_knowledge_base
+from app.core.knowledge_base import get_knowledge_base
 
 logger = logging.getLogger(__name__)
 

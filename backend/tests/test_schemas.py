@@ -1,5 +1,5 @@
 import pytest
-from backend.app.schemas.schemas import TWGCreate, UserCreate, UserRole, TWGPillar
+from app.schemas.schemas import TWGCreate, UserCreate, UserRole, TWGPillar
 
 def test_user_schema_validation():
     """Test UserCreate schema validation."""

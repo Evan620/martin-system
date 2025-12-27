@@ -8,7 +8,7 @@ import pytest
 from httpx import AsyncClient
 import uuid
 
-from backend.app.models.models import UserRole
+from app.models.models import UserRole
 
 
 @pytest.mark.asyncio
@@ -90,7 +90,7 @@ async def test_inactive_user_cannot_login(client: AsyncClient, db_session):
     access_token = register_response.json()["access_token"]
     
     # Manually deactivate user in database
-    from backend.app.models.models import User
+    from app.models.models import User
     from sqlalchemy import select
     
     result = await db_session.execute(

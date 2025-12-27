@@ -1,259 +1,300 @@
-import { useState } from 'react'
-import { Card, Badge } from '../../components/ui'
-
 export default function NotificationCenter() {
-    const [activeCategory, setActiveCategory] = useState('all')
-
-    const notifications = [
-        {
-            id: 1,
-            type: 'urgent',
-            category: 'action',
-            icon: 'alert',
-            title: 'OVERDUE: TWG Agenda Item #4',
-            message: 'Submission was due yesterday. Please review and submit the required...',
-            time: '2 hours ago',
-            badge: 'URGENT',
-            actions: [
-                { label: 'Submit Now', variant: 'danger' },
-                { label: 'Dismiss', variant: 'ghost' }
-            ]
-        },
-        {
-            id: 2,
-            type: 'info',
-            category: 'ai-agent',
-            icon: 'ai',
-            title: 'AI Agent Update: Trade Policy Review',
-            message: 'The AI Agent has completed the first draft of the Trade Policy analysis. It is now ready for your approv...',
-            time: '15 mins ago',
-            badge: 'NEW',
-            actions: [
-                { label: 'Review Draft', variant: 'primary' }
-            ]
-        },
-        {
-            id: 3,
-            type: 'document',
-            category: 'document',
-            icon: 'file',
-            title: 'New Document: Summit_Protocol_v2.pdf',
-            message: 'Delegate Johnson uploaded a new version of the summit protocol for the Security Council.',
-            author: 'Delegate Johnson',
-            time: '45 mins ago',
-            actions: [
-                { label: 'View File', variant: 'secondary' }
-            ]
-        },
-        {
-            id: 4,
-            type: 'system',
-            category: 'system',
-            icon: 'settings',
-            title: 'System Maintenance Scheduled',
-            message: 'The portal will undergo scheduled maintenance on Saturday, Nov 15th from 2:00 AM to 4:00 AM GMT.',
-            time: 'Yesterday',
-            actions: []
-        }
-    ]
-
-    const categories = [
-        { id: 'all', label: 'All Notifications', count: 3 },
-        { id: 'unread', label: 'Unread', count: 0 },
-        { id: 'action', label: 'Action Required', count: 1 },
-    ]
-
-    const filterCategories = [
-        { id: 'ai-agents', label: 'AI Agents', icon: '🤖' },
-        { id: 'documents', label: 'Documents', icon: '📄' },
-        { id: 'system', label: 'System Updates', icon: '⚙️' },
-    ]
-
     return (
-        <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-12 gap-8">
-                {/* Left Sidebar */}
-                <aside className="col-span-3 space-y-8">
-                    <div>
-                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Inbox</h3>
-                        <div className="space-y-1">
-                            {categories.map(cat => (
-                                <button
-                                    key={cat.id}
-                                    onClick={() => setActiveCategory(cat.id)}
-                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeCategory === cat.id
-                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30'
-                                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                        }`}
-                                >
-                                    <span className="flex items-center gap-3">
-                                        {cat.id === 'all' && <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>}
-                                        {cat.id === 'unread' && <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>}
-                                        {cat.id === 'action' && <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>}
-                                        {cat.label}
-                                    </span>
-                                    {cat.count > 0 && (
-                                        <Badge variant={cat.id === 'action' ? 'danger' : 'info'} className="text-[10px] font-black">
-                                            {cat.count}
-                                        </Badge>
-                                    )}
-                                </button>
-                            ))}
+        <div className="font-display bg-background-light dark:bg-background-dark text-[#0d121b] dark:text-white h-screen flex flex-col overflow-hidden">
+            {/* Top Navbar */}
+            <header className="sticky top-0 z-50 w-full bg-white dark:bg-[#1a202c] border-b border-[#e7ebf3] dark:border-[#2d3748] shrink-0">
+                <div className="px-6 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-8">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-[#1152d4] to-[#0a3d8f] rounded-xl flex items-center justify-center shadow-lg">
+                                <span className="text-white font-black text-lg">E</span>
+                            </div>
+                            <div>
+                                <div className="font-bold text-base text-[#0d121b] dark:text-white">ECOWAS Summit</div>
+                                <div className="text-xs text-[#4c669a] dark:text-[#a0aec0] font-medium">2024 TWG Support</div>
+                            </div>
                         </div>
+
+                        <nav className="flex items-center gap-6">
+                            <a className="text-[#4c669a] dark:text-[#a0aec0] hover:text-[#1152d4] dark:hover:text-white text-sm font-medium transition-colors" href="/dashboard">Dashboard</a>
+                            <a className="text-[#4c669a] dark:text-[#a0aec0] hover:text-[#1152d4] dark:hover:text-white text-sm font-medium transition-colors" href="/twgs">TWGs</a>
+                            <a className="text-[#4c669a] dark:text-[#a0aec0] hover:text-[#1152d4] dark:hover:text-white text-sm font-medium transition-colors" href="/my-twgs">My Workspaces</a>
+                            <a className="text-[#4c669a] dark:text-[#a0aec0] hover:text-[#1152d4] dark:hover:text-white text-sm font-medium transition-colors" href="/documents">Documents</a>
+                            <a className="text-[#1152d4] dark:text-white text-sm font-semibold border-b-2 border-[#1152d4] pb-[22px] -mb-[17px] transition-colors" href="/notifications">Notifications</a>
+                            <a className="text-[#4c669a] dark:text-[#a0aec0] hover:text-[#1152d4] dark:hover:text-white text-sm font-medium transition-colors" href="/integrations">Settings</a>
+                        </nav>
                     </div>
 
-                    <div>
-                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Categories</h3>
-                        <div className="space-y-1">
-                            {filterCategories.map(cat => (
-                                <button
-                                    key={cat.id}
-                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-                                >
-                                    <span className="text-lg">{cat.icon}</span>
-                                    {cat.label}
+                    <div className="flex items-center gap-4">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Search..."
+                                className="w-64 pl-9 pr-4 py-2 rounded-lg bg-[#f6f6f8] dark:bg-[#2d3748] border border-[#cfd7e7] dark:border-[#4a5568] text-sm placeholder-[#4c669a] dark:placeholder-[#a0aec0] focus:outline-none focus:ring-2 focus:ring-[#1152d4] dark:focus:ring-[#3b82f6]"
+                            />
+                            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#4c669a] dark:text-[#a0aec0] text-[20px]">search</span>
+                        </div>
+
+                        <button className="p-2 rounded-lg hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748] transition-colors relative">
+                            <span className="material-symbols-outlined text-[#4c669a] dark:text-[#a0aec0]">notifications</span>
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+                        </button>
+
+                        <div className="flex items-center gap-3 pl-4 border-l border-[#e7ebf3] dark:border-[#2d3748]">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
+                                AP
+                            </div>
+                            <div>
+                                <div className="text-sm font-semibold text-[#0d121b] dark:text-white">Admin Portal</div>
+                                <div className="text-xs text-[#4c669a] dark:text-[#a0aec0]">Administrator</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            {/* Main Content */}
+            <main className="flex-1 flex overflow-hidden">
+                {/* Left Sidebar */}
+                <aside className="w-72 bg-white dark:bg-[#1a202c] border-r border-[#e7ebf3] dark:border-[#2d3748] overflow-y-auto shrink-0">
+                    <div className="p-6 space-y-6">
+                        {/* Views Section */}
+                        <div>
+                            <div className="text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider mb-3">
+                                Views
+                            </div>
+                            <div className="space-y-1">
+                                <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa] font-medium text-sm hover:bg-[#dce7fe] dark:hover:bg-[#1e3a8a]/30 transition-colors">
+                                    <span className="material-symbols-outlined text-[20px]">inbox</span>
+                                    <span className="flex-1 text-left">All Notifications</span>
+                                    <span className="bg-[#1152d4] dark:bg-[#3b82f6] text-white text-xs font-bold px-2 py-0.5 rounded-full">24</span>
                                 </button>
-                            ))}
+                                <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#4c669a] dark:text-[#a0aec0] font-medium text-sm hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748] transition-colors">
+                                    <span className="material-symbols-outlined text-[20px]">mark_email_unread</span>
+                                    <span className="flex-1 text-left">Unread</span>
+                                    <span className="bg-[#94a3b8] dark:bg-[#4a5568] text-white text-xs font-bold px-2 py-0.5 rounded-full">12</span>
+                                </button>
+                                <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#4c669a] dark:text-[#a0aec0] font-medium text-sm hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748] transition-colors">
+                                    <span className="material-symbols-outlined text-[20px]">priority_high</span>
+                                    <span className="flex-1 text-left">Urgent / Priority</span>
+                                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">3</span>
+                                </button>
+                                <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#4c669a] dark:text-[#a0aec0] font-medium text-sm hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748] transition-colors">
+                                    <span className="material-symbols-outlined text-[20px]">archive</span>
+                                    <span className="flex-1 text-left">Archived</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Filter by Type */}
+                        <div>
+                            <div className="text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider mb-3">
+                                Filter by Type
+                            </div>
+                            <div className="space-y-1">
+                                <label className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748] cursor-pointer transition-colors">
+                                    <input type="checkbox" className="w-4 h-4 rounded border-[#cfd7e7] dark:border-[#4a5568] text-[#1152d4] focus:ring-[#1152d4]" defaultChecked />
+                                    <span className="text-sm font-medium text-[#0d121b] dark:text-white">Schedule Updates</span>
+                                </label>
+                                <label className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748] cursor-pointer transition-colors">
+                                    <input type="checkbox" className="w-4 h-4 rounded border-[#cfd7e7] dark:border-[#4a5568] text-[#1152d4] focus:ring-[#1152d4]" defaultChecked />
+                                    <span className="text-sm font-medium text-[#0d121b] dark:text-white">Document Changes</span>
+                                </label>
+                                <label className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748] cursor-pointer transition-colors">
+                                    <input type="checkbox" className="w-4 h-4 rounded border-[#cfd7e7] dark:border-[#4a5568] text-[#1152d4] focus:ring-[#1152d4]" defaultChecked />
+                                    <span className="text-sm font-medium text-[#0d121b] dark:text-white">Mentions & Replies</span>
+                                </label>
+                                <label className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748] cursor-pointer transition-colors">
+                                    <input type="checkbox" className="w-4 h-4 rounded border-[#cfd7e7] dark:border-[#4a5568] text-[#1152d4] focus:ring-[#1152d4]" />
+                                    <span className="text-sm font-medium text-[#0d121b] dark:text-white">AI Agent Updates</span>
+                                </label>
+                                <label className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748] cursor-pointer transition-colors">
+                                    <input type="checkbox" className="w-4 h-4 rounded border-[#cfd7e7] dark:border-[#4a5568] text-[#1152d4] focus:ring-[#1152d4]" />
+                                    <span className="text-sm font-medium text-[#0d121b] dark:text-white">System Alerts</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* Filter by TWG */}
+                        <div>
+                            <div className="text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider mb-3">
+                                Filter by TWG
+                            </div>
+                            <select className="w-full px-3 py-2 rounded-lg bg-[#f6f6f8] dark:bg-[#2d3748] border border-[#cfd7e7] dark:border-[#4a5568] text-sm font-medium text-[#0d121b] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#1152d4]">
+                                <option>All TWGs</option>
+                                <option>Energy & Power Infrastructure</option>
+                                <option>Critical Minerals & Mining</option>
+                                <option>Digital Economy</option>
+                            </select>
                         </div>
                     </div>
                 </aside>
 
-                {/* Main Content */}
-                <main className="col-span-6 space-y-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-3xl font-display font-bold text-slate-900 dark:text-white">Notification Center</h1>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                You have <span className="font-bold text-blue-600">3 unread</span> urgent alerts requiring attention.
-                            </p>
-                        </div>
-                        <button className="px-4 py-2 text-sm font-bold text-blue-600 hover:text-blue-500 transition-colors">
-                            Mark All as Read
-                        </button>
-                    </div>
+                {/* Main Notification Area */}
+                <div className="flex-1 flex flex-col bg-[#f6f6f8] dark:bg-[#0d121b] overflow-hidden">
+                    <div className="flex-1 overflow-y-auto p-6">
+                        <div className="max-w-4xl mx-auto space-y-4">
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-6">
+                                <h1 className="text-2xl font-bold text-[#0d121b] dark:text-white">Notifications</h1>
+                                <button className="text-sm font-medium text-[#1152d4] dark:text-[#60a5fa] hover:underline">
+                                    Mark all as read
+                                </button>
+                            </div>
 
-                    {/* Notifications List */}
-                    <div className="space-y-4">
-                        {notifications.map(notif => (
-                            <Card
-                                key={notif.id}
-                                className={`p-0 overflow-hidden transition-all ${notif.type === 'urgent'
-                                        ? 'border-l-4 border-l-red-500 bg-red-50/5 dark:bg-red-900/5'
-                                        : notif.type === 'info'
-                                            ? 'border-l-4 border-l-blue-500'
-                                            : ''
-                                    }`}
-                            >
-                                <div className="p-6 flex gap-4">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${notif.type === 'urgent' ? 'bg-red-100 dark:bg-red-900/20 text-red-600' :
-                                            notif.type === 'info' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-600' :
-                                                notif.type === 'document' ? 'bg-slate-100 dark:bg-slate-800 text-slate-600' :
-                                                    'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                                        }`}>
-                                        {notif.icon === 'alert' && <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>}
-                                        {notif.icon === 'ai' && <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" /><path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" /></svg>}
-                                        {notif.icon === 'file' && <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" /></svg>}
-                                        {notif.icon === 'settings' && <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
-                                    </div>
-                                    <div className="flex-1 space-y-3">
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h3 className="font-bold text-slate-900 dark:text-white">{notif.title}</h3>
-                                                    {notif.badge && (
-                                                        <Badge
-                                                            variant={notif.badge === 'URGENT' ? 'danger' : 'info'}
-                                                            className="text-[8px] font-black tracking-widest"
-                                                        >
-                                                            {notif.badge}
-                                                        </Badge>
-                                                    )}
+                            {/* Critical Schedule Conflict - Priority */}
+                            <div className="bg-white dark:bg-[#1a202c] rounded-xl border-l-4 border-red-500 shadow-sm overflow-hidden">
+                                <div className="p-6">
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center shrink-0">
+                                            <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-[24px]">warning</span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-start justify-between gap-4 mb-2">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="inline-block px-2 py-0.5 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-xs font-bold rounded uppercase">Urgent</span>
+                                                        <span className="text-xs text-[#4c669a] dark:text-[#a0aec0] font-medium">Schedule Update • Energy & Power Infrastructure</span>
+                                                    </div>
+                                                    <h3 className="text-base font-bold text-[#0d121b] dark:text-white">Critical Schedule Conflict Detected</h3>
                                                 </div>
-                                                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                                                    {notif.author && <span className="font-bold">{notif.author} </span>}
-                                                    {notif.message}
-                                                </p>
+                                                <span className="text-xs text-[#4c669a] dark:text-[#a0aec0] shrink-0">2 min ago</span>
+                                            </div>
+                                            <p className="text-sm text-[#4c669a] dark:text-[#a0aec0] mb-4">
+                                                TWG Meeting on Jan 15 at 2:00 PM overlaps with another summit event. Immediate rescheduling required.
+                                            </p>
+                                            <div className="flex items-center gap-3">
+                                                <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors">
+                                                    Resolve Conflict
+                                                </button>
+                                                <button className="px-4 py-2 bg-[#f6f6f8] dark:bg-[#2d3748] hover:bg-[#e7ebf3] dark:hover:bg-[#4a5568] text-[#0d121b] dark:text-white text-sm font-medium rounded-lg transition-colors">
+                                                    View Calendar
+                                                </button>
                                             </div>
                                         </div>
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">{notif.time}</span>
-                                            {notif.actions.length > 0 && (
-                                                <div className="flex gap-2">
-                                                    {notif.actions.map((action, i) => (
-                                                        <button
-                                                            key={i}
-                                                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${action.variant === 'danger'
-                                                                    ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/30'
-                                                                    : action.variant === 'primary'
-                                                                        ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/30'
-                                                                        : action.variant === 'secondary'
-                                                                            ? 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
-                                                                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                                                                }`}
-                                                        >
-                                                            {action.label}
-                                                        </button>
-                                                    ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Draft Minutes Ready */}
+                            <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm overflow-hidden">
+                                <div className="p-6">
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
+                                            <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[24px]">description</span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-start justify-between gap-4 mb-2">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-xs text-[#4c669a] dark:text-[#a0aec0] font-medium">Document • Digital Economy & Connectivity</span>
+                                                    </div>
+                                                    <h3 className="text-base font-bold text-[#0d121b] dark:text-white">Draft Minutes Ready for Review</h3>
                                                 </div>
-                                            )}
+                                                <span className="text-xs text-[#4c669a] dark:text-[#a0aec0] shrink-0">15 min ago</span>
+                                            </div>
+                                            <p className="text-sm text-[#4c669a] dark:text-[#a0aec0] mb-4">
+                                                Secretariat Assistant has prepared draft meeting minutes from Jan 10 session. Review and approve before distribution.
+                                            </p>
+                                            <div className="flex items-center gap-3">
+                                                <button className="px-4 py-2 bg-[#1152d4] hover:bg-[#0a3d8f] text-white text-sm font-medium rounded-lg transition-colors">
+                                                    Review Minutes
+                                                </button>
+                                                <button className="px-4 py-2 bg-[#f6f6f8] dark:bg-[#2d3748] hover:bg-[#e7ebf3] dark:hover:bg-[#4a5568] text-[#0d121b] dark:text-white text-sm font-medium rounded-lg transition-colors">
+                                                    Dismiss
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </Card>
-                        ))}
+                            </div>
+
+                            {/* New Comment - Mention */}
+                            <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm overflow-hidden">
+                                <div className="p-6">
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
+                                            <span className="material-symbols-outlined text-purple-600 dark:text-purple-400 text-[24px]">alternate_email</span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-start justify-between gap-4 mb-2">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-xs text-[#4c669a] dark:text-[#a0aec0] font-medium">Mention • Critical Minerals & Mining</span>
+                                                    </div>
+                                                    <h3 className="text-base font-bold text-[#0d121b] dark:text-white">Sarah Johnson mentioned you in a comment</h3>
+                                                </div>
+                                                <span className="text-xs text-[#4c669a] dark:text-[#a0aec0] shrink-0">1 hour ago</span>
+                                            </div>
+                                            <p className="text-sm text-[#4c669a] dark:text-[#a0aec0] mb-4">
+                                                "@AdminPortal Can you review the latest environmental compliance section? We need your sign-off before the deadline."
+                                            </p>
+                                            <div className="flex items-center gap-3">
+                                                <button className="px-4 py-2 bg-[#1152d4] hover:bg-[#0a3d8f] text-white text-sm font-medium rounded-lg transition-colors">
+                                                    View Comment
+                                                </button>
+                                                <button className="px-4 py-2 bg-[#f6f6f8] dark:bg-[#2d3748] hover:bg-[#e7ebf3] dark:hover:bg-[#4a5568] text-[#0d121b] dark:text-white text-sm font-medium rounded-lg transition-colors">
+                                                    Reply
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Document Updated */}
+                            <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm overflow-hidden opacity-60">
+                                <div className="p-6">
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center shrink-0">
+                                            <span className="material-symbols-outlined text-green-600 dark:text-green-400 text-[24px]">check_circle</span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-start justify-between gap-4 mb-2">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-xs text-[#4c669a] dark:text-[#a0aec0] font-medium">Document • Trade & Customs Harmonization</span>
+                                                    </div>
+                                                    <h3 className="text-base font-bold text-[#0d121b] dark:text-white">Policy Framework v2.3 has been updated</h3>
+                                                </div>
+                                                <span className="text-xs text-[#4c669a] dark:text-[#a0aec0] shrink-0">3 hours ago</span>
+                                            </div>
+                                            <p className="text-sm text-[#4c669a] dark:text-[#a0aec0]">
+                                                Michael Chen made 12 changes to the trade policy framework document.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Schedule Reminder */}
+                            <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm overflow-hidden opacity-60">
+                                <div className="p-6">
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center shrink-0">
+                                            <span className="material-symbols-outlined text-orange-600 dark:text-orange-400 text-[24px]">event</span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-start justify-between gap-4 mb-2">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-xs text-[#4c669a] dark:text-[#a0aec0] font-medium">Schedule • Agribusiness & Food Security</span>
+                                                    </div>
+                                                    <h3 className="text-base font-bold text-[#0d121b] dark:text-white">Upcoming Meeting Reminder</h3>
+                                                </div>
+                                                <span className="text-xs text-[#4c669a] dark:text-[#a0aec0] shrink-0">Yesterday</span>
+                                            </div>
+                                            <p className="text-sm text-[#4c669a] dark:text-[#a0aec0]">
+                                                TWG session scheduled for Jan 25, 2026 at 10:00 AM. Agenda has been uploaded.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-
-                    <button className="w-full py-3 text-sm font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
-                        Load older notifications
-                    </button>
-                </main>
-
-                {/* Right Sidebar - Preferences */}
-                <aside className="col-span-3 space-y-6">
-                    <Card className="space-y-6">
-                        <div className="flex items-center gap-2">
-                            <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
-                            <h3 className="font-bold text-slate-900 dark:text-white">Preferences</h3>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white">Email Digest</p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">Receive summaries via email</p>
-                                </div>
-                                <button className="w-12 h-6 bg-blue-600 rounded-full relative transition-all">
-                                    <div className="w-5 h-5 bg-white rounded-full absolute right-0.5 top-0.5 shadow-lg"></div>
-                                </button>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white">Push Alerts</p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">Instant browser notifications</p>
-                                </div>
-                                <button className="w-12 h-6 bg-blue-600 rounded-full relative transition-all">
-                                    <div className="w-5 h-5 bg-white rounded-full absolute right-0.5 top-0.5 shadow-lg"></div>
-                                </button>
-                            </div>
-
-                            <div className="pt-4 border-t border-slate-100 dark:border-dark-border">
-                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2 block">Email Frequency</label>
-                                <select className="w-full bg-slate-50 dark:bg-slate-800 border-0 rounded-lg py-2 px-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-colors">
-                                    <option>Daily Digest (8:00 AM)</option>
-                                    <option>Twice Daily</option>
-                                    <option>Weekly Summary</option>
-                                    <option>Real-time</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <button className="w-full py-2 text-sm font-bold text-blue-600 hover:text-blue-500 transition-colors">
-                            Manage All Settings
-                        </button>
-                    </Card>
-                </aside>
-            </div>
+                </div>
+            </main>
         </div>
     )
 }

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.core.config import settings
-from backend.app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users
+from app.core.config import settings
+from app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

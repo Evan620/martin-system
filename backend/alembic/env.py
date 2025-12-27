@@ -15,8 +15,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import our models
-from backend.app.core.database import Base
-from backend.app.models.models import *  # noqa
+from app.core.database import Base
+from app.models.models import *  # noqa
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

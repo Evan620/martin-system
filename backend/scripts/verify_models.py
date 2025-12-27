@@ -5,8 +5,8 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 
 try:
-    from backend.app.models.models import Meeting, Minutes, Project, MinutesStatus, Document
-    from backend.app.schemas.schemas import MeetingRead, ProjectRead, MinutesStatus as SchemaMinutesStatus
+    from app.models.models import Meeting, Minutes, Project, MinutesStatus, Document
+    from app.schemas.schemas import MeetingRead, ProjectRead, MinutesStatus as SchemaMinutesStatus
     
     print("Successfully imported models and schemas.")
     

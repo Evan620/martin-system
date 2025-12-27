@@ -5,7 +5,7 @@ Expert coordinator for Protocol & Logistics.
 Manages operational and ceremonial aspects of the summit.
 """
 
-from backend.app.agents.base_agent import BaseAgent
+from app.agents.base_agent import BaseAgent
 
 
 class ProtocolAgent(BaseAgent):

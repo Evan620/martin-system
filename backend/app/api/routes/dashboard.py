@@ -4,10 +4,10 @@ from sqlalchemy import select, func, desc, or_, and_
 from typing import List, Dict, Any
 import datetime
 
-from backend.app.core.database import get_db
-from backend.app.models.models import Meeting, ActionItem, Document, TWG, MeetingStatus, ActionItemStatus
-from backend.app.api.deps import get_current_active_user
-# from backend.app.components.audit import log_audit # Optional
+from app.core.database import get_db
+from app.models.models import Meeting, ActionItem, Document, TWG, MeetingStatus, ActionItemStatus
+from app.api.deps import get_current_active_user
+# from app.components.audit import log_audit # Optional
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 

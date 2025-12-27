@@ -1,5 +1,5 @@
-from backend.app.agents.supervisor import SupervisorAgent
-from backend.app.core.config import settings
+from app.agents.supervisor import SupervisorAgent
+from app.core.config import settings
 
 def test_agent_hello():
     print(f"🤖 Testing Agent Connection to {settings.OLLAMA_BASE_URL}...")

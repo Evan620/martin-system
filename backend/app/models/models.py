@@ -20,12 +20,12 @@ class UserRole(str, enum.Enum):
     SECRETARIAT_LEAD = "secretariat_lead"
 
 class TWGPillar(str, enum.Enum):
-    ENERGY = "energy"
-    AGRIBUSINESS = "agribusiness"
-    MINERALS = "minerals"
-    DIGITAL = "digital"
-    LOGISTICS = "logistics"
-    RESOURCE_MOBILIZATION = "resource_mobilization"
+    energy_infrastructure = "energy_infrastructure"
+    agriculture_food_systems = "agriculture_food_systems"
+    critical_minerals_industrialization = "critical_minerals_industrialization"
+    digital_economy_transformation = "digital_economy_transformation"
+    protocol_logistics = "protocol_logistics"
+    resource_mobilization = "resource_mobilization"
 
 class MeetingStatus(str, enum.Enum):
     SCHEDULED = "scheduled"
@@ -55,6 +55,15 @@ class ProjectStatus(str, enum.Enum):
     VETTING = "vetting"
     BANKABLE = "bankable"
     PRESENTED = "presented"
+
+class NotificationType(str, enum.Enum):
+    INFO = "info"
+    SUCCESS = "success"
+    WARNING = "warning"
+    ALERT = "alert"
+    MESSAGE = "message"
+    DOCUMENT = "document"
+    TASK = "task"
 
 # --- Association Tables ---
 
@@ -97,6 +106,9 @@ class User(Base):
     owned_action_items: Mapped[List["ActionItem"]] = relationship(back_populates="owner")
     meetings: Mapped[List["Meeting"]] = relationship(
         secondary=meeting_participants, back_populates="participants"
+    )
+    notifications: Mapped[List["Notification"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", order_by="Notification.created_at.desc()"
     )
     refresh_tokens: Mapped[List["RefreshToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     audit_logs: Mapped[List["AuditLog"]] = relationship(back_populates="user")
@@ -224,7 +236,7 @@ class Document(Base):
     twg_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("twgs.id"), nullable=True)
     file_name: Mapped[str] = mapped_column(String(255))
     file_path: Mapped[str] = mapped_column(String(512))
-    file_type: Mapped[str] = mapped_column(String(50)) # pdf, docx, etc.
+    file_type: Mapped[str] = mapped_column(String(255))  # MIME type can be long
     uploaded_by_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"))
     is_confidential: Mapped[bool] = mapped_column(Boolean, default=False)
     metadata_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
@@ -245,3 +257,18 @@ class RefreshToken(Base):
     
     # Relationships
     user: Mapped["User"] = relationship(back_populates="refresh_tokens")
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"))
+    type: Mapped[NotificationType] = mapped_column(Enum(NotificationType), default=NotificationType.INFO)
+    title: Mapped[str] = mapped_column(String(255))
+    content: Mapped[str] = mapped_column(Text)
+    link: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user: Mapped["User"] = relationship(back_populates="notifications")

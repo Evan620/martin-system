@@ -7,6 +7,7 @@ Centralized configuration using Pydantic Settings for environment variables.
 from typing import Optional, List, Union, Any
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
+from pathlib import Path
 
 
 class Settings(BaseSettings):
@@ -175,9 +176,9 @@ class Settings(BaseSettings):
     # PINECONE
     PINECONE_API_KEY: str = Field(default="test-key", description="Pinecone API key")
     PINECONE_ENVIRONMENT: str = Field(default="gcp-starter", description="Pinecone environment")
-    PINECONE_INDEX_NAME: str = Field(default="martin-index", description="Pinecone index name")
-    EMBEDDING_MODEL: str = Field(default="text-embedding-3-small", description="Embedding model name")
-    EMBEDDING_DIMENSION: int = Field(default=1536, description="Embedding dimension")
+    PINECONE_INDEX_NAME: str = Field(default="ecowas-summit-knowledge-nomic", description="Pinecone index name")
+    EMBEDDING_MODEL: str = Field(default="nomic-embed-text", description="Embedding model name")
+    EMBEDDING_DIMENSION: int = Field(default=768, description="Embedding dimension")
     
     # Email
     SMTP_SERVER: str = Field(default="localhost", description="SMTP server host")
@@ -242,7 +243,7 @@ class Settings(BaseSettings):
         description="Maximum upload size in bytes"
     )
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(Path(__file__).parent.parent.parent / ".env"),
         case_sensitive=True,
         extra="ignore"
     )

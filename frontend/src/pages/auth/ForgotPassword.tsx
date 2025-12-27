@@ -64,28 +64,28 @@ export default function ForgotPassword() {
     return (
         <div className="flex h-screen bg-[#020617] text-white">
             {/* Left side - Visuals */}
-            <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-purple-950 via-slate-900 to-slate-950">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-purple-500/20 via-transparent to-transparent"></div>
+            <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-blue-950 via-slate-900 to-slate-950">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-500/20 via-transparent to-transparent"></div>
 
                 {/* Abstract visualization */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-30">
                     <svg className="w-full h-full p-20" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
                         <defs>
                             <radialGradient id="grad3" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-                                <stop offset="0%" style={{ stopColor: '#a855f7', stopOpacity: 0.6 }} />
-                                <stop offset="100%" style={{ stopColor: '#7c3aed', stopOpacity: 0 }} />
+                                <stop offset="0%" style={{ stopColor: '#3b82f6', stopOpacity: 0.6 }} />
+                                <stop offset="100%" style={{ stopColor: '#1d4ed8', stopOpacity: 0 }} />
                             </radialGradient>
                         </defs>
                         <circle cx="100" cy="100" r="80" fill="url(#grad3)" />
-                        <path d="M100 40 L100 160" stroke="#a855f7" strokeWidth="0.5" />
-                        <path d="M40 100 L160 100" stroke="#a855f7" strokeWidth="0.5" />
-                        <circle cx="100" cy="100" r="50" stroke="#a855f7" strokeWidth="0.3" fill="none" opacity="0.5" />
+                        <path d="M100 40 L100 160" stroke="#3b82f6" strokeWidth="0.5" />
+                        <path d="M40 100 L160 100" stroke="#3b82f6" strokeWidth="0.5" />
+                        <circle cx="100" cy="100" r="50" stroke="#3b82f6" strokeWidth="0.3" fill="none" opacity="0.5" />
                     </svg>
                 </div>
 
                 <div className="relative z-10 flex flex-col justify-end p-16 space-y-6">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
+                        <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
                             <span className="font-bold text-lg">E</span>
                         </div>
                         <span className="text-xl font-display font-semibold">ECOWAS SUMMIT TWG</span>
@@ -93,13 +93,13 @@ export default function ForgotPassword() {
                     <h1 className="text-5xl font-display font-bold leading-tight">
                         Secure Account Recovery
                     </h1>
-                    <p className="text-purple-200 text-lg max-w-lg">
+                    <p className="text-blue-200 text-lg max-w-lg">
                         We'll help you regain access to your account securely. Enter your email to receive reset instructions.
                     </p>
                     <div className="flex gap-2">
                         <div className="w-2 h-2 bg-slate-700 rounded-full"></div>
                         <div className="w-2 h-2 bg-slate-700 rounded-full"></div>
-                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                     </div>
                 </div>
             </div>
@@ -129,13 +129,13 @@ export default function ForgotPassword() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
-                            className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-purple-500"
+                            className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-blue-500"
                         />
 
                         <Button
                             type="submit"
                             isLoading={isLoading}
-                            className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-lg shadow-purple-900/20 flex items-center justify-center gap-2"
+                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
                         >
                             Send Reset Instructions
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -16,7 +16,6 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
     full_name: str = Field(..., min_length=1, max_length=255)
-    role: UserRole = UserRole.TWG_MEMBER
     organization: Optional[str] = Field(None, max_length=255)
     
     @field_validator('password')

@@ -74,27 +74,27 @@ class SupervisorAgent(BaseAgent):
         # Primary keywords (strong signals) and secondary keywords (weak signals)
         self._agent_domains = {
             "energy": {
-                "primary": ["energy", "power", "electricity", "renewable", "solar", "wind", "wapp"],
+                "primary": ["energy", "infrastructure", "power", "electricity", "renewable", "solar", "wind", "wapp"],
                 "secondary": ["grid", "transmission", "hydroelectric", "fuel", "petroleum"]
             },
             "agriculture": {
-                "primary": ["agriculture", "agricultural", "food security", "farming", "crop", "livestock", "agribusiness"],
+                "primary": ["agriculture", "food system", "food security", "farming", "crop", "livestock", "agribusiness"],
                 "secondary": ["fertilizer", "irrigation", "harvest", "rural", "farmer", "food production"]
             },
             "minerals": {
-                "primary": ["mining", "mineral", "cobalt", "lithium", "gold", "bauxite", "extraction"],
-                "secondary": ["industrialization", "ore", "quarry", "geology"]
+                "primary": ["mining", "mineral", "critical minerals", "industrialization", "cobalt", "lithium", "gold", "bauxite", "extraction"],
+                "secondary": ["value chain", "ore", "quarry", "geology"]
             },
             "digital": {
-                "primary": ["digital", "technology", "internet", "broadband", "fintech", "e-commerce", "e-government"],
+                "primary": ["digital", "technology", "internet", "broadband", "fintech", "e-commerce", "e-government", "transformation"],
                 "secondary": ["cybersecurity", "ai", "software", "tech", "online", "platform"]
             },
             "protocol": {
-                "primary": ["meeting", "schedule", "logistics", "protocol", "venue", "registration"],
+                "primary": ["meeting", "schedule", "logistics", "protocol", "venue", "registration", "invitation"],
                 "secondary": ["deadline", "agenda", "ceremony", "security", "vip"]
             },
             "resource_mobilization": {
-                "primary": ["investment", "financing", "deal room", "funding", "investor", "bankable"],
+                "primary": ["investment", "financing", "deal room", "funding", "investor", "bankable", "resource mobilization"],
                 "secondary": ["finance", "capital", "donor", "partner", "budget"]
             }
         }

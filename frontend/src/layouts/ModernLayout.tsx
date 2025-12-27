@@ -2,6 +2,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../hooks/useRedux';
 import { logout } from '../store/slices/authSlice';
 import { toggleTheme } from '../store/slices/themeSlice';
+import { fetchNotifications, addNotification } from '../store/slices/notificationsSlice';
+import { UserRole } from '../types/auth';
+import { useEffect, useRef } from 'react';
 
 interface ModernLayoutProps {
     children: React.ReactNode;
@@ -12,6 +15,52 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
     const location = useLocation();
     const dispatch = useAppDispatch();
     const theme = useAppSelector((state) => state.theme.mode);
+    const user = useAppSelector((state) => state.auth.user);
+    const unreadCount = useAppSelector((state) => state.notifications.unreadCount);
+    const token = useAppSelector((state) => state.auth.token);
+    const socketRef = useRef<WebSocket | null>(null);
+
+    useEffect(() => {
+        if (token) {
+            dispatch(fetchNotifications());
+
+            const setupWebSocket = () => {
+                const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+                const wsUrl = `${baseUrl.replace('http', 'ws')}/dashboard/ws?token=${token}`;
+
+                const socket = new WebSocket(wsUrl);
+                socketRef.current = socket;
+
+                socket.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        if (message.type === 'NEW_NOTIFICATION') {
+                            dispatch(addNotification(message.data));
+                        }
+                    } catch (err) {
+                        console.error('Error parsing WebSocket message:', err);
+                    }
+                };
+
+                socket.onclose = () => {
+                    setTimeout(() => {
+                        if (token) setupWebSocket();
+                    }, 5000);
+                };
+            };
+
+            setupWebSocket();
+        }
+
+        return () => {
+            if (socketRef.current) {
+                socketRef.current.close();
+            }
+        };
+    }, [token, dispatch]);
+
+    const isAdmin = user?.role === UserRole.ADMIN;
+    const isFacilitator = user?.role === UserRole.FACILITATOR || user?.role === UserRole.SECRETARIAT_LEAD || isAdmin;
 
     const isActive = (path: string) => location.pathname === path;
 
@@ -53,7 +102,11 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                             >
                                 TWGs
                             </button>
-                            <button className="text-[#4c669a] dark:text-[#a0aec0] hover:text-[#1152d4] dark:hover:text-white text-sm font-medium transition-colors">Reports</button>
+                            {isFacilitator && (
+                                <button className="text-[#4c669a] dark:text-[#a0aec0] hover:text-[#1152d4] dark:hover:text-white text-sm font-medium transition-colors">
+                                    Reports
+                                </button>
+                            )}
                             <button
                                 onClick={() => navigate('/settings')}
                                 className={`${isActive('/settings') ? 'text-[#1152d4]' : 'text-[#4c669a] dark:text-[#a0aec0]'} font-medium text-sm hover:text-[#1152d4] transition-colors`}
@@ -137,38 +190,44 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                                 >
                                     <span className="material-symbols-outlined text-[20px]">notifications</span>
                                     <span>Notifications</span>
-                                    <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">3</span>
+                                    {unreadCount > 0 && (
+                                        <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                                            {unreadCount > 99 ? '99+' : unreadCount}
+                                        </span>
+                                    )}
                                 </button>
                             </div>
                         </div>
 
-                        <div>
-                            <div className="text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider mb-3">
-                                Admin
+                        {isAdmin && (
+                            <div>
+                                <div className="text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider mb-3">
+                                    Admin
+                                </div>
+                                <div className="space-y-1">
+                                    <button
+                                        onClick={() => navigate('/admin/team')}
+                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/admin/team')
+                                            ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
+                                            : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
+                                            }`}
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">badge</span>
+                                        <span>Team</span>
+                                    </button>
+                                    <button
+                                        onClick={() => navigate('/settings')}
+                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/settings')
+                                            ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
+                                            : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
+                                            }`}
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">settings</span>
+                                        <span>Settings</span>
+                                    </button>
+                                </div>
                             </div>
-                            <div className="space-y-1">
-                                <button
-                                    onClick={() => navigate('/admin/team')}
-                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/admin/team')
-                                        ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                        : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                        }`}
-                                >
-                                    <span className="material-symbols-outlined text-[20px]">badge</span>
-                                    <span>Team</span>
-                                </button>
-                                <button
-                                    onClick={() => navigate('/settings')}
-                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/settings')
-                                        ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                        : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                        }`}
-                                >
-                                    <span className="material-symbols-outlined text-[20px]">settings</span>
-                                    <span>Settings</span>
-                                </button>
-                            </div>
-                        </div>
+                        )}
 
                         <div className="pt-6 mt-6 border-t border-[#e7ebf3] dark:border-[#2d3748]">
                             <button

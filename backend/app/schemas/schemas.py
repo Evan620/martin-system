@@ -49,6 +49,15 @@ class ProjectStatus(str, enum.Enum):
     BANKABLE = "bankable"
     PRESENTED = "presented"
 
+class NotificationType(str, enum.Enum):
+    INFO = "info"
+    SUCCESS = "success"
+    WARNING = "warning"
+    ALERT = "alert"
+    MESSAGE = "message"
+    DOCUMENT = "document"
+    TASK = "task"
+
 # --- Base Schema ---
 
 class SchemaBase(BaseModel):
@@ -197,6 +206,26 @@ class DocumentRead(DocumentBase):
     id: uuid.UUID
     file_path: str
     uploaded_by_id: uuid.UUID
+    created_at: datetime
+
+# --- Notification Schemas ---
+
+class NotificationBase(SchemaBase):
+    type: NotificationType = NotificationType.INFO
+    title: str
+    content: str
+    link: Optional[str] = None
+    is_read: bool = False
+
+class NotificationCreate(NotificationBase):
+    user_id: uuid.UUID
+
+class NotificationUpdate(SchemaBase):
+    is_read: Optional[bool] = None
+
+class NotificationRead(NotificationBase):
+    id: uuid.UUID
+    user_id: uuid.UUID
     created_at: datetime
 
 # --- Auth Schemas ---

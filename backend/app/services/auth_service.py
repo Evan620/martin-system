@@ -96,9 +96,9 @@ class AuthService:
             email=user_data.email,
             hashed_password=hashed_pwd,
             full_name=user_data.full_name,
-            role=user_data.role,
+            role=UserRole.TWG_MEMBER, # Default to TWG MEMBER, must be promoted by admin
             organization=user_data.organization,
-            is_active=False
+            is_active=False # Must be approved by admin
         )
         
         self.db.add(new_user)

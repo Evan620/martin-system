@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.core.config import settings
-from backend.app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users
+from backend.app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users, notifications
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -21,6 +21,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 # Register routers
@@ -34,6 +35,7 @@ app.include_router(audit.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(agents.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(dashboard.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(users.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(notifications.router, prefix=f"{settings.API_V1_STR}")
 
 @app.get("/")
 async def root():

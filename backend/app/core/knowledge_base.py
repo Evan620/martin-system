@@ -333,6 +333,8 @@ class PineconeKnowledgeBase:
 _knowledge_base_instance: Optional[PineconeKnowledgeBase] = None
 
 
+from backend.app.core.config import settings
+
 def get_knowledge_base() -> PineconeKnowledgeBase:
     """
     Get singleton instance of PineconeKnowledgeBase.
@@ -343,12 +345,12 @@ def get_knowledge_base() -> PineconeKnowledgeBase:
     global _knowledge_base_instance
     
     if _knowledge_base_instance is None:
-        # Initialize from environment variables
-        api_key = os.getenv("PINECONE_API_KEY")
-        environment = os.getenv("PINECONE_ENVIRONMENT", "us-east-1")
-        index_name = os.getenv("PINECONE_INDEX_NAME", "ecowas-summit-knowledge")
-        embedding_model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
-        dimension = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
+        # Initialize from settings
+        api_key = settings.PINECONE_API_KEY
+        environment = settings.PINECONE_ENVIRONMENT
+        index_name = settings.PINECONE_INDEX_NAME
+        embedding_model = settings.EMBEDDING_MODEL
+        dimension = settings.EMBEDDING_DIMENSION
         
         if not api_key:
             raise ValueError("PINECONE_API_KEY environment variable not set")

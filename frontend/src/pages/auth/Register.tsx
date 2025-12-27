@@ -4,7 +4,6 @@ import { Button, Input } from '../../components/ui'
 import { useAppDispatch } from '../../hooks/useRedux'
 import { setCredentials, setToken } from '../../store/slices/authSlice'
 import { authService } from '../../services/auth'
-import { UserRole } from '../../types/auth'
 
 declare global {
     interface Window {
@@ -18,8 +17,7 @@ export default function Register() {
         email: '',
         password: '',
         confirmPassword: '',
-        organization: '',
-        role: 'twg_member'
+        organization: ''
     })
     const [errors, setErrors] = useState<Record<string, string>>({})
     const [isLoading, setIsLoading] = useState(false)
@@ -135,8 +133,7 @@ export default function Register() {
                 full_name: formData.name,
                 email: formData.email,
                 password: formData.password,
-                organization: formData.organization,
-                role: formData.role as UserRole
+                organization: formData.organization
             });
 
             // Registration successful!
@@ -282,19 +279,6 @@ export default function Register() {
                             />
                             {errors.organization && <p className="text-red-400 text-xs mt-1">{errors.organization}</p>}
 
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">Role</label>
-                                <select
-                                    value={formData.role}
-                                    onChange={(e) => handleChange('role', e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                >
-                                    <option value="twg_member">TWG Member</option>
-                                    <option value="twg_facilitator">TWG Facilitator</option>
-                                    <option value="secretariat_lead">Secretariat Lead</option>
-                                    <option value="admin">Administrator</option>
-                                </select>
-                            </div>
 
                             <Input
                                 label="Password"

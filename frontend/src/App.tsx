@@ -6,9 +6,10 @@ import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
-import CommandCenter from './pages/dashboard/CommandCenter'
+import Dashboard from './pages/dashboard/Dashboard'
 import TwgWorkspace from './pages/workspace/TwgWorkspace'
 import MyWorkspaces from './pages/workspace/MyWorkspaces'
+import TwgAgent from './pages/workspace/TwgAgent'
 import Integrations from './pages/settings/Integrations'
 import ActionTracker from './pages/actions/ActionTracker'
 import KnowledgeBase from './pages/knowledge/KnowledgeBase'
@@ -18,6 +19,7 @@ import AgentAssistant from './pages/assistant/AgentAssistant'
 import SummitSchedule from './pages/schedule/SummitSchedule'
 import DocumentLibrary from './pages/documents/DocumentLibrary'
 import NotificationCenter from './pages/notifications/NotificationCenter'
+import Settings from './pages/settings/Settings'
 import DashboardLayout from './layouts/DashboardLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 
@@ -42,16 +44,39 @@ function App() {
             <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Protected routes */}
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={
+                <ProtectedRoute>
+                    <Dashboard />
+                </ProtectedRoute>
+            } />
+            <Route path="/twgs" element={
+                <ProtectedRoute>
+                    <TwgAgent />
+                </ProtectedRoute>
+            } />
+            <Route path="/documents" element={
+                <ProtectedRoute>
+                    <DocumentLibrary />
+                </ProtectedRoute>
+            } />
+            <Route path="/notifications" element={
+                <ProtectedRoute>
+                    <NotificationCenter />
+                </ProtectedRoute>
+            } />
+            <Route path="/integrations" element={
+                <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+                    <Settings />
+                </ProtectedRoute>
+            } />
             <Route path="/" element={
                 <ProtectedRoute>
                     <DashboardLayout />
                 </ProtectedRoute>
             }>
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<CommandCenter />} />
                 <Route path="my-twgs" element={<MyWorkspaces />} />
                 <Route path="workspace/:id" element={<TwgWorkspace />} />
-                <Route path="documents" element={<DocumentLibrary />} />
                 <Route path="schedule" element={<SummitSchedule />} />
                 <Route path="knowledge-base" element={<KnowledgeBase />} />
                 <Route path="deal-pipeline" element={
@@ -59,15 +84,9 @@ function App() {
                         <DealPipeline />
                     </ProtectedRoute>
                 } />
-                <Route path="integrations" element={
-                    <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
-                        <Integrations />
-                    </ProtectedRoute>
-                } />
                 <Route path="actions" element={<ActionTracker />} />
                 <Route path="profile" element={<UserProfile />} />
                 <Route path="assistant" element={<AgentAssistant />} />
-                <Route path="notifications" element={<NotificationCenter />} />
             </Route>
         </Routes>
     )

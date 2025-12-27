@@ -8,6 +8,9 @@ export default {
     theme: {
         extend: {
             colors: {
+                primary: '#1152d4',
+                'background-light': '#f6f6f8',
+                'background-dark': '#101622',
                 ecowas: {
                     green: {
                         50: '#f0fdf4',
@@ -46,7 +49,7 @@ export default {
             },
             fontFamily: {
                 sans: ['Inter', 'system-ui', 'sans-serif'],
-                display: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
+                display: ['Public Sans', 'Inter', 'system-ui', 'sans-serif'],
             },
             animation: {
                 'fade-in': 'fadeIn 0.5s ease-out',

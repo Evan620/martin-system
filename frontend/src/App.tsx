@@ -21,6 +21,16 @@ import NotificationCenter from './pages/notifications/NotificationCenter'
 import DashboardLayout from './layouts/DashboardLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 
+function HomeRedirect() {
+    const user = useAppSelector((state) => state.auth.user)
+
+    if (user?.role === UserRole.FACILITATOR || user?.role === UserRole.MEMBER) {
+        return <Navigate to="/workspace/energy-twg" replace />
+    }
+
+    return <Navigate to="/dashboard" replace />
+}
+
 function App() {
     const theme = useAppSelector((state) => state.theme.mode)
 
@@ -47,7 +57,7 @@ function App() {
                     <DashboardLayout />
                 </ProtectedRoute>
             }>
-                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route index element={<HomeRedirect />} />
                 <Route path="dashboard" element={<CommandCenter />} />
                 <Route path="my-twgs" element={<MyWorkspaces />} />
                 <Route path="workspace/:id" element={<TwgWorkspace />} />

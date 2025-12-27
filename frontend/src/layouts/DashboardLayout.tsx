@@ -1,13 +1,16 @@
 import { useState } from 'react'
-import { Outlet, Link, useLocation } from 'react-router-dom'
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { ThemeToggle, Avatar } from '../components/ui'
 import FloatingChatbot from '../components/FloatingChatbot'
-import { useAppSelector } from '../hooks/useRedux'
+import { useAppSelector, useAppDispatch } from '../hooks/useRedux'
+import { logout } from '../store/slices/authSlice'
 import { UserRole } from '../types/auth'
 
 export default function DashboardLayout() {
     const [sidebarOpen, setSidebarOpen] = useState(true)
     const location = useLocation()
+    const navigate = useNavigate()
+    const dispatch = useAppDispatch()
 
     const { user } = useAppSelector((state) => state.auth)
 
@@ -107,6 +110,22 @@ export default function DashboardLayout() {
                         )
                     })}
                 </nav>
+
+                {/* Logout Button */}
+                <div className="p-3 border-t border-slate-200 dark:border-dark-border">
+                    <button
+                        onClick={() => {
+                            dispatch(logout());
+                            navigate('/login');
+                        }}
+                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors"
+                    >
+                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        {sidebarOpen && <span className="font-medium">Log Out</span>}
+                    </button>
+                </div>
 
                 {/* Collapse Button */}
                 <button

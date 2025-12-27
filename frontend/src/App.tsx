@@ -154,6 +154,7 @@ function App() {
                     <AgentAssistant />
                 </ProtectedRoute>
             } />
+
             <Route path="/admin/team" element={
                 <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                     <TeamManagement />

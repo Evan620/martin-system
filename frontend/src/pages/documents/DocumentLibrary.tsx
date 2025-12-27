@@ -678,5 +678,5 @@ export default function DocumentLibrary() {
                 </div>
             )}
         </ModernLayout>
-    )
+    );
 }

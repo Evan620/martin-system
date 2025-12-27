@@ -11,6 +11,7 @@ export interface User {
     full_name: string;
     role: UserRole;
     organization?: string;
+    is_active: boolean;
     assigned_twg_id?: string;
     avatar?: string;
 }
@@ -21,6 +22,7 @@ export interface AuthState {
     isAuthenticated: boolean;
     loading: boolean;
     error: string | null;
+    initialCheckDone: boolean;
 }
 
 export interface UserRegister {

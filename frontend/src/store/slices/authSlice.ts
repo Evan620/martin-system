@@ -6,7 +6,8 @@ const initialState: AuthState = {
     isAuthenticated: false,
     token: localStorage.getItem('token'),
     loading: false,
-    error: null
+    error: null,
+    initialCheckDone: false
 }
 
 const authSlice = createSlice({
@@ -19,6 +20,10 @@ const authSlice = createSlice({
             state.isAuthenticated = true
             state.error = null
             localStorage.setItem('token', action.payload.token)
+        },
+        setToken: (state, action: PayloadAction<string>) => {
+            state.token = action.payload
+            localStorage.setItem('token', action.payload)
         },
         logout: (state) => {
             state.user = null
@@ -33,9 +38,19 @@ const authSlice = createSlice({
         setError: (state, action: PayloadAction<string>) => {
             state.error = action.payload
             state.loading = false
+            state.initialCheckDone = true
+        },
+        hydrateUser: (state, action: PayloadAction<User>) => {
+            state.user = action.payload
+            state.isAuthenticated = true
+            state.initialCheckDone = true
+            state.loading = false
+        },
+        setInitialCheckDone: (state, action: PayloadAction<boolean>) => {
+            state.initialCheckDone = action.payload
         }
     },
 })
 
-export const { setCredentials, logout, setLoading, setError } = authSlice.actions
+export const { setCredentials, setToken, logout, setLoading, setError, hydrateUser, setInitialCheckDone } = authSlice.actions
 export default authSlice.reducer

@@ -1,10 +1,16 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Button, Input } from '../../components/ui'
 import { useAppDispatch } from '../../hooks/useRedux'
-import { setCredentials } from '../../store/slices/authSlice'
+import { setCredentials, setToken } from '../../store/slices/authSlice'
 import { authService } from '../../services/auth'
 import { UserRole } from '../../types/auth'
+
+declare global {
+    interface Window {
+        google: any;
+    }
+}
 
 export default function Register() {
     const [formData, setFormData] = useState({
@@ -19,6 +25,53 @@ export default function Register() {
     const [isLoading, setIsLoading] = useState(false)
     const navigate = useNavigate()
     const dispatch = useAppDispatch()
+
+    useEffect(() => {
+        // Initialize Google Login
+        if (window.google) {
+            window.google.accounts.id.initialize({
+                client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+                callback: handleGoogleLogin,
+            });
+            window.google.accounts.id.renderButton(
+                document.getElementById("googleSync"),
+                { theme: "dark", size: "large", width: "250" }
+            );
+        }
+    }, []);
+
+    const handleGoogleLogin = async (response: any) => {
+        setIsLoading(true);
+        try {
+            const result = await authService.loginWithGoogle(response.credential);
+
+            localStorage.setItem('token', result.access_token);
+            dispatch(setToken(result.access_token));
+
+            const user = await authService.getCurrentUser();
+
+            if (user) {
+                if (!user.is_active) {
+                    navigate('/pending-approval');
+                } else {
+                    dispatch(setCredentials({
+                        user: user,
+                        token: result.access_token
+                    }));
+                    navigate('/dashboard');
+                }
+            }
+        } catch (err: any) {
+            console.error('Google login failed', err);
+            if (err.response?.status === 403) {
+                navigate('/pending-approval');
+            } else {
+                setErrors(prev => ({ ...prev, general: 'Google authentication failed. Please try again.' }));
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const validateForm = () => {
         const newErrors: Record<string, string> = {}
@@ -95,14 +148,16 @@ export default function Register() {
                 // Construct user object or fetch it. The backend /register returns UserWithToken
                 // which includes the user object.
                 if (response.user) {
-                    dispatch(setCredentials({
-                        user: response.user,
-                        token: response.access_token
-                    }));
-                    navigate('/dashboard');
+                    if (!response.user.is_active) {
+                        navigate('/pending-approval');
+                    } else {
+                        dispatch(setCredentials({
+                            user: response.user,
+                            token: response.access_token
+                        }));
+                        navigate('/dashboard');
+                    }
                 } else {
-                    // Fallback if user object missing? Fetch it?
-                    // Assuming response follows UserWithToken interface from our types
                     navigate('/login');
                 }
             } else {
@@ -274,6 +329,14 @@ export default function Register() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                             </svg>
                         </Button>
+
+                        <div className="relative flex items-center gap-4">
+                            <div className="flex-1 h-px bg-slate-800"></div>
+                            <span className="text-xs text-slate-500 font-medium">OR</span>
+                            <div className="flex-1 h-px bg-slate-800"></div>
+                        </div>
+
+                        <div id="googleSync" className="w-full flex justify-center"></div>
                     </form>
 
                     <div className="text-center">

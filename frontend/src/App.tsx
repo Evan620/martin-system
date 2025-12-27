@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAppSelector } from './hooks/useRedux'
+import { useAppDispatch, useAppSelector } from './hooks/useRedux'
 import { UserRole } from './types/auth'
+import { hydrateUser, setError, setInitialCheckDone } from './store/slices/authSlice'
+import { authService } from './services/auth'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 import ForgotPassword from './pages/auth/ForgotPassword'
@@ -19,12 +21,47 @@ import AgentAssistant from './pages/assistant/AgentAssistant'
 import SummitSchedule from './pages/schedule/SummitSchedule'
 import DocumentLibrary from './pages/documents/DocumentLibrary'
 import NotificationCenter from './pages/notifications/NotificationCenter'
-import Settings from './pages/settings/Settings'
+import TeamManagement from './pages/admin/TeamManagement'
+import PendingApproval from './pages/auth/PendingApproval'
 import DashboardLayout from './layouts/DashboardLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 
+function HomeRedirect() {
+    const user = useAppSelector((state) => state.auth.user)
+
+    if (!user?.is_active) {
+        return <Navigate to="/pending-approval" replace />
+    }
+
+    if (user?.role === UserRole.FACILITATOR || user?.role === UserRole.MEMBER) {
+        return <Navigate to="/workspace/energy-twg" replace />
+    }
+
+    return <Navigate to="/dashboard" replace />
+}
+
 function App() {
     const theme = useAppSelector((state) => state.theme.mode)
+    const { token, user, initialCheckDone } = useAppSelector((state) => state.auth)
+    const dispatch = useAppDispatch()
+
+    useEffect(() => {
+        const initializeAuth = async () => {
+            if (token && !user) {
+                try {
+                    const userData = await authService.getCurrentUser()
+                    dispatch(hydrateUser(userData))
+                } catch (err) {
+                    console.error('Failed to hydrate user session', err)
+                    dispatch(setError('Session expired. Please log in again.'))
+                }
+            } else {
+                dispatch(setInitialCheckDone(true))
+            }
+        }
+
+        initializeAuth()
+    }, [dispatch, token, user])
 
     useEffect(() => {
         // Apply theme class to html element
@@ -35,6 +72,17 @@ function App() {
         }
     }, [theme])
 
+    if (!initialCheckDone && token && !user) {
+        return (
+            <div className="h-screen w-screen flex items-center justify-center bg-[#020617]">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-blue-200 font-medium">Restoring session...</p>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <Routes>
             {/* Public routes */}
@@ -42,6 +90,7 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/pending-approval" element={<PendingApproval />} />
 
             {/* Protected routes */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -75,6 +124,8 @@ function App() {
                     <DashboardLayout />
                 </ProtectedRoute>
             }>
+                <Route index element={<HomeRedirect />} />
+                <Route path="dashboard" element={<CommandCenter />} />
                 <Route path="my-twgs" element={<MyWorkspaces />} />
                 <Route path="workspace/:id" element={<TwgWorkspace />} />
                 <Route path="schedule" element={<SummitSchedule />} />
@@ -87,6 +138,12 @@ function App() {
                 <Route path="actions" element={<ActionTracker />} />
                 <Route path="profile" element={<UserProfile />} />
                 <Route path="assistant" element={<AgentAssistant />} />
+                <Route path="notifications" element={<NotificationCenter />} />
+                <Route path="admin/team" element={
+                    <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
+                        <TeamManagement />
+                    </ProtectedRoute>
+                } />
             </Route>
         </Routes>
     )

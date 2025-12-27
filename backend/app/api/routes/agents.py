@@ -6,8 +6,19 @@ import asyncio
 from backend.app.api.deps import get_current_active_user
 from backend.app.models.models import User
 from backend.app.schemas.schemas import AgentChatRequest, AgentChatResponse, AgentTaskRequest, AgentStatus
+from backend.app.agents.supervisor_with_tools import SupervisorWithTools
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
+
+# Initialize the supervisor agent (singleton)
+supervisor_agent = None
+
+def get_supervisor() -> SupervisorWithTools:
+    """Get or create the supervisor agent instance."""
+    global supervisor_agent
+    if supervisor_agent is None:
+        supervisor_agent = SupervisorWithTools()
+    return supervisor_agent
 
 @router.post("/chat", response_model=AgentChatResponse)
 async def chat_with_martin(
@@ -15,31 +26,36 @@ async def chat_with_martin(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Chat with the specialized 'Martin' agent for your TWG.
-    
-    (Currently Mocked - Will be replaced by Supervisor logic)
+    Chat with the Supervisor AI agent.
+
+    Uses the actual LLM-powered supervisor with tool execution capabilities.
     """
-    # Simulate AI processing time
-    await asyncio.sleep(1.5)
-    
     conv_id = chat_in.conversation_id or uuid.uuid4()
-    
-    # Placeholder response
-    response_text = (
-        f"Greetings {current_user.full_name}. I am analyzing your request regarding '{chat_in.message}'. "
-        "As the Technical Advisor for this summit, I am cross-referencing this with the current knowledge base. "
-        "How else can I assist with your TWG objectives today?"
-    )
-    
-    return {
-        "response": response_text,
-        "conversation_id": conv_id,
-        "citations": [
-            {"source": "Abuja Declaration Draft.pdf", "page": 4, "relevance": 0.95},
-            {"source": "ECOWAS Energy Policy 2024.docx", "page": 12, "relevance": 0.88}
-        ],
-        "agent_id": "supervisor_v1"
-    }
+
+    try:
+        # Get the supervisor agent
+        supervisor = get_supervisor()
+
+        # Chat with the supervisor using tools
+        response_text = await supervisor.chat_with_tools(chat_in.message)
+
+        return {
+            "response": response_text,
+            "conversation_id": conv_id,
+            "citations": [],  # Citations will be extracted from the response in future
+            "agent_id": "supervisor_v1"
+        }
+    except Exception as e:
+        # Log the error and return a helpful message
+        import traceback
+        traceback.print_exc()
+
+        return {
+            "response": f"I apologize, but I encountered an error processing your request: {str(e)}",
+            "conversation_id": conv_id,
+            "citations": [],
+            "agent_id": "supervisor_v1"
+        }
 
 @router.post("/task", status_code=status.HTTP_202_ACCEPTED)
 async def assign_agent_task(

@@ -20,8 +20,8 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = Field(
-        default="postgresql://user:password@localhost:5432/ecowas_db",
-        description="PostgreSQL connection string"
+        default="sqlite+aiosqlite:///./ecowas_db.sqlite",
+        description="Database connection string"
     )
 
     # Redis

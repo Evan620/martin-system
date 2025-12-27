@@ -37,6 +37,22 @@ export default function Register() {
             newErrors.password = 'Password is required'
         } else if (formData.password.length < 8) {
             newErrors.password = 'Password must be at least 8 characters'
+        } else {
+            // Validate password strength to match backend requirements
+            const hasUpperCase = /[A-Z]/.test(formData.password)
+            const hasLowerCase = /[a-z]/.test(formData.password)
+            const hasDigit = /[0-9]/.test(formData.password)
+            const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(formData.password)
+
+            if (!hasUpperCase) {
+                newErrors.password = 'Password must contain at least one uppercase letter'
+            } else if (!hasLowerCase) {
+                newErrors.password = 'Password must contain at least one lowercase letter'
+            } else if (!hasDigit) {
+                newErrors.password = 'Password must contain at least one digit'
+            } else if (!hasSpecialChar) {
+                newErrors.password = 'Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)'
+            }
         }
 
         if (formData.password !== formData.confirmPassword) {
@@ -94,7 +110,9 @@ export default function Register() {
                 navigate('/login');
             }
         } catch (err: any) {
-            const errorMessage = err.response?.data?.detail || 'Registration failed. Please try again.';
+            console.error('Registration error:', err);
+            console.error('Error response:', err.response?.data);
+            const errorMessage = err.response?.data?.detail || err.response?.data?.message || 'Registration failed. Please try again.';
             setErrors(prev => ({ ...prev, general: errorMessage }));
         } finally {
             setIsLoading(false);
@@ -170,6 +188,11 @@ export default function Register() {
                     </div>
 
                     <form onSubmit={handleRegister} className="space-y-5">
+                        {errors.general && (
+                            <div className="p-4 bg-red-900/20 border border-red-500/50 rounded-lg">
+                                <p className="text-red-400 text-sm">{errors.general}</p>
+                            </div>
+                        )}
                         <div className="space-y-4">
                             <Input
                                 label="Full Name"

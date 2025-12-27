@@ -3,11 +3,13 @@ import enum
 from datetime import datetime
 from typing import List, Optional
 from decimal import Decimal
-from sqlalchemy import String, DateTime, Enum, ForeignKey, Column, Table, Text, Numeric, Float, Boolean, JSON
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import String, DateTime, Enum, ForeignKey, Column, Table, Text, Numeric, Float, Boolean, JSON, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.app.core.database import Base
+try:
+    from backend.app.core.database import Base
+except ImportError:
+    from app.core.database import Base
 
 # --- Enums ---
 
@@ -59,16 +61,16 @@ class ProjectStatus(str, enum.Enum):
 twg_members = Table(
     "twg_members",
     Base.metadata,
-    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True),
-    Column("twg_id", UUID(as_uuid=True), ForeignKey("twgs.id"), primary_key=True),
+    Column("user_id", Uuid, ForeignKey("users.id"), primary_key=True),
+    Column("twg_id", Uuid, ForeignKey("twgs.id"), primary_key=True),
     Column("joined_at", DateTime, default=datetime.utcnow)
 )
 
 meeting_participants = Table(
     "meeting_participants",
     Base.metadata,
-    Column("meeting_id", UUID(as_uuid=True), ForeignKey("meetings.id"), primary_key=True),
-    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True),
+    Column("meeting_id", Uuid, ForeignKey("meetings.id"), primary_key=True),
+    Column("user_id", Uuid, ForeignKey("users.id"), primary_key=True),
     Column("rsvp_status", String(50), default="pending"), # pending, accepted, declined
     Column("attended", Boolean, default=False)
 )
@@ -78,7 +80,7 @@ meeting_participants = Table(
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     full_name: Mapped[str] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
@@ -102,12 +104,12 @@ class User(Base):
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id"), nullable=True)
     action: Mapped[str] = mapped_column(String(255))
     resource_type: Mapped[str] = mapped_column(String(100)) # e.g., "meeting", "document", "project"
-    resource_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
-    details: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True) # Contextual info
+    resource_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, nullable=True)
+    details: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True) # Contextual info
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -117,13 +119,13 @@ class AuditLog(Base):
 class TWG(Base):
     __tablename__ = "twgs"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255))
     pillar: Mapped[TWGPillar] = mapped_column(Enum(TWGPillar))
     status: Mapped[str] = mapped_column(String(50), default="active")
     
-    political_lead_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    technical_lead_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    political_lead_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id"), nullable=True)
+    technical_lead_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id"), nullable=True)
 
     # Relationships
     members: Mapped[List["User"]] = relationship(
@@ -137,8 +139,8 @@ class TWG(Base):
 class Meeting(Base):
     __tablename__ = "meetings"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    twg_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("twgs.id"))
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    twg_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("twgs.id"))
     title: Mapped[str] = mapped_column(String(255))
     scheduled_at: Mapped[datetime] = mapped_column(DateTime)
     duration_minutes: Mapped[int] = mapped_column(default=60)
@@ -159,8 +161,8 @@ class Meeting(Base):
 class Agenda(Base):
     __tablename__ = "agendas"
     
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    meeting_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("meetings.id"), unique=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    meeting_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("meetings.id"), unique=True)
     content: Mapped[str] = mapped_column(Text) # Markdown or HTML
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
@@ -170,8 +172,8 @@ class Agenda(Base):
 class Minutes(Base):
     __tablename__ = "minutes"
     
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    meeting_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("meetings.id"), unique=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    meeting_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("meetings.id"), unique=True)
     content: Mapped[str] = mapped_column(Text) # Markdown or HTML
     key_decisions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[MinutesStatus] = mapped_column(Enum(MinutesStatus), default=MinutesStatus.DRAFT)
@@ -183,11 +185,11 @@ class Minutes(Base):
 class ActionItem(Base):
     __tablename__ = "action_items"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    twg_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("twgs.id"))
-    meeting_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("meetings.id"), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    twg_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("twgs.id"))
+    meeting_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("meetings.id"), nullable=True)
     description: Mapped[str] = mapped_column(Text)
-    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    owner_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"))
     due_date: Mapped[datetime] = mapped_column(DateTime)
     status: Mapped[ActionItemStatus] = mapped_column(Enum(ActionItemStatus), default=ActionItemStatus.PENDING)
     priority: Mapped[ActionItemPriority] = mapped_column(Enum(ActionItemPriority), default=ActionItemPriority.MEDIUM)
@@ -200,16 +202,16 @@ class ActionItem(Base):
 class Project(Base):
     __tablename__ = "projects"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    twg_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("twgs.id"))
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    twg_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("twgs.id"))
     name: Mapped[str] = mapped_column(String(255))
     description: Mapped[str] = mapped_column(Text)
     investment_size: Mapped[Decimal] = mapped_column(Numeric(15, 2))
     currency: Mapped[str] = mapped_column(String(10), default="USD")
     readiness_score: Mapped[float] = mapped_column(Float, default=0.0)
     status: Mapped[ProjectStatus] = mapped_column(Enum(ProjectStatus), default=ProjectStatus.IDENTIFIED)
-    investment_memo_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
-    metadata_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    investment_memo_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("documents.id"), nullable=True)
+    metadata_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     
     # Relationships
     twg: Mapped["TWG"] = relationship(back_populates="projects")
@@ -218,14 +220,14 @@ class Project(Base):
 class Document(Base):
     __tablename__ = "documents"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    twg_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("twgs.id"), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    twg_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("twgs.id"), nullable=True)
     file_name: Mapped[str] = mapped_column(String(255))
     file_path: Mapped[str] = mapped_column(String(512))
     file_type: Mapped[str] = mapped_column(String(50)) # pdf, docx, etc.
-    uploaded_by_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    uploaded_by_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"))
     is_confidential: Mapped[bool] = mapped_column(Boolean, default=False)
-    metadata_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    metadata_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -234,9 +236,9 @@ class Document(Base):
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
     
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     token: Mapped[str] = mapped_column(String(512), unique=True, index=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"))
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

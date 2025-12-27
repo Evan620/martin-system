@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import DeclarativeBase
 
 try:
-    from backend.app.core.config import settings
+    from app.core.config import settings
 except ImportError:
     from app.core.config import settings
 

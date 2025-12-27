@@ -3,9 +3,9 @@ import asyncio
 from typing import List, Optional
 import uuid
 
-from backend.app.core.celery_app import celery_app
-from backend.app.services.format_service import format_service
-from backend.app.services.email_service import email_service
+from app.core.celery_app import celery_app
+from app.services.format_service import format_service
+from app.services.email_service import email_service
 # Database access in celery tasks usually requires creating a new session manually
 # Since projects.py is async, we need to run sync code or use asgiref.sync_to_async or similar wrapper
 # But Celery runs in a separate process, often sync.

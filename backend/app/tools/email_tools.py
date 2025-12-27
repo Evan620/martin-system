@@ -15,6 +15,7 @@ from email.utils import parsedate_to_datetime
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 from app.services.gmail_service import get_gmail_service
+from app.services.email_approval_service import get_email_approval_service
 from googleapiclient.errors import HttpError
 
 logger = logging.getLogger(__name__)
@@ -163,10 +164,14 @@ async def send_email(
     html_body: Optional[str] = None,
     cc: Optional[Union[str, List[str]]] = None,
     bcc: Optional[Union[str, List[str]]] = None,
-    attachments: Optional[List[str]] = None
+    attachments: Optional[List[str]] = None,
+    context: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Send an email via Gmail with support for HTML, CC/BCC, and attachments.
+    Create an email approval request (Human-in-the-Loop).
+
+    This function creates an approval request instead of sending directly.
+    The user must review and approve the email before it's sent.
 
     Args:
         to: Recipient email address(es)
@@ -176,9 +181,10 @@ async def send_email(
         cc: Optional CC recipient(s)
         bcc: Optional BCC recipient(s)
         attachments: Optional list of file paths to attach
+        context: Optional context about why this email is being sent
 
     Returns:
-        Dictionary with status, message_id, and thread_id
+        Dictionary with status, approval_request_id, and preview details
 
     Example:
         result = await send_email(
@@ -186,7 +192,7 @@ async def send_email(
             subject="Test Email",
             message="Plain text content",
             html_body="<h1>HTML Content</h1>",
-            attachments=["/path/to/file.pdf"]
+            context="Monthly report to stakeholder"
         )
     """
     try:
@@ -200,25 +206,42 @@ async def send_email(
         if bcc and not validate_email_addresses(bcc):
             return {"status": "error", "error": "Invalid BCC email address"}
 
-        # Get Gmail service
-        gmail = get_gmail_service()
+        # Convert to lists if single strings
+        to_list = [to] if isinstance(to, str) else to
+        cc_list = [cc] if isinstance(cc, str) and cc else (cc or None)
+        bcc_list = [bcc] if isinstance(bcc, str) and bcc else (bcc or None)
 
-        # Send email
-        result = gmail.send_message(
-            to=to,
+        # Get approval service
+        approval_service = get_email_approval_service()
+
+        # Create approval request
+        approval_request = approval_service.create_approval_request(
+            to=to_list,
             subject=subject,
             body=message,
             html_body=html_body,
-            cc=cc,
-            bcc=bcc,
-            attachments=attachments
+            cc=cc_list,
+            bcc=bcc_list,
+            attachments=attachments,
+            context=context
         )
 
-        logger.info(f"Email sent successfully to {to}")
+        logger.info(f"Email approval request created: {approval_request.request_id}")
+
+        # Return approval request details
         return {
-            "status": "success",
-            "message_id": result['message_id'],
-            "thread_id": result.get('thread_id')
+            "status": "approval_required",
+            "approval_request_id": approval_request.request_id,
+            "draft_id": approval_request.draft.draft_id,
+            "to": to_list,
+            "subject": subject,
+            "message": "Email draft created. Please review and approve before sending.",
+            "preview": {
+                "to": ", ".join(to_list),
+                "cc": ", ".join(cc_list) if cc_list else None,
+                "subject": subject,
+                "body_preview": message[:200] + "..." if len(message) > 200 else message
+            }
         }
 
     except HttpError as error:

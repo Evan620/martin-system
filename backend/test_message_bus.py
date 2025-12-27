@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from backend.app.services.message_bus_factory import get_message_bus, test_message_bus_connection
-from backend.app.schemas.agent_messages import (
+from app.services.message_bus_factory import get_message_bus, test_message_bus_connection
+from app.schemas.agent_messages import (
     create_delegation_request,
     create_agent_response,
     create_agent_event,

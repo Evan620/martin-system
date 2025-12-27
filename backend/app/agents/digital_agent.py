@@ -5,7 +5,7 @@ Expert advisor for Digital Economy & Transformation Technical Working Group.
 Focuses on digital infrastructure, services, and innovation.
 """
 
-from backend.app.agents.base_agent import BaseAgent
+from app.agents.base_agent import BaseAgent
 
 
 class DigitalAgent(BaseAgent):

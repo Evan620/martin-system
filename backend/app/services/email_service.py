@@ -10,7 +10,7 @@ from icalendar import Calendar, Event
 from datetime import datetime, timedelta
 import pytz
 
-from backend.app.core.config import settings
+from app.core.config import settings
 
 class EmailService:
     def __init__(self):

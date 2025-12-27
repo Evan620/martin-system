@@ -14,7 +14,9 @@ import TwgWorkspace from './pages/workspace/TwgWorkspace'
 import TwgAgent from './pages/workspace/TwgAgent'
 import ActionTracker from './pages/actions/ActionTracker'
 import KnowledgeBase from './pages/knowledge/KnowledgeBase'
-import DealPipeline from './pages/resource/DealPipeline'
+import DealPipeline from './pages/workspace/DealPipeline'
+import ProjectDetails from './pages/workspace/ProjectDetails'
+import ProjectMemo from './pages/workspace/ProjectMemo'
 import UserProfile from './pages/profile/UserProfile'
 import AgentAssistant from './pages/assistant/AgentAssistant'
 import SummitSchedule from './pages/schedule/SummitSchedule'
@@ -142,6 +144,16 @@ function App() {
             <Route path="/deal-pipeline" element={
                 <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.FACILITATOR, UserRole.SECRETARIAT_LEAD]}>
                     <DealPipeline />
+                </ProtectedRoute>
+            } />
+            <Route path="/deal-pipeline/:id" element={
+                <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.FACILITATOR, UserRole.SECRETARIAT_LEAD]}>
+                    <ProjectDetails />
+                </ProtectedRoute>
+            } />
+            <Route path="/deal-pipeline/:id/memo" element={
+                <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.FACILITATOR, UserRole.SECRETARIAT_LEAD]}>
+                    <ProjectMemo />
                 </ProtectedRoute>
             } />
             <Route path="/actions" element={

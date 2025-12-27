@@ -25,8 +25,8 @@ load_dotenv()
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from backend.app.core.knowledge_base import get_knowledge_base
-from backend.app.utils.document_processor import get_document_processor
+from app.core.knowledge_base import get_knowledge_base
+from app.utils.document_processor import get_document_processor
 
 # Setup logging
 logging.basicConfig(

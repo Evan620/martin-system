@@ -5,7 +5,7 @@ Expert advisor for Agriculture & Food Systems Technical Working Group.
 Focuses on food security and agribusiness development.
 """
 
-from backend.app.agents.base_agent import BaseAgent
+from app.agents.base_agent import BaseAgent
 
 
 class AgricultureAgent(BaseAgent):

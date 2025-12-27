@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional
 from loguru import logger
 
 from app.agents.supervisor import SupervisorAgent
+from app.tools import email_tools
 
 
 class SupervisorWithTools(SupervisorAgent):
@@ -25,6 +26,68 @@ class SupervisorWithTools(SupervisorAgent):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.tool_execution_enabled = True
+
+    # Override parent email methods to use approval workflow
+    async def send_meeting_summary_email(self, **kwargs):
+        """Wrapper for send_meeting_summary_email using approval workflow."""
+        # Use email_tools.send_email which requires approval
+        return await email_tools.send_email(
+            to=kwargs.get('to'),
+            subject=kwargs.get('subject', 'Meeting Summary'),
+            message=kwargs.get('message', ''),
+            html_body=kwargs.get('html_body'),
+            cc=kwargs.get('cc'),
+            context="Meeting summary email"
+        )
+
+    async def send_report_email(self, **kwargs):
+        """Wrapper for send_report_email using approval workflow."""
+        return await email_tools.send_email(
+            to=kwargs.get('to'),
+            subject=kwargs.get('subject', 'Report'),
+            message=kwargs.get('message', ''),
+            html_body=kwargs.get('html_body'),
+            cc=kwargs.get('cc'),
+            context="Report email"
+        )
+
+    async def send_notification_email(self, **kwargs):
+        """Wrapper for send_notification_email using approval workflow."""
+        return await email_tools.send_email(
+            to=kwargs.get('to'),
+            subject=kwargs.get('subject', 'Notification'),
+            message=kwargs.get('message', ''),
+            html_body=kwargs.get('html_body'),
+            cc=kwargs.get('cc'),
+            context="Notification email"
+        )
+
+    async def broadcast_email_to_all_twgs(self, **kwargs):
+        """Wrapper for broadcast_email_to_all_twgs using approval workflow."""
+        # For broadcast, we'll create a single approval request
+        # In production, you might want individual approvals per TWG
+        return await email_tools.send_email(
+            to=kwargs.get('to', ['energy@twg.com', 'agriculture@twg.com', 'minerals@twg.com']),
+            subject=kwargs.get('subject', 'TWG Broadcast'),
+            message=kwargs.get('message', ''),
+            html_body=kwargs.get('html_body'),
+            cc=kwargs.get('cc'),
+            context="Broadcast to all TWGs"
+        )
+
+    async def get_email_tools_status(self, **kwargs):
+        """Return email tools status."""
+        return {
+            'status': 'success',
+            'available_tools': [
+                'send_email',
+                'search_emails',
+                'send_meeting_summary_email',
+                'send_report_email',
+                'send_notification_email',
+                'broadcast_email_to_all_twgs'
+            ]
+        }
 
     async def chat_with_tools(self, message: str, temperature: Optional[float] = None) -> str:
         """
@@ -87,6 +150,19 @@ class SupervisorWithTools(SupervisorAgent):
                         tools = result.get('available_tools', [])
                         return f"Email tools are available. {len(tools)} tools ready: {', '.join(tools)}"
 
+                elif result.get('status') == 'approval_required':
+                    # Email requires approval - format approval request
+                    preview = result.get('preview', {})
+                    return (
+                        f"📧 **Email Draft Created - Approval Required**\n\n"
+                        f"**To:** {preview.get('to', 'N/A')}\n"
+                        f"**Subject:** {preview.get('subject', 'N/A')}\n"
+                        f"**Preview:** {preview.get('body_preview', 'N/A')}\n\n"
+                        f"**Approval Request ID:** `{result.get('approval_request_id')}`\n\n"
+                        f"Please review and approve this email before it's sent. "
+                        f"A modal will appear for you to review, edit, or decline this email."
+                    )
+
                 else:
                     return f"Error executing email tool: {result.get('error', 'Unknown error')}"
 
@@ -110,22 +186,26 @@ class SupervisorWithTools(SupervisorAgent):
         message_lower = message.lower()
 
         # Pattern 1: Search/Check emails
-        if any(keyword in message_lower for keyword in ['check email', 'search email', 'find email', 'last email', 'recent email', 'show email', 'get email', 'list email', 'my email']):
+        if any(keyword in message_lower for keyword in ['check email', 'search email', 'find email', 'last email', 'recent email', 'show email', 'get email', 'list email', 'my email', 'fetch email', 'latest email', 'top email', 'inbox']):
             # Extract parameters
             max_results = 5  # default
 
-            # Check for number of emails requested
-            number_match = re.search(r'last\s+(\d+)', message_lower)
+            # Check for number of emails requested - support multiple patterns
+            number_match = re.search(r'(?:last|latest|top|first)\s+(\d+)', message_lower)
             if number_match:
                 max_results = int(number_match.group(1))
+            elif re.search(r'(\d+)\s+(?:email|message)', message_lower):
+                # Handle "5 emails" pattern
+                num_match = re.search(r'(\d+)\s+(?:email|message)', message_lower)
+                max_results = int(num_match.group(1))
             elif 'all' in message_lower:
                 max_results = 50
 
             # Determine query
-            query = "is:inbox"  # default
+            query = "in:inbox"  # default to inbox
 
             if 'unread' in message_lower:
-                query = "is:unread"
+                query = "is:unread in:inbox"
             elif any(word in message_lower for word in ['from:', 'subject:', 'to:']):
                 # User specified a query
                 query = message_lower  # Use the whole message as query
@@ -135,7 +215,7 @@ class SupervisorWithTools(SupervisorAgent):
                 'args': {
                     'query': query,
                     'max_results': max_results,
-                    'include_body': False
+                    'include_body': True  # Include body for better analysis
                 }
             }
 
@@ -333,10 +413,11 @@ class SupervisorWithTools(SupervisorAgent):
         Returns:
             Tool execution result
         """
-        # Map of available tools
+        # Map of available tools - use email_tools functions for approval workflow
+        # For functions not in email_tools, use parent class methods
         tool_map = {
-            'search_emails': self.search_emails,
-            'send_email': self.send_email,
+            'search_emails': email_tools.search_emails,
+            'send_email': email_tools.send_email,
             'send_meeting_summary_email': self.send_meeting_summary_email,
             'send_report_email': self.send_report_email,
             'send_notification_email': self.send_notification_email,

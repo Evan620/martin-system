@@ -8,7 +8,7 @@ running the qwen2.5:0.5b model for AI agent interactions.
 import requests
 from typing import List, Dict, Optional
 from loguru import logger
-from backend.app.core.config import settings
+from app.core.config import settings
 
 
 class OllamaLLMService:

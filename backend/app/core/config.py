@@ -46,7 +46,7 @@ class Settings(BaseSettings):
         description="Ollama server URL"
     )
     OLLAMA_MODEL: str = Field(
-        default="qwen2.5:0.5b",
+        default="mistral:latest",
         description="Ollama model name"
     )
     LLM_TEMPERATURE: float = Field(
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
         description="LLM sampling temperature"
     )
     LLM_TIMEOUT: int = Field(
-        default=300,
+        default=600,
         description="LLM request timeout in seconds"
     )
     

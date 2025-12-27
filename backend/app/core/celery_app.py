@@ -1,5 +1,5 @@
 from celery import Celery
-from backend.app.core.config import settings
+from app.core.config import settings
 
 if settings.REDIS_URL:
     broker_url = settings.REDIS_URL

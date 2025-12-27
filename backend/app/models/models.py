@@ -7,7 +7,7 @@ from sqlalchemy import String, DateTime, Enum, ForeignKey, Column, Table, Text, 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 try:
-    from backend.app.core.database import Base
+    from app.core.database import Base
 except ImportError:
     from app.core.database import Base
 

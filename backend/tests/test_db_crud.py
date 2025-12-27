@@ -2,7 +2,7 @@ import pytest
 import uuid
 from datetime import datetime, timedelta
 from sqlalchemy import select
-from backend.app.models.models import User, TWG, Meeting, TWGPillar, UserRole, MeetingStatus
+from app.models.models import User, TWG, Meeting, TWGPillar, UserRole, MeetingStatus
 
 @pytest.mark.asyncio
 async def test_create_user(db_session):

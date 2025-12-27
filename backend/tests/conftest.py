@@ -1,12 +1,12 @@
 import pytest
 import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.app.core.database import AsyncSessionLocal, engine, Base
+from app.core.database import AsyncSessionLocal, engine, Base
 from typing import AsyncGenerator
 from httpx import AsyncClient, ASGITransport
-from backend.app.main import app
-from backend.app.utils.security import create_access_token
-from backend.app.models.models import User, UserRole
+from app.main import app
+from app.utils.security import create_access_token
+from app.models.models import User, UserRole
 import uuid
 
 
@@ -29,7 +29,7 @@ async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
 @pytest.fixture
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """Provide an async HTTP client for testing API endpoints."""
-    from backend.app.core.database import get_db
+    from app.core.database import get_db
     
     # Override get_db dependency
     async def override_get_db():

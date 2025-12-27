@@ -146,14 +146,14 @@ function App() {
                     <DealPipeline />
                 </ProtectedRoute>
             } />
-            <Route path="/deal-pipeline/:id" element={
-                <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.FACILITATOR, UserRole.SECRETARIAT_LEAD]}>
-                    <ProjectDetails />
+            <Route path="/actions" element={
+                <ProtectedRoute>
+                    <ActionTracker />
                 </ProtectedRoute>
             } />
-            <Route path="/deal-pipeline/:id/memo" element={
-                <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.FACILITATOR, UserRole.SECRETARIAT_LEAD]}>
-                    <ProjectMemo />
+            <Route path="/assistant" element={
+                <ProtectedRoute>
+                    <AgentAssistant />
                 </ProtectedRoute>
             } />
             <Route path="/actions" element={

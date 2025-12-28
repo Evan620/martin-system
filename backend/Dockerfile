@@ -16,28 +16,27 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Copy requirements and install dependencies
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copy everything into the root of the container
+# Copy everything into a specific 'backend' folder inside the container
+# This exactly matches the 'from backend.app' imports in your code
 WORKDIR /app
-COPY . .
+COPY . ./backend/
 
-# Multi-service fix: Create a symlink so that 'import backend.app' works 
-# even though we are currently INSIDE the backend folder.
-RUN ln -s . backend
+# Ensure the backend folder is treated as a Python package
+RUN touch ./backend/__init__.py
 
-# Set PYTHONPATH to the current directory
+# Set PYTHONPATH to the root so 'backend' is discoverable
 ENV PYTHONPATH=/app
 
 # Expose port
 EXPOSE 8000
 
-# Health check
+# Health check (matches the nested structure)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application
-# We use uvicorn app.main:app because Railway expects the app folder to be in the root
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application using the full package path
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

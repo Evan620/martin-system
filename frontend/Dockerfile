@@ -23,6 +23,11 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+
+# Accept API URL as build argument
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
 RUN npm run build
 
 # Stage 3: Production with nginx

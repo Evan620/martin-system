@@ -145,6 +145,18 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('meeting_id')
     )
+    op.create_table('audit_logs',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('user_id', sa.UUID(), nullable=True),
+    sa.Column('action', sa.String(length=255), nullable=False),
+    sa.Column('resource_type', sa.String(length=100), nullable=False),
+    sa.Column('resource_id', sa.UUID(), nullable=True),
+    sa.Column('details', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('ip_address', sa.String(length=45), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='SET NULL'),
+    sa.PrimaryKeyConstraint('id')
+    )
     # ### end Alembic commands ###
 
 

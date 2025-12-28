@@ -9,7 +9,8 @@
             },
             "deploy": {
                 "numReplicas": 1,
-                "restartPolicy": "ALWAYS"
+                "restartPolicy": "ALWAYS",
+                "startCommand": "/bin/sh -c \"uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}\""
             }
         },
         "frontend": {

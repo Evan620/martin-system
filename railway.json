@@ -33,7 +33,7 @@
             "deploy": {
                 "numReplicas": 1,
                 "restartPolicy": "ALWAYS",
-                "startCommand": "celery -A app.core.scheduler worker --loglevel=info"
+                "startCommand": "celery -A backend.app.core.celery_app worker --loglevel=info"
             }
         },
         "celery-beat": {
@@ -45,7 +45,7 @@
             "deploy": {
                 "numReplicas": 1,
                 "restartPolicy": "ALWAYS",
-                "startCommand": "celery -A app.core.scheduler beat --loglevel=info"
+                "startCommand": "celery -A backend.app.core.celery_app beat --loglevel=info"
             }
         }
     }

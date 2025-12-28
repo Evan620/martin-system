@@ -17,7 +17,7 @@ services:
     networks:
       - ecowas-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecowas_user}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecowas_user}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -34,7 +34,7 @@ services:
     networks:
       - ecowas-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -115,7 +115,7 @@ services:
       - redis
     networks:
       - ecowas-network
-    command: celery -A app.core.scheduler worker --loglevel=info
+    command: celery -A backend.app.core.celery_app worker --loglevel=info
 
   # Celery Beat (Scheduled Tasks)
   celery_beat:
@@ -138,7 +138,7 @@ services:
       - redis
     networks:
       - ecowas-network
-    command: celery -A app.core.scheduler beat --loglevel=info
+    command: celery -A backend.app.core.celery_app beat --loglevel=info
 
 networks:
   ecowas-network:

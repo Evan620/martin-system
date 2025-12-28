@@ -303,7 +303,8 @@ async def stream_chat(
             elif parsed["type"] == MessageParseType.MENTION:
                 # Send agent routing event
                 agent_ids = parsed["agent_mentions"]
-                yield f"data: {json.dumps({'type': 'agent_routing', 'agents': agent_ids, 'status': f"""Routing to {', '.join(agent_ids)} agent(s)..."""})}\n\n"
+                status_msg = f"Routing to {', '.join(agent_ids)} agent(s)..."
+                yield f"data: {json.dumps({'type': 'agent_routing', 'agents': agent_ids, 'status': status_msg})}\n\n"
 
                 # Execute with mentioned agent
                 response_text = await handle_mention(supervisor, parsed)

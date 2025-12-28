@@ -1,17 +1,32 @@
 """
-LLM Service for Local Ollama Integration
+LLM Service for AI Agent Integration
 
-This service provides an interface to connect to a local Ollama instance
-running the qwen2.5:0.5b model for AI agent interactions.
+This service provides an interface to connect to either a local Ollama instance
+or OpenAI API based on configuration.
 """
 
 import requests
-from typing import List, Dict, Optional
+import json
+from typing import List, Dict, Optional, Any
 from loguru import logger
 from backend.app.core.config import settings
 
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 
-class OllamaLLMService:
+
+class LLMService:
+    """Base interface for LLM services"""
+    def chat(self, prompt: str, system_prompt: Optional[str] = None, **kwargs) -> str:
+        raise NotImplementedError
+
+    def chat_with_history(self, messages: List[Dict[str, str]], system_prompt: Optional[str] = None, **kwargs) -> str:
+        raise NotImplementedError
+
+
+class OllamaLLMService(LLMService):
     """Service for interacting with local Ollama LLM"""
 
     def __init__(
@@ -21,65 +36,19 @@ class OllamaLLMService:
         temperature: float = 0.7,
         timeout: int = 120
     ):
-        """
-        Initialize the Ollama LLM service.
-
-        Args:
-            base_url: Ollama server URL
-            model: Model name to use
-            temperature: Sampling temperature (0-1)
-            timeout: Request timeout in seconds (default: 120)
-        """
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.temperature = temperature
         self.timeout = timeout
         self.api_endpoint = f"{self.base_url}/api/generate"
 
-        logger.info(f"Initialized Ollama LLM Service: {self.model} @ {self.base_url} (timeout: {timeout}s)")
+        logger.info(f"Initialized Ollama LLM Service: {self.model} @ {self.base_url}")
 
-    def check_connection(self) -> bool:
-        """
-        Check if Ollama server is reachable.
-
-        Returns:
-            bool: True if server is reachable, False otherwise
-        """
-        try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=5)
-            return response.status_code == 200
-        except Exception as e:
-            logger.error(f"Ollama connection check failed: {e}")
-            return False
-
-    def chat(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: int = 1000
-    ) -> str:
-        """
-        Send a chat message to the LLM and get a response.
-
-        Args:
-            prompt: User message/prompt
-            system_prompt: Optional system prompt to set context
-            temperature: Override default temperature
-            max_tokens: Maximum tokens in response
-
-        Returns:
-            str: LLM response text
-
-        Raises:
-            Exception: If API request fails
-        """
-        # Build the full prompt with system context
+    def chat(self, prompt: str, system_prompt: Optional[str] = None, temperature: Optional[float] = None, max_tokens: int = 1000) -> str:
         full_prompt = prompt
         if system_prompt:
             full_prompt = f"{system_prompt}\n\nUser: {prompt}\n\nAssistant:"
 
-        # Prepare request payload
         payload = {
             "model": self.model,
             "prompt": full_prompt,
@@ -91,56 +60,14 @@ class OllamaLLMService:
         }
 
         try:
-            logger.debug(f"Sending request to Ollama: {full_prompt[:100]}...")
-            response = requests.post(
-                self.api_endpoint,
-                json=payload,
-                timeout=self.timeout
-            )
+            response = requests.post(self.api_endpoint, json=payload, timeout=self.timeout)
             response.raise_for_status()
-
-            result = response.json()
-            response_text = result.get("response", "").strip()
-
-            logger.debug(f"Received response: {response_text[:100]}...")
-            return response_text
-
-        except requests.exceptions.Timeout:
-            logger.error(f"Ollama request timed out after {self.timeout}s")
-            raise Exception(
-                f"LLM request timed out after {self.timeout} seconds. "
-                f"The model '{self.model}' may be slow or not loaded. "
-                f"Try running: ollama run {self.model}"
-            )
-        except requests.exceptions.ConnectionError:
-            logger.error("Cannot connect to Ollama server")
-            raise Exception(
-                f"Cannot connect to Ollama at {self.base_url}. "
-                f"Make sure Ollama is running: ollama serve"
-            )
+            return response.json().get("response", "").strip()
         except Exception as e:
             logger.error(f"Ollama API error: {e}")
-            raise Exception(f"LLM API error: {str(e)}")
+            raise Exception(f"Ollama Error: {str(e)}")
 
-    def chat_with_history(
-        self,
-        messages: List[Dict[str, str]],
-        system_prompt: Optional[str] = None,
-        temperature: Optional[float] = None
-    ) -> str:
-        """
-        Chat with conversation history.
-
-        Args:
-            messages: List of message dicts with 'role' and 'content'
-                     Example: [{"role": "user", "content": "Hello"}]
-            system_prompt: Optional system prompt
-            temperature: Override default temperature
-
-        Returns:
-            str: LLM response
-        """
-        # Build conversation context
+    def chat_with_history(self, messages: List[Dict[str, str]], system_prompt: Optional[str] = None, temperature: Optional[float] = None) -> str:
         conversation = ""
         if system_prompt:
             conversation = f"{system_prompt}\n\n"
@@ -148,14 +75,10 @@ class OllamaLLMService:
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
-            if role == "user":
-                conversation += f"User: {content}\n"
-            elif role == "assistant":
-                conversation += f"Assistant: {content}\n"
+            conversation += f"{role.capitalize()}: {content}\n"
 
         conversation += "Assistant:"
 
-        # Send to Ollama
         payload = {
             "model": self.model,
             "prompt": conversation,
@@ -166,38 +89,95 @@ class OllamaLLMService:
         }
 
         try:
-            response = requests.post(
-                self.api_endpoint,
-                json=payload,
-                timeout=self.timeout
-            )
+            response = requests.post(self.api_endpoint, json=payload, timeout=self.timeout)
             response.raise_for_status()
-
-            result = response.json()
-            return result.get("response", "").strip()
-
+            return response.json().get("response", "").strip()
         except Exception as e:
-            logger.error(f"Chat with history failed: {e}")
-            raise Exception(f"LLM API error: {str(e)}")
+            logger.error(f"Ollama History error: {e}")
+            raise Exception(f"Ollama Error: {str(e)}")
+
+
+class OpenAILLMService(LLMService):
+    """Service for interacting with OpenAI API"""
+
+    def __init__(self, api_key: str, model: str = "gpt-4-turbo-preview", temperature: float = 0.7):
+        if not OpenAI:
+            raise ImportError("openai package not installed. Run 'pip install openai'")
+        
+        self.client = OpenAI(api_key=api_key)
+        self.model = model
+        self.temperature = temperature
+        logger.info(f"Initialized OpenAI LLM Service: {self.model}")
+
+    def chat(self, prompt: str, system_prompt: Optional[str] = None, temperature: Optional[float] = None, max_tokens: int = 2000) -> str:
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature if temperature is not None else self.temperature,
+                max_tokens=max_tokens
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.error(f"OpenAI API error: {e}")
+            raise Exception(f"OpenAI Error: {str(e)}")
+
+    def chat_with_history(self, messages: List[Dict[str, str]], system_prompt: Optional[str] = None, temperature: Optional[float] = None) -> str:
+        full_messages = []
+        if system_prompt:
+            full_messages.append({"role": "system", "content": system_prompt})
+        
+        # Ensure correct role names for OpenAI
+        for m in messages:
+            role = m.get("role", "user")
+            if role not in ["system", "user", "assistant"]:
+                role = "user"
+            full_messages.append({"role": role, "content": m.get("content", "")})
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=full_messages,
+                temperature=temperature if temperature is not None else self.temperature
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.error(f"OpenAI History error: {e}")
+            raise Exception(f"OpenAI Error: {str(e)}")
 
 
 # Singleton instance
 _llm_service = None
 
 
-def get_llm_service() -> OllamaLLMService:
+def get_llm_service() -> LLMService:
     """
-    Get or create the LLM service singleton.
-
-    Returns:
-        OllamaLLMService: The LLM service instance
+    Get or create the LLM service singleton based on configuration.
     """
     global _llm_service
     if _llm_service is None:
-        _llm_service = OllamaLLMService(
-            base_url=settings.OLLAMA_BASE_URL,
-            model=settings.OLLAMA_MODEL,
-            temperature=settings.LLM_TEMPERATURE,
-            timeout=settings.LLM_TIMEOUT
-        )
+        provider = getattr(settings, "LLM_PROVIDER", "ollama").lower()
+        
+        if provider == "openai" and getattr(settings, "OPENAI_API_KEY", None):
+            _llm_service = OpenAILLMService(
+                api_key=settings.OPENAI_API_KEY,
+                model=getattr(settings, "OPENAI_MODEL", "gpt-4-turbo-preview"),
+                temperature=settings.LLM_TEMPERATURE
+            )
+        else:
+            if provider == "openai":
+                logger.warning("OpenAI provider selected but no API key found. Falling back to Ollama.")
+            
+            _llm_service = OllamaLLMService(
+                base_url=settings.OLLAMA_BASE_URL,
+                model=settings.OLLAMA_MODEL,
+                temperature=settings.LLM_TEMPERATURE,
+                timeout=settings.LLM_TIMEOUT
+            )
     return _llm_service
+

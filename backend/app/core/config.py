@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     )
     
     # OpenAI (from Auth implementation)
-    LLM_PROVIDER: str = "openai"
+    LLM_PROVIDER: str = Field(default="openai", description="AI provider (openai or ollama)")
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: str = "gpt-4-turbo-preview"
 

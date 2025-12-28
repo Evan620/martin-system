@@ -79,6 +79,7 @@ def upgrade() -> None:
     sa.Column('location', sa.String(length=255), nullable=True),
     sa.Column('status', sa.Enum('SCHEDULED', 'CANCELLED', 'COMPLETED', name='meetingstatus'), nullable=False),
     sa.Column('meeting_type', sa.String(length=50), nullable=False),
+    sa.Column('transcript', sa.Text(), nullable=True),
     sa.ForeignKeyConstraint(['twg_id'], ['twgs.id'], ),
     sa.PrimaryKeyConstraint('id')
     )

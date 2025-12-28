@@ -3,16 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.app.core.config import settings
 from backend.app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users, notifications
 
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
-
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
-
-# Add proxy headers middleware to handle X-Forwarded-Proto
-app.add_middleware(ProxyHeadersMiddleware, trusted_proxies="*")
 
 # Set up CORS
 # Convert CORS_ORIGINS to list if it's a string

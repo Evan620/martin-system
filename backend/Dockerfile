@@ -42,4 +42,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Run the application using the full package path
 # Run migrations and then start the application
 # USES SHELL FORM TO ALLOW $PORT EXPANSION
-CMD sh -c "cd backend && alembic upgrade head && uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"
+CMD sh -c "cd backend && alembic upgrade head && uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}"

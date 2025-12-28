@@ -20,12 +20,15 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copy all files from the backend folder into a subfolder named 'backend'
-# This satisfies imports like 'from backend.app...'
+# Copy everything into the root of the container
 WORKDIR /app
-COPY . ./backend/
+COPY . .
 
-# Set PYTHONPATH so the /app folder is treated as a package root
+# Multi-service fix: Create a symlink so that 'import backend.app' works 
+# even though we are currently INSIDE the backend folder.
+RUN ln -s . backend
+
+# Set PYTHONPATH to the current directory
 ENV PYTHONPATH=/app
 
 # Expose port
@@ -35,5 +38,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application using the full module path
-CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application
+# We use uvicorn app.main:app because Railway expects the app folder to be in the root
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

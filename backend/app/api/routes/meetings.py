@@ -4,11 +4,11 @@ from sqlalchemy import select
 from typing import List
 import uuid
 
-from app.core.database import get_db
-from app.models.models import Meeting, Agenda, Minutes, User, UserRole, MinutesStatus
-from app.schemas.schemas import MeetingCreate, MeetingRead, MeetingUpdate, MinutesCreate, MinutesUpdate, MinutesRead
-from app.api.deps import get_current_active_user, require_facilitator, require_twg_access, has_twg_access
-from app.services.email_service import email_service
+from backend.app.core.database import get_db
+from backend.app.models.models import Meeting, Agenda, Minutes, User, UserRole, MinutesStatus
+from backend.app.schemas.schemas import MeetingCreate, MeetingRead, MeetingUpdate, MinutesCreate, MinutesUpdate, MinutesRead
+from backend.app.api.deps import get_current_active_user, require_facilitator, require_twg_access, has_twg_access
+from backend.app.services.email_service import email_service
 from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/meetings", tags=["Meetings"])

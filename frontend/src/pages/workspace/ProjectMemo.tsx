@@ -4,7 +4,6 @@ import { useState } from 'react';
 export default function ProjectMemo() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const [isGenerating, setIsGenerating] = useState(false);
     const [showEmailModal, setShowEmailModal] = useState(false);
     const [emailAddress, setEmailAddress] = useState('');
     const [emailMessage, setEmailMessage] = useState('');

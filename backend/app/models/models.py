@@ -7,9 +7,9 @@ from sqlalchemy import String, DateTime, Enum, ForeignKey, Column, Table, Text, 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 try:
-    from app.core.database import Base
+    from backend.app.core.database import Base
 except ImportError:
-    from app.core.database import Base
+    from backend.app.core.database import Base
 
 # --- Enums ---
 
@@ -72,7 +72,8 @@ twg_members = Table(
     Base.metadata,
     Column("user_id", Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
     Column("twg_id", Uuid, ForeignKey("twgs.id", ondelete="CASCADE"), primary_key=True),
-    Column("joined_at", DateTime, default=datetime.utcnow)
+    Column("joined_at", DateTime, default=datetime.utcnow),
+    extend_existing=True
 )
 
 meeting_participants = Table(
@@ -81,7 +82,8 @@ meeting_participants = Table(
     Column("meeting_id", Uuid, ForeignKey("meetings.id", ondelete="CASCADE"), primary_key=True),
     Column("user_id", Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
     Column("rsvp_status", String(50), default="pending"), # pending, accepted, declined
-    Column("attended", Boolean, default=False)
+    Column("attended", Boolean, default=False),
+    extend_existing=True
 )
 
 # --- Models ---

@@ -11,8 +11,8 @@ import json
 from typing import Dict, Any, Optional
 from loguru import logger
 
-from app.agents.supervisor import SupervisorAgent
-from app.tools import email_tools
+from backend.app.agents.supervisor import SupervisorAgent
+from backend.app.tools import email_tools
 
 
 class SupervisorWithTools(SupervisorAgent):

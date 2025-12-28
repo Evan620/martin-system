@@ -2,9 +2,9 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import DeclarativeBase
 
 try:
-    from app.core.config import settings
+    from backend.app.core.config import settings
 except ImportError:
-    from app.core.config import settings
+    from backend.app.core.config import settings
 
 # Use the database URL from settings (supports both SQLite and PostgreSQL)
 SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL

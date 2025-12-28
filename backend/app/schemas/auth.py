@@ -8,7 +8,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 from typing import Optional
 from datetime import datetime
 import uuid
-from app.models.models import UserRole
+from backend.app.models.models import UserRole
 
 
 class UserRegister(BaseModel):

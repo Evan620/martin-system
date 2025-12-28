@@ -7,7 +7,7 @@ Manages pending email approvals requiring human-in-the-loop confirmation.
 import uuid
 from typing import Dict, Optional
 from datetime import datetime, timedelta
-from app.schemas.email_approval import EmailDraft, EmailApprovalRequest
+from backend.app.schemas.email_approval import EmailDraft, EmailApprovalRequest
 import logging
 
 logger = logging.getLogger(__name__)

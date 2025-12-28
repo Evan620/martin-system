@@ -7,8 +7,8 @@ Factory functions to create Redis memory service from configuration.
 from typing import Optional
 from loguru import logger
 
-from app.services.redis_memory import RedisMemoryService, get_redis_memory
-from app.core.config import get_settings
+from backend.app.services.redis_memory import RedisMemoryService, get_redis_memory
+from backend.app.core.config import get_settings
 
 
 def create_redis_memory_from_config() -> Optional[RedisMemoryService]:

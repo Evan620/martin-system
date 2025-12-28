@@ -4,10 +4,10 @@ from sqlalchemy import select
 from typing import List
 import uuid
 
-from app.core.database import get_db
-from app.models.models import TWG, User, UserRole
-from app.schemas.schemas import TWGCreate, TWGRead, TWGUpdate
-from app.api.deps import get_current_active_user, require_admin, require_facilitator
+from backend.app.core.database import get_db
+from backend.app.models.models import TWG, User, UserRole
+from backend.app.schemas.schemas import TWGCreate, TWGRead, TWGUpdate
+from backend.app.api.deps import get_current_active_user, require_admin, require_facilitator
 
 router = APIRouter(prefix="/twgs", tags=["TWGs"])
 

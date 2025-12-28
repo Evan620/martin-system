@@ -5,10 +5,10 @@ import uuid
 import asyncio
 import json
 
-from app.api.deps import get_current_active_user
-from app.models.models import User
-from app.schemas.schemas import AgentChatRequest, AgentChatResponse, AgentTaskRequest, AgentStatus
-from app.schemas.chat_messages import (
+from backend.app.api.deps import get_current_active_user
+from backend.app.models.models import User
+from backend.app.schemas.schemas import AgentChatRequest, AgentChatResponse, AgentTaskRequest, AgentStatus
+from backend.app.schemas.chat_messages import (
     EnhancedChatRequest,
     EnhancedChatResponse,
     ChatMessage,
@@ -16,11 +16,11 @@ from app.schemas.chat_messages import (
     AgentSuggestion,
     ToolExecution
 )
-from app.agents.supervisor_with_tools import SupervisorWithTools
-from app.services.command_parser import CommandParser, MessageParseType
-from app.services.email_approval_service import get_email_approval_service
-from app.services.gmail_service import get_gmail_service
-from app.schemas.email_approval import (
+from backend.app.agents.supervisor_with_tools import SupervisorWithTools
+from backend.app.services.command_parser import CommandParser, MessageParseType
+from backend.app.services.email_approval_service import get_email_approval_service
+from backend.app.services.gmail_service import get_gmail_service
+from backend.app.schemas.email_approval import (
     EmailApprovalRequest,
     EmailApprovalResponse,
     EmailApprovalResult
@@ -653,7 +653,7 @@ async def send_project_memo_email(
         logger.info(f"Using supervisor agent to send project memo email to {request.to_email}")
 
         # Import the send_email tool function
-        from app.tools.email_tools import send_email
+        from backend.app.tools.email_tools import send_email
 
         # Format the email body with the memo content
         full_body = f"{request.body}\n\n{'='*80}\n\n{request.memo_content}"

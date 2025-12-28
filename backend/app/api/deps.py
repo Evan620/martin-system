@@ -12,10 +12,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 import uuid
 
-from app.core.database import get_db
-from app.models.models import User, UserRole
-from app.utils.security import verify_token
-from app.services.auth_service import AuthService
+from backend.app.core.database import get_db
+from backend.app.models.models import User, UserRole
+from backend.app.utils.security import verify_token
+from backend.app.services.auth_service import AuthService
 
 # HTTP Bearer token scheme
 security = HTTPBearer()

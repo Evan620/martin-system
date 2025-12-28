@@ -1,0 +1,52 @@
+{
+    "$schema": "https://railway.app/railway.schema.json",
+    "services": {
+        "backend": {
+            "source": "backend",
+            "build": {
+                "builder": "DOCKERFILE"
+            },
+            "deploy": {
+                "numReplicas": 1,
+                "sleepApplication": false,
+                "restartPolicy": "ALWAYS"
+            }
+        },
+        "frontend": {
+            "source": "frontend",
+            "build": {
+                "builder": "DOCKERFILE",
+                "target": "production"
+            },
+            "deploy": {
+                "numReplicas": 1,
+                "sleepApplication": false,
+                "restartPolicy": "ALWAYS"
+            }
+        },
+        "celery-worker": {
+            "source": "backend",
+            "build": {
+                "builder": "DOCKERFILE"
+            },
+            "deploy": {
+                "numReplicas": 1,
+                "sleepApplication": false,
+                "restartPolicy": "ALWAYS",
+                "startCommand": "celery -A app.core.scheduler worker --loglevel=info"
+            }
+        },
+        "celery-beat": {
+            "source": "backend",
+            "build": {
+                "builder": "DOCKERFILE"
+            },
+            "deploy": {
+                "numReplicas": 1,
+                "sleepApplication": false,
+                "restartPolicy": "ALWAYS",
+                "startCommand": "celery -A app.core.scheduler beat --loglevel=info"
+            }
+        }
+    }
+}

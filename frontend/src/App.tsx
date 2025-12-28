@@ -15,8 +15,6 @@ import TwgAgent from './pages/workspace/TwgAgent'
 import ActionTracker from './pages/actions/ActionTracker'
 import KnowledgeBase from './pages/knowledge/KnowledgeBase'
 import DealPipeline from './pages/workspace/DealPipeline'
-import ProjectDetails from './pages/workspace/ProjectDetails'
-import ProjectMemo from './pages/workspace/ProjectMemo'
 import UserProfile from './pages/profile/UserProfile'
 import AgentAssistant from './pages/assistant/AgentAssistant'
 import SummitSchedule from './pages/schedule/SummitSchedule'
@@ -156,16 +154,7 @@ function App() {
                     <AgentAssistant />
                 </ProtectedRoute>
             } />
-            <Route path="/actions" element={
-                <ProtectedRoute>
-                    <ActionTracker />
-                </ProtectedRoute>
-            } />
-            <Route path="/assistant" element={
-                <ProtectedRoute>
-                    <AgentAssistant />
-                </ProtectedRoute>
-            } />
+
             <Route path="/admin/team" element={
                 <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                     <TeamManagement />

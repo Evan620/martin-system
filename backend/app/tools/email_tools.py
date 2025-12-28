@@ -14,8 +14,8 @@ from datetime import datetime
 from email.utils import parsedate_to_datetime
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
-from app.services.gmail_service import get_gmail_service
-from app.services.email_approval_service import get_email_approval_service
+from backend.app.services.gmail_service import get_gmail_service
+from backend.app.services.email_approval_service import get_email_approval_service
 from googleapiclient.errors import HttpError
 
 logger = logging.getLogger(__name__)

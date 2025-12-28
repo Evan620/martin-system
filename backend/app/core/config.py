@@ -25,6 +25,13 @@ class Settings(BaseSettings):
         description="Database connection string"
     )
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def assemble_database_url(cls, v: Optional[str]) -> str:
+        if v and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://")
+        return v or "sqlite+aiosqlite:///./ecowas_db.sqlite"
+
     # Redis
     REDIS_URL: Optional[str] = Field(
         default=None,

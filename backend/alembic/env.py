@@ -33,6 +33,9 @@ if config.config_file_name is not None:
 database_url = os.getenv("DATABASE_URL")
 if not database_url:
     database_url = "sqlite+aiosqlite:///./ecowas_db.sqlite"
+# Ensure we use the async driver for Postgres
+if database_url.startswith("postgresql://"):
+    database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
 config.set_main_option("sqlalchemy.url", database_url)
 
 # add your model's MetaData object here

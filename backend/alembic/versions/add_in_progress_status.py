@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_in_progress_status'
-down_revision = None  # Update this if you have previous migrations
+down_revision = '38a0e0f0d18c'  # Chain from latest existing migration
 branch_labels = None
 depends_on = None
 

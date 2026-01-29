@@ -109,8 +109,20 @@ class CalendarService:
                 'createRequest': {
                     'requestId': str(uuid.uuid4()),
                     'conferenceSolutionKey': {'type': 'hangoutsMeet'}
-                }
+                },
+                # Allow anyone with the link to join without host admission
+                'entryPoints': [{
+                    'entryPointType': 'video',
+                    'uri': '',  # Will be auto-generated
+                    'label': ''
+                }],
             },
+            # Guest permissions - allow guests to modify and invite others
+            'guestsCanModify': False,  # Prevent accidental changes
+            'guestsCanInviteOthers': True,  # Allow guests to invite others
+            'guestsCanSeeOtherGuests': True,  # Allow guests to see attendee list
+            # Anyone with the link can join (no admission required)
+            'anyoneCanAddSelf': True,
         }
 
         if meeting_id:

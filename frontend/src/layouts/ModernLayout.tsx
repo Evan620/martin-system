@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from '../hooks/useRedux';
 import { logout } from '../store/slices/authSlice';
 import { fetchNotifications, addNotification } from '../store/slices/notificationsSlice';
 import { UserRole } from '../types/auth';
+import { NotificationType } from '../services/notificationService';
 import { useEffect, useRef, useState } from 'react';
 
 interface ModernLayoutProps {
@@ -36,6 +37,28 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                         const message = JSON.parse(event.data);
                         if (message.type === 'NEW_NOTIFICATION') {
                             dispatch(addNotification(message.data));
+                        } else if (message.type === 'transcript_processed' || message.type === 'MEETING_UPDATED') {
+                            // Dispatch custom event for components to listen to
+                            const event = new CustomEvent('meeting-update', {
+                                detail: {
+                                    meetingId: message.data?.meeting_id || message.meeting_id,
+                                    type: message.type
+                                }
+                            });
+                            window.dispatchEvent(event);
+
+                            // Also show notification if relevant
+                            if (message.data?.message) {
+                                dispatch(addNotification({
+                                    id: Date.now().toString(),
+                                    user_id: user?.id || 'current-user',
+                                    title: 'Meeting Updated',
+                                    content: message.data.message,
+                                    type: NotificationType.INFO,
+                                    is_read: false,
+                                    created_at: new Date().toISOString()
+                                }));
+                            }
                         }
                     } catch (err) {
                         console.error('Error parsing WebSocket message:', err);
@@ -100,7 +123,7 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                                 onClick={() => navigate('/twgs')}
                                 className={`${isActive('/twgs') ? 'text-[#1152d4]' : 'text-[#4c669a] dark:text-[#a0aec0]'} font-medium text-sm hover:text-[#1152d4] transition-colors`}
                             >
-                                TWGs
+                                TWG Agents
                             </button>
                             {isFacilitator && (
                                 <button className="text-[#4c669a] dark:text-[#a0aec0] hover:text-[#1152d4] dark:hover:text-white text-sm font-medium transition-colors">
@@ -160,10 +183,10 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                                             ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
                                             : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
                                             } ${isSidebarCollapsed ? 'justify-center !px-2' : ''}`}
-                                        title={isSidebarCollapsed ? "TWGs" : ""}
+                                        title={isSidebarCollapsed ? "TWG Agents" : ""}
                                     >
-                                        <span className="material-symbols-outlined text-[20px]">groups</span>
-                                        {!isSidebarCollapsed && <span>TWGs</span>}
+                                        <span className="material-symbols-outlined text-[20px]">smart_toy</span>
+                                        {!isSidebarCollapsed && <span>TWG Agents</span>}
                                     </button>
                                     <button
                                         onClick={() => navigate('/documents')}
@@ -286,7 +309,7 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                 </aside>
 
                 {/* Main Content Area */}
-                <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+                <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-20">
                     <div className="max-w-[1440px] mx-auto w-full h-full">
                         {children || <Outlet />}
                     </div>

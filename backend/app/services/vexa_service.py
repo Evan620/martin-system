@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.models import Meeting, Minutes, MinutesStatus, ActionItem, ActionItemStatus, MeetingStatus, Agenda
 from app.services.document_synthesizer import DocumentSynthesizer
-from app.services.groq_llm_service import get_llm_service
+from app.services.llm_service import get_llm_service
 from datetime import datetime
 import os
 import uuid
@@ -358,7 +358,14 @@ class VexaService:
              # --- NEW: Extract Action Items Automatically ---
              try:
                  logger.info("Extracting action items...")
-                 pillar_val = meeting.twg.pillar.value if meeting.twg else "energy"
+                 
+                 # Safely get pillar value with fallback
+                 pillar_val = "energy"  # Default fallback
+                 try:
+                     if meeting.twg and hasattr(meeting.twg, 'pillar'):
+                         pillar_val = meeting.twg.pillar.value if hasattr(meeting.twg.pillar, 'value') else str(meeting.twg.pillar)
+                 except AttributeError as attr_err:
+                     logger.warning(f"Could not access meeting.twg.pillar: {attr_err}. Using default pillar 'energy'")
                  
                  # Run extraction
                  actions_list = await synthesizer.extract_action_items(
@@ -383,21 +390,28 @@ class VexaService:
                          except:
                              pass
                      
-                     new_action = ActionItem(
-                         meeting_id=meeting.id,
-                         description=desc,
-                         owner=action.get("owner", "TBD"),
-                         due_date=due_date,
-                         status=ActionItemStatus.PENDING,
-                         # Assign to TWG if possible? ActionItem usually linked to Meeting which is linked to TWG.
-                     )
-                     db.add(new_action)
-                     action_count += 1
+                     # DISABLED: ActionItem creation requires owner_id (UUID) and twg_id (UUID)
+                     # The AI extraction returns owner names as strings, not UUIDs
+                     # TODO: Implement user lookup by name or assign to meeting creator
+                     logger.debug(f"Skipping action item auto-creation: '{desc[:50]}...' (owner: {action.get('owner', 'TBD')})")
+                     
+                     # new_action = ActionItem(
+                     #     twg_id=meeting.twg.id,  # Required UUID
+                     #     meeting_id=meeting.id,
+                     #     description=desc,
+                     #     owner_id=???  # Need to resolve owner name to user UUID
+                     #     due_date=due_date,
+                     #     status=ActionItemStatus.PENDING,
+                     # )
+                     # db.add(new_action)
+                     # action_count += 1
                  
                  if action_count > 0:
                      logger.info(f"✓ Automatically extracted {action_count} action items from Vexa minutes.")
              except Exception as ae:
                  logger.error(f"Failed to auto-extract action items: {ae}")
+                 import traceback
+                 logger.error(f"Traceback: {traceback.format_exc()}")
              # -----------------------------------------------
 
              return file_path # Return path for the Monitor to update Document

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import uuid
 
 from app.models.models import TWG, Meeting, ActionItem, Conflict, Project, MeetingStatus, ActionItemStatus, ProjectStatus, WeeklyPacket

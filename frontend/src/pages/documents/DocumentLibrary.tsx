@@ -63,12 +63,12 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
 
     useEffect(() => {
         fetchData()
-    }, [currentPage])
+    }, [])
 
     const fetchData = async () => {
         try {
             setLoading(true)
-            const { data, total } = await documentService.listDocuments(twgId, currentPage, itemsPerPage)
+            const { data, total } = await documentService.listDocuments(twgId, 1, 1000)
             setDocuments(data)
             setTotalItems(total)
         } catch (error) {
@@ -265,8 +265,8 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
         }
     });
 
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
-    const paginatedDocs = filteredAndSortedDocuments;
+    const totalPages = Math.ceil(filteredAndSortedDocuments.length / itemsPerPage);
+    const paginatedDocs = filteredAndSortedDocuments.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const libraryItems = [
         { id: 'all', label: 'All Documents', icon: 'folder', count: documents.length },
@@ -291,7 +291,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
 
     return (
         <>
-            <div className="flex flex-col lg:flex-row gap-8 h-full">
+            <div className="flex flex-col lg:flex-row gap-8 h-full pb-12">
                 {/* Left Sidebar Filters */}
                 <aside className="w-full lg:w-64 space-y-8">
                     <div>

@@ -105,7 +105,7 @@ class LangGraphBaseAgent:
 
         # Load system prompt
         try:
-            self.system_prompt = get_prompt(agent_id)
+            base_prompt = get_prompt(agent_id)
             logger.info(f"[{agent_id}] Loaded system prompt")
         except ValueError as e:
             logger.error(f"[{agent_id}] Failed to load prompt: {e}")
@@ -115,7 +115,11 @@ class LangGraphBaseAgent:
         self.llm = get_llm_service()
         
         # Tools Configuration
-        from app.tools.calendar_tools import GET_SCHEDULE_TOOL_DEF, get_schedule, UPDATE_MEETING_TOOL_DEF, update_meeting
+        from app.tools.calendar_tools import (
+            GET_SCHEDULE_TOOL_DEF, get_schedule, 
+            GET_PAST_MEETINGS_TOOL_DEF, get_past_meetings,
+            UPDATE_MEETING_TOOL_DEF, update_meeting
+        )
         from app.tools.email_tools import EMAIL_TOOLS, send_email, create_email_draft
         from app.tools.document_tools import REQUEST_DOCUMENT_APPROVAL_TOOL_DEF, request_document_approval_tool
         import json
@@ -123,7 +127,12 @@ class LangGraphBaseAgent:
         # Register default tools available to all agents (or specific ones)
         
         # 1. Start with standard tools (including update_meeting so agents can actually persist changes)
-        self.tools_def = [GET_SCHEDULE_TOOL_DEF, UPDATE_MEETING_TOOL_DEF, REQUEST_DOCUMENT_APPROVAL_TOOL_DEF]
+        self.tools_def = [
+            GET_SCHEDULE_TOOL_DEF, 
+            GET_PAST_MEETINGS_TOOL_DEF,
+            UPDATE_MEETING_TOOL_DEF, 
+            REQUEST_DOCUMENT_APPROVAL_TOOL_DEF
+        ]
         
         # 2. Convert and add EMAIL_TOOLS
         for tool in EMAIL_TOOLS:
@@ -201,6 +210,7 @@ class LangGraphBaseAgent:
         # 3. Build Tool Map (only include available tools)
         self.tool_map = {
             "get_schedule": get_schedule,
+            "get_past_meetings": get_past_meetings,
             "update_meeting": update_meeting,
             "send_email": send_email,
             "create_email_draft": create_email_draft,
@@ -219,6 +229,26 @@ class LangGraphBaseAgent:
         self.twg_id = get_twg_id_by_agent_id(agent_id)
         if self.twg_id:
             logger.info(f"[{agent_id}] RAG Enabled. Scoped to TWG: {self.twg_id}")
+            
+            # Inject TWG ID into system prompt for explicit context awareness
+            self.system_prompt = base_prompt + """
+
+---
+YOUR TWG CONTEXT:
+- You have access ONLY to your TWG's data (meetings, documents, projects)
+- You represent a specific Technical Working Group within the ECOWAS Summit
+
+CRITICAL TOOL USAGE RULES:
+1. When calling get_schedule or get_past_meetings, you do NOT need to pass twg_id - it will be automatically injected
+2. When users ask about "upcoming meetings" or "my meetings", they mean YOUR TWG's meetings
+3. You cannot see other TWGs' meetings - only the Supervisor can see cross-TWG data
+4. If asked about another TWG's schedule, politely explain you only have access to your own TWG's data
+5. NEVER expose raw TWG IDs (UUIDs) to users - always use human-readable TWG names
+"""
+        else:
+            # Supervisor or non-TWG agent
+            self.system_prompt = base_prompt
+
 
         # LangGraph components
         self.graph = None

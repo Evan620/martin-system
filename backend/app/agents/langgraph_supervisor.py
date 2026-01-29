@@ -59,10 +59,13 @@ class LangGraphSupervisor:
         self.memory_ttl = memory_ttl
 
         # Create supervisor agent (for general knowledge and synthesis)
+        # CRITICAL: Supervisor has MANY tools (20+ tools) which consume ~8-10K tokens
+        # With a 16K context window, we can only afford 3-5 messages of history
+        # Otherwise we hit: "This model's maximum context length is 16384 tokens"
         self.supervisor_agent = LangGraphBaseAgent(
             agent_id="supervisor",
             keep_history=keep_history,
-            max_history=20,
+            max_history=3,  # REDUCED from 20 to prevent context overflow
             session_id=session_id,
             use_redis=use_redis,
             memory_ttl=memory_ttl

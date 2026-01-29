@@ -6,7 +6,7 @@ import { UserRole } from '../../types/auth';
 import { useStreamingChat, StreamEvent } from '../../hooks/useStreamingChat';
 import ReactMarkdown from 'react-markdown';
 
-export default function CopilotChat({ twgId: propTwgId, twgName }: { twgId?: string, twgName?: string }) {
+export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onToggleExpand }: { twgId?: string, twgName?: string, isExpanded?: boolean, onToggleExpand?: () => void }) {
     // Determine TWG Context: Use prop if available, otherwise fallback to user's primary TWG
     const user = useSelector((state: RootState) => state.auth.user);
     // State for Mentions
@@ -206,6 +206,17 @@ export default function CopilotChat({ twgId: propTwgId, twgName }: { twgId?: str
                         </p>
                     </div>
                 </div>
+                {onToggleExpand && (
+                    <button
+                        onClick={onToggleExpand}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                        title={isExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
+                    >
+                        <span className="material-symbols-outlined text-[20px]">
+                            {isExpanded ? 'last_page' : 'first_page'}
+                        </span>
+                    </button>
+                )}
             </div>
 
             {/* Chat Messages */}

@@ -14,12 +14,12 @@ import traceback
 from app.core.database import get_db
 from app.models.models import Meeting, Agenda, Minutes, User, UserRole, MinutesStatus, MeetingParticipant, RsvpStatus, ActionItem, ActionItemStatus, TWG, Document, MeetingStatus, MeetingDependency, DependencyType
 from app.schemas.schemas import (
-    MeetingCreate, MeetingRead, MeetingUpdate,
-    MinutesCreate, MinutesUpdate, MinutesRead,
-    AgendaCreate, AgendaRead, AgendaUpdate,
-    MeetingParticipantRead, MeetingParticipantUpdate, MeetingParticipantCreate,
-    MeetingCancel, MeetingUpdateNotification,
-    MeetingDependencyRead, DependencyType as DependencyTypeSchema
+    MeetingCreate, MeetingRead, MeetingUpdate, MeetingCancel, MeetingUpdateNotification,
+    AgendaCreate, AgendaRead, MinutesCreate, MinutesRead, MinutesUpdate, MinutesRejectionRequest,
+    MinutesVersionRead, MinutesUpdateWithVersion,
+    ActionItemCreate, ActionItemRead, MeetingParticipantCreate, MeetingParticipantRead,
+    MeetingParticipantUpdate, MeetingDependencyRead,
+    DependencyType as DependencyTypeSchema
 )
 from app.api.deps import get_current_active_user, require_facilitator, require_twg_access, has_twg_access
 from app.services.email_service import email_service
@@ -55,6 +55,14 @@ async def get_active_meeting(
     # as that's what Vexa is recording.
     stmt = select(Meeting).join(Document, Meeting.id == Document.meeting_id).where(
         Document.document_type == "transcript_placeholder"
+    ).options(
+        selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
+        selectinload(Meeting.agenda),
+        selectinload(Meeting.minutes),
+        selectinload(Meeting.twg),
+        selectinload(Meeting.documents).selectinload(Document.uploaded_by),
+        selectinload(Meeting.successors).selectinload(MeetingDependency.target_meeting),
+        selectinload(Meeting.predecessors).selectinload(MeetingDependency.source_meeting)
     ).order_by(Meeting.scheduled_at.desc()).limit(1)
     
     result = await db.execute(stmt)
@@ -69,6 +77,14 @@ async def get_active_meeting(
                 Meeting.scheduled_at >= now - timedelta(hours=2),
                 Meeting.status != 'cancelled'
             )
+        ).options(
+            selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
+            selectinload(Meeting.agenda),
+            selectinload(Meeting.minutes),
+            selectinload(Meeting.twg),
+            selectinload(Meeting.documents).selectinload(Document.uploaded_by),
+            selectinload(Meeting.successors).selectinload(MeetingDependency.target_meeting),
+            selectinload(Meeting.predecessors).selectinload(MeetingDependency.source_meeting)
         ).order_by(Meeting.scheduled_at.desc()).limit(1)
         result = await db.execute(stmt)
         meeting = result.scalar_one_or_none()
@@ -76,6 +92,13 @@ async def get_active_meeting(
     if not meeting:
         raise HTTPException(status_code=404, detail="No active meeting found")
     
+    # Map titles for UI
+    if meeting:
+        for s in meeting.successors:
+            s.target_meeting_title = s.target_meeting.title
+        for p in meeting.predecessors:
+            p.source_meeting_title = p.source_meeting.title
+            
     return meeting
 
 @router.post("/", response_model=MeetingRead, status_code=status.HTTP_201_CREATED)
@@ -144,16 +167,16 @@ async def create_meeting(
         await db.commit()
         
         # Eagerly load relationships to avoid MissingGreenlet during serialization
-        # Eagerly load relationships to avoid MissingGreenlet during serialization
         result = await db.execute(
             select(Meeting)
             .options(
                 selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
-                selectinload(Meeting.documents), 
                 selectinload(Meeting.twg),
-                selectinload(Meeting.successors),
-                selectinload(Meeting.predecessors),
-                selectinload(Meeting.agenda)
+                selectinload(Meeting.agenda),
+                selectinload(Meeting.minutes),
+                selectinload(Meeting.documents).selectinload(Document.uploaded_by),
+                selectinload(Meeting.successors).selectinload(MeetingDependency.target_meeting),
+                selectinload(Meeting.predecessors).selectinload(MeetingDependency.source_meeting)
             )
             .where(Meeting.id == db_meeting.id)
         )
@@ -296,7 +319,11 @@ async def update_meeting(
     query = select(Meeting).where(Meeting.id == meeting_id).options(
         selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
         selectinload(Meeting.twg),
-        selectinload(Meeting.agenda)
+        selectinload(Meeting.agenda),
+        selectinload(Meeting.minutes),
+        selectinload(Meeting.documents).selectinload(Document.uploaded_by),
+        selectinload(Meeting.successors).selectinload(MeetingDependency.target_meeting),
+        selectinload(Meeting.predecessors).selectinload(MeetingDependency.source_meeting)
     )
     result = await db.execute(query)
     db_meeting = result.scalar_one_or_none()
@@ -332,7 +359,11 @@ async def upsert_minutes(
 ):
     """
     Create or Update meeting minutes.
+    Automatically creates version snapshots for audit trail.
     """
+    from app.models.models import Minutes, MinutesVersion, ActionItem
+    from sqlalchemy import select
+    
     # Verify meeting
     result = await db.execute(select(Meeting).where(Meeting.id == meeting_id))
     db_meeting = result.scalar_one_or_none()
@@ -347,20 +378,67 @@ async def upsert_minutes(
     db_minutes = result.scalar_one_or_none()
     
     if db_minutes:
-        # Update
+        # CREATE VERSION SNAPSHOT before updating
+        if minutes_in.content and minutes_in.content != db_minutes.content:
+            # Snapshot Action Items
+            stmt = select(ActionItem).where(ActionItem.meeting_id == meeting_id)
+            ai_result = await db.execute(stmt)
+            current_actions = ai_result.scalars().all()
+            
+            actions_snapshot = [
+                {
+                    "description": item.description,
+                    "owner_id": str(item.owner_id) if item.owner_id else None,
+                    "due_date": item.due_date.isoformat() if item.due_date else None,
+                    "status": item.status.value if item.status else "pending",
+                    "priority": item.priority.value if hasattr(item, 'priority') and item.priority else "medium"
+                }
+                for item in current_actions
+            ]
+            
+            version = MinutesVersion(
+                minutes_id=db_minutes.id,
+                version_number=db_minutes.current_version,
+                content=db_minutes.content,  # Save OLD content
+                key_decisions=db_minutes.key_decisions,
+                change_summary=getattr(minutes_in, 'change_summary', None),
+                action_items_snapshot=actions_snapshot,
+                created_by=current_user.id,
+                created_at=datetime.utcnow()
+            )
+            db.add(version)
+            
+            # Increment version
+            db_minutes.current_version += 1
+        
+        # Update current minutes
         update_data = minutes_in.model_dump(exclude_unset=True)
+        # Remove change_summary from minutes update (it's only for version)
+        update_data.pop('change_summary', None)
+        
         for key, value in update_data.items():
             setattr(db_minutes, key, value)
+        
+        # Track editor
+        db_minutes.last_edited_by = current_user.id
+        db_minutes.last_edited_at = datetime.utcnow()
     else:
-        # Create
+        # Create new minutes (version 1)
         if not minutes_in.content:
              raise HTTPException(status_code=400, detail="Content required for creating minutes")
-             
-        minutes_data = minutes_in.model_dump(exclude_unset=True)
-        # partial update schema used for creation, ensure defaults or required
-        db_minutes = Minutes(meeting_id=meeting_id, **minutes_data)
-        db.add(db_minutes)
         
+        minutes_data = minutes_in.model_dump(exclude_unset=True)
+        minutes_data.pop('change_summary', None)  # Remove version-only field
+        
+        db_minutes = Minutes(
+            meeting_id=meeting_id, 
+            **minutes_data,
+            current_version=1,
+            last_edited_by=current_user.id,
+            last_edited_at=datetime.utcnow()
+        )
+        db.add(db_minutes)
+    
     await db.commit()
     await db.refresh(db_minutes)
     return db_minutes
@@ -461,14 +539,52 @@ async def generate_minutes(
         db_minutes = min_result.scalar_one_or_none()
         
         if db_minutes:
+             # CREATE VERSION SNAPSHOT before updating
+             # Even for AI regeneration, we should save the previous version
+             from app.models.models import MinutesVersion
+             
+             if db_minutes.content: # Only snapshot if there was content
+                 # Snapshot Action Items
+                 stmt = select(ActionItem).where(ActionItem.meeting_id == meeting_id)
+                 ai_result = await db.execute(stmt)
+                 current_actions = ai_result.scalars().all()
+                 
+                 actions_snapshot = [
+                     {
+                         "description": item.description,
+                         "owner_id": str(item.owner_id) if item.owner_id else None,
+                         "due_date": item.due_date.isoformat() if item.due_date else None,
+                         "status": item.status.value if item.status else "pending",
+                         "priority": item.priority.value if hasattr(item, 'priority') and item.priority else "medium"
+                     }
+                     for item in current_actions
+                 ]
+                 
+                 version = MinutesVersion(
+                    minutes_id=db_minutes.id,
+                    version_number=db_minutes.current_version,
+                    content=db_minutes.content,
+                    key_decisions=db_minutes.key_decisions,
+                    change_summary="Auto-archived before AI re-generation",
+                    action_items_snapshot=actions_snapshot,
+                    created_by=current_user.id,
+                    created_at=datetime.utcnow()
+                 )
+                 db.add(version)
+                 db_minutes.current_version += 1
+             
              db_minutes.content = generated_content
-             # Keep status as whatever it was, or reset to DRAFT? Usually reset to DRAFT if re-generated.
              db_minutes.status = MinutesStatus.DRAFT
+             db_minutes.last_edited_by = current_user.id
+             db_minutes.last_edited_at = datetime.utcnow()
         else:
             db_minutes = Minutes(
                 meeting_id=meeting_id,
                 content=generated_content,
-                status=MinutesStatus.DRAFT
+                status=MinutesStatus.DRAFT,
+                current_version=1,
+                last_edited_by=current_user.id,
+                last_edited_at=datetime.utcnow()
             )
             db.add(db_minutes)
             
@@ -484,6 +600,17 @@ async def generate_minutes(
                 pillar_name
             )
             
+            # Create participant mapping for owner resolution
+            user_map = {}
+            for p in db_meeting.participants:
+                if p.user:
+                    if p.user.full_name:
+                        user_map[p.user.full_name.lower()] = p.user.id
+                        # Also map just first name
+                        parts = p.user.full_name.split()
+                        if len(parts) > 0:
+                            user_map[parts[0].lower()] = p.user.id
+            
             action_count = 0
             for action in actions_list:
                 desc = action.get("description")
@@ -493,15 +620,28 @@ async def generate_minutes(
                 due_date = None
                 if action.get("due_date"):
                     try:
-                        from datetime import datetime
                         due_date = datetime.strptime(action["due_date"], "%Y-%m-%d").date()
                     except:
                         pass
                 
+                # Resolve Owner
+                owner_name = action.get("owner", "").strip()
+                owner_id = current_user.id # Default to facilitator
+                
+                if owner_name:
+                    if owner_name.lower() in user_map:
+                        owner_id = user_map[owner_name.lower()]
+                    else:
+                        # Try first name matching
+                        parts = owner_name.split()
+                        if len(parts) > 0 and parts[0].lower() in user_map:
+                            owner_id = user_map[parts[0].lower()]
+                
                 new_action = ActionItem(
                     meeting_id=meeting_id,
+                    twg_id=db_meeting.twg_id,
                     description=desc,
-                    owner=action.get("owner", "TBD"),
+                    owner_id=owner_id,
                     due_date=due_date,
                     status=ActionItemStatus.PENDING
                 )
@@ -2900,3 +3040,186 @@ async def live_meeting_websocket(
         print(f"WebSocket error for meeting {meeting_id}: {e}")
     finally:
         ws_manager.disconnect(websocket, user_id)
+# Add these endpoints after upsert_minutes in meetings.py
+
+@router.get("/{meeting_id}/minutes/versions", response_model=List[MinutesVersionRead])
+async def list_minutes_versions(
+    meeting_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    List all versions of meeting minutes.
+    Returns versions in reverse chronological order (newest first).
+    """
+    from app.models.models import Minutes, MinutesVersion
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    
+    # Get minutes ID
+    result = await db.execute(select(Minutes).where(Minutes.meeting_id == meeting_id))
+    db_minutes = result.scalar_one_or_none()
+    
+    if not db_minutes:
+        raise HTTPException(status_code=404, detail="Minutes not found")
+    
+    # Get all versions
+    stmt = (
+        select(MinutesVersion)
+        .where(MinutesVersion.minutes_id == db_minutes.id)
+        .options(selectinload(MinutesVersion.author))
+        .order_by(MinutesVersion.version_number.desc())
+    )
+    result = await db.execute(stmt)
+    versions = result.scalars().all()
+    
+    return versions
+
+
+@router.get("/{meeting_id}/minutes/versions/{version_number}", response_model=MinutesVersionRead)
+async def get_minutes_version(
+    meeting_id: uuid.UUID,
+    version_number: int,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get a specific version of meeting minutes.
+    """
+    from app.models.models import Minutes, MinutesVersion
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    
+    # Get minutes ID
+    result = await db.execute(select(Minutes).where(Minutes.meeting_id == meeting_id))
+    db_minutes = result.scalar_one_or_none()
+    
+    if not db_minutes:
+        raise HTTPException(status_code=404, detail="Minutes not found")
+    
+    # Get specific version
+    stmt = (
+        select(MinutesVersion)
+        .where(
+            MinutesVersion.minutes_id == db_minutes.id,
+            MinutesVersion.version_number == version_number
+        )
+        .options(selectinload(MinutesVersion.author))
+    )
+    result = await db.execute(stmt)
+    version = result.scalar_one_or_none()
+    
+    if not version:
+        raise HTTPException(status_code=404, detail=f"Version {version_number} not found")
+    
+    return version
+
+
+@router.post("/{meeting_id}/minutes/versions/{version_number}/restore", response_model=MinutesRead)
+async def restore_minutes_version(
+    meeting_id: uuid.UUID,
+    version_number: int,
+    current_user: User = Depends(require_facilitator),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Restore minutes to a previous version.
+    Creates a new version with the content from the specified version.
+    """
+    from app.models.models import Minutes, MinutesVersion, ActionItem, ActionItemStatus, ActionItemPriority
+    from sqlalchemy import select, delete
+    from datetime import datetime
+    
+    # Get minutes
+    result = await db.execute(select(Minutes).where(Minutes.meeting_id == meeting_id))
+    db_minutes = result.scalar_one_or_none()
+    
+    if not db_minutes:
+        raise HTTPException(status_code=404, detail="Minutes not found")
+    
+    # Get version to restore
+    stmt = select(MinutesVersion).where(
+        MinutesVersion.minutes_id == db_minutes.id,
+        MinutesVersion.version_number == version_number
+    )
+    result = await db.execute(stmt)
+    version_to_restore = result.scalar_one_or_none()
+    
+    if not version_to_restore:
+        raise HTTPException(status_code=404, detail=f"Version {version_number} not found")
+    
+    # --- Create snapshot of current state before restoring ---
+    # Snapshot Action Items
+    stmt = select(ActionItem).where(ActionItem.meeting_id == meeting_id)
+    ai_result = await db.execute(stmt)
+    current_actions = ai_result.scalars().all()
+    
+    actions_snapshot = [
+        {
+            "description": item.description,
+            "owner_id": str(item.owner_id) if item.owner_id else None,
+            "due_date": item.due_date.isoformat() if item.due_date else None,
+            "status": item.status.value if item.status else "pending",
+            "priority": item.priority.value if hasattr(item, 'priority') and item.priority else "medium"
+        }
+        for item in current_actions
+    ]
+
+    current_snapshot = MinutesVersion(
+        minutes_id=db_minutes.id,
+        version_number=db_minutes.current_version,
+        content=db_minutes.content,
+        key_decisions=db_minutes.key_decisions,
+        change_summary=f"Auto-saved before restoring to v{version_number}",
+        action_items_snapshot=actions_snapshot,
+        created_by=current_user.id,
+        created_at=datetime.utcnow()
+    )
+    db.add(current_snapshot)
+    
+    # --- Restore content using snapshot if available ---
+    db_minutes.content = version_to_restore.content
+    db_minutes.key_decisions = version_to_restore.key_decisions
+    
+    # Restore Action Items if snapshot exists
+    if version_to_restore.action_items_snapshot:
+        # Fetch TWG ID from meeting
+        from app.models.models import Meeting
+        m_result = await db.execute(select(Meeting.twg_id).where(Meeting.id == meeting_id))
+        twg_id = m_result.scalar_one()
+
+        # Delete current items
+        await db.execute(delete(ActionItem).where(ActionItem.meeting_id == meeting_id))
+        
+        # Recreate from snapshot
+        for item in version_to_restore.action_items_snapshot:
+             # Handle Enums safely
+            try:
+                status_enum = ActionItemStatus(item.get("status", "pending"))
+            except:
+                status_enum = ActionItemStatus.PENDING
+                
+            try:
+                priority_enum = ActionItemPriority(item.get("priority", "medium"))
+            except:
+                priority_enum = ActionItemPriority.MEDIUM
+
+            new_action = ActionItem(
+                meeting_id=meeting_id,
+                twg_id=twg_id,
+                description=item["description"],
+                owner_id=uuid.UUID(item["owner_id"]) if item["owner_id"] else None,
+                due_date=datetime.fromisoformat(item["due_date"]).date() if item["due_date"] else None,
+                status=status_enum,
+                priority=priority_enum
+            )
+            db.add(new_action)
+            
+    db_minutes.current_version += 1
+    db_minutes.last_edited_by = current_user.id
+    db_minutes.last_edited_at = datetime.utcnow()
+    
+    await db.commit()
+    await db.refresh(db_minutes)
+    
+    return db_minutes

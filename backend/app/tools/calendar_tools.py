@@ -55,8 +55,19 @@ async def get_schedule(days: int = 7, twg_id: Optional[str] = None) -> str:
             if not meetings:
                 msg = "No upcoming meetings found"
                 if twg_id:
-                    msg += f" for TWG {twg_id}"
+                    msg += " for your TWG"
                 return json.dumps({"message": msg + "."})
+            
+            # Fetch TWG names for better UX
+            from app.models.models import TWG
+            twg_names = {}
+            if meetings:
+                twg_ids = list(set([m.twg_id for m in meetings if m.twg_id]))
+                if twg_ids:
+                    twg_result = await session.execute(select(TWG).where(TWG.id.in_(twg_ids)))
+                    twgs = twg_result.scalars().all()
+                    for twg in twgs:
+                        twg_names[str(twg.id)] = twg.name
             
             formatted_events = []
             # Use timezone-aware date for accurate today/tomorrow in user's timezone
@@ -92,7 +103,7 @@ async def get_schedule(days: int = 7, twg_id: Optional[str] = None) -> str:
                     "status": meeting.status.value if hasattr(meeting.status, 'value') else meeting.status,
                     "meet_link": meeting.video_link,
                     "location": meeting.location,
-                    "twg_id": str(meeting.twg_id)
+                    "twg_name": twg_names.get(str(meeting.twg_id), "Unknown TWG")
                 })
             
             return json.dumps(formatted_events, indent=2)
@@ -123,6 +134,140 @@ GET_SCHEDULE_TOOL_DEF = {
         }
     }
 }
+
+
+async def get_past_meetings(days: int = 30, limit: int = 10, twg_id: Optional[str] = None) -> str:
+    """
+    Fetch past meetings from the internal database.
+    
+    Args:
+        days: Number of days to look back (default: 30)
+        limit: Maximum number of meetings to return (default: 10)
+        twg_id: Optional TWG ID to filter meetings by.
+        
+    Returns:
+        JSON string of past meeting events
+    """
+    from app.core.database import AsyncSessionLocal
+    from app.models.models import Meeting
+    from sqlalchemy import select, and_
+    import uuid
+    
+    try:
+        # Calculate time range
+        from zoneinfo import ZoneInfo
+        user_tz = ZoneInfo("Africa/Nairobi")
+        now_tz = datetime.now(user_tz)
+        
+        # Convert to naive datetime for DB comparison
+        now = datetime.utcnow()
+        start_date = now - timedelta(days=days)
+        
+        async with AsyncSessionLocal() as session:
+            # Build query with optional TWG filter
+            conditions = [
+                Meeting.scheduled_at < now,
+                Meeting.scheduled_at >= start_date
+            ]
+            
+            if twg_id:
+                try:
+                    # Validate UUID format
+                    twg_uuid = uuid.UUID(twg_id)
+                    conditions.append(Meeting.twg_id == twg_uuid)
+                except ValueError:
+                    return json.dumps({"error": f"Invalid TWG ID format: {twg_id}"})
+            
+            query = select(Meeting).where(and_(*conditions)).order_by(Meeting.scheduled_at.desc()).limit(limit)
+            
+            result = await session.execute(query)
+            meetings = result.scalars().all()
+            
+            if not meetings:
+                msg = f"No past meetings found in the last {days} days"
+                if twg_id:
+                    msg += " for your TWG"
+                return json.dumps({"message": msg + "."})
+            
+            # Fetch TWG names for better UX
+            from app.models.models import TWG
+            twg_names = {}
+            if meetings:
+                twg_ids = list(set([m.twg_id for m in meetings if m.twg_id]))
+                if twg_ids:
+                    twg_result = await session.execute(select(TWG).where(TWG.id.in_(twg_ids)))
+                    twgs = twg_result.scalars().all()
+                    for twg in twgs:
+                        twg_names[str(twg.id)] = twg.name
+            
+            formatted_events = []
+            
+            for meeting in meetings:
+                # Determine human-readable date label
+                meeting_dt = meeting.scheduled_at
+                if meeting_dt.tzinfo is None:
+                    from datetime import timezone as tz
+                    meeting_dt = meeting_dt.replace(tzinfo=tz.utc)
+                
+                # Convert to user timezone for display
+                meeting_local = meeting_dt.astimezone(user_tz)
+                meeting_date = meeting_local.date()
+                
+                # Calculate days ago
+                days_ago = (now_tz.date() - meeting_date).days
+                if days_ago == 0:
+                    date_label = "TODAY (earlier)"
+                elif days_ago == 1:
+                    date_label = "YESTERDAY"
+                else:
+                    date_label = f"{days_ago} days ago ({meeting_date.strftime('%A, %B %d')})"
+                
+                formatted_events.append({
+                    "id": str(meeting.id),
+                    "summary": meeting.title,
+                    "date_label": date_label,
+                    "start": meeting_local.strftime("%Y-%m-%d %I:%M %p EAT"),
+                    "end": (meeting_local + timedelta(minutes=meeting.duration_minutes)).strftime("%I:%M %p EAT"),
+                    "status": meeting.status.value if hasattr(meeting.status, 'value') else meeting.status,
+                    "meet_link": meeting.video_link,
+                    "location": meeting.location,
+                    "twg_name": twg_names.get(str(meeting.twg_id), "Unknown TWG")
+                })
+            
+            return json.dumps(formatted_events, indent=2)
+
+    except Exception as e:
+        return json.dumps({"error": f"Failed to fetch past meetings from DB: {str(e)}"})
+
+
+GET_PAST_MEETINGS_TOOL_DEF = {
+    "type": "function",
+    "function": {
+        "name": "get_past_meetings",
+        "description": "Get past meetings and their history. Use this to answer questions about previous meetings, what was discussed, or meeting history.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "description": "Number of days to look back (default 30)",
+                    "default": 30
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of meetings to return (default 10)",
+                    "default": 10
+                },
+                "twg_id": {
+                    "type": "string",
+                    "description": "Optional TWG UUID to filter meetings by. If not provided, returns all meetings (Supervisor only)."
+                }
+            },
+            "required": []
+        }
+    }
+}
+
 
 
 def update_meeting(

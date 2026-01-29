@@ -128,3 +128,4 @@ backend/credentials.json
 # Exclude uploaded PDF documents
 *.pdf
 backend/uploads/*.pdf
+vllm-env/

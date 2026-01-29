@@ -22,6 +22,7 @@ export default function TwgWorkspace() {
 
     // Modal State
     const [isScheduling, setIsScheduling] = useState(false)
+    const [isCopilotExpanded, setIsCopilotExpanded] = useState(false)
 
     // Pagination State for Meetings
     const MEETINGS_PER_PAGE = 5;
@@ -36,10 +37,16 @@ export default function TwgWorkspace() {
             // Filter client-side for now
             const twgMeetings = response.data.filter((m: any) => m.twg_id === twgId);
 
-            // Sort
-            twgMeetings.sort((a: any, b: any) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+            // Intelligent Sort: Upcoming (ASC) then Past (DESC)
+            const now = new Date();
+            const upcoming = twgMeetings.filter((m: any) => new Date(m.scheduled_at) >= now);
+            const past = twgMeetings.filter((m: any) => new Date(m.scheduled_at) < now);
 
-            setEvents(twgMeetings);
+            upcoming.sort((a: any, b: any) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+            past.sort((a: any, b: any) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime());
+
+            const sortedMeetings = [...upcoming, ...past];
+            setEvents(sortedMeetings);
         } catch (error) {
             console.error("Failed to load meetings", error);
         } finally {
@@ -62,12 +69,6 @@ export default function TwgWorkspace() {
         loadTwgDetails();
     }, [twgId]);
 
-    const members = [
-        { name: 'Dr. A. Sow', role: 'Chairperson', avatar: 'AS' },
-        { name: 'John Doe', role: 'Member', avatar: 'JD' },
-        { name: 'Maria Kone', role: 'Member', avatar: 'MK' },
-        { name: 'Sarah Lee', role: 'Member', avatar: 'SL' },
-    ]
 
     const [activeTab, setActiveTab] = useState<'overview' | 'factory'>('overview');
 
@@ -145,12 +146,20 @@ export default function TwgWorkspace() {
                                     </div>
                                     <div className="h-8 w-px bg-white/10"></div>
                                     <div className="flex -space-x-2">
-                                        {members.map((m, i) => (
-                                            <Avatar key={i} fallback={m.avatar} size="sm" className="ring-2 ring-blue-900" />
+                                        {(twg?.members || []).slice(0, 4).map((m: any, i: number) => (
+                                            <Avatar
+                                                key={m.id || i}
+                                                fallback={m.full_name?.split(' ').map((n: string) => n[0]).join('').substring(0, 2) || 'U'}
+                                                size="sm"
+                                                className="ring-2 ring-blue-900 bg-slate-700 text-slate-200 cursor-pointer"
+                                                title={`${m.full_name} (${m.role?.replace('TWG_', '')})`}
+                                            />
                                         ))}
-                                        <div className="w-8 h-8 rounded-full bg-blue-600 border-2 border-blue-900 flex items-center justify-center text-[10px] font-black text-white">
-                                            +12
-                                        </div>
+                                        {(twg?.members?.length || 0) > 4 && (
+                                            <div className="w-8 h-8 rounded-full bg-blue-600 border-2 border-blue-900 flex items-center justify-center text-[10px] font-black text-white">
+                                                +{(twg?.members?.length || 0) - 4}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -422,9 +431,15 @@ export default function TwgWorkspace() {
 
                 {/* AI Copilot Sidebar */}
 
-                <div className="w-80 flex flex-col gap-6">
-                    <Card className="flex-1 flex flex-col p-0 overflow-hidden bg-white dark:bg-dark-card border-slate-100 dark:border-dark-border transition-colors h-[calc(100vh-140px)]">
-                        <CopilotChat twgId={twgId} twgName={twg?.name} />
+                {/* AI Copilot Sidebar */}
+                <div className={`${isCopilotExpanded ? 'w-[45%]' : 'w-80'} flex flex-col gap-6 transition-all duration-300 ease-in-out shrink-0`}>
+                    <Card className="flex-1 flex flex-col p-0 overflow-hidden bg-white dark:bg-dark-card border-slate-100 dark:border-dark-border transition-colors h-[calc(100vh-140px)] shadow-xl shadow-blue-900/5">
+                        <CopilotChat
+                            twgId={twgId}
+                            twgName={twg?.name}
+                            isExpanded={isCopilotExpanded}
+                            onToggleExpand={() => setIsCopilotExpanded(!isCopilotExpanded)}
+                        />
                     </Card>
                 </div>
             </div>

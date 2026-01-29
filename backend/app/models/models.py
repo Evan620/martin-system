@@ -377,6 +377,25 @@ class Agenda(Base):
     # Relationships
     meeting: Mapped["Meeting"] = relationship(back_populates="agenda")
 
+class MinutesVersion(Base):
+    __tablename__ = "minutes_versions"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    minutes_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("minutes.id", ondelete="CASCADE"))
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    key_decisions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    change_summary: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    action_items_snapshot: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    minutes: Mapped["Minutes"] = relationship(back_populates="versions")
+    author: Mapped["User"] = relationship(foreign_keys=[created_by])
+
+
 class Minutes(Base):
     __tablename__ = "minutes"
     __table_args__ = {'extend_existing': True}
@@ -390,8 +409,15 @@ class Minutes(Base):
     rejected_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
+    # Version control fields
+    current_version: Mapped[int] = mapped_column(Integer, default=1)
+    last_edited_by: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id"), nullable=True)
+    last_edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    
     # Relationships
     meeting: Mapped["Meeting"] = relationship(back_populates="minutes")
+    versions: Mapped[List["MinutesVersion"]] = relationship(back_populates="minutes", cascade="all, delete-orphan")
+    editor: Mapped[Optional["User"]] = relationship(foreign_keys=[last_edited_by])
 
 class ActionItem(Base):
     __tablename__ = "action_items"
@@ -402,7 +428,7 @@ class ActionItem(Base):
     meeting_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("meetings.id"), nullable=True)
     description: Mapped[str] = mapped_column(Text)
     owner_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"))
-    due_date: Mapped[datetime] = mapped_column(DateTime)
+    due_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     status: Mapped[ActionItemStatus] = mapped_column(Enum(ActionItemStatus), default=ActionItemStatus.PENDING)
     priority: Mapped[ActionItemPriority] = mapped_column(Enum(ActionItemPriority), default=ActionItemPriority.MEDIUM)
     

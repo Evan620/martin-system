@@ -5,6 +5,7 @@ import { RootState } from '../../store'
 import { meetings, actionItems } from '../../services/api'
 import { Card, Badge } from '../../components/ui'
 import MeetingSidebar from './components/MeetingSidebar'
+import MinutesVersionHistory from '../../components/schedule/MinutesVersionHistory'
 
 import ConflictModal from '../../components/modals/ConflictModal'
 import InputModal from '../../components/modals/InputModal'
@@ -48,6 +49,7 @@ export default function MeetingDetail() {
     const [showUpdateModal, setShowUpdateModal] = useState(false)
     const [showInvitePreviewModal, setShowInvitePreviewModal] = useState(false)
     const [isLoadingAction, setIsLoadingAction] = useState(false)
+    const [showVersionHistory, setShowVersionHistory] = useState(false)
     const [statusModal, setStatusModal] = useState<{ isOpen: boolean, type: 'success' | 'error' | 'info', title: string, message: string }>({
         isOpen: false,
         type: 'info',
@@ -96,6 +98,17 @@ export default function MeetingDetail() {
 
     useEffect(() => {
         loadMeetingDetails()
+
+        // Listen for real-time updates
+        const handleUpdate = (event: any) => {
+            if (event.detail?.meetingId === meetingId) {
+                console.log("Received meeting update via WebSocket, refreshing...");
+                loadMeetingDetails();
+            }
+        };
+
+        window.addEventListener('meeting-update', handleUpdate);
+        return () => window.removeEventListener('meeting-update', handleUpdate);
     }, [meetingId])
 
     const loadMeetingDetails = async () => {
@@ -819,6 +832,23 @@ export default function MeetingDetail() {
                     </div>
                 </div>
 
+                {/* Version History Modal */}
+                <MinutesVersionHistory
+                    meetingId={meetingId!}
+                    isOpen={showVersionHistory}
+                    onClose={() => setShowVersionHistory(false)}
+                    onRestore={async () => {
+                        // Refresh minutes after restore
+                        try {
+                            const minutesRes = await meetings.getMinutes(meetingId!)
+                            setMinutesContent(minutesRes.data.content || '')
+                            setMinutesStatus(minutesRes.data.status || 'DRAFT')
+                        } catch (error) {
+                            console.error('Failed to refresh minutes', error)
+                        }
+                    }}
+                />
+
                 {/* Tabs */}
                 <div className="flex border-b border-slate-200 dark:border-slate-800 px-8 bg-white dark:bg-slate-900">
                     {[
@@ -1048,6 +1078,18 @@ export default function MeetingDetail() {
                                                                     >
                                                                         <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                                        </svg>
+                                                                    </button>
+                                                                )}
+                                                                {/* Version History button */}
+                                                                {minutesContent && (
+                                                                    <button
+                                                                        onClick={() => setShowVersionHistory(true)}
+                                                                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                                                                        title="Version History"
+                                                                    >
+                                                                        <svg className="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                                         </svg>
                                                                     </button>
                                                                 )}

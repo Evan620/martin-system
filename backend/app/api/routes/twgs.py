@@ -46,6 +46,7 @@ async def list_twgs(
         query_options = [
             selectinload(TWG.political_lead),
             selectinload(TWG.technical_lead),
+            selectinload(TWG.members),
         ]
         
         # We will need to perform separate queries or use scalar subqueries for stats.
@@ -121,7 +122,8 @@ async def get_twg(
             selectinload(TWG.political_lead),
             selectinload(TWG.technical_lead),
             selectinload(TWG.action_items).selectinload(ActionItem.owner),
-            selectinload(TWG.documents).selectinload(Document.uploaded_by)
+            selectinload(TWG.documents).selectinload(Document.uploaded_by),
+            selectinload(TWG.members)
         )
         .where(TWG.id == twg_id)
     )
@@ -183,6 +185,7 @@ async def update_twg(
             selectinload(TWG.technical_lead),
             selectinload(TWG.action_items),
             selectinload(TWG.documents),
+            selectinload(TWG.members),
         )
         .where(TWG.id == twg_id)
     )
@@ -200,5 +203,5 @@ async def update_twg(
     
     await db.commit()
     # Refresh with eager loading to ensure relationships are loaded
-    await db.refresh(db_twg, attribute_names=['political_lead', 'technical_lead', 'action_items', 'documents'])
+    await db.refresh(db_twg, attribute_names=['political_lead', 'technical_lead', 'action_items', 'documents', 'members'])
     return db_twg

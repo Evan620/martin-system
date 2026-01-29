@@ -107,6 +107,22 @@ class ContinuousMonitor:
             replace_existing=True
         )
         
+        # 8. Google Drive Transcript Fallback (Every 5 minutes)
+        self.scheduler.add_job(
+            self.check_drive_transcripts_fallback,
+            trigger=IntervalTrigger(minutes=5),
+            id="drive_transcript_fallback",
+            replace_existing=True
+        )
+        
+        # 9. Auto-Complete Past Meetings (Every hour)
+        self.scheduler.add_job(
+            self.auto_complete_past_meetings,
+            trigger=IntervalTrigger(hours=1),
+            id="auto_complete_meetings",
+            replace_existing=True
+        )
+        
         self.scheduler.start()
         self.is_running = True
         logger.info("Continuous Monitor started.")
@@ -534,6 +550,74 @@ class ContinuousMonitor:
                         logger.debug(f"Transcript not yet available for session {session_id}")
             except Exception as e:
                 logger.error(f"Error checking pending transcripts: {e}")
+
+    async def check_drive_transcripts_fallback(self):
+        """
+        Fallback system: Check Google Drive Meet Recordings folder for transcripts.
+        This catches meetings where Vexa wasn't admitted or failed to join.
+        Runs every 5 minutes (less aggressive than Vexa's 10-second polling).
+        """
+        logger.info("Checking Google Drive for transcript fallbacks...")
+        try:
+            from app.services.drive_service import drive_service
+            await drive_service.process_drive_transcripts_fallback()
+        except Exception as e:
+            logger.error(f"Error in Drive transcript fallback: {e}")
+
+    async def auto_complete_past_meetings(self):
+        """
+        Auto-complete meetings that have ended but are still in SCHEDULED status.
+        This handles meetings without Vexa transcripts or where transcript processing failed.
+        Runs every hour.
+        """
+        logger.info("Auto-completing past meetings...")
+        async with get_db_session_context() as db:
+            try:
+                from datetime import datetime, timedelta
+                
+                # Find meetings that:
+                # 1. Are in SCHEDULED or IN_PROGRESS status
+                # 2. Have ended (scheduled_at + duration < now)
+                # 3. Are not cancelled
+                
+                now = datetime.utcnow()
+                
+                # Query meetings that should be completed
+                # We need to calculate end_time = scheduled_at + duration_minutes
+                # SQLAlchemy doesn't have a direct way to add minutes in the query,
+                # so we'll fetch candidates and filter in Python
+                
+                stmt = select(Meeting).where(
+                    and_(
+                        Meeting.status.in_([MeetingStatus.SCHEDULED, MeetingStatus.IN_PROGRESS]),
+                        Meeting.scheduled_at < now  # At least started
+                    )
+                )
+                
+                result = await db.execute(stmt)
+                meetings = result.scalars().all()
+                
+                completed_count = 0
+                
+                for meeting in meetings:
+                    # Calculate end time
+                    end_time = meeting.scheduled_at + timedelta(minutes=meeting.duration_minutes)
+                    
+                    # Check if meeting has ended
+                    if end_time < now:
+                        logger.info(f"Auto-completing meeting: {meeting.title} (ID: {meeting.id}, ended at {end_time})")
+                        meeting.status = MeetingStatus.COMPLETED
+                        completed_count += 1
+                
+                if completed_count > 0:
+                    await db.commit()
+                    logger.info(f"✓ Auto-completed {completed_count} past meetings")
+                else:
+                    logger.info("No meetings to auto-complete")
+                    
+            except Exception as e:
+                logger.error(f"Error in auto_complete_past_meetings: {e}")
+
 
     async def scan_scheduling_conflicts(self):
         """

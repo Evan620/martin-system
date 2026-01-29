@@ -115,6 +115,11 @@ export const meetings = {
         api.post(`/meetings/${id}/minutes/reject`, { reason, suggested_changes: suggestedChanges }),
     downloadMinutesPdf: (id: string) => api.get(`/meetings/${id}/minutes/pdf`, { responseType: 'blob' }),
 
+    // Version control
+    listMinutesVersions: (id: string) => api.get(`/meetings/${id}/minutes/versions`),
+    getMinutesVersion: (id: string, version: number) => api.get(`/meetings/${id}/minutes/versions/${version}`),
+    restoreMinutesVersion: (id: string, version: number) => api.post(`/meetings/${id}/minutes/versions/${version}/restore`),
+
     getActionItems: (id: string) => api.get(`/meetings/${id}/action-items`),
     createActionItem: (id: string, data: any) => api.post(`/meetings/${id}/action-items`, data),
     extractActionItems: (id: string) => api.post(`/meetings/${id}/extract-actions`),

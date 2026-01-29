@@ -29,7 +29,6 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
     const [selectedTwgId, setSelectedTwgId] = useState<string>(twgId || '')
     const [isConfidential, setIsConfidential] = useState(false)
 
-    const [totalItems, setTotalItems] = useState(0)
 
     // Selection & Pagination State
     const [selectedDocs, setSelectedDocs] = useState<string[]>([])
@@ -68,9 +67,8 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
     const fetchData = async () => {
         try {
             setLoading(true)
-            const { data, total } = await documentService.listDocuments(twgId, 1, 1000)
+            const { data } = await documentService.listDocuments(twgId, 1, 1000)
             setDocuments(data)
-            setTotalItems(total)
         } catch (error) {
             console.error('Error fetching data:', error)
         } finally {

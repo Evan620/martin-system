@@ -222,63 +222,63 @@ class VexaService:
                 logger.info(f"✓ Detected live command/question: {question}")
                 await self._handle_live_command(meeting_id, question, db)
             
-            # 2. Live Analysis (Conflict & Agenda)
-            try:
-                from app.services.conflict_detector import ConflictDetector
-                detector = ConflictDetector(llm_client=get_llm_service())
-                
-                # Fetch meeting with TWG and Agenda
-                stmt_m = select(Meeting).where(Meeting.id == meeting_id).options(
-                    selectinload(Meeting.twg),
-                    selectinload(Meeting.agenda)
-                )
-                res_m = await db.execute(stmt_m)
-                meeting = res_m.scalar_one_or_none()
-                
-                if meeting:
-                    twg_name = meeting.twg.name if meeting.twg else "General"
-                    context = {
-                        "twg_name": twg_name,
-                        "meeting_title": meeting.title
-                    }
-                    
-                    from app.services.broadcast_service import get_broadcast_service
-                    broadcast = get_broadcast_service()
-                    
-                    # 2a. Live Conflict Detection
-                    live_conflict = await detector.detect_live_conflict(chunk_text, context)
-                    if live_conflict:
-                        logger.warning(f"⚠️ LIVE CONFLICT DETECTED: {live_conflict['reason']}")
-                        await broadcast.notify_live_meeting(
-                            meeting_id=meeting_id,
-                            content=f"**POTENTIAL CONFLICT:** {live_conflict['reason']}\n\n*Suggestion:* {live_conflict['suggestion']}",
-                            source="live_conflict_detector"
-                        )
-                    
-                    # 2b. Proactive Agenda Monitoring
-                    if meeting.agenda:
-                        logger.info(f"Running proactive agenda analysis for {meeting.title}...")
-                        agenda_insight = await detector.analyze_live_agenda(
-                            chunk_text=chunk_text,
-                            agenda_content=meeting.agenda.content,
-                            context=context
-                        )
-                        
-                        if agenda_insight and (agenda_insight.get('decisions') or agenda_insight.get('current_focus')):
-                            logger.info(f"✓ New Agenda Insight: {agenda_insight.get('insight_summary')}")
-                            # Send the whole payload for the specialized frontend component
-                            await broadcast.notify_live_meeting(
-                                meeting_id=meeting_id,
-                                content=agenda_insight.get('insight_summary') or "Progress update",
-                                source="agenda_monitor",
-                                # Extra data for the frontend
-                                metadata=agenda_insight
-                            )
-
-            except Exception as ce:
-                logger.error(f"Error in live analysis: {ce}")
-                import traceback
-                logger.error(traceback.format_exc())
+                    # 2. Live Analysis (Conflict & Agenda)
+                    # try:
+                    #     from app.services.conflict_detector import ConflictDetector
+                    #     detector = ConflictDetector(llm_client=get_llm_service())
+                    #     
+                    #     # Fetch meeting with TWG and Agenda
+                    #     stmt_m = select(Meeting).where(Meeting.id == meeting_id).options(
+                    #         selectinload(Meeting.twg),
+                    #         selectinload(Meeting.agenda)
+                    #     )
+                    #     res_m = await db.execute(stmt_m)
+                    #     meeting = res_m.scalar_one_or_none()
+                    #     
+                    #     if meeting:
+                    #         twg_name = meeting.twg.name if meeting.twg else "General"
+                    #         context = {
+                    #             "twg_name": twg_name,
+                    #             "meeting_title": meeting.title
+                    #         }
+                    #         
+                    #         from app.services.broadcast_service import get_broadcast_service
+                    #         broadcast = get_broadcast_service()
+                    #         
+                    #         # 2a. Live Conflict Detection
+                    #         live_conflict = await detector.detect_live_conflict(chunk_text, context)
+                    #         if live_conflict:
+                    #             logger.warning(f"⚠️ LIVE CONFLICT DETECTED: {live_conflict['reason']}")
+                    #             await broadcast.notify_live_meeting(
+                    #                 meeting_id=meeting_id,
+                    #                 content=f"**POTENTIAL CONFLICT:** {live_conflict['reason']}\n\n*Suggestion:* {live_conflict['suggestion']}",
+                    #                 source="live_conflict_detector"
+                    #             )
+                    #         
+                    #         # 2b. Proactive Agenda Monitoring
+                    #         if meeting.agenda:
+                    #             logger.info(f"Running proactive agenda analysis for {meeting.title}...")
+                    #             agenda_insight = await detector.analyze_live_agenda(
+                    #                 chunk_text=chunk_text,
+                    #                 agenda_content=meeting.agenda.content,
+                    #                 context=context
+                    #             )
+                    #             
+                    #             if agenda_insight and (agenda_insight.get('decisions') or agenda_insight.get('current_focus')):
+                    #                 logger.info(f"✓ New Agenda Insight: {agenda_insight.get('insight_summary')}")
+                    #                 # Send the whole payload for the specialized frontend component
+                    #                 await broadcast.notify_live_meeting(
+                    #                     meeting_id=meeting_id,
+                    #                     content=agenda_insight.get('insight_summary') or "Progress update",
+                    #                     source="agenda_monitor",
+                    #                     # Extra data for the frontend
+                    #                     metadata=agenda_insight
+                    #                 )
+                    # 
+                    # except Exception as ce:
+                    #     logger.error(f"Error in live analysis: {ce}")
+                    #     import traceback
+                    #     logger.error(traceback.format_exc())
 
         except Exception as e:
             logger.error(f"Failed to analyze live chunk for meeting {meeting_id}: {e}")

@@ -74,10 +74,10 @@ export default function Dashboard() {
     return (
         <>
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                 <div>
                     <h1 className="text-3xl md:text-4xl font-black text-[#0d121b] dark:text-white tracking-tight mb-1">Summit Overview Dashboard</h1>
-                    <p className="text-[#4c669a] dark:text-[#a0aec0] font-medium">2024 ECOWAS Session • Admin View</p>
+                    <p className="text-[#4c669a] dark:text-[#a0aec0] font-medium">Admin View</p>
                 </div>
                 <div className="flex gap-3">
                     <button
@@ -94,9 +94,9 @@ export default function Dashboard() {
             </div>
 
             {/* KPI Metrics Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {/* Active TWGs */}
-                <div className="bg-white dark:bg-[#1a202c] p-6 rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm flex flex-col justify-between h-40 relative group overflow-hidden">
+                <div className="bg-white dark:bg-[#1a202c] p-5 rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm flex flex-col justify-between h-32 relative group overflow-hidden">
                     <div className="flex justify-between items-start">
                         <div>
                             <p className="text-[#4c669a] dark:text-[#a0aec0] text-sm font-semibold mb-1 uppercase tracking-wider">Active TWGs</p>
@@ -113,7 +113,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Deals in Pipeline */}
-                <div className="bg-white dark:bg-[#1a202c] p-6 rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm flex flex-col justify-between h-40 relative group overflow-hidden">
+                <div className="bg-white dark:bg-[#1a202c] p-5 rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm flex flex-col justify-between h-32 relative group overflow-hidden">
                     <div className="flex justify-between items-start">
                         <div>
                             <p className="text-[#4c669a] dark:text-[#a0aec0] text-sm font-semibold mb-1 uppercase tracking-wider">Deals in Pipeline</p>
@@ -130,7 +130,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Pending Approvals */}
-                <div className="bg-white dark:bg-[#1a202c] p-6 rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm flex flex-col justify-between h-40 relative group overflow-hidden">
+                <div className="bg-white dark:bg-[#1a202c] p-5 rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm flex flex-col justify-between h-32 relative group overflow-hidden">
                     <div className="flex justify-between items-start">
                         <div>
                             <p className="text-[#4c669a] dark:text-[#a0aec0] text-sm font-semibold mb-1 uppercase tracking-wider">Pending Tasks</p>
@@ -147,7 +147,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Next Plenary */}
-                <div className="bg-[#1152d4] p-6 rounded-2xl border border-[#1152d4] shadow-md flex flex-col justify-between h-40 relative group overflow-hidden text-white">
+                <div className="bg-[#1152d4] p-5 rounded-2xl border border-[#1152d4] shadow-md flex flex-col justify-between h-32 relative group overflow-hidden text-white">
                     <div className="flex justify-between items-start">
                         <div>
                             <p className="text-white/80 text-sm font-semibold mb-1 uppercase tracking-wider">Next Major Event</p>
@@ -167,10 +167,10 @@ export default function Dashboard() {
             {/* Main Dashboard Content Area */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                 {/* Left Column: Pipeline & TWG Grid (Span 2) */}
-                <div className="xl:col-span-2 flex flex-col gap-8">
+                <div className="xl:col-span-2 flex flex-col gap-5">
                     {/* Pipeline Funnel Section */}
-                    <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm p-6">
-                        <div className="flex items-center justify-between mb-6">
+                    <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm p-4">
+                        <div className={`flex items-center justify-between ${!isPipelineCollapsed ? 'mb-4' : ''}`}>
                             <div className="flex items-center gap-3 cursor-pointer" onClick={() => setIsPipelineCollapsed(!isPipelineCollapsed)}>
                                 <h3 className="text-lg font-bold text-[#0d121b] dark:text-white">Deal Progression by Stage</h3>
                                 <div className={`p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2d3748] transition-colors ${isPipelineCollapsed ? '-rotate-90' : 'rotate-0'} duration-200`}>
@@ -247,7 +247,7 @@ export default function Dashboard() {
                         )}
                     </div>
 
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-3">
                         <h3 className="text-xl font-bold text-[#0d121b] dark:text-white">Technical Working Groups Status</h3>
                         <div className="flex gap-2">
                             <button className="p-2 text-[#0d121b] dark:text-[#a0aec0] hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors">
@@ -260,7 +260,7 @@ export default function Dashboard() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {stats?.twg_health.map((twg) => (
-                            <div key={twg.id} className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                            <div key={twg.id} className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] p-4 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
                                 <div className="absolute top-0 right-0 p-4">
                                     <div className={`text-xs font-bold px-2 py-1 rounded ${twg.status === 'active'
                                         ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
@@ -294,15 +294,7 @@ export default function Dashboard() {
                                             <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${twg.completion}%` }}></div>
                                         </div>
                                     </div>
-                                    <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-3 flex items-start gap-2 border border-indigo-100 dark:border-indigo-800/30">
-                                        <span className="material-symbols-outlined text-indigo-500 text-sm mt-0.5">auto_awesome</span>
-                                        <div>
-                                            <p className="text-xs text-[#0d121b] dark:text-white font-medium">System Status</p>
-                                            <p className="text-xs text-[#4c669a] dark:text-[#a0aec0]">
-                                                {twg.status === 'active' ? 'TWG is operating within parameters.' : 'Activity requested – potential blocker identified.'}
-                                            </p>
-                                        </div>
-                                    </div>
+
                                     <div className="flex justify-end pt-2 border-t border-[#f0f2f5] dark:border-[#2d3748]">
                                         <button
                                             onClick={() => navigate(`/workspace/${twg.id}`)}
@@ -322,28 +314,7 @@ export default function Dashboard() {
                     {/* Live Timeline */}
                     <LiveTimeline items={timeline} />
 
-                    {/* Action Center */}
-                    <div className="bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/20 p-6">
-                        <h3 className="text-lg font-bold text-[#0d121b] dark:text-white mb-4">Quick Actions</h3>
-                        <div className="grid grid-cols-2 gap-3">
-                            <button className="flex flex-col items-center justify-center gap-2 p-4 bg-white dark:bg-[#1a202c] rounded-lg border border-[#e7ebf3] dark:border-[#2d3748] hover:border-primary transition-colors hover:shadow-sm group">
-                                <span className="material-symbols-outlined text-primary text-2xl group-hover:scale-110 transition-transform">article</span>
-                                <span className="text-xs font-medium text-[#0d121b] dark:text-white text-center">Generate Report</span>
-                            </button>
-                            <button className="flex flex-col items-center justify-center gap-2 p-4 bg-white dark:bg-[#1a202c] rounded-lg border border-[#e7ebf3] dark:border-[#2d3748] hover:border-primary transition-colors hover:shadow-sm group">
-                                <span className="material-symbols-outlined text-primary text-2xl group-hover:scale-110 transition-transform">broadcast_on_personal</span>
-                                <span className="text-xs font-medium text-[#0d121b] dark:text-white text-center">Broadcast Msg</span>
-                            </button>
-                            <button className="flex flex-col items-center justify-center gap-2 p-4 bg-white dark:bg-[#1a202c] rounded-lg border border-[#e7ebf3] dark:border-[#2d3748] hover:border-primary transition-colors hover:shadow-sm group">
-                                <span className="material-symbols-outlined text-primary text-2xl group-hover:scale-110 transition-transform">smart_toy</span>
-                                <span className="text-xs font-medium text-[#0d121b] dark:text-white text-center">Run AI Analysis</span>
-                            </button>
-                            <button className="flex flex-col items-center justify-center gap-2 p-4 bg-white dark:bg-[#1a202c] rounded-lg border border-[#e7ebf3] dark:border-[#2d3748] hover:border-primary transition-colors hover:shadow-sm group">
-                                <span className="material-symbols-outlined text-primary text-2xl group-hover:scale-110 transition-transform">person_add</span>
-                                <span className="text-xs font-medium text-[#0d121b] dark:text-white text-center">Invite Lead</span>
-                            </button>
-                        </div>
-                    </div>
+
                 </div>
             </div>
         </>

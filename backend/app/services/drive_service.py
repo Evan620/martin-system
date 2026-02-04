@@ -18,12 +18,18 @@ from app.services.document_synthesizer import DocumentSynthesizer
 from app.services.llm_service import get_llm_service
 from loguru import logger
 
-SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+# Updated scopes to include write permissions for shared documents upload
+SCOPES = [
+    'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/drive.file'  # Allows creating/modifying files created by this app
+]
 
 # Meet Recordings folder ID (from magwaro@ecowasiisummit.net Drive)
 MEET_RECORDINGS_FOLDER_ID = '1INDXhbO0LTB9wX5uyyljHxb9ULS2N9sk'
 # Core Workspace folder ID (Placeholder - Update with actual ID)
 CORE_WORKSPACE_FOLDER_ID = '1INDXhbO0LTB9wX5uyyljHxb9ULS2N9sk' # Defaulting to same for now to show SOME files
+# Shared Documents folder ID - Admin-controlled shared resources
+SHARED_DOCUMENTS_FOLDER_ID = os.environ.get('SHARED_DOCUMENTS_FOLDER_ID', '1INDXhbO0LTB9wX5uyyljHxb9ULS2N9sk') # TODO: Update with actual folder ID
 
 class DriveService:
     """
@@ -210,6 +216,109 @@ class DriveService:
                     fh.close()
                 except:
                     pass
+
+    def upload_file_to_drive(self, file_content: bytes, filename: str, mime_type: str, folder_id: str = None) -> Dict[str, Any]:
+        """
+        Upload a file to Google Drive.
+        Blocking call - should be run in thread.
+        
+        Args:
+            file_content: File content as bytes
+            filename: Name of the file
+            mime_type: MIME type of the file
+            folder_id: Optional folder ID to upload to (defaults to SHARED_DOCUMENTS_FOLDER_ID)
+        
+        Returns:
+            Dict with file metadata (id, name, webViewLink, etc.)
+        """
+        if not self._setup_credentials():
+            raise Exception("Google Drive credentials not configured")
+        
+        target_folder = folder_id or SHARED_DOCUMENTS_FOLDER_ID
+        
+        try:
+            from googleapiclient.http import MediaInMemoryUpload
+            
+            # Create file metadata
+            file_metadata = {
+                'name': filename,
+                'parents': [target_folder]
+            }
+            
+            # Create media upload
+            media = MediaInMemoryUpload(
+                file_content,
+                mimetype=mime_type,
+                resumable=True
+            )
+            
+            # Upload file
+            file = self.service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields='id, name, mimeType, webViewLink, iconLink, modifiedTime, size'
+            ).execute()
+            
+            logger.info(f"Successfully uploaded file '{filename}' to Google Drive (ID: {file['id']})")
+            return file
+            
+        except Exception as e:
+            logger.error(f"Error uploading file to Google Drive: {e}")
+            raise Exception(f"Failed to upload file: {str(e)}")
+
+    def list_shared_documents(self) -> List[Dict[str, Any]]:
+        """
+        List files in the Shared Documents folder.
+        Returns metadata including webViewLink to open in Drive.
+        Blocking call - should be run in thread.
+        """
+        if not self._setup_credentials():
+            return []
+
+        folder_id = SHARED_DOCUMENTS_FOLDER_ID
+        
+        query = (
+            f"'{folder_id}' in parents and "
+            "trashed = false"
+        )
+
+        try:
+            results = self.service.files().list(
+                q=query,
+                pageSize=100,
+                orderBy='modifiedTime desc',
+                fields="nextPageToken, files(id, name, mimeType, webViewLink, iconLink, modifiedTime, thumbnailLink, size)"
+            ).execute(num_retries=3)
+            
+            items = results.get('files', [])
+            logger.info(f"Found {len(items)} files in Shared Documents folder")
+            return items
+        except Exception as e:
+            logger.error(f"Error listing Shared Documents files: {e}")
+            return []
+
+    def delete_file_from_drive(self, file_id: str) -> bool:
+        """
+        Delete a file from Google Drive.
+        Blocking call - should be run in thread.
+        
+        Args:
+            file_id: Google Drive file ID
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self._setup_credentials():
+            return False
+        
+        try:
+            self.service.files().delete(fileId=file_id).execute()
+            logger.info(f"Successfully deleted file {file_id} from Google Drive")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting file {file_id} from Google Drive: {e}")
+            return False
+
 
     async def process_new_transcripts(self):
         """

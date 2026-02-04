@@ -150,3 +150,16 @@ export const twgs = {
 export const auditLogs = {
     list: (skip = 0, limit = 100) => api.get(`/audit-logs/?skip=${skip}&limit=${limit}`),
 };
+
+export const sharedDocuments = {
+    list: () => api.get('/shared-documents/'),
+    upload: (file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post('/shared-documents/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+    delete: (fileId: string) => api.delete(`/shared-documents/${fileId}`),
+};
+

@@ -267,6 +267,8 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
     const totalPages = Math.ceil(filteredAndSortedDocuments.length / itemsPerPage);
     const paginatedDocs = filteredAndSortedDocuments.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+    const [mainTab, setMainTab] = useState<'library' | 'workspace'>('library');
+
     const libraryItems = [
         { id: 'all', label: 'All Documents', icon: 'folder', count: documents.length },
         {
@@ -278,7 +280,6 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
             }).length
         },
         { id: 'starred', label: 'Starred', icon: 'star', count: 0 },
-        { id: 'shared', label: 'Shared with Me', icon: 'share', count: 0 },
     ];
 
     const documentTypes = ['Meeting Minutes', 'Policy Drafts', 'Reports', 'Legal Documents', 'Presentations'];
@@ -360,232 +361,264 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
 
                 {/* Main Content Area */}
                 <div className="flex-1 space-y-6">
-                    {/* Core Workspace Section - Always visible at top */}
-                    <CoreWorkspace />
 
-                    <div className="flex items-center justify-between">
-                        <h1 className="text-2xl font-black text-[#0d121b] dark:text-white tracking-tight">All Documents</h1>
-                        <div className="flex gap-2">
-                            {selectedDocs.length > 0 && (
-                                <button
-                                    onClick={handleBulkDelete}
-                                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-red-700 transition-all shadow-lg shadow-red-500/20"
-                                >
-                                    <span className="material-symbols-outlined text-sm">delete_sweep</span>
-                                    Delete {selectedDocs.length}
-                                </button>
+                    {/* Top Level Tabs */}
+                    <div className="flex items-center gap-6 border-b border-[#e7ebf3] dark:border-[#2d3748] mb-6">
+                        <button
+                            onClick={() => setMainTab('library')}
+                            className={`pb-3 text-sm font-black uppercase tracking-wider relative transition-all ${mainTab === 'library' ? 'text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
+                        >
+                            Document Library
+                            {mainTab === 'library' && (
+                                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-[#1152d4] rounded-t-full"></span>
                             )}
-                            <button
-                                onClick={() => {
-                                    setSelectedDocTypes([])
-                                    setSelectedLabels([])
-                                    setActiveLibraryTab('all')
-                                }}
-                                className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-xs font-black text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider hover:bg-gray-50 transition-all shadow-sm"
-                            >
-                                <span className="material-symbols-outlined text-sm">filter_list</span>
-                                Clear Filters
-                            </button>
-                            <button
-                                onClick={() => {
-                                    if (sortBy === 'date') {
-                                        setSortBy('name')
-                                    } else {
-                                        setSortBy('date')
-                                    }
-                                }}
-                                className="flex items-center gap-2 px-4 py-2 bg-[#1152d4] border border-[#1152d4]/20 rounded-lg text-xs font-black text-white uppercase tracking-wider hover:bg-[#0d3ea8] transition-all shadow-lg shadow-blue-500/20"
-                            >
-                                <span className="material-symbols-outlined text-sm">sort</span>
-                                Sort: {sortBy === 'date' ? 'Date' : 'Name'}
-                            </button>
-                        </div>
+                        </button>
+                        <button
+                            onClick={() => setMainTab('workspace')}
+                            className={`pb-3 text-sm font-black uppercase tracking-wider relative transition-all ${mainTab === 'workspace' ? 'text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
+                        >
+                            Core Workspace (Shared)
+                            {mainTab === 'workspace' && (
+                                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-[#1152d4] rounded-t-full"></span>
+                            )}
+                        </button>
                     </div>
 
-                    <form onSubmit={handleSearch} className="relative">
-                        <input
-                            type="search"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search by name, owner, or tag..."
-                            className="w-full pl-12 pr-4 py-4 rounded-xl border border-[#e7ebf3] dark:border-[#4a5568] bg-white dark:bg-[#1a202c] text-sm focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 shadow-sm"
-                        />
-                        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#8a9dbd]">search</span>
-                    </form>
-
-                    {/* AI Knowledge Base Search Results */}
-                    {isSearching && (
-                        <div className="bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-2xl p-6 animate-in slide-in-from-top-2 duration-300">
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-sm font-black text-[#1152d4] flex items-center gap-2 uppercase tracking-wider">
-                                    <span className="material-symbols-outlined text-[20px]">psychology</span>
-                                    AI Knowledge Fragments
-                                </h2>
-                                <button onClick={() => { setIsSearching(false); setSearchQuery(''); }} className="text-[10px] font-black text-[#1152d4] hover:underline uppercase">Close Results</button>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {searchResults.length > 0 ? (
-                                    searchResults.map((result, idx) => (
-                                        <div key={idx} className="bg-white dark:bg-[#1a202c] p-4 rounded-xl shadow-sm border border-[#e7ebf3] dark:border-[#2d3748] hover:border-[#1152d4]/30 transition-all">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <span className="text-[10px] font-black text-[#4c669a] uppercase truncate max-w-[150px]">{result.metadata.file_name}</span>
-                                                <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">{(result.score * 100).toFixed(0)}% Match</span>
-                                            </div>
-                                            <p className="text-xs text-[#4c669a] dark:text-[#a0aec0] italic line-clamp-2 leading-relaxed">"{result.metadata.text}"</p>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <p className="text-xs text-[#4c669a] dark:text-[#a0aec0] font-bold">No matching semantic fragments discovered in the knowledge base.</p>
-                                )}
-                            </div>
+                    {/* Core Workspace Tab Content */}
+                    {mainTab === 'workspace' ? (
+                        <div className="animate-in fade-in duration-300">
+                            <CoreWorkspace />
                         </div>
-                    )}
-
-                    {/* Table View */}
-                    <div className="bg-white dark:bg-[#1a202c] rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm overflow-hidden">
-                        <table className="w-full text-left text-sm">
-                            <thead>
-                                <tr className="border-b border-[#e7ebf3] dark:border-[#2d3748]">
-                                    <th className="px-6 py-4 w-12 text-center">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedDocs.length > 0 && selectedDocs.length === paginatedDocs.length}
-                                            onChange={() => toggleSelectAll(paginatedDocs.map(d => d.id))}
-                                            className="size-4 rounded border-[#cfd7e7] text-[#1152d4]"
-                                        />
-                                    </th>
-                                    <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider">Name</th>
-                                    <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Context (TWG)</th>
-                                    <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Uploader</th>
-                                    <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Modified</th>
-                                    <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center text-center">RAG Sync</th>
-                                    <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Label</th>
-                                    <th className="px-6 py-4 w-24"></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#2d3748]">
-                                {loading ? (
-                                    <tr><td colSpan={8} className="p-12 text-center text-[#4c669a] font-bold tracking-widest uppercase text-xs">Initializing Document Stream...</td></tr>
-                                ) : paginatedDocs.length === 0 ? (
-                                    <tr><td colSpan={8} className="p-12 text-center text-[#4c669a] font-bold">No documents match the current filters.</td></tr>
-                                ) : paginatedDocs.map((doc) => (
-                                    <tr key={doc.id} className={`hover:bg-blue-50/50 dark:hover:bg-blue-900/5 transition-colors group ${selectedDocs.includes(doc.id) ? 'bg-blue-50/30' : ''}`}>
-                                        <td className="px-6 py-5 text-center">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedDocs.includes(doc.id)}
-                                                onChange={() => toggleSelect(doc.id)}
-                                                className="size-4 rounded border-[#cfd7e7] text-[#1152d4]"
-                                            />
-                                        </td>
-                                        <td className="px-6 py-5">
-                                            <div className="flex items-center gap-4">
-                                                <div className="size-10 rounded-lg bg-gray-50 flex items-center justify-center text-[#4c669a] group-hover:bg-[#1152d4] group-hover:text-white transition-all">
-                                                    <span className="material-symbols-outlined text-[20px]">
-                                                        {doc.file_name.endsWith('.pdf') ? 'picture_as_pdf' : 'description'}
-                                                    </span>
-                                                </div>
-                                                <div>
-                                                    <p className="font-bold text-[#0d121b] dark:text-white mb-0.5">{doc.file_name}</p>
-                                                    <p className="text-[10px] font-bold text-[#8a9dbd] uppercase">{doc.file_name.toLowerCase().includes('minutes') ? 'Meeting Minutes' : 'Policy Draft'}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-5 text-center">
-                                            {doc.twg ? (
-                                                <span className="inline-block px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                                                    {doc.twg.name}
-                                                </span>
-                                            ) : (
-                                                <span className="inline-block px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                                                    Global / Secretariat
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-5 text-center text-[#4c669a] font-bold">
-                                            {doc.uploaded_by?.full_name || 'System Admin'}
-                                        </td>
-                                        <td className="px-6 py-5 text-center text-[#4c669a] text-xs font-bold">
-                                            {new Date(doc.created_at).toLocaleDateString()}
-                                        </td>
-                                        <td className="px-6 py-5 text-center">
-                                            {doc.ingested_at ? (
-                                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50/50 text-[#1152d4] border border-blue-100">
-                                                    <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                                                    <span className="text-[10px] font-black uppercase tracking-wider">Synced</span>
-                                                </span>
-                                            ) : (
-                                                <button
-                                                    onClick={() => handleIngest(doc.id)}
-                                                    disabled={ingesting === doc.id}
-                                                    className={`p-2 rounded-lg transition-all ${ingesting === doc.id ? 'text-[#1152d4] animate-spin' : 'text-[#8a9dbd] hover:text-[#1152d4] hover:bg-blue-50'}`}
-                                                    title="Ingest to RAG"
-                                                >
-                                                    <span className="material-symbols-outlined text-[20px]">{ingesting === doc.id ? 'sync' : 'database_upload'}</span>
-                                                </button>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-5 text-center">
-                                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${doc.is_confidential ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
-                                                <span className={`size-1.5 rounded-full ${doc.is_confidential ? 'bg-red-600' : 'bg-emerald-600'} mr-2`}></span>
-                                                {doc.is_confidential ? 'Confidential' : 'Public'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-5 text-right flex justify-end gap-1">
-                                            <button
-                                                onClick={() => handleDownload(doc.id)}
-                                                className="p-2 text-[#8a9dbd] hover:text-[#1152d4] transition-colors"
-                                                title="View/Download"
-                                            >
-                                                <span className="material-symbols-outlined text-[18px]">visibility</span>
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(doc.id)}
-                                                className="p-2 text-[#8a9dbd] hover:text-red-600 transition-colors"
-                                                title="Delete Asset"
-                                            >
-                                                <span className="material-symbols-outlined text-[18px]">delete</span>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-
-                        {/* Pagination Footer */}
-                        {totalPages > 1 && (
-                            <div className="px-6 py-4 bg-gray-50/50 dark:bg-[#1a202c] border-t border-[#e7ebf3] dark:border-[#2d3748] flex items-center justify-between">
-                                <p className="text-xs font-black text-[#8a9dbd] uppercase tracking-widest">
-                                    Page {currentPage} of {totalPages}
-                                </p>
-                                <div className="flex gap-1">
-                                    <button
-                                        disabled={currentPage === 1}
-                                        onClick={() => setCurrentPage(prev => prev - 1)}
-                                        className="size-8 rounded-lg border border-[#cfd7e7] flex items-center justify-center text-[#4c669a] hover:bg-white disabled:opacity-30 transition-all"
-                                    >
-                                        <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-                                    </button>
-                                    {[...Array(totalPages)].map((_, i) => (
+                    ) : (
+                        /* Standard Document Library Content */
+                        <>
+                            <div className="flex items-center justify-between">
+                                <h1 className="text-2xl font-black text-[#0d121b] dark:text-white tracking-tight">
+                                    {activeLibraryTab === 'recent' ? 'Recent Documents' : 'All Documents'}
+                                </h1>
+                                <div className="flex gap-2">
+                                    {selectedDocs.length > 0 && (
                                         <button
-                                            key={i}
-                                            onClick={() => setCurrentPage(i + 1)}
-                                            className={`size-8 rounded-lg text-xs font-black transition-all ${currentPage === i + 1 ? 'bg-[#1152d4] text-white shadow-md shadow-blue-500/20' : 'border border-[#cfd7e7] text-[#4c669a] hover:bg-white'}`}
+                                            onClick={handleBulkDelete}
+                                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-red-700 transition-all shadow-lg shadow-red-500/20"
                                         >
-                                            {i + 1}
+                                            <span className="material-symbols-outlined text-sm">delete_sweep</span>
+                                            Delete {selectedDocs.length}
                                         </button>
-                                    ))}
+                                    )}
                                     <button
-                                        disabled={currentPage === totalPages}
-                                        onClick={() => setCurrentPage(prev => prev + 1)}
-                                        className="size-8 rounded-lg border border-[#cfd7e7] flex items-center justify-center text-[#4c669a] hover:bg-white disabled:opacity-30 transition-all"
+                                        onClick={() => {
+                                            setSelectedDocTypes([])
+                                            setSelectedLabels([])
+                                            setActiveLibraryTab('all')
+                                        }}
+                                        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-xs font-black text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider hover:bg-gray-50 transition-all shadow-sm"
                                     >
-                                        <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                                        <span className="material-symbols-outlined text-sm">filter_list</span>
+                                        Clear Filters
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (sortBy === 'date') {
+                                                setSortBy('name')
+                                            } else {
+                                                setSortBy('date')
+                                            }
+                                        }}
+                                        className="flex items-center gap-2 px-4 py-2 bg-[#1152d4] border border-[#1152d4]/20 rounded-lg text-xs font-black text-white uppercase tracking-wider hover:bg-[#0d3ea8] transition-all shadow-lg shadow-blue-500/20"
+                                    >
+                                        <span className="material-symbols-outlined text-sm">sort</span>
+                                        Sort: {sortBy === 'date' ? 'Date' : 'Name'}
                                     </button>
                                 </div>
                             </div>
-                        )}
-                    </div>
+
+                            <form onSubmit={handleSearch} className="relative">
+                                <input
+                                    type="search"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search by name, owner, or tag..."
+                                    className="w-full pl-12 pr-4 py-4 rounded-xl border border-[#e7ebf3] dark:border-[#4a5568] bg-white dark:bg-[#1a202c] text-sm focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 shadow-sm"
+                                />
+                                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#8a9dbd]">search</span>
+                            </form>
+
+                            {/* AI Knowledge Base Search Results */}
+                            {isSearching && (
+                                <div className="bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-2xl p-6 animate-in slide-in-from-top-2 duration-300">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h2 className="text-sm font-black text-[#1152d4] flex items-center gap-2 uppercase tracking-wider">
+                                            <span className="material-symbols-outlined text-[20px]">psychology</span>
+                                            AI Knowledge Fragments
+                                        </h2>
+                                        <button onClick={() => { setIsSearching(false); setSearchQuery(''); }} className="text-[10px] font-black text-[#1152d4] hover:underline uppercase">Close Results</button>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {searchResults.length > 0 ? (
+                                            searchResults.map((result, idx) => (
+                                                <div key={idx} className="bg-white dark:bg-[#1a202c] p-4 rounded-xl shadow-sm border border-[#e7ebf3] dark:border-[#2d3748] hover:border-[#1152d4]/30 transition-all">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <span className="text-[10px] font-black text-[#4c669a] uppercase truncate max-w-[150px]">{result.metadata.file_name}</span>
+                                                        <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">{(result.score * 100).toFixed(0)}% Match</span>
+                                                    </div>
+                                                    <p className="text-xs text-[#4c669a] dark:text-[#a0aec0] italic line-clamp-2 leading-relaxed">"{result.metadata.text}"</p>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-xs text-[#4c669a] dark:text-[#a0aec0] font-bold">No matching semantic fragments discovered in the knowledge base.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Table View */}
+                            <div className="bg-white dark:bg-[#1a202c] rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm overflow-hidden">
+                                <table className="w-full text-left text-sm">
+                                    <thead>
+                                        <tr className="border-b border-[#e7ebf3] dark:border-[#2d3748]">
+                                            <th className="px-6 py-4 w-12 text-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedDocs.length > 0 && selectedDocs.length === paginatedDocs.length}
+                                                    onChange={() => toggleSelectAll(paginatedDocs.map(d => d.id))}
+                                                    className="size-4 rounded border-[#cfd7e7] text-[#1152d4]"
+                                                />
+                                            </th>
+                                            <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider">Name</th>
+                                            <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Context (TWG)</th>
+                                            <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Uploader</th>
+                                            <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Modified</th>
+                                            <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center text-center">RAG Sync</th>
+                                            <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Label</th>
+                                            <th className="px-6 py-4 w-24"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#2d3748]">
+                                        {loading ? (
+                                            <tr><td colSpan={8} className="p-12 text-center text-[#4c669a] font-bold tracking-widest uppercase text-xs">Initializing Document Stream...</td></tr>
+                                        ) : paginatedDocs.length === 0 ? (
+                                            <tr><td colSpan={8} className="p-12 text-center text-[#4c669a] font-bold">No documents match the current filters.</td></tr>
+                                        ) : paginatedDocs.map((doc) => (
+                                            <tr key={doc.id} className={`hover:bg-blue-50/50 dark:hover:bg-blue-900/5 transition-colors group ${selectedDocs.includes(doc.id) ? 'bg-blue-50/30' : ''}`}>
+                                                <td className="px-6 py-5 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedDocs.includes(doc.id)}
+                                                        onChange={() => toggleSelect(doc.id)}
+                                                        className="size-4 rounded border-[#cfd7e7] text-[#1152d4]"
+                                                    />
+                                                </td>
+                                                <td className="px-6 py-5">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="size-10 rounded-lg bg-gray-50 flex items-center justify-center text-[#4c669a] group-hover:bg-[#1152d4] group-hover:text-white transition-all">
+                                                            <span className="material-symbols-outlined text-[20px]">
+                                                                {doc.file_name.endsWith('.pdf') ? 'picture_as_pdf' : 'description'}
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-bold text-[#0d121b] dark:text-white mb-0.5">{doc.file_name}</p>
+                                                            <p className="text-[10px] font-bold text-[#8a9dbd] uppercase">{doc.file_name.toLowerCase().includes('minutes') ? 'Meeting Minutes' : 'Policy Draft'}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-5 text-center">
+                                                    {doc.twg ? (
+                                                        <span className="inline-block px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                                                            {doc.twg.name}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-block px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                                            Global / Secretariat
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-5 text-center text-[#4c669a] font-bold">
+                                                    {doc.uploaded_by?.full_name || 'System Admin'}
+                                                </td>
+                                                <td className="px-6 py-5 text-center text-[#4c669a] text-xs font-bold">
+                                                    {new Date(doc.created_at).toLocaleDateString()}
+                                                </td>
+                                                <td className="px-6 py-5 text-center">
+                                                    {doc.ingested_at ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50/50 text-[#1152d4] border border-blue-100">
+                                                            <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                                                            <span className="text-[10px] font-black uppercase tracking-wider">Synced</span>
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => handleIngest(doc.id)}
+                                                            disabled={ingesting === doc.id}
+                                                            className={`p-2 rounded-lg transition-all ${ingesting === doc.id ? 'text-[#1152d4] animate-spin' : 'text-[#8a9dbd] hover:text-[#1152d4] hover:bg-blue-50'}`}
+                                                            title="Ingest to RAG"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[20px]">{ingesting === doc.id ? 'sync' : 'database_upload'}</span>
+                                                        </button>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-5 text-center">
+                                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${doc.is_confidential ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                                        <span className={`size-1.5 rounded-full ${doc.is_confidential ? 'bg-red-600' : 'bg-emerald-600'} mr-2`}></span>
+                                                        {doc.is_confidential ? 'Confidential' : 'Public'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-5 text-right flex justify-end gap-1">
+                                                    <button
+                                                        onClick={() => handleDownload(doc.id)}
+                                                        className="p-2 text-[#8a9dbd] hover:text-[#1152d4] transition-colors"
+                                                        title="View/Download"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(doc.id)}
+                                                        className="p-2 text-[#8a9dbd] hover:text-red-600 transition-colors"
+                                                        title="Delete Asset"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+
+                                {/* Pagination Footer */}
+                                {totalPages > 1 && (
+                                    <div className="px-6 py-4 bg-gray-50/50 dark:bg-[#1a202c] border-t border-[#e7ebf3] dark:border-[#2d3748] flex items-center justify-between">
+                                        <p className="text-xs font-black text-[#8a9dbd] uppercase tracking-widest">
+                                            Page {currentPage} of {totalPages}
+                                        </p>
+                                        <div className="flex gap-1">
+                                            <button
+                                                disabled={currentPage === 1}
+                                                onClick={() => setCurrentPage(prev => prev - 1)}
+                                                className="size-8 rounded-lg border border-[#cfd7e7] flex items-center justify-center text-[#4c669a] hover:bg-white disabled:opacity-30 transition-all"
+                                            >
+                                                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                                            </button>
+                                            {[...Array(totalPages)].map((_, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => setCurrentPage(i + 1)}
+                                                    className={`size-8 rounded-lg text-xs font-black transition-all ${currentPage === i + 1 ? 'bg-[#1152d4] text-white shadow-md shadow-blue-500/20' : 'border border-[#cfd7e7] text-[#4c669a] hover:bg-white'}`}
+                                                >
+                                                    {i + 1}
+                                                </button>
+                                            ))}
+                                            <button
+                                                disabled={currentPage === totalPages}
+                                                onClick={() => setCurrentPage(prev => prev + 1)}
+                                                className="size-8 rounded-lg border border-[#cfd7e7] flex items-center justify-center text-[#4c669a] hover:bg-white disabled:opacity-30 transition-all"
+                                            >
+                                                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 

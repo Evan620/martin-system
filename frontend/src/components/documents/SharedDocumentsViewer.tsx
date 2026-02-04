@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import { sharedDocuments } from '../../services/api';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
-import SharedDocumentsManager from '../admin/SharedDocumentsManager';
 
-interface CoreFile {
+interface SharedFile {
     id: string;
     name: string;
     mimeType: string;
@@ -15,12 +14,15 @@ interface CoreFile {
     size?: number;
 }
 
-const CoreWorkspace = () => {
-    const [files, setFiles] = useState<CoreFile[]>([]);
+interface SharedDocumentsViewerProps {
+    onDelete?: () => void;
+}
+
+const SharedDocumentsViewer = ({ onDelete }: SharedDocumentsViewerProps) => {
+    const [files, setFiles] = useState<SharedFile[]>([]);
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [error, setError] = useState<string | null>(null);
-    const [showUpload, setShowUpload] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
     const user = useSelector((state: RootState) => state.auth.user);
@@ -30,12 +32,11 @@ const CoreWorkspace = () => {
         setLoading(true);
         setError(null);
         try {
-            // Use sharedDocuments.list() instead of documentService
             const response = await sharedDocuments.list();
             setFiles(response.data);
         } catch (err) {
-            console.error("Failed to load core workspace files:", err);
-            setError("Failed to load Core Workspace files. Please check connection.");
+            console.error('Failed to load shared documents:', err);
+            setError('Failed to load shared documents. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -45,10 +46,7 @@ const CoreWorkspace = () => {
         loadFiles();
     }, []);
 
-    const handleDelete = async (fileId: string, fileName: string, e: React.MouseEvent) => {
-        e.preventDefault(); // Prevent opening the link
-        e.stopPropagation();
-
+    const handleDelete = async (fileId: string, fileName: string) => {
         if (!confirm(`Are you sure you want to delete "${fileName}"?`)) {
             return;
         }
@@ -57,16 +55,14 @@ const CoreWorkspace = () => {
         try {
             await sharedDocuments.delete(fileId);
             setFiles(files.filter(f => f.id !== fileId));
+            if (onDelete) {
+                onDelete();
+            }
         } catch (err: any) {
             alert(err.response?.data?.detail || 'Failed to delete file');
         } finally {
             setDeletingId(null);
         }
-    };
-
-    const handleUploadSuccess = () => {
-        setShowUpload(false);
-        loadFiles();
     };
 
     const getIcon = (mimeType: string) => {
@@ -98,38 +94,31 @@ const CoreWorkspace = () => {
 
     return (
         <div className="rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] bg-white dark:bg-[#1a202c] overflow-hidden">
-            <div className="px-6 py-4 border-b border-[#e7ebf3] dark:border-[#2d3748] flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/30">
+            <div className="px-6 py-4 border-b border-[#e7ebf3] dark:border-[#2d3748] flex justify-between items-center">
                 <div>
                     <h3 className="text-lg font-black text-[#0d121b] dark:text-white flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[#1152d4]">cloud_circle</span>
-                        Core Workspace
+                        <span className="material-symbols-outlined text-[#1152d4]">folder_shared</span>
+                        Shared Documents
                     </h3>
                     <p className="text-xs text-[#8a9dbd] font-bold uppercase tracking-wider mt-1">
-                        Shared Drive Documents
+                        Resources & Materials
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {isAdmin && (
+                    <div className="flex bg-gray-100 dark:bg-[#2d3748] rounded-lg p-1">
                         <button
-                            onClick={() => setShowUpload(!showUpload)}
-                            className={`p-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${showUpload ? 'bg-red-50 text-red-600' : 'bg-[#1152d4] text-white hover:bg-[#0d3ea8]'}`}
+                            onClick={() => setViewMode('grid')}
+                            className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-[#4a5568] shadow-sm text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
                         >
-                            <span className="material-symbols-outlined text-[18px]">{showUpload ? 'close' : 'add'}</span>
-                            {showUpload ? 'Close' : 'Add Document'}
+                            <span className="material-symbols-outlined text-[20px]">grid_view</span>
                         </button>
-                    )}
-                    <button
-                        onClick={() => setViewMode('grid')}
-                        className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-[#4a5568] shadow-sm text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
-                    >
-                        <span className="material-symbols-outlined text-[20px]">grid_view</span>
-                    </button>
-                    <button
-                        onClick={() => setViewMode('list')}
-                        className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white dark:bg-[#4a5568] shadow-sm text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
-                    >
-                        <span className="material-symbols-outlined text-[20px]">view_list</span>
-                    </button>
+                        <button
+                            onClick={() => setViewMode('list')}
+                            className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white dark:bg-[#4a5568] shadow-sm text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
+                        >
+                            <span className="material-symbols-outlined text-[20px]">view_list</span>
+                        </button>
+                    </div>
                     <button
                         onClick={loadFiles}
                         disabled={loading}
@@ -139,13 +128,6 @@ const CoreWorkspace = () => {
                     </button>
                 </div>
             </div>
-
-            {/* Admin Upload Section - Conditional */}
-            {showUpload && isAdmin && (
-                <div className="p-6 border-b border-[#e7ebf3] dark:border-[#2d3748] bg-blue-50/20 dark:bg-blue-900/10 animate-in slide-in-from-top-2">
-                    <SharedDocumentsManager onUploadSuccess={handleUploadSuccess} />
-                </div>
-            )}
 
             <div className="p-6">
                 {error && (
@@ -162,11 +144,9 @@ const CoreWorkspace = () => {
                 ) : files.length === 0 ? (
                     <div className="text-center py-12 border-2 border-dashed border-[#cfd7e7] rounded-xl bg-gray-50/50">
                         <span className="material-symbols-outlined text-4xl text-[#8a9dbd] mb-2">folder_off</span>
-                        <p className="text-[#8a9dbd] font-bold">No core documents found.</p>
-                        {isAdmin && !showUpload && (
-                            <button onClick={() => setShowUpload(true)} className="mt-4 text-xs font-bold text-[#1152d4] hover:underline uppercase">
-                                Upload First Document
-                            </button>
+                        <p className="text-[#8a9dbd] font-bold">No shared documents yet.</p>
+                        {isAdmin && (
+                            <p className="text-xs text-[#8a9dbd] mt-2">Upload documents using the form above.</p>
                         )}
                     </div>
                 ) : (
@@ -203,9 +183,9 @@ const CoreWorkspace = () => {
                                         </a>
                                         {isAdmin && (
                                             <button
-                                                onClick={(e) => handleDelete(file.id, file.name, e)}
+                                                onClick={() => handleDelete(file.id, file.name)}
                                                 disabled={deletingId === file.id}
-                                                className="absolute top-2 right-2 p-1.5 bg-white dark:bg-[#2d3748] rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 shadow-sm"
+                                                className="absolute top-2 right-2 p-1.5 bg-white dark:bg-[#2d3748] rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
                                                 title="Delete file"
                                             >
                                                 {deletingId === file.id ? (
@@ -245,7 +225,7 @@ const CoreWorkspace = () => {
                                         </a>
                                         {isAdmin && (
                                             <button
-                                                onClick={(e) => handleDelete(file.id, file.name, e)}
+                                                onClick={() => handleDelete(file.id, file.name)}
                                                 disabled={deletingId === file.id}
                                                 className="ml-2 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all disabled:opacity-50"
                                                 title="Delete file"
@@ -268,4 +248,4 @@ const CoreWorkspace = () => {
     );
 };
 
-export default CoreWorkspace;
+export default SharedDocumentsViewer;

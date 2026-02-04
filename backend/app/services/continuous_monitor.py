@@ -59,12 +59,13 @@ class ContinuousMonitor:
         )
         
         # 2. Semantic Conflict Scan (Every 60 mins to reduce API calls)
-        self.scheduler.add_job(
-            self.scan_policy_divergences,
-            trigger=IntervalTrigger(minutes=60),
-            id="scan_policy",
-            replace_existing=True
-        )
+        # 2. Semantic Conflict Scan (Every 60 mins to reduce API calls)
+        # self.scheduler.add_job(
+        #     self.scan_policy_divergences,
+        #     trigger=IntervalTrigger(minutes=60),
+        #     id="scan_policy",
+        #     replace_existing=True
+        # )
         
         # 3. Health Check (Hourly)
         self.scheduler.add_job(
@@ -859,9 +860,9 @@ class ContinuousMonitor:
             
             # Trigger Auto-Negotiation (Background Task)
             # We offload this to Celery to avoid blocking the monitor loop
-            from app.tasks.negotiation_tasks import run_negotiation_task
-            run_negotiation_task.delay(str(conflict.id))
-            logger.info(f"Queued negotiation task for Conflict {conflict.id}")
+            # from app.tasks.negotiation_tasks import run_negotiation_task
+            # run_negotiation_task.delay(str(conflict.id))
+            # logger.info(f"Queued negotiation task for Conflict {conflict.id}")
                 
             await db_session.commit()
             

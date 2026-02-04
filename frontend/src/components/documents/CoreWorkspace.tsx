@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import documentService from '../../services/documentService';
 
 interface CoreFile {
@@ -110,7 +110,7 @@ const CoreWorkspace = () => {
                     <div className="max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
                         {viewMode === 'grid' ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                {files.map((file, i) => (
+                                {files.map((file) => (
                                     <a
                                         key={file.id}
                                         href={file.webViewLink}
@@ -134,7 +134,7 @@ const CoreWorkspace = () => {
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                {files.map((file, i) => (
+                                {files.map((file) => (
                                     <a
                                         key={file.id}
                                         href={file.webViewLink}

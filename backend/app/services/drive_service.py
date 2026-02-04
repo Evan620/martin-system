@@ -22,6 +22,8 @@ SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
 # Meet Recordings folder ID (from magwaro@ecowasiisummit.net Drive)
 MEET_RECORDINGS_FOLDER_ID = '1INDXhbO0LTB9wX5uyyljHxb9ULS2N9sk'
+# Core Workspace folder ID (Placeholder - Update with actual ID)
+CORE_WORKSPACE_FOLDER_ID = '1INDXhbO0LTB9wX5uyyljHxb9ULS2N9sk' # Defaulting to same for now to show SOME files
 
 class DriveService:
     """
@@ -125,6 +127,36 @@ class DriveService:
             return items
         except Exception as e:
             logger.error(f"Error listing Drive files: {e}")
+            return []
+
+    def list_core_workspace_files(self) -> List[Dict[str, Any]]:
+        """
+        List files in the Core Workspace folder.
+        Returns metadata including webViewLink to open in Drive.
+        """
+        if not self._setup_credentials():
+            return []
+
+        # Check for override in environment variable
+        folder_id = os.environ.get('CORE_WORKSPACE_FOLDER_ID', CORE_WORKSPACE_FOLDER_ID)
+        
+        query = (
+            f"'{folder_id}' in parents and "
+            "trashed = false"
+        )
+
+        try:
+            results = self.service.files().list(
+                q=query,
+                pageSize=50,
+                orderBy='folder, name', # Folders first, then alphabetical
+                fields="nextPageToken, files(id, name, mimeType, webViewLink, iconLink, modifiedTime, thumbnailLink)"
+            ).execute(num_retries=3)
+            
+            items = results.get('files', [])
+            return items
+        except Exception as e:
+            logger.error(f"Error listing Core Workspace files: {e}")
             return []
 
     def download_file_content(self, file_id: str, mime_type: str) -> str:
@@ -294,6 +326,15 @@ class DriveService:
                         # Update State on Success
                         state[file_id] = modified_time
                         self._save_state(state)
+
+                        # --- NEW: Auto-Distribute ---
+                        try:
+                            from app.services.vexa_service import vexa_service
+                            logger.info(f"Auto-distributing minutes for {matched_meeting.title}...")
+                            await vexa_service.finalize_and_distribute_minutes(matched_meeting, db)
+                        except Exception as dist_e:
+                            logger.error(f"Failed to auto-distribute minutes: {dist_e}")
+                        # ----------------------------
                     
                     except Exception as e:
                         logger.error(f"Error processing transcript '{filename}': {e}")

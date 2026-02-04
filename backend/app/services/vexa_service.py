@@ -406,17 +406,131 @@ class VexaService:
                      # db.add(new_action)
                      # action_count += 1
                  
+                 
                  if action_count > 0:
                      logger.info(f"✓ Automatically extracted {action_count} action items from Vexa minutes.")
              except Exception as ae:
                  logger.error(f"Failed to auto-extract action items: {ae}")
                  import traceback
                  logger.error(f"Traceback: {traceback.format_exc()}")
-             # -----------------------------------------------
+             
+             # --- AUTOMATED APPROVAL & DISTRIBUTION ---
+             try:
+                 logger.info(f"Automatically approving and distributing minutes for {meeting.title}...")
+                 await self.finalize_and_distribute_minutes(meeting, db)
+             except Exception as dist_e:
+                 logger.error(f"Failed to auto-distribute minutes: {dist_e}")
+                 import traceback
+                 logger.error(f"Traceback: {traceback.format_exc()}")
+             # -----------------------------------------
 
              return file_path # Return path for the Monitor to update Document
         except Exception as e:
             logger.error(f"Failed to process transcript for {meeting.title}: {e}")
             return False
 
+    async def finalize_and_distribute_minutes(self, meeting: Meeting, db: AsyncSession):
+        """
+        updates minutes status to APPROVED, generates PDF, indexes to KB, and sends emails.
+        """
+        from app.services.pdf_service import pdf_service
+        from app.services.email_service import email_service
+        from app.core.knowledge_base import get_knowledge_base
+        from app.models.models import MinutesStatus
+        from app.core.config import settings
+        
+        # 1. Update Status
+        if meeting.minutes:
+            meeting.minutes.status = MinutesStatus.APPROVED
+            await db.commit()
+            await db.refresh(meeting.minutes)
+            logger.info("Minutes status updated to APPROVED")
+            
+        # 2. Generate PDF
+        pdf_bytes = None
+        try:
+            pillar_display = "General"
+            if meeting.twg:
+                pillar_display = meeting.twg.pillar.value.replace("_", " ").title() if hasattr(meeting.twg.pillar, 'value') else str(meeting.twg.pillar)
+            
+            pdf_context = {
+                "pillar_name": pillar_display,
+                "meeting_title": meeting.title,
+                "meeting_date": meeting.scheduled_at.strftime('%Y-%m-%d') if meeting.scheduled_at else "TBD",
+                "meeting_time": meeting.scheduled_at.strftime('%H:%M') if meeting.scheduled_at else "",
+                "location": meeting.location or "Virtual",
+            }
+            
+            # Ensure we have the latest content
+            if meeting.minutes and meeting.minutes.content:
+                pdf_bytes = pdf_service.generate_minutes_pdf(
+                    minutes_markdown=meeting.minutes.content,
+                    template_context=pdf_context
+                )
+                logger.info("Minutes PDF generated successfully")
+        except Exception as e:
+            logger.error(f"PDF Generation Failed: {e}")
+
+        # 3. Index to Knowledge Base
+        try:
+            if meeting.minutes and meeting.minutes.content:
+                kb = get_knowledge_base()
+                kb.add_document(
+                    content=meeting.minutes.content,
+                    metadata={
+                        "source": "official_minutes",
+                        "meeting_id": str(meeting.id),
+                        "date": meeting.scheduled_at.isoformat() if meeting.scheduled_at else None,
+                        "pillar": meeting.twg.pillar.value if meeting.twg and hasattr(meeting.twg.pillar, 'value') else "unknown",
+                        "status": "approved",
+                        "file_name": f"Minutes - {meeting.title}"
+                    },
+                    namespace=f"twg-{meeting.twg.id}" if meeting.twg_id else "global"
+                )
+                logger.info("Minutes indexed to Knowledge Base")
+        except Exception as e:
+            logger.error(f"KB Indexing Failed: {e}")
+
+        # 4. Send Emails
+        recipients = set()
+        # Eager load participants if not loaded
+        if not meeting.participants:
+            # forceful reload if empty/unloaded
+            # This relies on the session being active
+            pass
+
+        for p in meeting.participants:
+            if p.user and p.user.email:
+                recipients.add(p.user.email)
+            elif p.email:
+                recipients.add(p.email)
+        
+        recipient_list = list(recipients)
+        
+        if pdf_bytes and recipient_list:
+            try:
+                pillar_display = "General"
+                if meeting.twg:
+                     pillar_display = meeting.twg.pillar.value.replace("_", " ").title() if hasattr(meeting.twg.pillar, 'value') else str(meeting.twg.pillar)
+
+                email_context = {
+                    "recipient_name": "Colleague", 
+                    "meeting_title": meeting.title,
+                    "date_str": meeting.scheduled_at.strftime('%Y-%m-%d') if meeting.scheduled_at else "TBD",
+                    "pillar_name": pillar_display,
+                    "dashboard_url": f"{settings.FRONTEND_URL}/meetings/{meeting.id}"
+                }
+                
+                logger.info(f"Sending Minutes PDF to {len(recipient_list)} recipients...")
+                await email_service.send_minutes_published_email(
+                    to_emails=recipient_list,
+                    template_context=email_context,
+                    pdf_content=pdf_bytes,
+                    pdf_filename=f"Minutes - {meeting.title}.pdf"
+                )
+                logger.info("Minutes emails sent successfully")
+            except Exception as e:
+                logger.error(f"Email Sending Failed: {e}")
+
 vexa_service = VexaService()
+

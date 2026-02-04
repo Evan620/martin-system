@@ -349,6 +349,27 @@ async def ingest_document(
         "namespace": namespace
     }
 
+@router.get("/core-workspace", response_model=List[dict])
+async def list_core_workspace_files(
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    List Google Docs/Sheets from the configured Core Workspace folder.
+    Use this for the "Core Workspace" section in Documents.
+    """
+    try:
+        from app.services.drive_service import drive_service
+        
+        # Run blocking call in thread
+        import asyncio
+        files = await asyncio.to_thread(drive_service.list_core_workspace_files)
+        
+        return files
+    except Exception as e:
+        logger.error(f"Error fetching Core Workspace files: {e}")
+        # Return empty list gracefully instead of crashing UI
+        return []
+
 @router.get("/search", response_model=List[dict])
 async def search_documents_content(
     query: str,

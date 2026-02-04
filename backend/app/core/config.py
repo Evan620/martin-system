@@ -23,6 +23,11 @@ class Settings(BaseSettings):
         default="http://localhost:5173",
         description="URL of the frontend application for email links"
     )
+
+    DISABLE_IN_APP_MONITOR: bool = Field(
+        default=False,
+        description="Disable in-app background monitoring (for use when Celery Beat is active)"
+    )
     
     # Database
     DATABASE_URL: str = Field(

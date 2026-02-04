@@ -1,3 +1,6 @@
+import faulthandler
+faulthandler.enable()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
@@ -87,9 +90,12 @@ async def startup_event():
     scheduler_service.start()
     
     # Start Continuous Monitor (Background Conflict Detection)
-    from app.services.continuous_monitor import get_continuous_monitor
-    monitor = get_continuous_monitor()
-    monitor.start()
+    if not settings.DISABLE_IN_APP_MONITOR:
+        from app.services.continuous_monitor import get_continuous_monitor
+        monitor = get_continuous_monitor()
+        monitor.start()
+    else:
+        logger.info("In-app ContinuousMonitor disabled (expecting Celery Beat to handle monitoring).")
     
     # Start Supervisor State Refresh Task
     from app.services.supervisor_state_service import get_supervisor_state

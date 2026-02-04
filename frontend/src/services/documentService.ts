@@ -109,6 +109,11 @@ export const documentService = {
         };
         const response = await api.get<SearchResult[]>('/documents/search', { params });
         return response.data;
+    },
+
+    fetchCoreWorkspaceFiles: async (): Promise<any[]> => {
+        const response = await api.get<any[]>('/documents/core-workspace');
+        return response.data;
     }
 };
 

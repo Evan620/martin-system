@@ -87,7 +87,7 @@ sentry-sdk[fastapi]==1.40.0
 
 # Data Processing
 pandas>=2.2.2
-numpy>=2.4.0
+numpy<2.0.0
 
 # Document Ingestion
 tiktoken>=0.7.0

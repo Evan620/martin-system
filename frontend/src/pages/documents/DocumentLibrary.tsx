@@ -4,6 +4,7 @@ import documentService, { Document, SearchResult } from '../../services/document
 import { useAppSelector } from '../../hooks/useRedux'
 import { UserRole } from '../../types/auth'
 import { twgs as twgService } from '../../services/api'
+import CoreWorkspace from '@/components/documents/CoreWorkspace';
 
 
 export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
@@ -359,6 +360,9 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
 
                 {/* Main Content Area */}
                 <div className="flex-1 space-y-6">
+                    {/* Core Workspace Section - Always visible at top */}
+                    <CoreWorkspace />
+
                     <div className="flex items-center justify-between">
                         <h1 className="text-2xl font-black text-[#0d121b] dark:text-white tracking-tight">All Documents</h1>
                         <div className="flex gap-2">

@@ -1,0 +1,525 @@
+"""
+Fireflies.ai Service
+
+Handles meeting transcription via Fireflies.ai GraphQL API.
+Provides methods to fetch transcripts, list meetings, and manage transcription data.
+"""
+
+import aiohttp
+import logging
+import asyncio
+import os
+import aiofiles
+from typing import Optional, Dict, Any, List
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.config import settings
+from app.models.models import Meeting, Minutes, MinutesStatus, ActionItem, ActionItemStatus, MeetingStatus
+from app.services.document_synthesizer import DocumentSynthesizer
+from app.services.llm_service import get_llm_service
+from sqlalchemy import select, and_, or_
+import datetime
+from datetime import datetime, UTC
+
+logger = logging.getLogger(__name__)
+
+class FirefliesService:
+    """Service for interacting with Fireflies.ai API"""
+    
+    def __init__(self):
+        self.api_key = settings.FIREFLIES_API_KEY
+        self.api_url = settings.FIREFLIES_API_URL
+        self.headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+    
+    async def get_transcript(self, meeting_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch transcript from Fireflies using GraphQL.
+        
+        Args:
+            meeting_id: Fireflies meeting/transcript ID
+            
+        Returns:
+            Dict containing transcript data or None if not found
+        """
+        query = """
+        query Transcript($transcriptId: String!) {
+          transcript(id: $transcriptId) {
+            id
+            title
+            date
+            transcript_text: sentences {
+              text
+              raw_text
+              speaker_name
+              speaker_id
+              start_time
+              end_time
+            }
+            summary {
+              keywords
+              action_items
+              outline
+              shorthand_bullet
+              overview
+              bullet_gist
+            }
+            participants
+            duration
+            video_url
+            audio_url
+          }
+        }
+        """
+        
+        variables = {"transcriptId": meeting_id}
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self.api_url,
+                    json={"query": query, "variables": variables},
+                    headers=self.headers,
+                    timeout=aiohttp.ClientTimeout(total=60)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        
+                        # Check for GraphQL errors BUT return data if available (partial success)
+                        if "errors" in data:
+                            logger.warning(f"Fireflies GraphQL returned errors (partial data may be available): {data['errors']}")
+                        
+                        transcript_data = data.get("data", {}).get("transcript")
+                        if transcript_data:
+                            logger.info(f"✓ Retrieved transcript {meeting_id} from Fireflies")
+                            return transcript_data
+                        elif "errors" in data:
+                            # Only return None if we have NO data AND errors
+                            logger.error("Fireflies query failed with no data returned.")
+                            return None
+                        else:
+                            logger.warning(f"No transcript found for ID: {meeting_id}")
+                            return None
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"Fireflies API error {response.status}: {error_text}")
+                        return None
+        except aiohttp.ClientError as e:
+            logger.error(f"Network error fetching Fireflies transcript: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error fetching Fireflies transcript: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
+    
+    async def list_transcripts(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        List recent transcripts from Fireflies.
+        
+        Args:
+            limit: Maximum number of transcripts to return
+            
+        Returns:
+            List of transcript summaries
+        """
+        query = """
+        query Transcripts($limit: Int!) {
+          transcripts(limit: $limit) {
+            id
+            title
+            date
+            duration
+            participants
+            summary {
+              keywords
+              overview
+            }
+          }
+        }
+        """
+        
+        variables = {"limit": limit}
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self.api_url,
+                    json={"query": query, "variables": variables},
+                    headers=self.headers,
+                    timeout=aiohttp.ClientTimeout(total=60)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        
+                        if "errors" in data:
+                            logger.warning(f"Fireflies GraphQL errors (listing): {data['errors']}")
+                        
+                        transcripts = data.get("data", {}).get("transcripts", [])
+                        if transcripts:
+                             logger.info(f"✓ Retrieved {len(transcripts)} transcripts from Fireflies")
+                             return transcripts
+                        elif "errors" in data:
+                             return [] # Genuine error with no data
+                        else:
+                             return [] # Empty list, no error
+        except Exception as e:
+            logger.error(f"Error listing Fireflies transcripts: {e}")
+            return []
+    
+    async def search_transcripts_by_title(self, title: str) -> Optional[Dict[str, Any]]:
+        """
+        Search for a transcript by meeting title.
+        
+        Args:
+            title: Meeting title to search for
+            
+        Returns:
+            First matching transcript or None
+        """
+        # Fireflies doesn't have a direct title search in their API
+        # So we'll list recent transcripts and filter
+        transcripts = await self.list_transcripts(limit=50)
+        
+        for transcript in transcripts:
+            if title.lower() in transcript.get("title", "").lower():
+                # Fetch full transcript data
+                return await self.get_transcript(transcript["id"])
+        
+        logger.warning(f"No transcript found matching title: {title}")
+        return None
+    
+    def format_transcript_text(self, transcript_data: Dict[str, Any]) -> str:
+        """
+        Format Fireflies transcript data into readable text.
+        
+        Args:
+            transcript_data: Raw transcript data from Fireflies
+            
+        Returns:
+            Formatted transcript text
+        """
+        if not transcript_data:
+            return ""
+        
+        sentences = transcript_data.get("transcript_text", [])
+        if not sentences:
+            return ""
+        
+        # Group by speaker and format
+        formatted_lines = []
+        current_speaker = None
+        
+        for sentence in sentences:
+            speaker = sentence.get("speaker_name", "Unknown")
+            text = sentence.get("text", sentence.get("raw_text", ""))
+            
+            if speaker != current_speaker:
+                if current_speaker is not None:
+                    formatted_lines.append("")  # Add blank line between speakers
+                formatted_lines.append(f"{speaker}:")
+                current_speaker = speaker
+            
+            formatted_lines.append(f"  {text}")
+        
+        return "\n".join(formatted_lines)
+
+    async def process_transcript_text(self, meeting: Meeting, transcript_text: str, db: AsyncSession):
+        """
+        Generate minutes from transcript text and save to DB.
+        """
+        try:
+             logger.info(f"Generating minutes for {meeting.title}...")
+             
+             # Save transcript to file (for Download button)
+             file_name = f"transcript_{meeting.id}.txt"
+             upload_dir = os.path.join(settings.UPLOAD_DIR, "transcripts")
+             os.makedirs(upload_dir, exist_ok=True)
+             file_path = os.path.join(upload_dir, file_name)
+             
+             async with aiofiles.open(file_path, 'w') as f:
+                 await f.write(transcript_text)
+                 
+             logger.info(f"Transcript saved to disk: {file_path}")
+
+             # Save transcript to meeting
+             meeting.transcript = transcript_text
+             
+             # Generate Minutes
+             synthesizer = DocumentSynthesizer(llm_client=get_llm_service())
+             minutes_ctx = {
+                 "meeting_title": meeting.title,
+                 "meeting_date": str(meeting.scheduled_at),
+                 "attendees_list": "See transcript (Fireflies)"
+             }
+             
+             # Blocking call in thread
+             res = await asyncio.to_thread(synthesizer.synthesize_minutes, transcript_text, minutes_ctx)
+             
+             new_minutes = Minutes(
+                meeting_id=meeting.id,
+                content=res['content'],
+                status=MinutesStatus.DRAFT
+             )
+             db.add(new_minutes)
+             meeting.minutes = new_minutes
+             logger.info(f"Generated Minutes for {meeting.title} from Fireflies")
+
+             # --- NEW: Extract Action Items Automatically ---
+             try:
+                 logger.info("Extracting action items...")
+                 
+                 # Safely get pillar value with fallback
+                 pillar_val = "energy"  # Default fallback
+                 try:
+                     if meeting.twg and hasattr(meeting.twg, 'pillar'):
+                         pillar_val = meeting.twg.pillar.value if hasattr(meeting.twg.pillar, 'value') else str(meeting.twg.pillar)
+                 except AttributeError as attr_err:
+                     logger.warning(f"Could not access meeting.twg.pillar: {attr_err}. Using default pillar 'energy'")
+                 
+                 # Run extraction
+                 actions_list = await synthesizer.extract_action_items(
+                     res['content'],
+                     pillar_val
+                 )
+                 
+                 action_count = 0
+                 for action in actions_list:
+                     desc = action.get("description")
+                     if not desc: continue
+                     
+                     logger.debug(f"Skipping action item auto-creation: '{desc[:50]}...' (owner: {action.get('owner', 'TBD')})")
+                     # Logic for adding action items can be enabled here if needed
+                 
+                 if action_count > 0:
+                     logger.info(f"✓ Automatically extracted {action_count} action items from minutes.")
+             except Exception as ae:
+                 logger.error(f"Failed to auto-extract action items: {ae}")
+                 import traceback
+                 logger.error(f"Traceback: {traceback.format_exc()}")
+             
+             # --- AUTOMATED APPROVAL & DISTRIBUTION ---
+             try:
+                 logger.info(f"Automatically approving and distributing minutes for {meeting.title}...")
+                 await self.finalize_and_distribute_minutes(meeting, db)
+             except Exception as dist_e:
+                 logger.error(f"Failed to auto-distribute minutes: {dist_e}")
+                 import traceback
+                 logger.error(f"Traceback: {traceback.format_exc()}")
+             # -----------------------------------------
+
+             return file_path # Return path for the Monitor to update Document
+        except Exception as e:
+            logger.error(f"Failed to process transcript for {meeting.title}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return False
+
+    async def finalize_and_distribute_minutes(self, meeting: Meeting, db: AsyncSession):
+        """
+        updates minutes status to APPROVED, generates PDF, indexes to KB, and sends emails.
+        """
+        from app.services.pdf_service import pdf_service
+        from app.services.email_service import email_service
+        from app.core.knowledge_base import get_knowledge_base
+        from app.models.models import MinutesStatus
+        
+        # 1. Update Status
+        if meeting.minutes:
+            meeting.minutes.status = MinutesStatus.APPROVED
+            await db.commit()
+            await db.refresh(meeting.minutes)
+            logger.info("Minutes status updated to APPROVED")
+            
+        # 2. Generate PDF
+        pdf_bytes = None
+        try:
+            pillar_display = "General"
+            if meeting.twg:
+                pillar_display = meeting.twg.pillar.value.replace("_", " ").title() if hasattr(meeting.twg.pillar, 'value') else str(meeting.twg.pillar)
+            
+            pdf_context = {
+                "pillar_name": pillar_display,
+                "meeting_title": meeting.title,
+                "meeting_date": meeting.scheduled_at.strftime('%Y-%m-%d') if meeting.scheduled_at else "TBD",
+                "meeting_time": meeting.scheduled_at.strftime('%H:%M') if meeting.scheduled_at else "",
+                "location": meeting.location or "Virtual",
+            }
+            
+            # Ensure we have the latest content
+            if meeting.minutes and meeting.minutes.content:
+                pdf_bytes = pdf_service.generate_minutes_pdf(
+                    minutes_markdown=meeting.minutes.content,
+                    template_context=pdf_context
+                )
+                logger.info("Minutes PDF generated successfully")
+        except Exception as e:
+            logger.error(f"PDF Generation Failed: {e}")
+
+        # 3. Index to Knowledge Base
+        try:
+            if meeting.minutes and meeting.minutes.content:
+                kb = get_knowledge_base()
+                kb.add_document(
+                    content=meeting.minutes.content,
+                    metadata={
+                        "source": "official_minutes",
+                        "meeting_id": str(meeting.id),
+                        "date": meeting.scheduled_at.isoformat() if meeting.scheduled_at else None,
+                        "pillar": meeting.twg.pillar.value if meeting.twg and hasattr(meeting.twg.pillar, 'value') else "unknown",
+                        "status": "approved",
+                        "file_name": f"Minutes - {meeting.title}"
+                    },
+                    namespace=f"twg-{meeting.twg.id}" if meeting.twg_id else "global"
+                )
+                logger.info("Minutes indexed to Knowledge Base")
+        except Exception as e:
+            logger.error(f"KB Indexing Failed: {e}")
+
+        # 4. Send Emails
+        recipients = set()
+        for p in meeting.participants:
+            if p.user and p.user.email:
+                recipients.add(p.user.email)
+            elif p.email:
+                recipients.add(p.email)
+        
+        recipient_list = list(recipients)
+        
+        if pdf_bytes and recipient_list:
+            try:
+                pillar_display = "General"
+                if meeting.twg:
+                     pillar_display = meeting.twg.pillar.value.replace("_", " ").title() if hasattr(meeting.twg.pillar, 'value') else str(meeting.twg.pillar)
+
+                email_context = {
+                    "recipient_name": "Colleague", 
+                    "meeting_title": meeting.title,
+                    "date_str": meeting.scheduled_at.strftime('%Y-%m-%d') if meeting.scheduled_at else "TBD",
+                    "pillar_name": pillar_display,
+                    "dashboard_url": f"{settings.FRONTEND_URL}/meetings/{meeting.id}"
+                }
+                
+                logger.info(f"Sending Minutes PDF to {len(recipient_list)} recipients...")
+                await email_service.send_minutes_published_email(
+                    to_emails=recipient_list,
+                    template_context=email_context,
+                    pdf_content=pdf_bytes,
+                    pdf_filename=f"Minutes - {meeting.title}.pdf"
+                )
+                logger.info("Minutes emails sent successfully")
+            except Exception as e:
+                logger.error(f"Email Sending Failed: {e}")
+
+    async def process_webhook(self, payload: Dict[str, Any]):
+        """
+        Process incoming webhook from Fireflies.
+        """
+        try:
+            logger.info("Processing Fireflies webhook...")
+            
+            # Extract basic info
+            # Dictionary structure depends on Fireflies API version
+            # Usually it's the transcript object or wrapped in 'data'
+            
+            transcript_data = payload.get("data", payload) # specific check if wrapped
+            
+            meeting_id = transcript_data.get("id")
+            title = transcript_data.get("title")
+            
+            if not meeting_id or not title:
+                logger.warning(f"Webhook payload missing ID or Title: {payload.keys()}")
+                return
+
+            logger.info(f"Webhook received for meeting: {title} ({meeting_id})")
+
+            # We need to find the local meeting
+            # Reusing the matching logic from continuous monitor, but scoped to this specific transcript
+            from app.services.continuous_monitor import get_continuous_monitor
+            # Instead of circular import with ContinuousMonitor, we query DB directly here
+            
+            from app.core.database import get_db_session_context
+            from datetime import datetime, timedelta, UTC
+            # reuse sync_pending methods logic or copy it
+            # To stay DRY, we should ideally have a 'match_and_process_transcript' method
+            # But for now, let's just find the meeting and call process_transcript_text
+            
+            async with get_db_session_context() as db:
+                # Find meeting by title
+                # We prioritize meetings that are IN_PROGRESS or COMPLETED (but maybe without transcript)
+                
+                # Check for existing transcript?
+                # If we received a webhook, maybe it's an update.
+                
+                stmt = select(Meeting).where(
+                     and_(
+                        Meeting.title.ilike(f"%{title}%"), # Simple title match
+                        or_(Meeting.transcript.is_(None), Meeting.transcript == "")
+                     )
+                ).order_by(Meeting.scheduled_at.desc())
+                
+                result = await db.execute(stmt)
+                candidate_meetings = result.scalars().all()
+                
+                matched_meeting = None
+                
+                # Filter by date if possible
+                webhook_date = transcript_data.get("date") # ms timestamp?
+                webhook_dt = None
+                if webhook_date:
+                    try:
+                         if isinstance(webhook_date, (int, float)):
+                              webhook_dt = datetime.fromtimestamp(webhook_date / 1000.0, tz=UTC)
+                    except:
+                        pass
+
+                for meeting in candidate_meetings:
+                    if webhook_dt:
+                        meeting_dt = meeting.scheduled_at.replace(tzinfo=UTC)
+                        if abs((meeting_dt - webhook_dt).total_seconds()) < 3600 * 24: # 24h window?
+                            matched_meeting = meeting
+                            break
+                    else:
+                        # Fallback: take the most recent matching title
+                        matched_meeting = meeting
+                        break
+                
+                if matched_meeting:
+                     logger.info(f"Matched webhook to local meeting: {matched_meeting.title} ({matched_meeting.id})")
+                     
+                     # We need the full transcript text.
+                     # Does the webhook payload contain 'sentences'?
+                     # If not, fetch it.
+                     
+                     sentences = transcript_data.get("sentences")
+                     if not sentences:
+                         logger.info("Webhook payload missing sentences, fetching full transcript...")
+                         full_transcript = await self.get_transcript(meeting_id)
+                         if full_transcript:
+                             transcript_data = full_transcript
+                         else:
+                             logger.error("Could not fetch full transcript for webhook.")
+                             return
+
+                     # Format text
+                     text = self.format_transcript_text(transcript_data)
+                     
+                     # Process
+                     await self.process_transcript_text(matched_meeting, text, db)
+                     
+                     # Update status
+                     matched_meeting.status = MeetingStatus.COMPLETED
+                     await db.commit()
+                     logger.info("Webhook processing complete.")
+                     
+                else:
+                    logger.warning(f"No local meeting found matching webhook title: {title}")
+
+        except Exception as e:
+            logger.error(f"Error processing webhook: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+# Singleton instance
+fireflies_service = FirefliesService()

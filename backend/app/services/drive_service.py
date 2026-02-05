@@ -19,9 +19,14 @@ from app.services.llm_service import get_llm_service
 from loguru import logger
 
 # Updated scopes to include write permissions for shared documents upload
+# Updated scopes to include all shared permissions
 SCOPES = [
+    'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/drive.readonly',
-    'https://www.googleapis.com/auth/drive.file'  # Allows creating/modifying files created by this app
+    'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'openid'
 ]
 
 # Meet Recordings folder ID (from magwaro@ecowasiisummit.net Drive)

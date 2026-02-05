@@ -156,6 +156,11 @@ async def startup_event():
 async def shutdown_event():
     from app.services.scheduler import scheduler_service
     scheduler_service.shutdown()
+    
+    # Stop Continuous Monitor
+    if not settings.DISABLE_IN_APP_MONITOR:
+        from app.services.continuous_monitor import get_continuous_monitor
+        get_continuous_monitor().stop()
 
 # Register routers
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}")
@@ -175,6 +180,8 @@ app.include_router(pipeline.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(conflicts.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(settings_router.router, prefix=f"{settings.API_V1_STR}/settings", tags=["Settings"])
 app.include_router(shared_documents.router, prefix=f"{settings.API_V1_STR}")
+from app.api.routes import webhooks
+app.include_router(webhooks.router, prefix=f"{settings.API_V1_STR}/webhooks", tags=["Webhooks"])
 
 @app.get("/")
 async def root():

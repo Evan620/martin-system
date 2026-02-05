@@ -290,6 +290,16 @@ class Settings(BaseSettings):
         description="API Key from vexa.ai/dashboard/api-keys"
     )
     
+    # Fireflies.ai (Meeting Transcription)
+    FIREFLIES_API_KEY: str = Field(
+        default="",
+        description="API Key from Fireflies.ai for meeting transcription"
+    )
+    FIREFLIES_API_URL: str = Field(
+        default="https://api.fireflies.ai/graphql",
+        description="Fireflies GraphQL API endpoint"
+    )
+    
     @property
     def cors_origins_list(self) -> list:
         """Parse CORS_ORIGINS string into a list"""

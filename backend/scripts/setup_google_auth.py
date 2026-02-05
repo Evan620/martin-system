@@ -13,6 +13,7 @@ from google.oauth2.credentials import Credentials
 SCOPES = [
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/drive.file',
     'https://www.googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/userinfo.email',
     'openid'
@@ -44,7 +45,13 @@ def main():
     
     try:
         flow = InstalledAppFlow.from_client_secrets_file(creds_file, SCOPES)
-        creds = flow.run_local_server(port=0)
+        
+        # The new credentials likely require a strict Redirect URI.
+        # We will use port 8080. 
+        print("Opening browser for authentication...")
+        print("IMPORTANT: Ensure 'http://localhost:8080/' is added to Authorized Redirect URIs in Google Cloud Console.")
+        
+        creds = flow.run_local_server(port=8080, prompt='select_account')
         
         # Save the credentials
         with open('token.json', 'w') as token:

@@ -418,6 +418,48 @@ class FirefliesService:
         except Exception as e:
             logger.error(f"PDF Generation Failed: {e}")
 
+        # 2b. Save PDF to disk and create Document record for the Document Library
+        if pdf_bytes:
+            try:
+                from app.models.models import Document, User
+                upload_dir = os.path.join(settings.UPLOAD_DIR, "minutes")
+                os.makedirs(upload_dir, exist_ok=True)
+                pdf_filename = f"Minutes - {meeting.title}.pdf"
+                pdf_path = os.path.join(upload_dir, f"minutes_{meeting.id}.pdf")
+                with open(pdf_path, "wb") as f:
+                    f.write(pdf_bytes)
+
+                # Check if a minutes Document already exists
+                existing = await db.execute(
+                    select(Document).where(
+                        and_(Document.meeting_id == meeting.id, Document.document_type == "minutes")
+                    )
+                )
+                if not existing.scalar_one_or_none():
+                    res_u = await db.execute(select(User.id).limit(1))
+                    uploader_id = res_u.scalars().first()
+                    if uploader_id:
+                        minutes_doc = Document(
+                            twg_id=meeting.twg_id,
+                            meeting_id=meeting.id,
+                            file_name=pdf_filename,
+                            file_path=pdf_path,
+                            file_type="application/pdf",
+                            document_type="minutes",
+                            uploaded_by_id=uploader_id,
+                            metadata_json={
+                                "meeting_id": str(meeting.id),
+                                "meeting_title": meeting.title,
+                                "status": "approved",
+                                "file_size": len(pdf_bytes),
+                            }
+                        )
+                        db.add(minutes_doc)
+                        await db.flush()
+                        logger.info(f"Minutes Document record created for '{meeting.title}'")
+            except Exception as e:
+                logger.error(f"Minutes Document creation failed: {e}")
+
         # 3. Index to Knowledge Base
         try:
             if meeting.minutes and meeting.minutes.content:
@@ -476,95 +518,87 @@ class FirefliesService:
     async def process_webhook(self, payload: Dict[str, Any]):
         """
         Process incoming webhook from Fireflies.
+        Fireflies sends: {"meetingId": "...", "eventType": "Transcription completed"}
+        We use the meetingId to fetch the full transcript via the GraphQL API.
         """
         try:
             logger.info("Processing Fireflies webhook...")
-            
-            # Extract basic info
-            # Dictionary structure depends on Fireflies API version
-            # Usually it's the transcript object or wrapped in 'data'
-            
-            transcript_data = payload.get("data", payload) # specific check if wrapped
-            
-            meeting_id = transcript_data.get("id")
-            title = transcript_data.get("title")
-            
-            if not meeting_id or not title:
-                logger.warning(f"Webhook payload missing ID or Title: {payload.keys()}")
+
+            # Fireflies webhook payload: {"meetingId": "...", "eventType": "..."}
+            fireflies_meeting_id = payload.get("meetingId")
+
+            if not fireflies_meeting_id:
+                logger.warning(f"Webhook payload missing meetingId: {payload.keys()}")
                 return
 
-            logger.info(f"Webhook received for meeting: {title} ({meeting_id})")
+            logger.info(f"Webhook received for Fireflies meetingId: {fireflies_meeting_id}")
 
-            # We need to find the local meeting
-            # Reusing the matching logic from continuous monitor, but scoped to this specific transcript
-            from app.services.continuous_monitor import get_continuous_monitor
-            # Instead of circular import with ContinuousMonitor, we query DB directly here
-            
+            # Fetch the full transcript from Fireflies API
+            full_transcript = await self.get_transcript(fireflies_meeting_id)
+            if not full_transcript:
+                logger.error(f"Could not fetch transcript for meetingId={fireflies_meeting_id}")
+                return
+
+            title = full_transcript.get("title", "")
+            if not title:
+                logger.warning("Fetched transcript has no title, cannot match to local meeting")
+                return
+
+            logger.info(f"Fetched transcript: '{title}' (Fireflies ID: {fireflies_meeting_id})")
+
+            # Format the transcript text
+            text = self.format_transcript_text(full_transcript)
+            if not text:
+                logger.warning(f"Transcript sentences empty for '{title}'. Fireflies may still be processing.")
+                return
+
+            logger.info(f"Formatted transcript for '{title}': {len(text)} chars")
+
             from app.core.database import get_db_session_context
-            from datetime import datetime, timedelta, UTC
-            # reuse sync_pending methods logic or copy it
-            # To stay DRY, we should ideally have a 'match_and_process_transcript' method
-            # But for now, let's just find the meeting and call process_transcript_text
-            
+            from sqlalchemy.orm import selectinload
+            from app.models.models import MeetingParticipant
+            from datetime import datetime, UTC
+
             async with get_db_session_context() as db:
-                # Find meeting by title
-                # We prioritize meetings that are IN_PROGRESS or COMPLETED (but maybe without transcript)
-                
-                # Check for existing transcript?
-                # If we received a webhook, maybe it's an update.
-                
-                stmt = select(Meeting).where(
+                # Find local meeting by title match (no transcript yet)
+                stmt = select(Meeting).options(
+                    selectinload(Meeting.twg),
+                    selectinload(Meeting.minutes),
+                    selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
+                ).where(
                      and_(
-                        Meeting.title.ilike(f"%{title}%"), # Simple title match
+                        Meeting.title.ilike(f"%{title}%"),
                         or_(Meeting.transcript.is_(None), Meeting.transcript == "")
                      )
                 ).order_by(Meeting.scheduled_at.desc())
-                
+
                 result = await db.execute(stmt)
                 candidate_meetings = result.scalars().all()
-                
+
                 matched_meeting = None
-                
-                # Filter by date if possible
-                webhook_date = transcript_data.get("date") # ms timestamp?
+
+                # Try date matching first
+                webhook_date = full_transcript.get("date")
                 webhook_dt = None
                 if webhook_date:
                     try:
-                         if isinstance(webhook_date, (int, float)):
-                              webhook_dt = datetime.fromtimestamp(webhook_date / 1000.0, tz=UTC)
-                    except:
+                        if isinstance(webhook_date, (int, float)):
+                            webhook_dt = datetime.fromtimestamp(webhook_date / 1000.0, tz=UTC)
+                    except Exception:
                         pass
 
                 for meeting in candidate_meetings:
                     if webhook_dt:
                         meeting_dt = meeting.scheduled_at.replace(tzinfo=UTC)
-                        if abs((meeting_dt - webhook_dt).total_seconds()) < 3600 * 24: # 24h window?
+                        if abs((meeting_dt - webhook_dt).total_seconds()) < 3600 * 24:
                             matched_meeting = meeting
                             break
                     else:
-                        # Fallback: take the most recent matching title
                         matched_meeting = meeting
                         break
-                
+
                 if matched_meeting:
                      logger.info(f"Matched webhook to local meeting: {matched_meeting.title} ({matched_meeting.id})")
-                     
-                     # We need the full transcript text.
-                     # Does the webhook payload contain 'sentences'?
-                     # If not, fetch it.
-                     
-                     sentences = transcript_data.get("sentences")
-                     if not sentences:
-                         logger.info("Webhook payload missing sentences, fetching full transcript...")
-                         full_transcript = await self.get_transcript(meeting_id)
-                         if full_transcript:
-                             transcript_data = full_transcript
-                         else:
-                             logger.error("Could not fetch full transcript for webhook.")
-                             return
-
-                     # Format text
-                     text = self.format_transcript_text(transcript_data)
                      
                      # Process
                      file_path = await self.process_transcript_text(matched_meeting, text, db)
@@ -588,7 +622,7 @@ class FirefliesService:
                                  uploaded_by_id=uploader_id,
                                  metadata_json={
                                      "provider": "fireflies",
-                                     "fireflies_id": meeting_id,
+                                     "fireflies_id": fireflies_meeting_id,
                                      "meeting_id": str(matched_meeting.id),
                                  }
                              )

@@ -2079,6 +2079,44 @@ async def approve_minutes(
         print(f"PDF Gen Failure: {e}")
         # Log warning but don't crash, the status is already updated
     
+    # 1b. Save PDF to disk and create Document record for the Document Library
+    if pdf_bytes:
+        try:
+            import os
+            upload_dir = os.path.join(settings.UPLOAD_DIR, "minutes")
+            os.makedirs(upload_dir, exist_ok=True)
+            pdf_filename = f"Minutes - {db_meeting.title}.pdf"
+            pdf_path = os.path.join(upload_dir, f"minutes_{db_meeting.id}.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(pdf_bytes)
+
+            # Check if a minutes Document already exists for this meeting
+            existing = await db.execute(
+                select(Document).where(
+                    and_(Document.meeting_id == db_meeting.id, Document.document_type == "minutes")
+                )
+            )
+            if not existing.scalar_one_or_none():
+                minutes_doc = Document(
+                    twg_id=db_meeting.twg_id,
+                    meeting_id=db_meeting.id,
+                    file_name=pdf_filename,
+                    file_path=pdf_path,
+                    file_type="application/pdf",
+                    document_type="minutes",
+                    uploaded_by_id=current_user.id,
+                    metadata_json={
+                        "meeting_id": str(db_meeting.id),
+                        "meeting_title": db_meeting.title,
+                        "status": "approved",
+                        "file_size": len(pdf_bytes),
+                    }
+                )
+                db.add(minutes_doc)
+                await db.commit()
+        except Exception as e:
+            print(f"Minutes Document creation failed: {e}")
+
     # 2. Index to Knowledge Base (RAG)
     try:
         from app.core.knowledge_base import get_knowledge_base

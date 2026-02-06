@@ -112,7 +112,7 @@ export default function CalendarGrid({
             </div>
 
             {/* Days Grid */}
-            <div className="grid grid-cols-7 flex-1 auto-rows-[minmax(100px,1fr)]">
+            <div className="grid grid-cols-7 flex-1 auto-rows-[minmax(100px,auto)]">
                 {calendarDays.map((day) => {
                     const dayEvents = getEventsForDay(day);
                     const isCurrentMonth = isSameMonth(day, monthStart);
@@ -138,7 +138,7 @@ export default function CalendarGrid({
                                 </span>
                             </div>
 
-                            <div className="space-y-1 overflow-y-auto max-h-[80px] scrollbar-hide flex-1">
+                            <div className="space-y-1 flex-1">
                                 {dayEvents.map(event => (
                                     <div
                                         key={event.id}

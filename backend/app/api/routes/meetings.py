@@ -2551,21 +2551,32 @@ async def get_meeting_documents(
     if not has_twg_access(current_user, db_meeting.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
     
+    # Find docs linked to this meeting via metadata_json OR the meeting_id column
     result = await db.execute(
-        select(Document).where(Document.twg_id == db_meeting.twg_id)
+        select(Document).where(
+            or_(
+                Document.meeting_id == meeting_id,
+                and_(
+                    Document.twg_id == db_meeting.twg_id,
+                    Document.metadata_json.isnot(None),
+                )
+            )
+        )
     )
     documents = result.scalars().all()
-    
+
     meeting_docs = [
-        doc for doc in documents 
-        if doc.metadata_json and doc.metadata_json.get("meeting_id") == str(meeting_id)
+        doc for doc in documents
+        if doc.meeting_id == meeting_id
+        or (doc.metadata_json and doc.metadata_json.get("meeting_id") == str(meeting_id))
     ]
-    
+
     return [
         {
             "id": str(doc.id),
             "file_name": doc.file_name,
             "file_type": doc.file_type,
+            "document_type": doc.document_type,
             "file_size": doc.metadata_json.get("file_size") if doc.metadata_json else None,
             "created_at": doc.created_at.isoformat()
         }

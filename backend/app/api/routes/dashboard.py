@@ -244,6 +244,12 @@ async def get_dashboard_stats(
         
     twgs_res = await db.execute(q_twgs)
     twgs = twgs_res.scalars().all()
+
+    # Hide non-core TWGs per client request (only show 4: energy, agri, minerals, digital)
+    from app.models.models import TWGPillar
+    HIDDEN_PILLARS = {TWGPillar.protocol_logistics, TWGPillar.resource_mobilization}
+    twgs = [t for t in twgs if t.pillar not in HIDDEN_PILLARS]
+
     twg_stats = []
     
     cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=14)

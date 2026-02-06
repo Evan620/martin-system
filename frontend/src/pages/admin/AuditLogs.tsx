@@ -47,7 +47,7 @@ const AuditLogs: React.FC = () => {
         return JSON.stringify(details, null, 2);
     };
 
-    const allowedRoles = ['admin', 'secretariat_lead'];
+    const allowedRoles = ['ADMIN', 'SECRETARIAT_LEAD'];
     if (!allowedRoles.includes(user?.role || '')) {
         return (
             <div className="p-8">

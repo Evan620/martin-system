@@ -43,4 +43,4 @@ RUN mkdir -p /app/uploads && \
 EXPOSE ${PORT:-8000}
 
 # Default command - alembic and uvicorn run from /app where app module is located
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --loop asyncio"]

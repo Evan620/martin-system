@@ -1,5 +1,9 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from datetime import datetime
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, model_serializer, SerializationInfo
+from datetime import datetime, timezone
+import re
+
+# Matches naive ISO datetime strings: "2026-02-05T07:50:00" or "2026-02-05T07:50:00.123456"
+_NAIVE_DT_RE = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$')
 from typing import List, Optional, Any
 from decimal import Decimal
 import uuid
@@ -109,6 +113,17 @@ class DependencyType(str, enum.Enum):
 
 class SchemaBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
+    @model_serializer(mode='wrap')
+    def _serialize_utc(self, handler, info: SerializationInfo):
+        """Append 'Z' to naive datetime strings in JSON responses so JS knows they're UTC.
+        Only runs during JSON serialization — model_dump() for DB writes is untouched."""
+        data = handler(self)
+        if info.mode == 'json' and isinstance(data, dict):
+            for key, value in data.items():
+                if isinstance(value, str) and _NAIVE_DT_RE.match(value):
+                    data[key] = value + 'Z'
+        return data
 
 # --- User Schemas ---
 

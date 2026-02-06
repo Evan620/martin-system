@@ -299,6 +299,14 @@ class Settings(BaseSettings):
         default="https://api.fireflies.ai/graphql",
         description="Fireflies GraphQL API endpoint"
     )
+    FIREFLIES_POLL_INTERVAL_MINUTES: int = Field(
+        default=15,
+        description="How often to poll Fireflies for new transcripts (safety net; webhooks are primary)"
+    )
+    FIREFLIES_MAX_BACKOFF_MINUTES: int = Field(
+        default=60,
+        description="Maximum backoff time after repeated Fireflies API failures or rate limits"
+    )
     
     @property
     def cors_origins_list(self) -> list:

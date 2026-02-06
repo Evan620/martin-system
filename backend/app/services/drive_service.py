@@ -1,6 +1,7 @@
 import os
 import io
 import asyncio
+import threading
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 import json
@@ -45,6 +46,8 @@ class DriveService:
         self.creds = None
         self.service = None
         self.state_file = "processed_transcripts.json"
+        # Thread lock to prevent concurrent API calls (httplib2 is not thread-safe)
+        self._api_lock = threading.Lock()
         # We now initialize lazily on first use to avoid race conditions with startup credentials restoration
 
     def _load_state(self) -> Dict[str, str]:
@@ -129,12 +132,13 @@ class DriveService:
         )
 
         try:
-            results = self.service.files().list(
-                q=query,
-                pageSize=10,
-                fields="nextPageToken, files(id, name, modifiedTime, createdTime, mimeType)"
-            ).execute(num_retries=3)
-            items = results.get('files', [])
+            with self._api_lock:
+                results = self.service.files().list(
+                    q=query,
+                    pageSize=10,
+                    fields="nextPageToken, files(id, name, modifiedTime, createdTime, mimeType)"
+                ).execute(num_retries=3)
+                items = results.get('files', [])
             return items
         except Exception as e:
             logger.error(f"Error listing Drive files: {e}")
@@ -157,14 +161,15 @@ class DriveService:
         )
 
         try:
-            results = self.service.files().list(
-                q=query,
-                pageSize=50,
-                orderBy='folder, name', # Folders first, then alphabetical
-                fields="nextPageToken, files(id, name, mimeType, webViewLink, iconLink, modifiedTime, thumbnailLink)"
-            ).execute(num_retries=3)
-            
-            items = results.get('files', [])
+            with self._api_lock:
+                results = self.service.files().list(
+                    q=query,
+                    pageSize=50,
+                    orderBy='folder, name', # Folders first, then alphabetical
+                    fields="nextPageToken, files(id, name, mimeType, webViewLink, iconLink, modifiedTime, thumbnailLink)"
+                ).execute(num_retries=3)
+                
+                items = results.get('files', [])
             return items
         except Exception as e:
             logger.error(f"Error listing Core Workspace files: {e}")
@@ -177,36 +182,37 @@ class DriveService:
 
         fh = None
         try:
-            if mime_type == 'application/vnd.google-apps.document':
-                request = self.service.files().export_media(fileId=file_id, mimeType='text/plain')
-            else:
-                request = self.service.files().get_media(fileId=file_id)
+            with self._api_lock:
+                if mime_type == 'application/vnd.google-apps.document':
+                    request = self.service.files().export_media(fileId=file_id, mimeType='text/plain')
+                else:
+                    request = self.service.files().get_media(fileId=file_id)
 
-            fh = io.BytesIO()
-            downloader = MediaIoBaseDownload(fh, request, chunksize=1024*1024)  # 1MB chunks
-            done = False
-            
-            # Add timeout protection
-            max_iterations = 100  # Prevent infinite loops
-            iteration = 0
-            
-            while not done and iteration < max_iterations:
-                try:
-                    status, done = downloader.next_chunk()
-                    iteration += 1
-                    
-                    # Check file size to prevent memory exhaustion
-                    if fh.tell() > 50 * 1024 * 1024:  # 50MB limit
-                        logger.warning(f"File {file_id} exceeds 50MB, truncating")
-                        break
+                fh = io.BytesIO()
+                downloader = MediaIoBaseDownload(fh, request, chunksize=1024*1024)  # 1MB chunks
+                done = False
+                
+                # Add timeout protection
+                max_iterations = 100  # Prevent infinite loops
+                iteration = 0
+                
+                while not done and iteration < max_iterations:
+                    try:
+                        status, done = downloader.next_chunk()
+                        iteration += 1
                         
-                except Exception as chunk_error:
-                    logger.error(f"Error downloading chunk for {file_id}: {chunk_error}")
-                    break
+                        # Check file size to prevent memory exhaustion
+                        if fh.tell() > 50 * 1024 * 1024:  # 50MB limit
+                            logger.warning(f"File {file_id} exceeds 50MB, truncating")
+                            break
+                            
+                    except Exception as chunk_error:
+                        logger.error(f"Error downloading chunk for {file_id}: {chunk_error}")
+                        break
 
-            # Get content and explicitly close buffer
-            content = fh.getvalue().decode('utf-8', errors='ignore')
-            fh.close()
+                # Get content and explicitly close buffer
+                content = fh.getvalue().decode('utf-8', errors='ignore')
+                fh.close()
             return content
             
         except Exception as e:
@@ -258,11 +264,12 @@ class DriveService:
             )
             
             # Upload file
-            file = self.service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields='id, name, mimeType, webViewLink, iconLink, modifiedTime, size'
-            ).execute()
+            with self._api_lock:
+                file = self.service.files().create(
+                    body=file_metadata,
+                    media_body=media,
+                    fields='id, name, mimeType, webViewLink, iconLink, modifiedTime, size'
+                ).execute()
             
             logger.info(f"Successfully uploaded file '{filename}' to Google Drive (ID: {file['id']})")
             return file
@@ -288,14 +295,15 @@ class DriveService:
         )
 
         try:
-            results = self.service.files().list(
-                q=query,
-                pageSize=100,
-                orderBy='modifiedTime desc',
-                fields="nextPageToken, files(id, name, mimeType, webViewLink, iconLink, modifiedTime, thumbnailLink, size)"
-            ).execute(num_retries=3)
-            
-            items = results.get('files', [])
+            with self._api_lock:
+                results = self.service.files().list(
+                    q=query,
+                    pageSize=100,
+                    orderBy='modifiedTime desc',
+                    fields="nextPageToken, files(id, name, mimeType, webViewLink, iconLink, modifiedTime, thumbnailLink, size)"
+                ).execute(num_retries=3)
+                
+                items = results.get('files', [])
             logger.info(f"Found {len(items)} files in Shared Documents folder")
             return items
         except Exception as e:
@@ -317,7 +325,8 @@ class DriveService:
             return False
         
         try:
-            self.service.files().delete(fileId=file_id).execute()
+            with self._api_lock:
+                self.service.files().delete(fileId=file_id).execute()
             logger.info(f"Successfully deleted file {file_id} from Google Drive")
             return True
         except Exception as e:
@@ -480,13 +489,14 @@ class DriveService:
         )
 
         try:
-            results = self.service.files().list(
-                q=query,
-                pageSize=20,
-                orderBy='createdTime desc',
-                fields="nextPageToken, files(id, name, createdTime, modifiedTime, mimeType)"
-            ).execute(num_retries=3)
-            items = results.get('files', [])
+            with self._api_lock:
+                results = self.service.files().list(
+                    q=query,
+                    pageSize=20,
+                    orderBy='createdTime desc',
+                    fields="nextPageToken, files(id, name, createdTime, modifiedTime, mimeType)"
+                ).execute(num_retries=3)
+                items = results.get('files', [])
             logger.info(f"Found {len(items)} transcript files in Meet Recordings folder")
             return items
         except Exception as e:

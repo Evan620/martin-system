@@ -1366,30 +1366,48 @@ export default function MeetingDetail() {
                                                 </div>
                                             ) : (
                                                 <div className="space-y-3">
-                                                    {documents.map((doc: any) => (
-                                                        <Card key={doc.id} className="p-4 hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer">
+                                                    {documents.map((doc: any) => {
+                                                        const isTranscript = doc.document_type === 'transcript'
+                                                        return (
+                                                        <Card
+                                                            key={doc.id}
+                                                            onClick={() => handleDownloadDocument(doc.id)}
+                                                            className="p-4 hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer"
+                                                        >
                                                             <div className="flex items-center gap-4">
-                                                                <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${doc.file_name?.endsWith('.pdf') ? 'bg-red-100 dark:bg-red-900/30' :
+                                                                <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                                                                    isTranscript ? 'bg-purple-100 dark:bg-purple-900/30' :
+                                                                    doc.file_name?.endsWith('.pdf') ? 'bg-red-100 dark:bg-red-900/30' :
                                                                     doc.file_name?.endsWith('.docx') || doc.file_name?.endsWith('.doc') ? 'bg-blue-100 dark:bg-blue-900/30' :
                                                                         'bg-slate-100 dark:bg-slate-800'
                                                                     }`}>
+                                                                    {isTranscript ? (
+                                                                        <span className="material-symbols-outlined text-purple-600 dark:text-purple-400">subtitles</span>
+                                                                    ) : (
                                                                     <svg className={`w-6 h-6 ${doc.file_name?.endsWith('.pdf') ? 'text-red-600 dark:text-red-400' :
                                                                         doc.file_name?.endsWith('.docx') || doc.file_name?.endsWith('.doc') ? 'text-blue-600 dark:text-blue-400' :
                                                                             'text-slate-600 dark:text-slate-400'
                                                                         }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                                     </svg>
+                                                                    )}
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
-                                                                    <div className="font-bold text-sm text-slate-900 dark:text-white truncate">{doc.file_name || 'Untitled Document'}</div>
+                                                                    <div className="font-bold text-sm text-slate-900 dark:text-white truncate flex items-center gap-2">
+                                                                        {doc.file_name || 'Untitled Document'}
+                                                                        {isTranscript && (
+                                                                            <span className="text-[10px] font-bold bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full uppercase">Transcript</span>
+                                                                        )}
+                                                                    </div>
                                                                     <div className="text-xs text-slate-500">
-                                                                        {doc.file_size ? `${(doc.file_size / 1024).toFixed(1)} KB` : 'Unknown size'} •
+                                                                        {doc.file_size ? `${(doc.file_size / 1024).toFixed(1)} KB` : ''}
                                                                         {doc.created_at ? ` Uploaded ${new Date(doc.created_at).toLocaleDateString()}` : ' Recently uploaded'}
+                                                                        {' '}&mdash; Click to download
                                                                     </div>
                                                                 </div>
                                                                 <div className="flex gap-2">
                                                                     <button
-                                                                        onClick={() => handleDownloadDocument(doc.id)}
+                                                                        onClick={(e) => { e.stopPropagation(); handleDownloadDocument(doc.id) }}
                                                                         className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                                                                         title="Download"
                                                                     >
@@ -1398,7 +1416,7 @@ export default function MeetingDetail() {
                                                                         </svg>
                                                                     </button>
                                                                     <button
-                                                                        onClick={() => handleDeleteDocument(doc.id)}
+                                                                        onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id) }}
                                                                         className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                                                                         title="Delete"
                                                                     >
@@ -1409,7 +1427,8 @@ export default function MeetingDetail() {
                                                                 </div>
                                                             </div>
                                                         </Card>
-                                                    ))}
+                                                        )
+                                                    })}
                                                 </div>
                                             )}
                                         </div>

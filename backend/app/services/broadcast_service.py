@@ -193,6 +193,50 @@ class BroadcastService:
         except Exception as e:
             logger.error(f"Failed to push live update to Redis: {e}")
 
+    async def notify_meeting_update(
+        self,
+        meeting_id,
+        update_data: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Push a real-time meeting update to all connected WebSocket clients.
+        Used after transcript processing completes so the frontend auto-refreshes.
+        """
+        from app.core.ws_manager import ws_manager
+
+        update_data = update_data or {}
+        message = {
+            "type": "transcript_processed",
+            "meeting_id": str(meeting_id),
+            "data": {
+                "meeting_id": str(meeting_id),
+                "message": update_data.get("message", "Transcript and minutes are now available."),
+                **update_data
+            }
+        }
+
+        # 1. Push to all dashboard WebSocket clients
+        try:
+            await ws_manager.broadcast(message)
+            logger.info(f"WebSocket broadcast sent for meeting {meeting_id}")
+        except Exception as e:
+            logger.error(f"WebSocket broadcast failed: {e}")
+
+        # 2. Also publish to Redis for live meeting WebSocket subscribers
+        if self.redis_client:
+            try:
+                payload = {
+                    "type": "live_meeting_update",
+                    "meeting_id": str(meeting_id),
+                    "source": "transcript_processed",
+                    "content": "Transcript and minutes are now available.",
+                    "metadata": update_data,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                self.redis_client.publish("live_meeting_stream", json.dumps(payload))
+            except Exception as e:
+                logger.error(f"Redis publish failed for meeting update: {e}")
+
     def _log_broadcast(self, doc_id: str, recipients: List[str]):
         """Log the broadcast event."""
         logger.info(f"[BROADCAST_LOG] Doc: {doc_id} -> Agents: {recipients}")

@@ -94,7 +94,7 @@ export default function Dashboard() {
             </div>
 
             {/* KPI Metrics Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                 {/* Active TWGs */}
                 <div className="bg-white dark:bg-[#1a202c] p-5 rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm flex flex-col justify-between h-32 relative group overflow-hidden">
                     <div className="flex justify-between items-start">
@@ -112,22 +112,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* Deals in Pipeline */}
-                <div className="bg-white dark:bg-[#1a202c] p-5 rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm flex flex-col justify-between h-32 relative group overflow-hidden">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-[#4c669a] dark:text-[#a0aec0] text-sm font-semibold mb-1 uppercase tracking-wider">Deals in Pipeline</p>
-                            <h3 className="text-4xl font-black text-[#0d121b] dark:text-white">{stats?.metrics.deals_in_pipeline || 0}</h3>
-                        </div>
-                        <div className="size-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500 dark:text-blue-400 border border-blue-100 dark:border-blue-800/20 shadow-sm group-hover:scale-110 transition-transform duration-300">
-                            <span className="material-symbols-outlined text-[28px]">handshake</span>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400 text-xs font-bold bg-blue-50 dark:bg-blue-900/20 w-fit px-3 py-1.5 rounded-full">
-                        <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                        <span>{stats?.pipeline.final_review || 0} Ready for Review</span>
-                    </div>
-                </div>
+                {/* Deals in Pipeline - Hidden for now */}
 
                 {/* Pending Approvals */}
                 <div className="bg-white dark:bg-[#1a202c] p-5 rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm flex flex-col justify-between h-32 relative group overflow-hidden">
@@ -168,84 +153,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                 {/* Left Column: Pipeline & TWG Grid (Span 2) */}
                 <div className="xl:col-span-2 flex flex-col gap-5">
-                    {/* Pipeline Funnel Section */}
-                    <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm p-4">
-                        <div className={`flex items-center justify-between ${!isPipelineCollapsed ? 'mb-4' : ''}`}>
-                            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setIsPipelineCollapsed(!isPipelineCollapsed)}>
-                                <h3 className="text-lg font-bold text-[#0d121b] dark:text-white">Deal Progression by Stage</h3>
-                                <div className={`p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2d3748] transition-colors ${isPipelineCollapsed ? '-rotate-90' : 'rotate-0'} duration-200`}>
-                                    <span className="material-symbols-outlined text-[#4c669a] dark:text-[#a0aec0]">expand_more</span>
-                                </div>
-                            </div>
-                            <button className="text-sm text-primary font-medium hover:underline">View Pipeline</button>
-                        </div>
-                        {!isPipelineCollapsed && (
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 relative animate-in fade-in slide-in-from-top-2 duration-300">
-                                {/* Connecting Line (Desktop) */}
-                                <div className="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-[#e7ebf3] dark:bg-[#2d3748] -z-0"></div>
-
-                                {/* Stage 1 */}
-                                <div className="relative z-10 flex flex-col gap-3 bg-white dark:bg-[#1a202c] md:bg-transparent md:dark:bg-transparent">
-                                    <div className="flex items-center gap-2">
-                                        <div className="size-3 rounded-full bg-blue-200"></div>
-                                        <span className="text-xs font-bold uppercase tracking-wider text-[#4c669a] dark:text-[#a0aec0]">Drafting</span>
-                                    </div>
-                                    <div className="h-2 w-full bg-[#f0f2f5] dark:bg-[#2d3748] rounded-full overflow-hidden">
-                                        <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${(stats?.pipeline.drafting || 0) / (stats?.pipeline.total || 1) * 100}%` }}></div>
-                                    </div>
-                                    <div>
-                                        <span className="text-2xl font-bold block text-[#0d121b] dark:text-white">{stats?.pipeline.drafting || 0}</span>
-                                        <span className="text-xs text-[#4c669a] dark:text-[#a0aec0]">Active drafts</span>
-                                    </div>
-                                </div>
-
-                                {/* Stage 2 */}
-                                <div className="relative z-10 flex flex-col gap-3 bg-white dark:bg-[#1a202c] md:bg-transparent md:dark:bg-transparent">
-                                    <div className="flex items-center gap-2">
-                                        <div className="size-3 rounded-full bg-blue-400"></div>
-                                        <span className="text-xs font-bold uppercase tracking-wider text-[#4c669a] dark:text-[#a0aec0]">Negotiation</span>
-                                    </div>
-                                    <div className="h-2 w-full bg-[#f0f2f5] dark:bg-[#2d3748] rounded-full overflow-hidden">
-                                        <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${(stats?.pipeline.negotiation || 0) / (stats?.pipeline.total || 1) * 100}%` }}></div>
-                                    </div>
-                                    <div>
-                                        <span className="text-2xl font-bold block text-[#0d121b] dark:text-white">{stats?.pipeline.negotiation || 0}</span>
-                                        <span className="text-xs text-[#4c669a] dark:text-[#a0aec0]">In discussion</span>
-                                    </div>
-                                </div>
-
-                                {/* Stage 3 */}
-                                <div className="relative z-10 flex flex-col gap-3 bg-white dark:bg-[#1a202c] md:bg-transparent md:dark:bg-transparent">
-                                    <div className="flex items-center gap-2">
-                                        <div className="size-3 rounded-full bg-indigo-500"></div>
-                                        <span className="text-xs font-bold uppercase tracking-wider text-[#4c669a] dark:text-[#a0aec0]">Final Review</span>
-                                    </div>
-                                    <div className="h-2 w-full bg-[#f0f2f5] dark:bg-[#2d3748] rounded-full overflow-hidden">
-                                        <div className="h-full bg-indigo-600 rounded-full transition-all duration-500" style={{ width: `${(stats?.pipeline.final_review || 0) / (stats?.pipeline.total || 1) * 100}%` }}></div>
-                                    </div>
-                                    <div>
-                                        <span className="text-2xl font-bold block text-[#0d121b] dark:text-white">{stats?.pipeline.final_review || 0}</span>
-                                        <span className="text-xs text-[#4c669a] dark:text-[#a0aec0]">Pending sign-off</span>
-                                    </div>
-                                </div>
-
-                                {/* Stage 4 */}
-                                <div className="relative z-10 flex flex-col gap-3 bg-white dark:bg-[#1a202c] md:bg-transparent md:dark:bg-transparent">
-                                    <div className="flex items-center gap-2">
-                                        <div className="size-3 rounded-full bg-emerald-500"></div>
-                                        <span className="text-xs font-bold uppercase tracking-wider text-[#4c669a] dark:text-[#a0aec0]">Signed</span>
-                                    </div>
-                                    <div className="h-2 w-full bg-[#f0f2f5] dark:bg-[#2d3748] rounded-full overflow-hidden">
-                                        <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${(stats?.pipeline.signed || 0) / (stats?.pipeline.total || 1) * 100}%` }}></div>
-                                    </div>
-                                    <div>
-                                        <span className="text-2xl font-bold block text-[#0d121b] dark:text-white">{stats?.pipeline.signed || 0}</span>
-                                        <span className="text-xs text-[#4c669a] dark:text-[#a0aec0]">Completed</span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    {/* Pipeline Funnel Section - Hidden for now */}
 
                     <div className="flex items-center justify-between mb-3">
                         <h3 className="text-xl font-bold text-[#0d121b] dark:text-white">Technical Working Groups Status</h3>

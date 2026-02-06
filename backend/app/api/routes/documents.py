@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Response, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, or_
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 import uuid
@@ -219,9 +219,18 @@ async def list_documents(
                 count_query = count_query.where(filter_condition)
                 query = query.where(filter_condition)
         
+        # Exclude transcripts/recordings from the document library — they live on their meeting pages
+        transcript_types = ("transcript", "transcript_placeholder")
+        count_query = count_query.where(
+            or_(Document.document_type.notin_(transcript_types), Document.document_type.is_(None))
+        )
+        query = query.where(
+            or_(Document.document_type.notin_(transcript_types), Document.document_type.is_(None))
+        )
+
         # Execute count
         total_count = await db.scalar(count_query)
-        
+
         # Apply pagination to data query and execute
         # Note: We must apply offset/limit AFTER filtering
         query = query.offset(skip).limit(limit).order_by(Document.created_at.desc())

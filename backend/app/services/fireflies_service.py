@@ -9,6 +9,7 @@ import aiohttp
 import logging
 import asyncio
 import os
+import time
 import aiofiles
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,14 +33,106 @@ class FirefliesService:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+        # Rate-limit state
+        self._rate_limited_until: float = 0.0  # Unix timestamp when we can retry
+        self._consecutive_failures: int = 0
+
+    # ── Rate-limit helpers ────────────────────────────────────────────
+
+    def _is_rate_limited(self) -> bool:
+        """Return True if we should skip API calls due to an active rate-limit backoff."""
+        if time.time() < self._rate_limited_until:
+            remaining = int(self._rate_limited_until - time.time())
+            logger.info(f"Fireflies API rate-limited — skipping call ({remaining}s remaining)")
+            return True
+        return False
+
+    def _record_rate_limit(self, retry_after: Optional[int] = None):
+        """Back off after a 429 or repeated failure. Uses Retry-After header if available."""
+        self._consecutive_failures += 1
+        if retry_after and retry_after > 0:
+            backoff_secs = retry_after
+        else:
+            # Exponential backoff: 30s, 60s, 120s, … capped at max
+            backoff_secs = min(
+                30 * (2 ** (self._consecutive_failures - 1)),
+                settings.FIREFLIES_MAX_BACKOFF_MINUTES * 60,
+            )
+        self._rate_limited_until = time.time() + backoff_secs
+        logger.warning(
+            f"Fireflies rate-limit recorded — backing off {backoff_secs}s "
+            f"(consecutive failures: {self._consecutive_failures})"
+        )
+
+    def _record_success(self):
+        """Reset failure counter on a successful API call."""
+        if self._consecutive_failures > 0:
+            logger.info(f"Fireflies API recovered after {self._consecutive_failures} consecutive failures")
+        self._consecutive_failures = 0
+
+    def get_rate_limit_status(self) -> Dict[str, Any]:
+        """Public status for the monitor to decide whether to poll."""
+        now = time.time()
+        return {
+            "is_rate_limited": now < self._rate_limited_until,
+            "seconds_remaining": max(0, int(self._rate_limited_until - now)),
+            "consecutive_failures": self._consecutive_failures,
+        }
+
+    # ── Centralised GraphQL caller ────────────────────────────────────
+
+    async def _make_request(self, query: str, variables: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Send a GraphQL request to Fireflies with rate-limit gating and 429 handling.
+        Returns the parsed JSON body on success, or None on failure.
+        """
+        if self._is_rate_limited():
+            return None
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self.api_url,
+                    json={"query": query, "variables": variables},
+                    headers=self.headers,
+                    timeout=aiohttp.ClientTimeout(total=60),
+                ) as response:
+                    if response.status == 429:
+                        retry_after = None
+                        raw = response.headers.get("Retry-After")
+                        if raw:
+                            try:
+                                retry_after = int(raw)
+                            except ValueError:
+                                pass
+                        self._record_rate_limit(retry_after)
+                        return None
+
+                    if response.status == 200:
+                        self._record_success()
+                        return await response.json()
+
+                    error_text = await response.text()
+                    logger.error(f"Fireflies API error {response.status}: {error_text}")
+                    self._record_rate_limit()
+                    return None
+        except aiohttp.ClientError as e:
+            logger.error(f"Network error calling Fireflies API: {e}")
+            self._record_rate_limit()
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error calling Fireflies API: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
     
     async def get_transcript(self, meeting_id: str) -> Optional[Dict[str, Any]]:
         """
         Fetch transcript from Fireflies using GraphQL.
-        
+
         Args:
             meeting_id: Fireflies meeting/transcript ID
-            
+
         Returns:
             Dict containing transcript data or None if not found
         """
@@ -72,55 +165,34 @@ class FirefliesService:
           }
         }
         """
-        
+
         variables = {"transcriptId": meeting_id}
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    self.api_url,
-                    json={"query": query, "variables": variables},
-                    headers=self.headers,
-                    timeout=aiohttp.ClientTimeout(total=60)
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        
-                        # Check for GraphQL errors BUT return data if available (partial success)
-                        if "errors" in data:
-                            logger.warning(f"Fireflies GraphQL returned errors (partial data may be available): {data['errors']}")
-                        
-                        transcript_data = data.get("data", {}).get("transcript")
-                        if transcript_data:
-                            logger.info(f"✓ Retrieved transcript {meeting_id} from Fireflies")
-                            return transcript_data
-                        elif "errors" in data:
-                            # Only return None if we have NO data AND errors
-                            logger.error("Fireflies query failed with no data returned.")
-                            return None
-                        else:
-                            logger.warning(f"No transcript found for ID: {meeting_id}")
-                            return None
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"Fireflies API error {response.status}: {error_text}")
-                        return None
-        except aiohttp.ClientError as e:
-            logger.error(f"Network error fetching Fireflies transcript: {e}")
+        data = await self._make_request(query, variables)
+
+        if data is None:
             return None
-        except Exception as e:
-            logger.error(f"Unexpected error fetching Fireflies transcript: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
+
+        if "errors" in data:
+            logger.warning(f"Fireflies GraphQL returned errors (partial data may be available): {data['errors']}")
+
+        transcript_data = data.get("data", {}).get("transcript")
+        if transcript_data:
+            logger.info(f"✓ Retrieved transcript {meeting_id} from Fireflies")
+            return transcript_data
+        elif "errors" in data:
+            logger.error("Fireflies query failed with no data returned.")
+            return None
+        else:
+            logger.warning(f"No transcript found for ID: {meeting_id}")
             return None
     
     async def list_transcripts(self, limit: int = 10) -> List[Dict[str, Any]]:
         """
         List recent transcripts from Fireflies.
-        
+
         Args:
             limit: Maximum number of transcripts to return
-            
+
         Returns:
             List of transcript summaries
         """
@@ -139,34 +211,20 @@ class FirefliesService:
           }
         }
         """
-        
+
         variables = {"limit": limit}
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    self.api_url,
-                    json={"query": query, "variables": variables},
-                    headers=self.headers,
-                    timeout=aiohttp.ClientTimeout(total=60)
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        
-                        if "errors" in data:
-                            logger.warning(f"Fireflies GraphQL errors (listing): {data['errors']}")
-                        
-                        transcripts = data.get("data", {}).get("transcripts", [])
-                        if transcripts:
-                             logger.info(f"✓ Retrieved {len(transcripts)} transcripts from Fireflies")
-                             return transcripts
-                        elif "errors" in data:
-                             return [] # Genuine error with no data
-                        else:
-                             return [] # Empty list, no error
-        except Exception as e:
-            logger.error(f"Error listing Fireflies transcripts: {e}")
+        data = await self._make_request(query, variables)
+
+        if data is None:
             return []
+
+        if "errors" in data:
+            logger.warning(f"Fireflies GraphQL errors (listing): {data['errors']}")
+
+        transcripts = data.get("data", {}).get("transcripts", [])
+        if transcripts:
+            logger.info(f"✓ Retrieved {len(transcripts)} transcripts from Fireflies")
+        return transcripts
     
     async def search_transcripts_by_title(self, title: str) -> Optional[Dict[str, Any]]:
         """
@@ -299,21 +357,20 @@ class FirefliesService:
                  import traceback
                  logger.error(f"Traceback: {traceback.format_exc()}")
              
-             # --- AUTOMATED APPROVAL & DISTRIBUTION ---
-             try:
-                 logger.info(f"Automatically approving and distributing minutes for {meeting.title}...")
-                 await self.finalize_and_distribute_minutes(meeting, db)
-             except Exception as dist_e:
-                 logger.error(f"Failed to auto-distribute minutes: {dist_e}")
-                 import traceback
-                 logger.error(f"Traceback: {traceback.format_exc()}")
              # -----------------------------------------
+             
+             # Flush the minutes to DB before distribution
+             await db.flush()
+             await db.refresh(new_minutes)
+             logger.info(f"Minutes flushed to database with ID: {new_minutes.id}, meeting_id: {new_minutes.meeting_id}")
 
              return file_path # Return path for the Monitor to update Document
         except Exception as e:
             logger.error(f"Failed to process transcript for {meeting.title}: {e}")
             import traceback
             logger.error(traceback.format_exc())
+            # Rollback to prevent transaction corruption
+            await db.rollback()
             return False
 
     async def finalize_and_distribute_minutes(self, meeting: Meeting, db: AsyncSession):
@@ -327,9 +384,13 @@ class FirefliesService:
         
         # 1. Update Status
         if meeting.minutes:
-            meeting.minutes.status = MinutesStatus.APPROVED
-            await db.commit()
+            # Ensure the minutes object is attached to the session and has meeting_id
             await db.refresh(meeting.minutes)
+            meeting.minutes.status = MinutesStatus.APPROVED
+            # Explicitly set meeting_id to prevent NULL constraint violation
+            if not meeting.minutes.meeting_id:
+                meeting.minutes.meeting_id = meeting.id
+            await db.flush()  # Flush instead of commit to keep transaction open
             logger.info("Minutes status updated to APPROVED")
             
         # 2. Generate PDF
@@ -506,12 +567,47 @@ class FirefliesService:
                      text = self.format_transcript_text(transcript_data)
                      
                      # Process
-                     await self.process_transcript_text(matched_meeting, text, db)
-                     
+                     file_path = await self.process_transcript_text(matched_meeting, text, db)
+
                      # Update status
                      matched_meeting.status = MeetingStatus.COMPLETED
+
+                     # Create a Document record so it appears in meeting documents
+                     if file_path and isinstance(file_path, str):
+                         from app.models.models import Document, User
+                         res_u = await db.execute(select(User.id).limit(1))
+                         uploader_id = res_u.scalars().first()
+                         if uploader_id:
+                             doc = Document(
+                                 twg_id=matched_meeting.twg_id,
+                                 meeting_id=matched_meeting.id,
+                                 file_name=f"Fireflies Transcript - {matched_meeting.title}.txt",
+                                 file_path=file_path,
+                                 file_type="text/plain",
+                                 document_type="transcript",
+                                 uploaded_by_id=uploader_id,
+                                 metadata_json={
+                                     "provider": "fireflies",
+                                     "fireflies_id": meeting_id,
+                                     "meeting_id": str(matched_meeting.id),
+                                 }
+                             )
+                             db.add(doc)
+
                      await db.commit()
                      logger.info("Webhook processing complete.")
+
+                     # Broadcast real-time update to frontend
+                     try:
+                         from app.services.broadcast_service import get_broadcast_service
+                         broadcast = get_broadcast_service()
+                         await broadcast.notify_meeting_update(matched_meeting.id, {
+                             "status": "COMPLETED",
+                             "has_transcript": True,
+                             "title": matched_meeting.title
+                         })
+                     except Exception as broadcast_err:
+                         logger.error(f"Broadcast after webhook failed: {broadcast_err}")
                      
                 else:
                     logger.warning(f"No local meeting found matching webhook title: {title}")

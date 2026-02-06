@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.core.config import settings
 from app.core.database import get_db_session_context
 from app.models.models import (
     Meeting, Conflict, TWG, ConflictStatus, Notification, NotificationType, Document, User, MeetingParticipant, VipProfile,
@@ -49,52 +50,39 @@ class ContinuousMonitor:
             
         logger.info("Starting Continuous Monitor...")
         
-        # 1. Temporal Conflict Scan (Every 30 mins)
-        self.scheduler.add_job(
-            self.scan_scheduling_conflicts,
-            trigger=IntervalTrigger(minutes=30),
-            id="scan_scheduling",
-            replace_existing=True
-        )
-        
-        # 2. Semantic Conflict Scan (Every 60 mins to reduce API calls)
-        # 2. Semantic Conflict Scan (Every 60 mins to reduce API calls)
+        # ── Governance scans — DISABLED (re-enable when needed) ─────────
+        # These consume LLM tokens. Not needed for core meeting lifecycle.
+        #
+        # self.scheduler.add_job(
+        #     self.scan_scheduling_conflicts,
+        #     trigger=IntervalTrigger(minutes=30),
+        #     id="scan_scheduling", replace_existing=True
+        # )
         # self.scheduler.add_job(
         #     self.scan_policy_divergences,
         #     trigger=IntervalTrigger(minutes=60),
-        #     id="scan_policy",
-        #     replace_existing=True
+        #     id="scan_policy", replace_existing=True
         # )
-        
-        # 3. Health Check (Hourly)
-        self.scheduler.add_job(
-            self.check_twg_health,
-            trigger=IntervalTrigger(hours=1),
-            id="health_check",
-            replace_existing=True
-        )
-        
-        
-        # 4. Project Conflict Scan (Every 6 hours)
-        self.scheduler.add_job(
-            self.scan_project_conflicts,
-            trigger=IntervalTrigger(hours=6),
-            id="scan_projects",
-            replace_existing=True
-        )
+        # self.scheduler.add_job(
+        #     self.check_twg_health,
+        #     trigger=IntervalTrigger(hours=1),
+        #     id="health_check", replace_existing=True
+        # )
+        # self.scheduler.add_job(
+        #     self.scan_project_conflicts,
+        #     trigger=IntervalTrigger(hours=6),
+        #     id="scan_projects", replace_existing=True
+        # )
+        # self.scheduler.add_job(
+        #     self.check_upcoming_meetings,  # No-op (Fireflies replaced Vexa)
+        #     trigger=IntervalTrigger(minutes=1),
+        #     id="vexa_dispatch", replace_existing=True
+        # )
 
-        # 5. Vexa Meeting Dispatch (Every 1 min)
-        self.scheduler.add_job(
-            self.check_upcoming_meetings,
-            trigger=IntervalTrigger(minutes=1),
-            id="vexa_dispatch",
-            replace_existing=True
-        )
-
-        # 6. Check Pending Transcripts (Every 2 minutes for Fireflies)
+        # 6. Check Pending Transcripts (safety-net poll; webhooks are primary delivery)
         self.scheduler.add_job(
             self.check_pending_transcripts,
-            trigger=IntervalTrigger(minutes=2),
+            trigger=IntervalTrigger(minutes=settings.FIREFLIES_POLL_INTERVAL_MINUTES),
             id="fireflies_transcript_check",
             replace_existing=True
         )
@@ -240,17 +228,23 @@ class ContinuousMonitor:
 
     async def check_pending_transcripts(self):
         """
-        Poll Fireflies.ai for transcripts of completed meetings.
-        Matches Fireflies transcripts to local meetings by Title.
+        Safety-net poll for Fireflies transcripts.
+        Primary delivery is via the /api/v1/webhooks/fireflies webhook.
+        This poll runs every FIREFLIES_POLL_INTERVAL_MINUTES (default 15) to
+        catch any transcripts missed by the webhook path.
         """
-        logger.info("Checking pending Fireflies transcripts...")
+        # Skip if Fireflies API is currently rate-limited
+        rl_status = fireflies_service.get_rate_limit_status()
+        if rl_status["is_rate_limited"]:
+            logger.info(
+                f"Skipping Fireflies poll — rate-limited for {rl_status['seconds_remaining']}s "
+                f"(consecutive failures: {rl_status['consecutive_failures']})"
+            )
+            return
+
+        logger.info("Checking pending Fireflies transcripts (safety-net poll)...")
         async with get_db_session_context() as db:
             try:
-                # 1. Fetch meetings that are:
-                #    - IN_PROGRESS or COMPLETED
-                #    - Missing transcript
-                #    - Started within last 24 hours
-                
                 start_window = datetime.utcnow() - timedelta(hours=24)
                 
                 stmt = select(Meeting).where(
@@ -269,9 +263,8 @@ class ContinuousMonitor:
 
                 logger.info(f"Found {len(candidate_meetings)} meetings to check for transcripts")
 
-                # 2. List recent transcripts from Fireflies
-                # Retrieve last 20 transcripts to cover recent meetings
-                fireflies_transcripts = await fireflies_service.list_transcripts(limit=20)
+                # 2. List recent transcripts from Fireflies (small limit — this is a safety net)
+                fireflies_transcripts = await fireflies_service.list_transcripts(limit=5)
                 
                 if not fireflies_transcripts:
                     logger.debug("No recent transcripts returned from Fireflies API")
@@ -365,6 +358,7 @@ class ContinuousMonitor:
                                         metadata_json={
                                             "provider": "fireflies",
                                             "fireflies_id": matched_transcript['id'],
+                                            "meeting_id": str(meeting.id),
                                             "duration": full_transcript.get('duration'),
                                             "participants": full_transcript.get('participants')
                                         }
@@ -373,7 +367,17 @@ class ContinuousMonitor:
                                 
                                 await db.commit()
                                 
-                                # 5. Broadcast update
+                                # 5. Finalize and distribute minutes (after commit)
+                                try:
+                                    logger.info(f"Finalizing and distributing minutes for {meeting.title}...")
+                                    await fireflies_service.finalize_and_distribute_minutes(meeting, db)
+                                    await db.commit()
+                                except Exception as dist_e:
+                                    logger.error(f"Failed to finalize/distribute minutes: {dist_e}")
+                                    import traceback
+                                    logger.error(traceback.format_exc())
+                                
+                                # 6. Broadcast update
                                 try:
                                     from app.services.broadcast_service import get_broadcast_service
                                     broadcast = get_broadcast_service()

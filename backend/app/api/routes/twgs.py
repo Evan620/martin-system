@@ -53,7 +53,16 @@ async def list_twgs(
         # For simplicity and clarity in this iteration, let's fetch IDs and then load stats.
         # A more optimized approach would use group_by and multiple queries.
         
-        result = await db.execute(select(TWG).options(*query_options).offset(skip).limit(limit))
+        # Hide non-core TWGs per client request (only show 4: energy, agri, minerals, digital)
+        from app.models.models import TWGPillar
+        HIDDEN_PILLARS = {TWGPillar.protocol_logistics, TWGPillar.resource_mobilization}
+
+        result = await db.execute(
+            select(TWG)
+            .where(TWG.pillar.notin_(HIDDEN_PILLARS))
+            .options(*query_options)
+            .offset(skip).limit(limit)
+        )
         twgs = result.scalars().all()
         
         # Enrich with stats

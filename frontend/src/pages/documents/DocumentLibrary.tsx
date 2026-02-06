@@ -58,8 +58,10 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
         fetchTwgs()
     }, [])
 
-    // Filter TWGs based on user role
-    const availableTwgs = isAdmin ? allTwgs : allTwgs.filter((t: any) => userTwgIds.includes(t.id))
+    // Filter TWGs based on user role, hiding non-core TWGs (protocol_logistics, resource_mobilization)
+    const HIDDEN_PILLARS = ['protocol_logistics', 'resource_mobilization']
+    const availableTwgs = (isAdmin ? allTwgs : allTwgs.filter((t: any) => userTwgIds.includes(t.id)))
+        .filter((t: any) => !HIDDEN_PILLARS.includes(t.pillar))
 
     useEffect(() => {
         fetchData()
@@ -675,8 +677,6 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                     <option value="agriculture">Agriculture & Food Systems</option>
                                                     <option value="minerals">Critical Minerals & Industrialization</option>
                                                     <option value="digital">Digital Economy & Transformation</option>
-                                                    <option value="protocol">Protocol & Logistics</option>
-                                                    <option value="resource_mobilization">Resource Mobilization</option>
                                                 </>
                                             ) : (
                                                 availableTwgs.map((twg: any) => (

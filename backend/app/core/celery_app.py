@@ -90,29 +90,31 @@ celery_app.conf.beat_schedule = {
         "schedule": 900.0,  # 15 minutes
     },
     
-    # New monitoring tasks (will be created)
-    "scan-scheduling-conflicts": {
-        "task": "app.tasks.monitoring_tasks.scan_scheduling_conflicts",
-        "schedule": crontab(minute="*/30"),  # Every 30 minutes
-    },
-    "scan-policy-divergences": {
-        "task": "app.tasks.monitoring_tasks.scan_policy_divergences_task", # Updated task name
-        "schedule": crontab(minute="0"),  # Every hour
-    },
-    "check-twg-health": {
-        "task": "app.tasks.monitoring_tasks.check_twg_health",
-        "schedule": crontab(minute="0"),  # Every hour
-    },
-    "scan-project-conflicts": {
-        "task": "app.tasks.monitoring_tasks.scan_project_conflicts",
-        "schedule": crontab(minute="0", hour="*/6"),  # Every 6 hours
-    },
-    "check-upcoming-meetings": {
-        "task": "app.tasks.monitoring_tasks.check_upcoming_meetings",
-        "schedule": crontab(minute="*"),  # Every minute
-    },
-    "check-pending-transcripts": {
-        "task": "app.tasks.monitoring_tasks.check_pending_transcripts",
-        "schedule": 10.0,  # Every 10 seconds
-    },
+    # ── Governance scans — DISABLED (re-enable when needed) ──────────
+    # These consume LLM tokens on every run. Not needed for meeting lifecycle.
+    #
+    # "scan-scheduling-conflicts": {
+    #     "task": "app.tasks.monitoring_tasks.scan_scheduling_conflicts",
+    #     "schedule": crontab(minute="*/30"),
+    # },
+    # "scan-policy-divergences": {
+    #     "task": "app.tasks.monitoring_tasks.scan_policy_divergences_task",
+    #     "schedule": crontab(minute="0"),
+    # },
+    # "check-twg-health": {
+    #     "task": "app.tasks.monitoring_tasks.check_twg_health",
+    #     "schedule": crontab(minute="0"),
+    # },
+    # "scan-project-conflicts": {
+    #     "task": "app.tasks.monitoring_tasks.scan_project_conflicts",
+    #     "schedule": crontab(minute="0", hour="*/6"),
+    # },
+    # "check-upcoming-meetings": {
+    #     "task": "app.tasks.monitoring_tasks.check_upcoming_meetings",
+    #     "schedule": crontab(minute="*"),  # No-op (Fireflies replaced Vexa)
+    # },
+    # "check-pending-transcripts": {
+    #     "task": "app.tasks.monitoring_tasks.check_pending_transcripts",
+    #     "schedule": 10.0,  # Redundant — APScheduler handles this at 15min interval
+    # },
 }

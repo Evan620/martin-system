@@ -211,6 +211,7 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                                         {!isSidebarCollapsed && <span>Meetings (Schedule)</span>}
                                     </button>
 
+                                    {/* Hidden for now
                                     <button
                                         onClick={() => navigate('/deal-pipeline')}
                                         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/deal-pipeline')
@@ -233,6 +234,7 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                                         <span className="material-symbols-outlined text-[20px]">warning</span>
                                         {!isSidebarCollapsed && <span>Conflicts</span>}
                                     </button>
+                                    */}
                                 </div>
                             </div>
 
@@ -255,6 +257,7 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                                             <span className="material-symbols-outlined text-[20px]">badge</span>
                                             {!isSidebarCollapsed && <span>Team</span>}
                                         </button>
+                                        {/* Hidden for now
                                         <button
                                             onClick={() => navigate('/admin/control-tower')}
                                             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/admin/control-tower')
@@ -266,6 +269,7 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                                             <span className="material-symbols-outlined text-[20px]">radar</span>
                                             {!isSidebarCollapsed && <span>Control Tower</span>}
                                         </button>
+                                        */}
                                         <button
                                             onClick={() => navigate('/admin/logs')}
                                             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/admin/logs')

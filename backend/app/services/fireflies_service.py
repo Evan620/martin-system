@@ -142,7 +142,7 @@ class FirefliesService:
             id
             title
             date
-            transcript_text: sentences {
+            sentences {
               text
               raw_text
               speaker_name
@@ -160,8 +160,6 @@ class FirefliesService:
             }
             participants
             duration
-            video_url
-            audio_url
           }
         }
         """
@@ -260,9 +258,11 @@ class FirefliesService:
         """
         if not transcript_data:
             return ""
-        
-        sentences = transcript_data.get("transcript_text", [])
+
+        # Fireflies returns sentences under "sentences" or aliased as "transcript_text"
+        sentences = transcript_data.get("sentences") or transcript_data.get("transcript_text") or []
         if not sentences:
+            logger.warning(f"No sentences found in transcript data. Keys present: {list(transcript_data.keys())}")
             return ""
         
         # Group by speaker and format

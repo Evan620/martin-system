@@ -247,7 +247,11 @@ class ContinuousMonitor:
             try:
                 start_window = datetime.utcnow() - timedelta(hours=24)
                 
-                stmt = select(Meeting).where(
+                stmt = select(Meeting).options(
+                    selectinload(Meeting.twg),
+                    selectinload(Meeting.minutes),
+                    selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
+                ).where(
                     and_(
                         Meeting.scheduled_at >= start_window,
                         or_(Meeting.transcript.is_(None), Meeting.transcript == ""),
@@ -324,15 +328,19 @@ class ContinuousMonitor:
                         
                         if full_transcript:
                             transcript_text = fireflies_service.format_transcript_text(full_transcript)
-                            
+
+                            if not transcript_text:
+                                logger.warning(f"Formatted transcript is empty for '{meeting.title}'. Fireflies keys: {list(full_transcript.keys())}")
+                                continue
+
                             # Add summary to metadata if available
                             summary = full_transcript.get('summary', {})
                             if summary:
                                 if not meeting.ai_summary_json:
                                     meeting.ai_summary_json = {}
                                 meeting.ai_summary_json['fireflies_summary'] = summary
-                            
-                            logger.info(f"Processing transcript for completed meeting: {meeting.title}")
+
+                            logger.info(f"Processing transcript for '{meeting.title}' ({len(transcript_text)} chars)")
                             
                             # Call the new processing method to generate Minutes, PDF, etc.
                             file_path_or_success = await fireflies_service.process_transcript_text(meeting, transcript_text, db)

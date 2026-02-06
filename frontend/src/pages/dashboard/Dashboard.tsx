@@ -10,7 +10,6 @@ export default function Dashboard() {
     const [timeline, setTimeline] = useState<TimelineItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
-    const [isPipelineCollapsed, setIsPipelineCollapsed] = useState(true);
 
     useEffect(() => {
         async function fetchData() {

@@ -64,10 +64,59 @@ async def test_documents(db: AsyncSession = Depends(get_db)):
         from app.models.models import Document
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
-        
+
         result = await db.execute(select(Document).limit(5))
         docs = result.scalars().all()
         return {"status": "success", "count": len(docs)}
+    except Exception as e:
+        import traceback
+        return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}
+
+@router.get("/debug/webhook_check")
+async def webhook_check(db: AsyncSession = Depends(get_db)):
+    """Check if webhook processing created transcript documents and updated meetings."""
+    try:
+        from app.models.models import Meeting, Document
+        from sqlalchemy import select, or_
+
+        # Find meetings with transcripts
+        result = await db.execute(
+            select(Meeting.id, Meeting.title, Meeting.status, Meeting.transcript).where(
+                Meeting.transcript.isnot(None), Meeting.transcript != ""
+            ).order_by(Meeting.updated_at.desc()).limit(5)
+        )
+        meetings_with_transcripts = [
+            {"id": str(r[0]), "title": r[1], "status": str(r[2]), "transcript_len": len(r[3]) if r[3] else 0}
+            for r in result.fetchall()
+        ]
+
+        # Find transcript documents
+        doc_result = await db.execute(
+            select(Document.id, Document.file_name, Document.document_type, Document.meeting_id).where(
+                Document.document_type.in_(["transcript", "transcript_placeholder"])
+            ).order_by(Document.created_at.desc()).limit(5)
+        )
+        transcript_docs = [
+            {"id": str(r[0]), "file_name": r[1], "type": r[2], "meeting_id": str(r[3]) if r[3] else None}
+            for r in doc_result.fetchall()
+        ]
+
+        # Find minutes documents
+        min_result = await db.execute(
+            select(Document.id, Document.file_name, Document.document_type, Document.meeting_id).where(
+                Document.document_type == "minutes"
+            ).order_by(Document.created_at.desc()).limit(5)
+        )
+        minutes_docs = [
+            {"id": str(r[0]), "file_name": r[1], "type": r[2], "meeting_id": str(r[3]) if r[3] else None}
+            for r in min_result.fetchall()
+        ]
+
+        return {
+            "meetings_with_transcripts": meetings_with_transcripts,
+            "transcript_documents": transcript_docs,
+            "minutes_documents": minutes_docs,
+        }
     except Exception as e:
         import traceback
         return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}

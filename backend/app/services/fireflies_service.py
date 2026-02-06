@@ -629,7 +629,18 @@ class FirefliesService:
                              db.add(doc)
 
                      await db.commit()
-                     logger.info("Webhook processing complete.")
+                     logger.info("Webhook processing complete — transcript saved, minutes drafted.")
+
+                     # Auto-approve minutes and distribute (PDF + email)
+                     try:
+                         logger.info(f"Auto-approving and distributing minutes for '{matched_meeting.title}'...")
+                         await self.finalize_and_distribute_minutes(matched_meeting, db)
+                         await db.commit()
+                         logger.info(f"Minutes auto-approved and distributed for '{matched_meeting.title}'")
+                     except Exception as approve_err:
+                         logger.error(f"Auto-approval/distribution failed: {approve_err}")
+                         import traceback
+                         logger.error(traceback.format_exc())
 
                      # Broadcast real-time update to frontend
                      try:
@@ -638,6 +649,8 @@ class FirefliesService:
                          await broadcast.notify_meeting_update(matched_meeting.id, {
                              "status": "COMPLETED",
                              "has_transcript": True,
+                             "has_minutes": True,
+                             "minutes_approved": True,
                              "title": matched_meeting.title
                          })
                      except Exception as broadcast_err:

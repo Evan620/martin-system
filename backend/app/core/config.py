@@ -300,7 +300,7 @@ class Settings(BaseSettings):
         description="Fireflies GraphQL API endpoint"
     )
     FIREFLIES_POLL_INTERVAL_MINUTES: int = Field(
-        default=15,
+        default=60,
         description="How often to poll Fireflies for new transcripts (safety net; webhooks are primary)"
     )
     FIREFLIES_MAX_BACKOFF_MINUTES: int = Field(

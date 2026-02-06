@@ -215,7 +215,7 @@ async def list_documents(
                 # This enforces the "locked room" principle - no cross-TWG visibility
                 user_twg_ids = [twg.id for twg in current_user.twgs]
                 filter_condition = (Document.twg_id.in_(user_twg_ids)) | (Document.twg_id == None)
-                
+
                 count_query = count_query.where(filter_condition)
                 query = query.where(filter_condition)
         

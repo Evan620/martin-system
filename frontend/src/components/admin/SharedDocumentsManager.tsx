@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { sharedDocuments } from '../../services/api';
+import { useState, useEffect } from 'react';
+import { sharedDocuments, twgs as twgService } from '../../services/api';
 
 interface SharedDocumentsManagerProps {
     onUploadSuccess?: () => void;
@@ -12,6 +12,23 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [accessControl, setAccessControl] = useState<'all_twgs' | 'specific_twgs'>('all_twgs');
+    const [sharedTwgIds, setSharedTwgIds] = useState<string[]>([]);
+    const [allTwgs, setAllTwgs] = useState<any[]>([]);
+
+    const HIDDEN_PILLARS = ['protocol_logistics', 'resource_mobilization'];
+
+    useEffect(() => {
+        const fetchTwgs = async () => {
+            try {
+                const response = await twgService.list();
+                setAllTwgs(response.data.filter((t: any) => !HIDDEN_PILLARS.includes(t.pillar)));
+            } catch (err) {
+                console.error('Failed to fetch TWGs:', err);
+            }
+        };
+        fetchTwgs();
+    }, []);
 
     const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
@@ -69,12 +86,18 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                 setUploadProgress(prev => Math.min(prev + 10, 90));
             }, 200);
 
-            await sharedDocuments.upload(selectedFile);
+            await sharedDocuments.upload(
+                selectedFile,
+                accessControl,
+                accessControl === 'specific_twgs' ? sharedTwgIds : undefined
+            );
 
             clearInterval(progressInterval);
             setUploadProgress(100);
             setSuccess(`File "${selectedFile.name}" uploaded successfully!`);
             setSelectedFile(null);
+            setAccessControl('all_twgs');
+            setSharedTwgIds([]);
 
             // Reset file input
             const fileInput = document.getElementById('file-input') as HTMLInputElement;
@@ -176,6 +199,68 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                                 </button>
                             )}
                         </div>
+
+                        {/* Sharing Controls */}
+                        {!uploading && (
+                            <div className="space-y-3 text-left">
+                                <label className="block text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider">Visibility</label>
+                                <div className="space-y-2">
+                                    {[
+                                        { value: 'all_twgs', label: 'All TWGs', icon: 'public', desc: 'Visible to everyone' },
+                                        { value: 'specific_twgs', label: 'Specific TWGs', icon: 'group', desc: 'Only selected TWGs' },
+                                    ].map((option) => (
+                                        <label
+                                            key={option.value}
+                                            className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all ${accessControl === option.value
+                                                ? 'border-[#1152d4] bg-[#eef2ff] dark:bg-[#1e3a8a]/20'
+                                                : 'border-[#cfd7e7] dark:border-[#4a5568] hover:border-[#1152d4]/30'
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="shared_access_control"
+                                                value={option.value}
+                                                checked={accessControl === option.value}
+                                                onChange={(e) => setAccessControl(e.target.value as any)}
+                                                className="size-4 text-[#1152d4] focus:ring-[#1152d4]"
+                                            />
+                                            <span className="material-symbols-outlined text-[18px] text-[#4c669a]">{option.icon}</span>
+                                            <div className="flex-1">
+                                                <span className="text-sm font-bold text-[#0d121b] dark:text-white">{option.label}</span>
+                                                <p className="text-[10px] text-[#8a9dbd]">{option.desc}</p>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+
+                                {accessControl === 'specific_twgs' && (
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-[#e7ebf3] dark:border-[#4a5568] space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
+                                        {allTwgs.map((twg: any) => (
+                                            <label key={twg.id} className="flex items-center gap-3 cursor-pointer group">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={sharedTwgIds.includes(twg.id)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            setSharedTwgIds(prev => [...prev, twg.id]);
+                                                        } else {
+                                                            setSharedTwgIds(prev => prev.filter(id => id !== twg.id));
+                                                        }
+                                                    }}
+                                                    className="size-4 rounded border-[#cfd7e7] text-[#1152d4] focus:ring-[#1152d4]"
+                                                />
+                                                <span className="text-sm font-bold text-[#4c669a] group-hover:text-[#1152d4] transition-colors">{twg.name}</span>
+                                            </label>
+                                        ))}
+                                        {sharedTwgIds.length > 0 && (
+                                            <p className="text-[10px] font-black text-[#1152d4] uppercase tracking-wider mt-2">
+                                                {sharedTwgIds.length} TWG{sharedTwgIds.length > 1 ? 's' : ''} selected
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {uploading && (
                             <div className="space-y-2">

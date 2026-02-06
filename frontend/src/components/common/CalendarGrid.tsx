@@ -112,7 +112,7 @@ export default function CalendarGrid({
             </div>
 
             {/* Days Grid */}
-            <div className="grid grid-cols-7 flex-1 auto-rows-[minmax(100px,auto)]">
+            <div className="grid grid-cols-7 flex-1 auto-rows-[1fr]">
                 {calendarDays.map((day) => {
                     const dayEvents = getEventsForDay(day);
                     const isCurrentMonth = isSameMonth(day, monthStart);
@@ -123,7 +123,7 @@ export default function CalendarGrid({
                             key={day.toString()}
                             onClick={() => onDateClick?.(day)}
                             className={`
-                                border-b border-r border-slate-100 dark:border-slate-700/50 p-2 relative group flex flex-col cursor-pointer transition-colors
+                                border-b border-r border-slate-100 dark:border-slate-700/50 p-2 relative group flex flex-col cursor-pointer transition-colors overflow-hidden
                                 ${!isCurrentMonth ? 'bg-slate-50/50 dark:bg-slate-900/30 text-slate-300 dark:text-slate-700' : 'bg-white dark:bg-slate-800 hover:bg-blue-50/10'}
                                 ${isTodayDate ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}
                             `}
@@ -138,7 +138,7 @@ export default function CalendarGrid({
                                 </span>
                             </div>
 
-                            <div className="space-y-1 flex-1">
+                            <div className="space-y-1 flex-1 overflow-y-auto min-h-0 scrollbar-thin">
                                 {dayEvents.map(event => (
                                     <div
                                         key={event.id}

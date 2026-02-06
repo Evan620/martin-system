@@ -153,9 +153,13 @@ export const auditLogs = {
 
 export const sharedDocuments = {
     list: () => api.get('/shared-documents/'),
-    upload: (file: File) => {
+    upload: (file: File, accessControl: string = 'all_twgs', sharedWithTwgIds?: string[]) => {
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('access_control', accessControl);
+        if (sharedWithTwgIds && sharedWithTwgIds.length > 0) {
+            formData.append('shared_with_twg_ids', sharedWithTwgIds.join(','));
+        }
         return api.post('/shared-documents/upload', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });

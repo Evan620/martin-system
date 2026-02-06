@@ -95,10 +95,10 @@ class ContinuousMonitor:
             replace_existing=True
         )
         
-        # 8. Google Drive Transcript Fallback (Every 2 minutes)
+        # 8. Google Drive Transcript Fallback (Every 60 minutes — webhook is primary)
         self.scheduler.add_job(
             self.check_drive_transcripts_fallback,
-            trigger=IntervalTrigger(minutes=2),
+            trigger=IntervalTrigger(minutes=60),
             id="drive_transcript_fallback",
             replace_existing=True
         )
@@ -403,8 +403,8 @@ class ContinuousMonitor:
     async def check_drive_transcripts_fallback(self):
         """
         Fallback system: Check Google Drive Meet Recordings folder for transcripts.
-        This catches meetings where Vexa wasn't admitted or failed to join.
-        Runs every 5 minutes (less aggressive than Vexa's 10-second polling).
+        This catches meetings where the primary webhook path missed a transcript.
+        Runs every 60 minutes (webhook is the primary delivery mechanism).
         """
         logger.info("Checking Google Drive for transcript fallbacks...")
         try:

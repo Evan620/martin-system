@@ -23,7 +23,7 @@ const NewProject: React.FC = () => {
   const pillars = [
     { value: 'Infrastructure', icon: 'train', color: 'blue' },
     { value: 'Energy', icon: 'solar_power', color: 'orange' },
-    { value: 'Agriculture', icon: 'agriculture', color: 'green' },
+    { value: 'Agribusiness and Food Systems Transformation', icon: 'agriculture', color: 'green' },
     { value: 'Technology', icon: 'computer', color: 'indigo' },
   ];
 
@@ -104,7 +104,7 @@ const NewProject: React.FC = () => {
           const pillarMap: Record<string, string> = {
             'Infrastructure': 'critical_minerals_industrialization',
             'Energy': 'energy_infrastructure',
-            'Agriculture': 'agriculture_food_systems',
+            'Agribusiness and Food Systems Transformation': 'agriculture_food_systems',
             'Technology': 'digital_economy_transformation',
           };
 

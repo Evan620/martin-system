@@ -1,0 +1,4 @@
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="Test Document.pdf"
+
+(Fake PDF Content)

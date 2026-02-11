@@ -24,7 +24,7 @@ const EditProject: React.FC = () => {
     const pillars = [
         { value: 'Infrastructure', icon: 'train', color: 'blue' },
         { value: 'Energy', icon: 'solar_power', color: 'orange' },
-        { value: 'Agriculture', icon: 'agriculture', color: 'green' },
+        { value: 'Agribusiness and Food Systems Transformation', icon: 'agriculture', color: 'green' },
         { value: 'Technology', icon: 'computer', color: 'indigo' },
     ];
 

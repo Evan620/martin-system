@@ -76,9 +76,11 @@ export const documentService = {
         const contentDisposition = response.headers['content-disposition'];
         let filename = 'document';
         if (contentDisposition) {
-            const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
-            if (filenameMatch && filenameMatch.length > 1) {
-                filename = filenameMatch[1];
+            // Updated regex to handle filename* and filenames with/without quotes more robustly
+            // Matches: filename="name.ext" or filename=name.ext
+            const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1].replace(/['"]/g, '');
             }
         }
 

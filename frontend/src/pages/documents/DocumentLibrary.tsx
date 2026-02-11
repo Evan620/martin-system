@@ -711,7 +711,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                             {isAdmin ? (
                                                 <>
                                                     <option value="energy">Energy & Infrastructure</option>
-                                                    <option value="agriculture">Agriculture & Food Systems</option>
+                                                    <option value="agriculture">Agribusiness and Food Systems Transformation</option>
                                                     <option value="minerals">Critical Minerals & Industrialization</option>
                                                     <option value="digital">Digital Economy & Transformation</option>
                                                 </>

@@ -18,7 +18,7 @@ async def seed_twgs():
             "status": "active"
         },
         {
-            "name": "Agriculture & Food Systems TWG",
+            "name": "Agribusiness and Food Systems Transformation",
             "pillar": TWGPillar.agriculture_food_systems,
             "status": "active"
         },

@@ -45,7 +45,7 @@ const ProjectMemo: React.FC = () => {
     '#ECW-2024-088': {
       id: '#ECW-2024-088',
       name: 'Agribusiness Hub',
-      pillar: 'Agriculture',
+      pillar: 'Agribusiness and Food Systems Transformation',
       fundingAsk: '$85M',
       leadCountry: "Côte d'Ivoire",
     },

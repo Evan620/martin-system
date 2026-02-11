@@ -214,3 +214,219 @@ async def update_twg(
     # Refresh with eager loading to ensure relationships are loaded
     await db.refresh(db_twg, attribute_names=['political_lead', 'technical_lead', 'action_items', 'documents', 'members'])
     return db_twg
+
+
+# --- TWG Member Management Endpoints ---
+
+async def _check_twg_management_access(twg_id: uuid.UUID, current_user: User, db: AsyncSession) -> TWG:
+    """
+    Verify user has management access to a TWG (admin, facilitator of this TWG, or lead).
+    Returns the TWG object if access is granted.
+    """
+    result = await db.execute(
+        select(TWG)
+        .options(selectinload(TWG.members), selectinload(TWG.political_lead), selectinload(TWG.technical_lead))
+        .where(TWG.id == twg_id)
+    )
+    twg = result.scalar_one_or_none()
+    if not twg:
+        raise HTTPException(status_code=404, detail="TWG not found")
+
+    # Admins and secretariat leads can manage any TWG
+    if current_user.role in [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]:
+        return twg
+
+    # Facilitators can manage TWGs they are assigned to
+    user_twg_ids = [t.id for t in current_user.twgs]
+    is_member = twg_id in user_twg_ids
+
+    # Check if user is a lead of this TWG
+    is_lead = (
+        (twg.political_lead_id and twg.political_lead_id == current_user.id) or
+        (twg.technical_lead_id and twg.technical_lead_id == current_user.id)
+    )
+
+    if current_user.role == UserRole.TWG_FACILITATOR and is_member:
+        return twg
+    if is_lead:
+        return twg
+
+    raise HTTPException(status_code=403, detail="You do not have permission to manage members of this TWG")
+
+
+@router.get("/{twg_id}/members")
+async def list_twg_members(
+    twg_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    List all members of a TWG.
+    Accessible to any member of the TWG, facilitators, and admins.
+    """
+    # Any TWG member can view the list (not just managers)
+    from app.api.deps import require_twg_access
+    await require_twg_access(twg_id, current_user, db)
+
+    result = await db.execute(
+        select(TWG)
+        .options(selectinload(TWG.members))
+        .where(TWG.id == twg_id)
+    )
+    twg = result.scalar_one_or_none()
+    if not twg:
+        raise HTTPException(status_code=404, detail="TWG not found")
+
+    return [
+        {
+            "id": str(m.id),
+            "full_name": m.full_name,
+            "email": m.email,
+            "role": m.role.value,
+            "organization": m.organization,
+            "is_active": m.is_active,
+            "is_political_lead": twg.political_lead_id == m.id if twg.political_lead_id else False,
+            "is_technical_lead": twg.technical_lead_id == m.id if twg.technical_lead_id else False,
+        }
+        for m in twg.members
+    ]
+
+
+from pydantic import BaseModel
+import secrets
+
+class AddMemberRequest(BaseModel):
+    email: str
+    full_name: str = ""  # Required when creating a new user
+
+
+@router.post("/{twg_id}/members", status_code=status.HTTP_201_CREATED)
+async def add_twg_member(
+    twg_id: uuid.UUID,
+    body: AddMemberRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Add a member to a TWG by email.
+    If the user doesn't exist, facilitators/admins can auto-create them as a TWG_MEMBER.
+    """
+    from app.utils.security import hash_password
+
+    twg = await _check_twg_management_access(twg_id, current_user, db)
+
+    # Find user by email
+    email = body.email.strip().lower()
+    result = await db.execute(
+        select(User).where(User.email == email).options(selectinload(User.twgs))
+    )
+    user_to_add = result.scalar_one_or_none()
+    created_new = False
+
+    if not user_to_add:
+        # Auto-create the user as TWG_MEMBER
+        if not body.full_name.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="full_name is required when adding a new user who is not yet registered."
+            )
+
+        temp_password = secrets.token_urlsafe(16)
+        user_to_add = User(
+            full_name=body.full_name.strip(),
+            email=email,
+            hashed_password=hash_password(temp_password),
+            role=UserRole.TWG_MEMBER,
+            is_active=True,
+        )
+        db.add(user_to_add)
+        await db.flush()  # Get the ID assigned
+        created_new = True
+
+    # Check if already a member
+    member_ids = [m.id for m in twg.members]
+    if user_to_add.id in member_ids:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{user_to_add.full_name} is already a member of this TWG."
+        )
+
+    # Add to TWG
+    twg.members.append(user_to_add)
+    await db.commit()
+
+    # Send invitation email for newly created users
+    invite_sent = False
+    if created_new:
+        try:
+            from app.services.email_service import email_service
+            from app.core.config import settings
+
+            login_url = settings.FRONTEND_URL
+            await email_service.send_user_invite(
+                to_email=email,
+                full_name=user_to_add.full_name,
+                password=temp_password,
+                role=user_to_add.role.value,
+                login_url=login_url
+            )
+            invite_sent = True
+        except Exception as e:
+            print(f"[TWG Members] Failed to send invite email to {email}: {e}")
+
+    msg = f"{user_to_add.full_name} has been added to {twg.name}."
+    if created_new:
+        msg = f"New account created for {user_to_add.full_name} ({email}) and added to {twg.name}."
+        if invite_sent:
+            msg += " An invitation email has been sent."
+        else:
+            msg += " (Email invitation could not be sent — share the login details manually.)"
+
+    return {
+        "message": msg,
+        "created_new": created_new,
+        "member": {
+            "id": str(user_to_add.id),
+            "full_name": user_to_add.full_name,
+            "email": user_to_add.email,
+            "role": user_to_add.role.value,
+            "organization": user_to_add.organization,
+        }
+    }
+
+
+@router.delete("/{twg_id}/members/{user_id}", status_code=status.HTTP_200_OK)
+async def remove_twg_member(
+    twg_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Remove a member from a TWG.
+    Cannot remove yourself or a TWG lead.
+    """
+    twg = await _check_twg_management_access(twg_id, current_user, db)
+
+    # Prevent removing yourself
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot remove yourself from the TWG.")
+
+    # Prevent removing leads
+    if twg.political_lead_id == user_id or twg.technical_lead_id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot remove a TWG lead. Change the lead assignment first.")
+
+    # Find the member
+    member_to_remove = None
+    for m in twg.members:
+        if m.id == user_id:
+            member_to_remove = m
+            break
+
+    if not member_to_remove:
+        raise HTTPException(status_code=404, detail="User is not a member of this TWG.")
+
+    twg.members.remove(member_to_remove)
+    await db.commit()
+
+    return {"message": f"{member_to_remove.full_name} has been removed from {twg.name}."}

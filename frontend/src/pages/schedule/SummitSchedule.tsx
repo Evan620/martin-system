@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useSelector } from 'react-redux'
+import { RootState } from '../../store'
+import { UserRole } from '../../types/auth'
 import { meetings } from '../../services/api'
 import CreateMeetingModal from '../../components/schedule/CreateMeetingModal'
 import CalendarGrid, { CalendarEvent } from '../../components/common/CalendarGrid'
@@ -8,6 +11,8 @@ import CalendarGrid, { CalendarEvent } from '../../components/common/CalendarGri
 
 export default function SummitSchedule() {
     const navigate = useNavigate()
+    const user = useSelector((state: RootState) => state.auth.user)
+    const canCreateMeetings = user?.role === UserRole.ADMIN || user?.role === UserRole.SECRETARIAT_LEAD || user?.role === UserRole.FACILITATOR
     const [events, setEvents] = useState<CalendarEvent[]>([])
     const [loading, setLoading] = useState(true)
     const [currentDate, setCurrentDate] = useState(new Date())
@@ -39,6 +44,7 @@ export default function SummitSchedule() {
     }
 
     const handleDayClick = (day: Date) => {
+        if (!canCreateMeetings) return
         setSelectedDate(day)
         setIsCreatingMeeting(true)
     }
@@ -64,15 +70,17 @@ export default function SummitSchedule() {
             </div>
 
             {/* Create Meeting Modal */}
-            <CreateMeetingModal
-                isOpen={isCreatingMeeting}
-                onClose={() => {
-                    setIsCreatingMeeting(false)
-                    setSelectedDate(null)
-                }}
-                onSuccess={loadMeetings}
-                prefilledDate={selectedDate}
-            />
+            {canCreateMeetings && (
+                <CreateMeetingModal
+                    isOpen={isCreatingMeeting}
+                    onClose={() => {
+                        setIsCreatingMeeting(false)
+                        setSelectedDate(null)
+                    }}
+                    onSuccess={loadMeetings}
+                    prefilledDate={selectedDate}
+                />
+            )}
         </div>
     )
 }

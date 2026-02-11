@@ -12,6 +12,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
     const [loading, setLoading] = useState(true)
     const [uploading, setUploading] = useState(false)
     const [ingesting, setIngesting] = useState<string | null>(null)
+    const [downloading, setDownloading] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [searchResults, setSearchResults] = useState<SearchResult[]>([])
     const [isSearching, setIsSearching] = useState(false)
@@ -215,9 +216,12 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
 
     const handleDownload = async (docId: string) => {
         try {
+            setDownloading(docId)
             await documentService.downloadDocument(docId)
         } catch (error) {
             console.error('Download failed:', error)
+        } finally {
+            setDownloading(null)
         }
     }
 
@@ -532,12 +536,17 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                 <td className="px-6 py-5">
                                                     <button
                                                         onClick={() => handleDownload(doc.id)}
-                                                        className="flex items-center gap-4 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg p-2 -ml-2 -my-1 transition-all cursor-pointer group"
+                                                        disabled={downloading === doc.id}
+                                                        className="flex items-center gap-4 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg p-2 -ml-2 -my-1 transition-all cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
                                                     >
                                                         <div className="size-10 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-[#4c669a] group-hover:bg-[#1152d4] group-hover:text-white transition-all">
-                                                            <span className="material-symbols-outlined text-[20px]">
-                                                                {doc.file_name.endsWith('.pdf') ? 'picture_as_pdf' : 'description'}
-                                                            </span>
+                                                            {downloading === doc.id ? (
+                                                                <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                                                            ) : (
+                                                                <span className="material-symbols-outlined text-[20px]">
+                                                                    {doc.file_name.endsWith('.pdf') ? 'picture_as_pdf' : 'description'}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <div className="text-left">
                                                             <p className="font-bold text-[#0d121b] dark:text-white mb-0.5 group-hover:text-[#1152d4] transition-colors">{doc.file_name}</p>
@@ -588,10 +597,15 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                 <td className="px-6 py-5 text-right flex justify-end gap-1">
                                                     <button
                                                         onClick={() => handleDownload(doc.id)}
-                                                        className="p-2 text-[#8a9dbd] hover:text-[#1152d4] transition-colors"
+                                                        disabled={downloading === doc.id}
+                                                        className={`p-2 transition-colors ${downloading === doc.id ? 'text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#1152d4]'}`}
                                                         title="Download"
                                                     >
-                                                        <span className="material-symbols-outlined text-[18px]">download</span>
+                                                        {downloading === doc.id ? (
+                                                            <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
+                                                        ) : (
+                                                            <span className="material-symbols-outlined text-[18px]">download</span>
+                                                        )}
                                                     </button>
                                                     <button
                                                         onClick={() => handleDelete(doc.id)}

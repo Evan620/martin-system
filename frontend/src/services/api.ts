@@ -145,6 +145,9 @@ export const twgs = {
     list: (skip = 0, limit = 100) => api.get(`/twgs/?skip=${skip}&limit=${limit}`),
     get: (id: string) => api.get(`/twgs/${id}`),
     update: (id: string, data: any) => api.patch(`/twgs/${id}`, data),
+    listMembers: (twgId: string) => api.get(`/twgs/${twgId}/members`),
+    addMember: (twgId: string, email: string, fullName?: string) => api.post(`/twgs/${twgId}/members`, { email, full_name: fullName || '' }),
+    removeMember: (twgId: string, userId: string) => api.delete(`/twgs/${twgId}/members/${userId}`),
 };
 
 export const auditLogs = {

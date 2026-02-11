@@ -164,6 +164,26 @@ export const sharedDocuments = {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
     },
+    addLink: (driveUrl: string, accessControl: string = 'all_twgs', sharedWithTwgIds?: string[]) => {
+        const formData = new FormData();
+        formData.append('drive_url', driveUrl);
+        formData.append('access_control', accessControl);
+        if (sharedWithTwgIds && sharedWithTwgIds.length > 0) {
+            formData.append('shared_with_twg_ids', sharedWithTwgIds.join(','));
+        }
+        return api.post('/shared-documents/add-link', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+    setPermissions: (fileId: string, emails: string, permissionRole: string = 'viewer') => {
+        const formData = new FormData();
+        formData.append('file_id', fileId);
+        formData.append('emails', emails);
+        formData.append('permission_role', permissionRole);
+        return api.post('/shared-documents/set-permissions', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
     delete: (fileId: string) => api.delete(`/shared-documents/${fileId}`),
 };
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { sharedDocuments } from '../../services/api';
+import { sharedDocuments, twgs as twgService } from '../../services/api';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import SharedDocumentsManager from '../admin/SharedDocumentsManager';
@@ -13,6 +13,8 @@ interface CoreFile {
     thumbnailLink?: string;
     modifiedTime: string;
     size?: number;
+    access_control?: string;
+    scope?: string[];
 }
 
 const CoreWorkspace = () => {
@@ -22,9 +24,14 @@ const CoreWorkspace = () => {
     const [error, setError] = useState<string | null>(null);
     const [showUpload, setShowUpload] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [allTwgs, setAllTwgs] = useState<any[]>([]);
+    const [userLedTwgIds, setUserLedTwgIds] = useState<string[]>([]);
 
     const user = useSelector((state: RootState) => state.auth.user);
     const isAdmin = user?.role === 'ADMIN' || user?.role === 'SECRETARIAT_LEAD';
+    const isFacilitator = user?.role === 'TWG_FACILITATOR';
+    const isTwgLead = userLedTwgIds.length > 0;
+    const canUpload = isAdmin || isFacilitator || isTwgLead;
 
     const loadFiles = async () => {
         setLoading(true);
@@ -44,6 +51,39 @@ const CoreWorkspace = () => {
     useEffect(() => {
         loadFiles();
     }, []);
+
+    useEffect(() => {
+        const fetchTwgs = async () => {
+            try {
+                const response = await twgService.list();
+                setAllTwgs(response.data);
+
+                // Check if user is a TWG lead (political or technical lead)
+                const ledTwgIds: string[] = [];
+                const userId = String(user?.id || '');
+
+                console.log('Checking TWG lead status for user:', userId);
+
+                response.data.forEach((twg: any) => {
+                    const politicalLeadId = String(twg.political_lead?.id || '');
+                    const technicalLeadId = String(twg.technical_lead?.id || '');
+
+                    console.log(`TWG: ${twg.name}, political_lead_id: ${politicalLeadId}, technical_lead_id: ${technicalLeadId}`);
+
+                    if (politicalLeadId === userId || technicalLeadId === userId) {
+                        ledTwgIds.push(twg.id);
+                        console.log(`User is lead of TWG: ${twg.name}`);
+                    }
+                });
+
+                setUserLedTwgIds(ledTwgIds);
+                console.log('Final ledTwgIds:', ledTwgIds);
+            } catch (err) {
+                console.error('Failed to fetch TWGs:', err);
+            }
+        };
+        fetchTwgs();
+    }, [user?.id]);
 
     const handleDelete = async (fileId: string, fileName: string, e: React.MouseEvent) => {
         e.preventDefault(); // Prevent opening the link
@@ -109,7 +149,7 @@ const CoreWorkspace = () => {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {isAdmin && (
+                    {canUpload && (
                         <button
                             onClick={() => setShowUpload(!showUpload)}
                             className={`p-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${showUpload ? 'bg-red-50 text-red-600' : 'bg-[#1152d4] text-white hover:bg-[#0d3ea8]'}`}
@@ -141,7 +181,7 @@ const CoreWorkspace = () => {
             </div>
 
             {/* Admin Upload Section - Conditional */}
-            {showUpload && isAdmin && (
+            {showUpload && canUpload && (
                 <div className="p-6 border-b border-[#e7ebf3] dark:border-[#2d3748] bg-blue-50/20 dark:bg-blue-900/10 animate-in slide-in-from-top-2">
                     <SharedDocumentsManager onUploadSuccess={handleUploadSuccess} />
                 </div>
@@ -163,7 +203,7 @@ const CoreWorkspace = () => {
                     <div className="text-center py-12 border-2 border-dashed border-[#cfd7e7] rounded-xl bg-gray-50/50">
                         <span className="material-symbols-outlined text-4xl text-[#8a9dbd] mb-2">folder_off</span>
                         <p className="text-[#8a9dbd] font-bold">No core documents found.</p>
-                        {isAdmin && !showUpload && (
+                        {canUpload && !showUpload && (
                             <button onClick={() => setShowUpload(true)} className="mt-4 text-xs font-bold text-[#1152d4] hover:underline uppercase">
                                 Upload First Document
                             </button>
@@ -198,6 +238,34 @@ const CoreWorkspace = () => {
                                             {file.size && (
                                                 <div className="text-[10px] text-gray-600 mt-1">
                                                     {formatFileSize(file.size)}
+                                                </div>
+                                            )}
+                                            {/* TWG Tags */}
+                                            {file.access_control === 'specific_twgs' && file.scope && file.scope.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-2">
+                                                    {file.scope.slice(0, 3).map((twgId) => {
+                                                        const twg = allTwgs.find(t => t.id === twgId);
+                                                        if (!twg) return null;
+                                                        return (
+                                                            <span key={twgId} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                                                <span className="material-symbols-outlined text-[10px]">group</span>
+                                                                {twg.name}
+                                                            </span>
+                                                        );
+                                                    })}
+                                                    {file.scope.length > 3 && (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-[9px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                                                            +{file.scope.length - 3}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {file.access_control === 'all_twgs' && (
+                                                <div className="flex flex-wrap gap-1 mt-2">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-900/20 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                                                        <span className="material-symbols-outlined text-[10px]">public</span>
+                                                        All TWGs
+                                                    </span>
                                                 </div>
                                             )}
                                         </a>
@@ -236,10 +304,38 @@ const CoreWorkspace = () => {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-bold text-[#0d121b] group-hover:text-[#1152d4] transition-colors truncate">{file.name}</p>
-                                                <p className="text-[10px] font-bold text-[#8a9dbd] uppercase tracking-wider">
-                                                    Modified {new Date(file.modifiedTime).toLocaleDateString()}
-                                                    {file.size && ` • ${formatFileSize(file.size)}`}
-                                                </p>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <p className="text-[10px] font-bold text-[#8a9dbd] uppercase tracking-wider">
+                                                        Modified {new Date(file.modifiedTime).toLocaleDateString()}
+                                                        {file.size && ` • ${formatFileSize(file.size)}`}
+                                                    </p>
+                                                    {/* TWG Tags for List View */}
+                                                    {file.access_control === 'specific_twgs' && file.scope && file.scope.length > 0 && (
+                                                        <div className="flex items-center gap-1">
+                                                            {file.scope.slice(0, 2).map((twgId) => {
+                                                                const twg = allTwgs.find(t => t.id === twgId);
+                                                                if (!twg) return null;
+                                                                return (
+                                                                    <span key={twgId} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                                                        <span className="material-symbols-outlined text-[10px]">group</span>
+                                                                        {twg.name}
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                            {file.scope.length > 2 && (
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-[9px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                                                                    +{file.scope.length - 2}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {file.access_control === 'all_twgs' && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-900/20 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                                                            <span className="material-symbols-outlined text-[10px]">public</span>
+                                                            All TWGs
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                             <span className="material-symbols-outlined text-[#8a9dbd] group-hover:text-[#1152d4] opacity-0 group-hover:opacity-100 transition-all ml-4">open_in_new</span>
                                         </a>

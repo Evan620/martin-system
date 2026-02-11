@@ -29,6 +29,8 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const [selectedTwgId, setSelectedTwgId] = useState<string>(twgId || '')
     const [isConfidential, setIsConfidential] = useState(false)
+    const [selectedDocType, setSelectedDocType] = useState<string>('')
+    const [customDocType, setCustomDocType] = useState<string>('')
 
 
     // Selection & Pagination State
@@ -108,9 +110,12 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
     const handleUpload = async () => {
         if (!selectedFile) return
 
+        // Determine final document type
+        const finalDocType = selectedDocType === 'Other' ? customDocType : selectedDocType
+
         try {
             setUploading(true)
-            const response = await documentService.uploadDocument(selectedFile, selectedTwgId || undefined, isConfidential)
+            const response = await documentService.uploadDocument(selectedFile, selectedTwgId || undefined, isConfidential, finalDocType || undefined)
             // Transition to ingestion steps
             setUploadedDocId(response.id)
             setUploadStep('ready_to_ingest')
@@ -119,6 +124,8 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
             setSelectedFile(null)
             setSelectedTwgId('')
             setIsConfidential(false)
+            setSelectedDocType('')
+            setCustomDocType('')
             fetchData() // Refresh list background
         } catch (error) {
             console.error('Upload failed:', error)
@@ -231,6 +238,19 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
         setCurrentPage(1);
     }, [activeLibraryTab, selectedDocTypes, selectedLabels, searchQuery]);
 
+    // Helper function to get document type (from stored metadata or auto-detect)
+    const getDocumentType = (doc: Document): string => {
+        // Check if document_type is stored in metadata_json
+        if (doc.metadata_json?.document_type) {
+            return doc.metadata_json.document_type;
+        }
+        // Fall back to auto-detection from filename
+        return doc.file_name.toLowerCase().includes('minutes') ? 'Meeting Minutes' :
+            doc.file_name.toLowerCase().includes('policy') ? 'Policy Drafts' :
+                doc.file_name.toLowerCase().includes('budget') ? 'Reports' :
+                    doc.file_name.toLowerCase().includes('presentation') ? 'Presentations' : 'Legal Documents';
+    };
+
     // Filtered documents for display
     const filteredAndSortedDocuments = documents.filter(doc => {
         // Library tab filter
@@ -241,10 +261,8 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
             if (docDate < sevenDaysAgo) return false;
         }
 
-        // Simple type mapping
-        const docType = doc.file_name.toLowerCase().includes('minutes') ? 'Meeting Minutes' :
-            doc.file_name.toLowerCase().includes('policy') ? 'Policy Drafts' :
-                doc.file_name.toLowerCase().includes('budget') ? 'Reports' : 'Legal Documents';
+        // Get document type from stored metadata or auto-detect
+        const docType = getDocumentType(doc);
 
         const typeMatch = selectedDocTypes.length === 0 || selectedDocTypes.includes(docType);
 
@@ -512,17 +530,20 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                     />
                                                 </td>
                                                 <td className="px-6 py-5">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="size-10 rounded-lg bg-gray-50 flex items-center justify-center text-[#4c669a] group-hover:bg-[#1152d4] group-hover:text-white transition-all">
+                                                    <button
+                                                        onClick={() => handleDownload(doc.id)}
+                                                        className="flex items-center gap-4 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg p-2 -ml-2 -my-1 transition-all cursor-pointer group"
+                                                    >
+                                                        <div className="size-10 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-[#4c669a] group-hover:bg-[#1152d4] group-hover:text-white transition-all">
                                                             <span className="material-symbols-outlined text-[20px]">
                                                                 {doc.file_name.endsWith('.pdf') ? 'picture_as_pdf' : 'description'}
                                                             </span>
                                                         </div>
-                                                        <div>
-                                                            <p className="font-bold text-[#0d121b] dark:text-white mb-0.5">{doc.file_name}</p>
-                                                            <p className="text-[10px] font-bold text-[#8a9dbd] uppercase">{doc.file_name.toLowerCase().includes('minutes') ? 'Meeting Minutes' : 'Policy Draft'}</p>
+                                                        <div className="text-left">
+                                                            <p className="font-bold text-[#0d121b] dark:text-white mb-0.5 group-hover:text-[#1152d4] transition-colors">{doc.file_name}</p>
+                                                            <p className="text-[10px] font-bold text-[#8a9dbd] uppercase">{getDocumentType(doc)}</p>
                                                         </div>
-                                                    </div>
+                                                    </button>
                                                 </td>
                                                 <td className="px-6 py-5 text-center">
                                                     {doc.twg ? (
@@ -568,9 +589,9 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                     <button
                                                         onClick={() => handleDownload(doc.id)}
                                                         className="p-2 text-[#8a9dbd] hover:text-[#1152d4] transition-colors"
-                                                        title="View/Download"
+                                                        title="Download"
                                                     >
-                                                        <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                                        <span className="material-symbols-outlined text-[18px]">download</span>
                                                     </button>
                                                     <button
                                                         onClick={() => handleDelete(doc.id)}
@@ -638,6 +659,8 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                 setShowUploadModal(false);
                                 setUploadStep('initial');
                                 setSelectedFile(null);
+                                setSelectedDocType('');
+                                setCustomDocType('');
                             }} className="text-[#8a9dbd] hover:text-red-600 transition-colors">
                                 <span className="material-symbols-outlined">close</span>
                             </button>
@@ -684,6 +707,32 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                 ))
                                             )}
                                         </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider mb-2">Document Type</label>
+                                        <select
+                                            value={selectedDocType}
+                                            onChange={(e) => setSelectedDocType(e.target.value)}
+                                            className="w-full px-4 py-3 rounded-xl border border-[#cfd7e7] dark:border-[#4a5568] bg-white dark:bg-[#2d3748] text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 appearance-none transition-all text-[#4c669a]"
+                                        >
+                                            <option value="" disabled>Select document type...</option>
+                                            <option value="Meeting Minutes">Meeting Minutes</option>
+                                            <option value="Policy Drafts">Policy Drafts</option>
+                                            <option value="Reports">Reports</option>
+                                            <option value="Legal Documents">Legal Documents</option>
+                                            <option value="Presentations">Presentations</option>
+                                            <option value="Other">Other (specify below)</option>
+                                        </select>
+                                        {selectedDocType === 'Other' && (
+                                            <input
+                                                type="text"
+                                                value={customDocType}
+                                                onChange={(e) => setCustomDocType(e.target.value)}
+                                                placeholder="Enter document type..."
+                                                className="mt-2 w-full px-4 py-3 rounded-xl border border-[#cfd7e7] dark:border-[#4a5568] bg-white dark:bg-[#2d3748] text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 transition-all text-[#4c669a]"
+                                            />
+                                        )}
                                     </div>
 
                                     <div className="flex items-center gap-4 p-4 bg-red-50/50 dark:bg-red-900/10 rounded-2xl border border-red-50 dark:border-red-900/30">
@@ -734,6 +783,8 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                         onClick={() => {
                                             setShowUploadModal(false);
                                             setUploadStep('initial');
+                                            setSelectedDocType('');
+                                            setCustomDocType('');
                                         }}
                                         className="text-sm font-bold text-[#8a9dbd] hover:text-[#4c669a]"
                                     >
@@ -772,6 +823,8 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                         onClick={() => {
                                             setShowUploadModal(false);
                                             setUploadStep('initial');
+                                            setSelectedDocType('');
+                                            setCustomDocType('');
                                             fetchData();
                                         }}
                                         className="w-full py-4 bg-[#1152d4] hover:bg-[#0d3ea8] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/30 transition-all active:scale-[0.98]"

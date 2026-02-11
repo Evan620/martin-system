@@ -35,11 +35,12 @@ export interface SearchResult {
 }
 
 export const documentService = {
-    uploadDocument: async (file: File, twgId?: string, isConfidential: boolean = false): Promise<Document> => {
+    uploadDocument: async (file: File, twgId?: string, isConfidential: boolean = false, documentType?: string): Promise<Document> => {
         const formData = new FormData();
         formData.append('file', file);
         if (twgId) formData.append('twg_id', twgId);
         formData.append('is_confidential', String(isConfidential));
+        if (documentType) formData.append('document_type', documentType);
 
         const response = await api.post<Document>('/documents/upload', formData, {
             headers: {

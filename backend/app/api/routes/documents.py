@@ -219,13 +219,14 @@ async def list_documents(
                 count_query = count_query.where(filter_condition)
                 query = query.where(filter_condition)
         
-        # Exclude transcripts/recordings from the document library — they live on their meeting pages
-        transcript_types = ("transcript", "transcript_placeholder")
+        # Exclude transcripts/recordings and Core Workspace documents from the document library
+        # Transcripts live on their meeting pages; Core Workspace has its own tab
+        excluded_types = ("transcript", "transcript_placeholder", "shared_workspace")
         count_query = count_query.where(
-            or_(Document.document_type.notin_(transcript_types), Document.document_type.is_(None))
+            or_(Document.document_type.notin_(excluded_types), Document.document_type.is_(None))
         )
         query = query.where(
-            or_(Document.document_type.notin_(transcript_types), Document.document_type.is_(None))
+            or_(Document.document_type.notin_(excluded_types), Document.document_type.is_(None))
         )
 
         # Execute count

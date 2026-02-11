@@ -128,14 +128,32 @@ async def google_login(
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get current authenticated user profile.
-    
+
     Requires valid access token in Authorization header.
     """
-    return UserResponse.model_validate(current_user)
+    # Ensure twgs relationship is loaded and compute twg_ids explicitly
+    await db.refresh(current_user, attribute_names=['twgs'])
+    twg_ids = [str(twg.id) for twg in current_user.twgs]
+
+    # Return dict directly to avoid Pydantic model immutability issues
+    # FastAPI will serialize this to UserResponse schema
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "role": current_user.role,
+        "organization": current_user.organization,
+        "is_active": current_user.is_active,
+        "last_login": current_user.last_login,
+        "created_at": current_user.created_at,
+        "twg_ids": twg_ids,
+        "twgs": [{"id": str(twg.id), "name": twg.name} for twg in current_user.twgs]
+    }
 
 
 @router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)

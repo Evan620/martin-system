@@ -282,13 +282,15 @@ class DriveService:
         """
         List files in the Shared Documents folder.
         Returns metadata including webViewLink to open in Drive.
+        Handles both regular files and shortcuts.
         Blocking call - should be run in thread.
         """
         if not self._setup_credentials():
             return []
 
         folder_id = SHARED_DOCUMENTS_FOLDER_ID
-        
+
+        # Query for both files and shortcuts
         query = (
             f"'{folder_id}' in parents and "
             "trashed = false"
@@ -296,34 +298,125 @@ class DriveService:
 
         try:
             with self._api_lock:
+                # Request additional fields for shortcuts
                 results = self.service.files().list(
                     q=query,
                     pageSize=100,
                     orderBy='modifiedTime desc',
-                    fields="nextPageToken, files(id, name, mimeType, webViewLink, iconLink, modifiedTime, thumbnailLink, size)"
+                    fields="nextPageToken, files(id, name, mimeType, webViewLink, iconLink, modifiedTime, thumbnailLink, size, shortcutDetails)"
                 ).execute(num_retries=3)
-                
+
                 items = results.get('files', [])
-            logger.info(f"Found {len(items)} files in Shared Documents folder")
-            return items
+
+            # Resolve shortcuts and track seen file IDs to avoid duplicates
+            resolved_items = []
+            seen_file_ids = set()  # Track target file IDs we've already added
+
+            for item in items:
+                # Check if this is a shortcut
+                if item.get('mimeType') == 'application/vnd.google-apps.shortcut':
+                    # Get the target file ID from shortcut details
+                    shortcut_details = item.get('shortcutDetails', {})
+                    target_id = shortcut_details.get('targetId')
+
+                    if target_id:
+                        # Skip if we've already seen this target file
+                        if target_id in seen_file_ids:
+                            logger.debug(f"Skipping duplicate shortcut for target {target_id}")
+                            continue
+
+                        # Get the actual file metadata
+                        target_file = self.get_file_metadata(target_id)
+                        if target_file:
+                            # Use the target file's metadata but keep shortcut info
+                            target_file['shortcut_id'] = item['id']
+                            target_file['is_shortcut'] = True
+                            target_file['shortcut_modified_time'] = item.get('modifiedTime')
+                            resolved_items.append(target_file)
+                            seen_file_ids.add(target_id)
+                            logger.debug(f"Resolved shortcut '{item.get('name')}' to target '{target_file.get('name')}'")
+                        else:
+                            # If we can't resolve, skip this shortcut
+                            logger.warning(f"Could not resolve shortcut '{item.get('name')}' to target {target_id}")
+                    else:
+                        # Malformed shortcut, skip
+                        logger.warning(f"Malformed shortcut found: '{item.get('name')}'")
+                else:
+                    # Regular file - check if we've seen it as a shortcut target already
+                    file_id = item.get('id')
+                    if file_id in seen_file_ids:
+                        logger.debug(f"Skipping file {file_id} (already added via shortcut)")
+                        continue
+
+                    resolved_items.append(item)
+                    seen_file_ids.add(file_id)
+
+            logger.info(f"Found {len(resolved_items)} unique items in Shared Documents folder ({len(items)} raw)")
+            return resolved_items
+
         except Exception as e:
             logger.error(f"Error listing Shared Documents files: {e}")
             return []
+
+    def find_shortcut_to_file(self, target_file_id: str) -> Optional[str]:
+        """
+        Find a shortcut in the Shared Documents folder that points to the target file.
+        Blocking call - should be run in thread.
+
+        Args:
+            target_file_id: The target file ID to find shortcuts for
+
+        Returns:
+            Shortcut ID if found, None otherwise
+        """
+        if not self._setup_credentials():
+            return None
+
+        folder_id = SHARED_DOCUMENTS_FOLDER_ID
+
+        # Query for shortcuts in the shared folder
+        query = (
+            f"'{folder_id}' in parents and "
+            "trashed = false and "
+            "mimeType = 'application/vnd.google-apps.shortcut'"
+        )
+
+        try:
+            with self._api_lock:
+                results = self.service.files().list(
+                    q=query,
+                    pageSize=100,
+                    fields="files(id, name, shortcutDetails)"
+                ).execute(num_retries=3)
+
+                items = results.get('files', [])
+
+            # Find shortcut that points to our target file
+            for item in items:
+                shortcut_details = item.get('shortcutDetails', {})
+                if shortcut_details.get('targetId') == target_file_id:
+                    return item['id']
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error finding shortcut for file {target_file_id}: {e}")
+            return None
 
     def delete_file_from_drive(self, file_id: str) -> bool:
         """
         Delete a file from Google Drive.
         Blocking call - should be run in thread.
-        
+
         Args:
             file_id: Google Drive file ID
-            
+
         Returns:
             True if successful, False otherwise
         """
         if not self._setup_credentials():
             return False
-        
+
         try:
             with self._api_lock:
                 self.service.files().delete(fileId=file_id).execute()
@@ -331,6 +424,156 @@ class DriveService:
             return True
         except Exception as e:
             logger.error(f"Error deleting file {file_id} from Google Drive: {e}")
+            return False
+
+    def extract_file_id_from_url(self, url: str) -> Optional[str]:
+        """
+        Extract Google Drive file ID from various URL formats.
+        Supports:
+        - https://drive.google.com/file/d/FILE_ID/view
+        - https://drive.google.com/open?id=FILE_ID
+        - https://docs.google.com/document/d/FILE_ID/edit
+        - https://docs.google.com/spreadsheets/d/FILE_ID/edit
+        - https://docs.google.com/presentation/d/FILE_ID/edit
+        """
+        import re
+
+        # Pattern 1: /d/{FILE_ID}/
+        match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
+        if match:
+            return match.group(1)
+
+        # Pattern 2: ?id={FILE_ID}
+        match = re.search(r'[?&]id=([a-zA-Z0-9_-]+)', url)
+        if match:
+            return match.group(1)
+
+        return None
+
+    def get_file_metadata(self, file_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get metadata for a Google Drive file.
+        Blocking call - should be run in thread.
+
+        Args:
+            file_id: Google Drive file ID
+
+        Returns:
+            File metadata dict or None if not found
+        """
+        if not self._setup_credentials():
+            return None
+
+        try:
+            with self._api_lock:
+                file = self.service.files().get(
+                    fileId=file_id,
+                    fields='id, name, mimeType, webViewLink, iconLink, modifiedTime, size, thumbnailLink, owners, permissions'
+                ).execute()
+            return file
+        except Exception as e:
+            logger.error(f"Error getting file metadata for {file_id}: {e}")
+            return None
+
+    def add_file_to_shared_folder(self, file_id: str, folder_id: str = None) -> bool:
+        """
+        Add a file to the Shared Documents folder by creating a shortcut.
+        Blocking call - should be run in thread.
+
+        Args:
+            file_id: Google Drive file ID to add
+            folder_id: Target folder ID (defaults to SHARED_DOCUMENTS_FOLDER_ID)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self._setup_credentials():
+            return False
+
+        target_folder = folder_id or SHARED_DOCUMENTS_FOLDER_ID
+
+        try:
+            from googleapiclient.http import MediaInMemoryUpload
+
+            # Create a shortcut to the file in the shared folder
+            shortcut_metadata = {
+                'name': f'Shortcut to {file_id}',  # Will be updated with actual name
+                'mimeType': 'application/vnd.google-apps.shortcut',
+                'parents': [target_folder],
+                'shortcutDetails': {
+                    'targetId': file_id
+                }
+            }
+
+            with self._api_lock:
+                # First get the actual file name
+                file = self.service.files().get(
+                    fileId=file_id,
+                    fields='name'
+                ).execute()
+
+                shortcut_metadata['name'] = file.get('name', 'File')
+
+                # Create the shortcut
+                shortcut = self.service.files().create(
+                    body=shortcut_metadata,
+                    fields='id'
+                ).execute()
+
+            logger.info(f"Successfully created shortcut for file {file_id} in shared folder (shortcut ID: {shortcut['id']})")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error adding file {file_id} to shared folder: {e}")
+            return False
+
+    def set_file_permissions(self, file_id: str, permissions: List[Dict[str, str]]) -> bool:
+        """
+        Set permissions for a Google Drive file.
+        Blocking call - should be run in thread.
+
+        Args:
+            file_id: Google Drive file ID
+            permissions: List of permission dicts with keys:
+                - role: 'reader', 'commenter', or 'writer'
+                - type: 'user', 'group', or 'domain'
+                - emailAddress: email address (for user/group type)
+                - domain: domain name (for domain type)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self._setup_credentials():
+            return False
+
+        try:
+            with self._api_lock:
+                for perm in permissions:
+                    permission_body = {
+                        'role': perm.get('role', 'reader'),
+                        'type': perm.get('type', 'user')
+                    }
+
+                    # Add email address for user/group type
+                    if perm.get('type') in ['user', 'group'] and perm.get('emailAddress'):
+                        permission_body['emailAddress'] = perm['emailAddress']
+
+                    # Add domain for domain type
+                    if perm.get('type') == 'domain' and perm.get('domain'):
+                        permission_body['domain'] = perm['domain']
+
+                    # Create permission
+                    self.service.permissions().create(
+                        fileId=file_id,
+                        body=permission_body,
+                        sendNotificationEmail=False  # Don't spam with emails
+                    ).execute()
+
+            logger.info(f"Successfully set {len(permissions)} permissions for file {file_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error setting permissions for file {file_id}: {e}")
             return False
 
 

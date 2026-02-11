@@ -34,22 +34,37 @@ async def list_users(
 ):
     """
     List all users.
-    
+
     Admins can filter by active status and role.
     """
     query = select(User).options(selectinload(User.twgs)).offset(skip).limit(limit)
-    
+
     if is_active is not None:
         query = query.where(User.is_active == is_active)
     if role is not None:
         query = query.where(User.role == role)
-        
+
     query = query.order_by(User.created_at.desc())
-    
+
     result = await db.execute(query)
     users = result.scalars().all()
-    
-    return [UserResponse.model_validate(u) for u in users]
+
+    # Return dict list directly to avoid Pydantic model immutability issues
+    return [
+        {
+            "id": u.id,
+            "email": u.email,
+            "full_name": u.full_name,
+            "role": u.role,
+            "organization": u.organization,
+            "is_active": u.is_active,
+            "last_login": u.last_login,
+            "created_at": u.created_at,
+            "twg_ids": [str(twg.id) for twg in u.twgs],
+            "twgs": [{"id": str(twg.id), "name": twg.name} for twg in u.twgs]
+        }
+        for u in users
+    ]
 
 
 @router.get("/{user_id}", response_model=UserResponse)
@@ -61,17 +76,32 @@ async def get_user_details(
     """
     Get detailed information about a specific user.
     """
-    query = select(User).where(User.id == user_id)
+    query = select(User).where(User.id == user_id).options(selectinload(User.twgs))
     result = await db.execute(query)
     user = result.scalar_one_or_none()
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-        
-    return UserResponse.model_validate(user)
+
+    # Explicitly compute twg_ids to ensure proper serialization
+    await db.refresh(user, attribute_names=['twgs'])
+
+    # Return dict directly to avoid Pydantic model immutability issues
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+        "organization": user.organization,
+        "is_active": user.is_active,
+        "last_login": user.last_login,
+        "created_at": user.created_at,
+        "twg_ids": [str(twg.id) for twg in user.twgs],
+        "twgs": [{"id": str(twg.id), "name": twg.name} for twg in user.twgs]
+    }
 
 
 @router.patch("/{user_id}", response_model=UserResponse)
@@ -126,9 +156,12 @@ async def update_user(
         setattr(user, field, value)
         
     await db.commit()
-    await db.refresh(user)
-    
-    return UserResponse.model_validate(user)
+    await db.refresh(user, attribute_names=['twgs'])
+
+    # Explicitly compute twg_ids to ensure proper serialization
+    response = UserResponse.model_validate(user)
+    response.twg_ids = [str(twg.id) for twg in user.twgs]
+    return response
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

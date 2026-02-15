@@ -26,43 +26,7 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
     const { streamingState, sendStreamingMessage, cancelStream } = useStreamingChat();
     const { isStreaming, currentStatus, currentTool } = streamingState;
 
-    // Initial Welcome Message
-    useEffect(() => {
-        if (messages.length === 0) {
-            setMessages([
-                {
-                    message_id: 'welcome',
-                    conversation_id: 'init',
-                    message_type: ChatMessageType.AGENT_TEXT,
-                    content: twgName
-                        ? `Greetings. I am ${twgName} Martin. How may I assist you with your technical deliverables today?`
-                        : "Greetings. I am Secretariat Martin. I can assist with cross-pillar coordination, document synthesis, and conflict resolution.",
-                    sender: 'agent',
-                    timestamp: new Date().toISOString()
-                }
-            ]);
-        }
-    }, [messages.length, twgName]); // Update welcome if twgName loads late? careful with loops
-
-    // ... (omitted for brevity, assume standard existing code is preserved if unchanged, but ReplaceFileContent requires context match)
-    // Actually, ReplaceFileContent replaces a block. I need to replace from signature down to header.
-    // I will target the Signature line and the Header lines.
-    // But they are far apart (Line 8 vs Line 167).
-    // I should use `multi_replace_file_content` or just replace the header if I can't change signature easily without context.
-    // Wait, signature is line 8.
-    // Header is line 167.
-    // I will use `replace_file_content` for the signature and `replace_file_content` for the header? No, parallel calls not allowed on same file usually, or discouraged.
-    // I will use `multi_replace_file_content`.
-
-    // Wait, Replace 1: Signature
-    // Replace 2: Welcome Message (Lines 28-41)
-    // Replace 3: Header Display (Lines 167)
-
-    // This is perfect for `multi_replace_file_content`.
-
-    // Lint fix: "Property 'twgName' does not exist..." (ID: 29ee6...)
-    // This tool call will fix it.
-
+    // No hardcoded welcome — agents greet naturally via their prompt's GREETING PROTOCOL
 
     // Auto-scroll to bottom (Scoped to container to prevent page jump)
     useEffect(() => {

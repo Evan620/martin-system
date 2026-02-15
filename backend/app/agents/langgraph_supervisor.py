@@ -218,7 +218,7 @@ class LangGraphSupervisor:
                 res = f"📊 **Summit Status: {overall}% On Track**\n\n"
                 res += "**TWG Performance:**\n"
                 # Mock statuses based on real activity
-                twgs = ["Energy", "Agriculture", "Minerals", "Digital", "Protocol", "Resource Mobilization"]
+                twgs = ["Energy", "Agriculture", "Minerals", "Digital"]
                 for twg in twgs:
                     # Logic: If they have projects or meetings, they are 'On Schedule'
                     status = "✅ On schedule"
@@ -687,8 +687,6 @@ class LangGraphSupervisor:
             "agriculture": create_langgraph_agriculture_agent(keep_history=True),
             "minerals": create_langgraph_minerals_agent(keep_history=True),
             "digital": create_langgraph_digital_agent(keep_history=True),
-            "protocol": create_langgraph_protocol_agent(keep_history=True),
-            "resource_mobilization": create_langgraph_resource_mobilization_agent(keep_history=True)
         }
 
         for agent_id, agent in agents.items():

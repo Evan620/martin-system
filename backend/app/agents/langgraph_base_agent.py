@@ -122,6 +122,10 @@ class LangGraphBaseAgent:
         )
         from app.tools.email_tools import EMAIL_TOOLS, send_email, create_email_draft
         from app.tools.document_tools import REQUEST_DOCUMENT_APPROVAL_TOOL_DEF, request_document_approval_tool
+        from app.tools.database_tools import (
+            SEARCH_DOCUMENTS_TOOL_DEF, search_documents,
+            GET_MEETING_MINUTES_TOOL_DEF, get_meeting_minutes
+        )
         import json
         
         # Register default tools available to all agents (or specific ones)
@@ -131,7 +135,9 @@ class LangGraphBaseAgent:
             GET_SCHEDULE_TOOL_DEF, 
             GET_PAST_MEETINGS_TOOL_DEF,
             UPDATE_MEETING_TOOL_DEF, 
-            REQUEST_DOCUMENT_APPROVAL_TOOL_DEF
+            REQUEST_DOCUMENT_APPROVAL_TOOL_DEF,
+            SEARCH_DOCUMENTS_TOOL_DEF,
+            GET_MEETING_MINUTES_TOOL_DEF
         ]
         
         # 2. Convert and add EMAIL_TOOLS
@@ -214,7 +220,9 @@ class LangGraphBaseAgent:
             "update_meeting": update_meeting,
             "send_email": send_email,
             "create_email_draft": create_email_draft,
-            "request_document_approval_tool": request_document_approval_tool
+            "request_document_approval_tool": request_document_approval_tool,
+            "search_documents": search_documents,
+            "get_meeting_minutes": get_meeting_minutes
         }
         
         # Get Knowledge Base (RAG)
@@ -257,8 +265,6 @@ CRITICAL TOOL USAGE RULES:
 
         # Build the agent's graph
         self._build_graph()
-
-        logger.info(f"[{agent_id}] LangGraph agent initialized")
 
         logger.info(f"[{agent_id}] LangGraph agent initialized")
 
@@ -484,31 +490,28 @@ CRITICAL TOOL USAGE RULES:
                     })
 
             # SANITIZATION: Ensure strict OpenAI compliance
-            # Rule: Assistant with tool_calls MUST be followed by Tool messages
+            # Rule 1: Assistant with tool_calls MUST be followed by Tool messages
+            # Rule 2: Tool messages MUST be preceded by an assistant message with matching tool_calls
             sanitized_history = []
             skip_indices = set()
             
             for i in range(len(history)):
                 msg = history[i]
                 
-                # Check for dangling tool calls
+                # Check for dangling tool calls (assistant with tool_calls but no tool responses)
                 if msg.get("role") == "assistant" and "tool_calls" in msg:
                     # Look ahead for matching tool outputs
                     tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
                     found_responses = set()
                     
                     # Scan subsequent messages for tool responses
-                    # In a valid conversation, immediate next messages should be tools
                     j = i + 1
                     while j < len(history) and history[j].get("role") == "tool":
                         if history[j].get("tool_call_id") in tool_call_ids:
                              found_responses.add(history[j].get("tool_call_id"))
                         j += 1
                         
-                    # If any tool call is missing a response, we consider this turn 'broken'/interrupted
-                    # To satisfy OpenAI, we must either:
-                    # 1. Provide fake responses (hard to guess)
-                    # 2. Strip the tool_calls from the assistant message
+                    # If any tool call is missing a response, strip the tool_calls
                     if len(found_responses) < len(tool_call_ids):
                          logger.warning(f"[{self.agent_id}] Sanitizing history: Msg {i} has dangling tool calls. Stripping tools.")
                          del msg["tool_calls"]
@@ -517,7 +520,27 @@ CRITICAL TOOL USAGE RULES:
                 
                 sanitized_history.append(msg)
             
-            history = sanitized_history
+            # PASS 2: Remove orphaned tool messages (tool messages without preceding assistant with tool_calls)
+            # This happens after history truncation cuts off the assistant message but leaves tool responses
+            final_history = []
+            active_tool_call_ids = set()
+            
+            for msg in sanitized_history:
+                if msg.get("role") == "assistant" and "tool_calls" in msg:
+                    # Track which tool_call_ids are active
+                    active_tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
+                    final_history.append(msg)
+                elif msg.get("role") == "tool":
+                    # Only include tool messages that have a matching preceding assistant tool_call
+                    if msg.get("tool_call_id") in active_tool_call_ids:
+                        final_history.append(msg)
+                    else:
+                        logger.warning(f"[{self.agent_id}] Sanitizing history: Removing orphaned tool message (tool_call_id: {msg.get('tool_call_id')})")
+                else:
+                    active_tool_call_ids = set()  # Reset on non-tool messages
+                    final_history.append(msg)
+            
+            history = final_history
 
             # RAG Context injection (simplified)
             # RAG Context injection (simplified)

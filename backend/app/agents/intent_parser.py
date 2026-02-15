@@ -75,7 +75,7 @@ class IntentParser:
         
         Analyze the directive and extract:
         1. Primary Action: What is the main goal? (schedule, draft, review, notify, resolve, synthesize)
-        2. Target TWGs: Which Technical Working Groups are involved? (Available: Energy, Agriculture, Minerals, Digital, Protocol, Resource Mobilization)
+        2. Target TWGs: Which Technical Working Groups are involved? (Available: Energy, Agriculture, Minerals, Digital)
         3. Urgency: Is this critical/immediate or routine?
         4. Negotiation: Does this involve resolving a conflict or dispute?
         

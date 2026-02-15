@@ -160,6 +160,7 @@ class TWGBase(SchemaBase):
     name: str
     pillar: TWGPillar
     status: str = "active"
+    group_type: str = "twg"
     political_lead_id: Optional[uuid.UUID] = None
     technical_lead_id: Optional[uuid.UUID] = None
 

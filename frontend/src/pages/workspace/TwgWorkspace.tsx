@@ -256,7 +256,7 @@ export default function TwgWorkspace() {
                                 <div className="col-span-12 space-y-4">
                                     <div className="flex items-center justify-between">
                                         <h2 className="text-xl font-display font-bold text-slate-900 dark:text-white transition-colors">Meeting History & Schedule</h2>
-                                        <button className="text-sm font-bold text-blue-600 hover:text-blue-500 transition-colors uppercase tracking-widest">Full Calendar →</button>
+                                        <button onClick={() => navigate('/schedule')} className="text-sm font-bold text-blue-600 hover:text-blue-500 transition-colors uppercase tracking-widest">Full Calendar →</button>
                                     </div>
                                     <Card className="p-0 overflow-hidden shadow-xl shadow-slate-200/50 dark:shadow-none border-slate-100 dark:border-dark-border transition-colors">
                                         <div className="overflow-x-auto">

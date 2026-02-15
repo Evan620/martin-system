@@ -106,12 +106,12 @@ async def route_query_node(state: AgentState) -> AgentState:
                 # Normalize TWG names (handle "ALL" or specific list)
                 if "ALL" in [t.upper() for t in intent.target_twgs]:
                     # All agents
-                    agent_domains = ["energy", "agriculture", "minerals", "digital", "protocol", "resource_mobilization"]
+                    agent_domains = ["energy", "agriculture", "minerals", "digital"]
                     relevant = agent_domains
                     logger.info("[ROUTE] Routing to ALL agents based on intent")
                 else:
                     # Filter valid agents
-                    valid_agents = ["energy", "agriculture", "minerals", "digital", "protocol", "resource_mobilization"]
+                    valid_agents = ["energy", "agriculture", "minerals", "digital"]
                     for target in intent.target_twgs:
                         target_clean = target.lower().strip()
                         if target_clean in valid_agents:
@@ -147,14 +147,7 @@ async def route_query_node(state: AgentState) -> AgentState:
                 "primary": ["digital", "technology", "internet", "broadband", "fintech", "e-commerce", "e-government", "transformation"],
                 "secondary": ["cybersecurity", "ai", "software", "tech", "online", "platform"]
             },
-            "protocol": {
-                "primary": ["meeting", "schedule", "logistics", "protocol", "venue", "registration", "invitation"],
-                "secondary": ["deadline", "agenda", "ceremony", "security", "vip"]
-            },
-            "resource_mobilization": {
-                "primary": ["investment", "financing", "deal room", "funding", "investor", "bankable", "resource mobilization"],
-                "secondary": ["finance", "capital", "donor", "partner", "budget"]
-            }
+
         }
 
         agent_scores = {}
@@ -306,9 +299,9 @@ async def synthesis_node(state: AgentState, supervisor_agent: LangGraphBaseAgent
         else:
             response_text = str(response_raw)
             
-        # Truncate text for prompt
-        if len(response_text) > 400:
-            truncated_responses[agent_id] = response_text[:400] + "..."
+        # Truncate text for prompt (1500 chars to preserve meaningful detail)
+        if len(response_text) > 1500:
+            truncated_responses[agent_id] = response_text[:1500] + "..."
         else:
             truncated_responses[agent_id] = response_text
 
@@ -323,10 +316,17 @@ TWG Inputs ({agent_list}):
         synthesis_prompt += f"\n{agent_id}: {response_text}\n"
 
     synthesis_prompt += f"""
-Write ONE cohesive professional memo (max 500 words, NO emojis) synthesizing these TWG inputs.
-The inputs may contain raw data or tool outputs - INTEGRATE this data directly into your narrative.
-DO NOT append "Report Generated" sections or repeat the raw data at the end.
-Format: Executive Summary, Operational Briefing, Strategic Analysis, Recommendations, Technical Dispatch."""
+Write ONE cohesive professional response synthesizing these TWG inputs.
+
+FORMATTING RULES:
+- Match response size to the question. Simple question = short answer. Complex briefing = structured sections.
+- Use **bold** for key terms and metrics INLINE — not as standalone headers.
+- Use bullet points only for 3+ items. Use tables for comparing data across TWGs or projects.
+- Do NOT start with "Executive Summary" or any header unless the original question explicitly requested a report or briefing.
+- Do NOT use filler phrases like "Based on comprehensive analysis..." — just give the synthesized answer.
+- Do NOT repeat the original question.
+- INTEGRATE raw data/tool outputs into your narrative naturally. Do NOT append "Report Generated" sections.
+- Keep the response focused, readable, and visually clean."""
 
     # Get supervisor's unified memo
     try:

@@ -14,7 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import pytz
 
 from app.core.database import AsyncSessionLocal
-from app.models.models import TWG, Meeting, ActionItem, Project, User
+from app.models.models import TWG, Meeting, ActionItem, Project, User, Document, Minutes
+from sqlalchemy.orm import selectinload
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +171,91 @@ async def get_deal_pipeline(twg_id: Optional[uuid.UUID] = None) -> List[Dict[str
             } for p in projects
         ]
 
+async def search_documents(
+    twg_id: Optional[uuid.UUID] = None,
+    query: Optional[str] = None,
+    document_type: Optional[str] = None,
+    limit: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    Search the document registry for documents matching the given criteria.
+    Filters by TWG, keyword (file_name), and document_type.
+    """
+    async with AsyncSessionLocal() as session:
+        stmt = select(Document).where(Document.is_confidential == False)
+
+        if twg_id:
+            stmt = stmt.where(Document.twg_id == twg_id)
+
+        if query:
+            stmt = stmt.where(Document.file_name.ilike(f"%{query}%"))
+
+        if document_type:
+            stmt = stmt.where(Document.document_type == document_type)
+
+        stmt = stmt.order_by(Document.created_at.desc()).limit(limit)
+
+        result = await session.execute(stmt)
+        docs = result.scalars().all()
+
+        return [
+            {
+                "id": str(d.id),
+                "file_name": d.file_name,
+                "document_type": d.document_type or "general",
+                "category": d.category,
+                "created_at": d.created_at.isoformat() if d.created_at else None,
+                "version": d.version,
+            }
+            for d in docs
+        ]
+
+
+async def get_meeting_minutes(
+    twg_id: Optional[uuid.UUID] = None,
+    meeting_id: Optional[str] = None,
+    limit: int = 5
+) -> List[Dict[str, Any]]:
+    """
+    Retrieve meeting minutes. Can fetch minutes for a specific meeting
+    or list recent minutes for the TWG.
+    """
+    async with AsyncSessionLocal() as session:
+        stmt = (
+            select(Minutes)
+            .join(Meeting, Minutes.meeting_id == Meeting.id)
+            .options(selectinload(Minutes.meeting))
+        )
+
+        if meeting_id:
+            try:
+                mid = uuid.UUID(meeting_id)
+                stmt = stmt.where(Minutes.meeting_id == mid)
+            except ValueError:
+                return [{"error": f"Invalid meeting_id: {meeting_id}"}]
+
+        if twg_id:
+            stmt = stmt.where(Meeting.twg_id == twg_id)
+
+        stmt = stmt.order_by(Meeting.scheduled_at.desc()).limit(limit)
+
+        result = await session.execute(stmt)
+        minutes_list = result.scalars().all()
+
+        output = []
+        for m in minutes_list:
+            content_preview = (m.content[:500] + "...") if m.content and len(m.content) > 500 else (m.content or "")
+            output.append({
+                "meeting_id": str(m.meeting_id),
+                "meeting_title": m.meeting.title if m.meeting else "Unknown",
+                "scheduled_at": m.meeting.scheduled_at.isoformat() if m.meeting and m.meeting.scheduled_at else None,
+                "minutes_status": m.status.value if hasattr(m.status, 'value') else str(m.status),
+                "content_preview": content_preview,
+                "key_decisions": m.key_decisions or "",
+            })
+        return output
+
+
 # Tool definitions for Agent integration
 DATABASE_TOOLS = [
     {
@@ -220,3 +306,53 @@ DATABASE_TOOLS = [
         "coroutine": get_deal_pipeline
     }
 ]
+
+# === Document & Minutes Search Tool Definitions (OpenAI format) ===
+
+SEARCH_DOCUMENTS_TOOL_DEF = {
+    "type": "function",
+    "function": {
+        "name": "search_documents",
+        "description": "Search the document registry for files uploaded to the system. Use this whenever users ask about documents, reports, or files.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Keyword to search for in file names (optional)"
+                },
+                "document_type": {
+                    "type": "string",
+                    "description": "Filter by document type: 'minutes', 'brief', 'policy', 'memo', 'financial_model', 'esia', or leave empty for all"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results (default: 10)"
+                }
+            },
+            "required": []
+        }
+    }
+}
+
+GET_MEETING_MINUTES_TOOL_DEF = {
+    "type": "function",
+    "function": {
+        "name": "get_meeting_minutes",
+        "description": "Retrieve meeting minutes from the database. Can fetch minutes for a specific meeting or list recent minutes for your TWG.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "meeting_id": {
+                    "type": "string",
+                    "description": "UUID of a specific meeting to get minutes for (optional)"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results (default: 5)"
+                }
+            },
+            "required": []
+        }
+    }
+}

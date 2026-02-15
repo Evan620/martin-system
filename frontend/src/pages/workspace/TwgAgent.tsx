@@ -223,8 +223,9 @@ export default function TwgAgent() {
         const name = twgName.toLowerCase();
 
         if (name.includes('secretariat')) return "Secretariat Martin";
+        if (name.includes('leads council') || name.includes('council')) return "Council Martin";
         if (name.includes('energy')) return "Energy Martin";
-        if (name.includes('agriculture')) return "Agriculture Martin";
+        if (name.includes('agriculture') || name.includes('agribusiness')) return "Agriculture Martin";
         if (name.includes('minerals')) return "Minerals Martin";
         if (name.includes('digital')) return "Digital Martin";
         if (name.includes('protocol')) return "Protocol Martin";

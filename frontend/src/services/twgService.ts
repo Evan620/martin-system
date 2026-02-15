@@ -5,6 +5,7 @@ export interface TWG {
     name: string;
     description: string;
     status: string;
+    group_type: string;
     facilitator_id?: string;
 }
 

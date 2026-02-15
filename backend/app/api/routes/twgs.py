@@ -53,13 +53,21 @@ async def list_twgs(
         # For simplicity and clarity in this iteration, let's fetch IDs and then load stats.
         # A more optimized approach would use group_by and multiple queries.
         
-        # Hide non-core TWGs per client request (only show 4: energy, agri, minerals, digital)
+        # Hide non-core TWGs per client request (only show 4 core + leads_council)
         from app.models.models import TWGPillar
+        from sqlalchemy import or_
         HIDDEN_PILLARS = {TWGPillar.protocol_logistics, TWGPillar.resource_mobilization}
 
         result = await db.execute(
             select(TWG)
-            .where(TWG.pillar.notin_(HIDDEN_PILLARS))
+            .where(
+                or_(
+                    # Standard TWGs (exclude hidden pillars)
+                    (TWG.pillar.notin_(HIDDEN_PILLARS)) & (TWG.group_type == "twg"),
+                    # Always show leads_council
+                    TWG.group_type == "leads_council"
+                )
+            )
             .options(*query_options)
             .offset(skip).limit(limit)
         )
@@ -430,3 +438,67 @@ async def remove_twg_member(
     await db.commit()
 
     return {"message": f"{member_to_remove.full_name} has been removed from {twg.name}."}
+
+
+@router.post("/{twg_id}/sync-leads", status_code=status.HTTP_200_OK)
+async def sync_leads_council(
+    twg_id: uuid.UUID,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Sync the TWG Leads Council membership.
+    Auto-populates from all active TWGs' political and technical leads.
+    Requires ADMIN role.
+    """
+    # Verify this is the leads council
+    result = await db.execute(
+        select(TWG)
+        .options(selectinload(TWG.members))
+        .where(TWG.id == twg_id)
+    )
+    council = result.scalar_one_or_none()
+    if not council:
+        raise HTTPException(status_code=404, detail="TWG not found")
+    if council.group_type != "leads_council":
+        raise HTTPException(status_code=400, detail="This endpoint is only for leads_council groups")
+
+    # Fetch all active TWGs (standard TWGs only)
+    twgs_result = await db.execute(
+        select(TWG).where(TWG.group_type == "twg", TWG.status == "active")
+    )
+    all_twgs = twgs_result.scalars().all()
+
+    # Collect lead user IDs
+    lead_ids = set()
+    for twg in all_twgs:
+        if twg.political_lead_id:
+            lead_ids.add(twg.political_lead_id)
+        if twg.technical_lead_id:
+            lead_ids.add(twg.technical_lead_id)
+
+    if not lead_ids:
+        return {"message": "No leads found across TWGs. No members added.", "synced": 0}
+
+    # Load the actual User objects
+    users_result = await db.execute(
+        select(User).where(User.id.in_(lead_ids))
+    )
+    lead_users = users_result.scalars().all()
+
+    # Determine existing council member IDs
+    existing_member_ids = {m.id for m in council.members}
+
+    added = 0
+    for user in lead_users:
+        if user.id not in existing_member_ids:
+            council.members.append(user)
+            added += 1
+
+    await db.commit()
+
+    return {
+        "message": f"Synced {added} new lead(s) to {council.name}. Total members: {len(council.members)}.",
+        "synced": added,
+        "total_members": len(council.members)
+    }

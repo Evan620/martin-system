@@ -276,6 +276,7 @@ class TWG(Base):
     name: Mapped[str] = mapped_column(String(255))
     pillar: Mapped[TWGPillar] = mapped_column(Enum(TWGPillar))
     status: Mapped[str] = mapped_column(String(50), default="active")
+    group_type: Mapped[str] = mapped_column(String(50), default="twg")  # "twg" or "leads_council"
     
     political_lead_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     technical_lead_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

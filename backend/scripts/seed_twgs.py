@@ -15,32 +15,44 @@ async def seed_twgs():
         {
             "name": "Energy & Infrastructure TWG",
             "pillar": TWGPillar.energy_infrastructure,
-            "status": "active"
+            "status": "active",
+            "group_type": "twg"
         },
         {
             "name": "Agribusiness and Food Systems Transformation",
             "pillar": TWGPillar.agriculture_food_systems,
-            "status": "active"
+            "status": "active",
+            "group_type": "twg"
         },
         {
             "name": "Critical Minerals & Industrialization TWG",
             "pillar": TWGPillar.critical_minerals_industrialization,
-            "status": "active"
+            "status": "active",
+            "group_type": "twg"
         },
         {
             "name": "Digital Economy & Transformation TWG",
             "pillar": TWGPillar.digital_economy_transformation,
-            "status": "active"
+            "status": "active",
+            "group_type": "twg"
         },
         {
             "name": "Protocol & Logistics TWG",
             "pillar": TWGPillar.protocol_logistics,
-            "status": "active"
+            "status": "active",
+            "group_type": "twg"
         },
         {
             "name": "Resource Mobilization TWG",
             "pillar": TWGPillar.resource_mobilization,
-            "status": "active"
+            "status": "active",
+            "group_type": "twg"
+        },
+        {
+            "name": "TWG Leads Council",
+            "pillar": TWGPillar.protocol_logistics,
+            "status": "active",
+            "group_type": "leads_council"
         }
     ]
 
@@ -53,8 +65,19 @@ async def seed_twgs():
         if existing_twgs:
             print(f"Found {len(existing_twgs)} existing TWGs:")
             for twg in existing_twgs:
-                print(f"  - {twg.name} ({twg.pillar})")
-            print("\nDatabase already has TWGs. Skipping seed.")
+                print(f"  - {twg.name} ({twg.pillar}) [type: {getattr(twg, 'group_type', 'twg')}]")
+            
+            # Check if Leads Council exists, create if missing
+            has_leads = any(getattr(t, 'group_type', 'twg') == 'leads_council' for t in existing_twgs)
+            if not has_leads:
+                print("\n⚠️  TWG Leads Council not found. Creating...")
+                leads_data = twgs_to_create[-1]  # Last entry
+                twg = TWG(**leads_data)
+                db.add(twg)
+                await db.commit()
+                print(f"  ✓ Created: {leads_data['name']}")
+            else:
+                print("\n✅ TWG Leads Council already exists.")
             return
 
         print("No TWGs found. Creating default TWGs...")

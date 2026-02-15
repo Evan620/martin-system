@@ -120,10 +120,11 @@ const formatMarkdownText = (text: string): JSX.Element => {
             return;
         }
 
-        // Handle bullet points
-        if (/^\s*[-*]\s/.test(line)) {
-            const indent = line.search(/[-*]/);
-            const content = line.replace(/^\s*[-*]\s/, '');
+        // Handle bullet points (-, *, or •)
+        if (/^\s*[-*•]\s/.test(line) || /^\s*•/.test(line)) {
+            const indent = line.search(/[-*•]/);
+            const content = line.replace(/^\s*[-*•]\s*/, '');
+            if (!content.trim()) return; // Skip empty bullet lines (standalone •)
             elements.push(
                 <div key={index} className="mb-2 flex items-start gap-2.5" style={{ paddingLeft: `${indent * 12}px` }}>
                     <span className="text-blue-500 dark:text-blue-400 text-lg leading-none mt-[-2px]">•</span>

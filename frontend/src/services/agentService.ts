@@ -61,6 +61,7 @@ export const agentService = {
     chatStream: async (
         chatRequest: AgentChatRequest,
         callbacks: {
+            onStep?: (step: any) => void;
             onThinking?: (status: string) => void;
             onResponse?: (response: any) => void;
             onInterrupt?: (payload: any) => void;
@@ -102,7 +103,43 @@ export const agentService = {
                             const data = JSON.parse(line.substring(6));
                             console.log('[STREAM]', data);
 
-                            if (data.type === 'thinking') {
+                            // Map events to structured steps
+                            if (callbacks.onStep) {
+                                let stepType = 'thinking';
+                                let icon = 'smart_toy';
+                                let label = data.status;
+
+                                if (data.type === 'agent_routing') {
+                                    stepType = 'routing';
+                                    icon = 'alt_route';
+                                    label = data.status;
+                                } else if (data.type === 'tool_start') {
+                                    stepType = 'tool';
+                                    icon = data.tool === 'knowledge_search' ? 'search'
+                                        : data.tool === 'email_send' ? 'mail'
+                                            : data.tool === 'scheduler' ? 'calendar_month'
+                                                : 'build';
+                                    label = data.status;
+                                } else if (data.type === 'thinking') {
+                                    // Detect specific thinking phases from backend
+                                    if (data.status.includes('Routing')) icon = 'alt_route';
+                                    else if (data.status.includes('Synthesizing')) icon = 'auto_awesome';
+                                    else if (data.status.includes('Supervisor')) icon = 'admin_panel_settings';
+                                }
+
+                                if (data.type !== 'response' && data.type !== 'done' && data.type !== 'error' && data.type !== 'interrupt') {
+                                    callbacks.onStep({
+                                        type: stepType,
+                                        label: label,
+                                        icon: data.icon || icon, // specific icon from backend wins
+                                        image: data.image,
+                                        status: 'active',
+                                        id: data.step_id || Date.now().toString()
+                                    });
+                                }
+                            }
+
+                            if (data.type === 'thinking' || data.type === 'agent_routing' || data.type === 'tool_start') {
                                 callbacks.onThinking?.(data.status);
                             } else if (data.type === 'response') {
                                 callbacks.onResponse?.(data.message);

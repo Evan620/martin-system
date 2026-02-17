@@ -763,8 +763,9 @@ class LangGraphSupervisor:
                     try:
                         agent = self._twg_agents[agent_id]
                         # Await the async chat method
+                        dispatch_thread_id = state.get("session_id")
                         user_timezone = state.get("user_timezone")
-                        response = await agent.chat(query, user_timezone=user_timezone)
+                        response = await agent.chat(query, thread_id=dispatch_thread_id, user_timezone=user_timezone)
                         state["agent_responses"][agent_id] = response
                     except GraphInterrupt:
                         logger.info(f"[DISPATCH] Interrupt from {agent_id} detected in supervisor")
@@ -923,7 +924,7 @@ class LangGraphSupervisor:
             "final_response": "",
             "requires_synthesis": False,
             "delegation_type": "supervisor_only",
-            "session_id": self.session_id,
+            "session_id": thread_id,
             "user_id": None,
             "context": {"twg_id": twg_id} if twg_id else None
         }
@@ -989,7 +990,7 @@ class LangGraphSupervisor:
             "final_response": "",
             "requires_synthesis": False,
             "delegation_type": "supervisor_only",
-            "session_id": self.session_id,
+            "session_id": thread_id,
             "user_id": None,
             "context": {"twg_id": twg_id, "user_timezone": user_timezone} if twg_id or user_timezone else None,
             "user_timezone": user_timezone

@@ -4,6 +4,7 @@ import { RootState } from '../../store';
 import { ChatMessage, ChatMessageType, EnhancedChatRequest, ActionType } from '../../types/agent';
 import { UserRole } from '../../types/auth';
 import { useStreamingChat, StreamEvent } from '../../hooks/useStreamingChat';
+import ThinkingTimeline from '../../components/agent/ThinkingTimeline'; // Import ThinkingTimeline
 import ReactMarkdown from 'react-markdown';
 
 export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onToggleExpand }: { twgId?: string, twgName?: string, isExpanded?: boolean, onToggleExpand?: () => void }) {
@@ -22,9 +23,8 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [conversationId, setConversationId] = useState<string | undefined>(undefined);
-
     const { streamingState, sendStreamingMessage, cancelStream } = useStreamingChat();
-    const { isStreaming, currentStatus, currentTool } = streamingState;
+    const { isStreaming, currentStatus, currentTool, steps, startTime } = streamingState; // Destructure steps and startTime
 
     // No hardcoded welcome — agents greet naturally via their prompt's GREETING PROTOCOL
 
@@ -260,31 +260,14 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                     </div>
                 ))}
 
-                {isStreaming && (
-                    <div className="flex gap-3">
-                        <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 transition-colors">
-                            <span className="material-symbols-outlined text-[14px] text-blue-600 animate-spin">sync</span>
-                        </div>
-                        <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl rounded-tl-none transition-colors border border-slate-100 dark:border-slate-700">
-                            <div className="flex flex-col gap-1">
-                                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold animate-pulse">
-                                    {currentStatus || 'Thinking...'}
-                                </p>
-                                {currentTool && (
-                                    <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
-                                        <span className="material-symbols-outlined text-[10px]">build</span>
-                                        Using: {currentTool}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <button
-                            onClick={cancelStream}
-                            className="w-6 h-6 rounded-full bg-slate-100 hover:bg-red-100 text-slate-400 hover:text-red-500 flex items-center justify-center transition-colors"
-                            title="Stop generating"
-                        >
-                            <span className="material-symbols-outlined text-[14px]">stop</span>
-                        </button>
+                {(isStreaming || steps.length > 0) && (
+                    <div className="px-2">
+                        <ThinkingTimeline
+                            steps={steps}
+                            isComplete={!isStreaming && steps.length > 0}
+                            startTime={startTime}
+                            agentName="Martin Copilot"
+                        />
                     </div>
                 )}
                 <div ref={messagesEndRef} />

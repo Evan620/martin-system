@@ -88,7 +88,8 @@ class ContinuousMonitor:
             self.check_pending_transcripts,
             trigger=IntervalTrigger(minutes=settings.FIREFLIES_POLL_INTERVAL_MINUTES),
             id="fireflies_transcript_check",
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=120  # tolerate up to 2 min delay
         )
 
         # 7. Sync Pending Calendar Links (Every 30 seconds)
@@ -96,7 +97,8 @@ class ContinuousMonitor:
             self.sync_pending_calendar_events,
             trigger=IntervalTrigger(seconds=30),
             id="calendar_sync_check",
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=60  # tolerate up to 60s delay from LLM calls
         )
         
         # 8. Google Drive Transcript Fallback (Every 60 minutes — webhook is primary)
@@ -104,7 +106,8 @@ class ContinuousMonitor:
             self.check_drive_transcripts_fallback,
             trigger=IntervalTrigger(minutes=60),
             id="drive_transcript_fallback",
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=300  # tolerate up to 5 min delay
         )
         
         # 9. Auto-Complete Past Meetings (Every hour)
@@ -112,7 +115,8 @@ class ContinuousMonitor:
             self.auto_complete_past_meetings,
             trigger=IntervalTrigger(hours=1),
             id="auto_complete_meetings",
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=300  # tolerate up to 5 min delay
         )
         
         self.scheduler.start()

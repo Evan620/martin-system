@@ -275,6 +275,9 @@ export default function TwgAgent() {
                 twg_id: activeTwg?.id !== 'secretariat' ? activeTwg?.id : undefined // Pass TWG ID if not secretariat
             }, {
                 onStep: (step: ThinkingStep) => {
+                    // Filter out empty steps to prevent empty rows
+                    if (!step.label || !step.label.trim()) return;
+
                     setThinkingSteps(prev => {
                         const newSteps = [...prev];
                         // Mark previous step as complete
@@ -354,6 +357,17 @@ export default function TwgAgent() {
                     }
                 },
                 onDone: () => {
+                    // Mark the last step as complete
+                    setThinkingSteps(prev => {
+                        if (prev.length === 0) return prev;
+                        const newSteps = [...prev];
+                        const lastStep = newSteps[newSteps.length - 1];
+                        if (lastStep.status === 'active') {
+                            lastStep.status = 'complete';
+                            lastStep.durationMs = Date.now() - lastStep.timestamp;
+                        }
+                        return newSteps;
+                    });
                     setIsLoading(false);
                     setTypingMessage(null);
                 },

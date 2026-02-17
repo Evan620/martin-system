@@ -73,6 +73,9 @@ export function useStreamingChat() {
 
                 await agentService.chatStream(request, {
                     onStep: (step) => {
+                        // Filter out empty steps
+                        if (!step.label || !step.label.trim()) return;
+
                         setStreamingState(prev => {
                             const newSteps = [...prev.steps];
                             // Mark previous step as complete if new one starts
@@ -100,7 +103,7 @@ export function useStreamingChat() {
                         // Mark all steps complete
                         setStreamingState(prev => ({
                             ...prev,
-                            steps: prev.steps.map(s => s.status === 'active' ? { ...s, status: 'complete', durationMs: Date.now() - s.timestamp } : s)
+                            steps: prev.steps.map(s => s.status === 'active' ? { ...s, status: 'complete' as const, durationMs: Date.now() - s.timestamp } : s)
                         }));
                         onComplete(msg);
                     },
@@ -108,7 +111,7 @@ export function useStreamingChat() {
                         // Mark steps complete
                         setStreamingState(prev => ({
                             ...prev,
-                            steps: prev.steps.map(s => s.status === 'active' ? { ...s, status: 'complete', durationMs: Date.now() - s.timestamp } : s)
+                            steps: prev.steps.map(s => s.status === 'active' ? { ...s, status: 'complete' as const, durationMs: Date.now() - s.timestamp } : s)
                         }));
                         onEvent({ type: 'interrupt', payload });
                     },
@@ -123,7 +126,10 @@ export function useStreamingChat() {
                         onError(typeof err === 'string' ? err : 'Unknown error');
                     },
                     onDone: () => {
-                        setStreamingState(prev => ({ ...prev, isStreaming: false }));
+                        setStreamingState(prev => {
+                            const newSteps = prev.steps.map(s => s.status === 'active' ? { ...s, status: 'complete' as const, durationMs: Date.now() - s.timestamp } : s);
+                            return { ...prev, isStreaming: false, steps: newSteps };
+                        });
                     }
                 });
             } catch (error: any) {

@@ -11,6 +11,7 @@ Uses APScheduler for periodic execution.
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_MISSED
 from datetime import datetime, timedelta, UTC
 from loguru import logger
 from typing import List, Optional, Tuple
@@ -30,7 +31,6 @@ from app.models.models import (
     ConflictType, ConflictSeverity, MeetingStatus
 )
 from app.services.conflict_detector import ConflictDetector
-from app.services.conflict_detector import ConflictDetector
 from app.services.fireflies_service import fireflies_service
 
 class ContinuousMonitor:
@@ -42,6 +42,7 @@ class ContinuousMonitor:
         self.scheduler = AsyncIOScheduler()
         self.conflict_detector = ConflictDetector() # Initialize without LLM for now, or inject if needed
         self.is_running = False
+        self._job_failures: dict[str, int] = {}  # Track consecutive failures per job
         
     def start(self):
         """Start the background monitor."""
@@ -49,6 +50,9 @@ class ContinuousMonitor:
             return
             
         logger.info("Starting Continuous Monitor...")
+        
+        # Wire up error listener for crash resilience
+        self.scheduler.add_listener(self._on_job_event, EVENT_JOB_ERROR | EVENT_JOB_MISSED)
         
         # ── Governance scans — DISABLED (re-enable when needed) ─────────
         # These consume LLM tokens. Not needed for core meeting lifecycle.
@@ -121,6 +125,20 @@ class ContinuousMonitor:
             self.scheduler.shutdown()
             self.is_running = False
             logger.info("Continuous Monitor stopped.")
+
+    def _on_job_event(self, event):
+        """Handle APScheduler job errors and misses."""
+        job_id = event.job_id
+        if hasattr(event, 'exception') and event.exception:
+            self._job_failures[job_id] = self._job_failures.get(job_id, 0) + 1
+            logger.error(
+                f"Background job '{job_id}' FAILED "
+                f"(consecutive: {self._job_failures[job_id]}): {event.exception}",
+                exc_info=event.traceback is not None
+            )
+        else:
+            # Job was missed (scheduler was busy)
+            logger.warning(f"Background job '{job_id}' MISSED its scheduled run")
 
     async def sync_pending_calendar_events(self):
         """

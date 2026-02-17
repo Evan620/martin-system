@@ -695,9 +695,9 @@ class DriveService:
 
                         # --- NEW: Auto-Distribute ---
                         try:
-                            from app.services.vexa_service import vexa_service
+                            from app.services.fireflies_service import fireflies_service
                             logger.info(f"Auto-distributing minutes for {matched_meeting.title}...")
-                            await vexa_service.finalize_and_distribute_minutes(matched_meeting, db)
+                            await fireflies_service.finalize_and_distribute_minutes(matched_meeting, db)
                         except Exception as dist_e:
                             logger.error(f"Failed to auto-distribute minutes: {dist_e}")
                         # ----------------------------
@@ -835,11 +835,11 @@ class DriveService:
                                 logger.warning(f"Transcript content too short or empty for {filename}")
                                 continue
                             
-                            # Process using Vexa service (reuse existing logic)
-                            from app.services.vexa_service import vexa_service
+                            # Process using Fireflies service (reuse existing logic)
+                            from app.services.fireflies_service import fireflies_service
                             
                             logger.info(f"Processing Drive transcript for meeting: {best_match.title}")
-                            success = await vexa_service.process_transcript_text(
+                            success = await fireflies_service.process_transcript_text(
                                 best_match, 
                                 content, 
                                 db

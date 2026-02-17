@@ -340,24 +340,21 @@ async def ingest_document(
         namespace = f"twg-{db_doc.twg_id}" if db_doc.twg_id else "twg-general"
         upsert_result = kb.upsert_documents(documents=documents, namespace=namespace)
 
+        # Update DB record with ingestion timestamp
+        db_doc.ingested_at = datetime.utcnow()
+        await db.commit()
+        await db.refresh(db_doc)
+
         return {
             "status": "success",
             "chunks_ingested": upsert_result['total_upserted'],
             "namespace": namespace
         }
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions as-is
     except Exception as e:
+        logger.error(f"Ingestion failed for doc {doc_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
-
-    # Update DB record with ingestion timestamp
-    db_doc.ingested_at = datetime.utcnow()
-    await db.commit()
-    await db.refresh(db_doc)
-
-    return {
-        "status": "success",
-        "chunks_ingested": upsert_result['total_upserted'],
-        "namespace": namespace
-    }
 
 @router.get("/core-workspace", response_model=List[dict])
 async def list_core_workspace_files(

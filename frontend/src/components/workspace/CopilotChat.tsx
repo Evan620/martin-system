@@ -23,8 +23,8 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [conversationId, setConversationId] = useState<string | undefined>(undefined);
-    const { streamingState, sendStreamingMessage, cancelStream } = useStreamingChat();
-    const { isStreaming, currentStatus, currentTool, steps, startTime } = streamingState; // Destructure steps and startTime
+    const { streamingState, sendStreamingMessage, cancelStream: _cancelStream } = useStreamingChat();
+    const { isStreaming, currentStatus: _currentStatus, currentTool: _currentTool, steps, startTime } = streamingState; // Destructure steps and startTime
 
     // No hardcoded welcome — agents greet naturally via their prompt's GREETING PROTOCOL
 

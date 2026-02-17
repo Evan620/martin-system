@@ -22,7 +22,7 @@ export default function ThinkingTimeline({
     steps,
     isComplete,
     startTime,
-    agentName = 'AI Assistant',
+    agentName: _agentName = 'AI Assistant',
     error
 }: ThinkingTimelineProps) {
     const [isExpanded, setIsExpanded] = useState(!isComplete);
@@ -108,8 +108,8 @@ export default function ThinkingTimeline({
                                 <div
                                     key={step.id || idx}
                                     className={`flex items-start gap-3 p-2 rounded-lg text-sm transition-all duration-300 ${step.status === 'active'
-                                            ? 'bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30'
-                                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/30'
+                                        ? 'bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30'
+                                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/30'
                                         }`}
                                 >
                                     <div className="mt-0.5 shrink-0 flex items-center justify-center size-5">

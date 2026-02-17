@@ -62,6 +62,9 @@ class AgentConversationState(TypedDict):
     
     # User's Timezone (e.g., "Africa/Lagos")
     user_timezone: Optional[str]
+    
+    # Tool-round counter to prevent infinite tool-calling loops
+    tool_rounds: int
 
 
 # =========================================================================
@@ -359,13 +362,15 @@ CRITICAL TOOL USAGE RULES:
             logger.info(f"[{self.agent_id}] Approval pending - ending loop")
             return "end"
         
+        # SAFETY: Limit tool rounds to prevent infinite loops burning LLM tokens
+        MAX_TOOL_ROUNDS = 5
+        tool_rounds = state.get("tool_rounds", 0)
+        if tool_rounds >= MAX_TOOL_ROUNDS:
+            logger.warning(f"[{self.agent_id}] Max tool rounds ({MAX_TOOL_ROUNDS}) reached. Forcing text response.")
+            return "end"
+        
         messages = state["messages"]
         last_message = messages[-1]
-        
-        # Check if AIMessage has tool_calls
-        # Note: GroqLLMService now returns object with tool_calls if present
-        # In our state, we store AIMessage. 
-        # We need to ensure we stored it correctly in _generate_response_node
         
         if hasattr(last_message, "tool_calls") and last_message.tool_calls:
             return "continue"
@@ -451,11 +456,7 @@ CRITICAL TOOL USAGE RULES:
         query = state["query"]
         messages = state.get("messages", [])
         
-        # Enforce History Limit to prevent 413 errors & Infinite Loops
-        if len(messages) > 20:
-             logger.warning(f"[{self.agent_id}] Loop detected (20+ messages). Truncating and forcing text response.")
-             messages = messages[-self.max_history:]
-             
+        # Enforce History Limit to prevent 413 errors (token overflow)
         if len(messages) > self.max_history:
              messages = messages[-self.max_history:]
         
@@ -741,6 +742,10 @@ CRITICAL TOOL USAGE RULES:
 
         # Update state with all tool results
         state["messages"].extend(new_messages)
+        
+        # Increment tool-round counter
+        state["tool_rounds"] = state.get("tool_rounds", 0) + 1
+        
         return state
 
     async def chat(self, message: str, thread_id: Optional[str] = None, user_timezone: Optional[str] = None) -> Dict[str, any]:
@@ -803,11 +808,10 @@ CRITICAL TOOL USAGE RULES:
             "query": message,
             "messages": [HumanMessage(content=message)],
             "agent_id": self.agent_id,
-            "messages": [HumanMessage(content=message)],
-            "agent_id": self.agent_id,
             "session_id": thread_id,
             "citations": [],
-            "user_timezone": user_timezone
+            "user_timezone": user_timezone,
+            "tool_rounds": 0
         }
         
         try:

@@ -29,7 +29,6 @@ from app.services.document_synthesizer import DocumentSynthesizer
 from app.services.llm_service import llm_service
 from app.utils.security import verify_token
 from app.core.ws_manager import ws_manager
-from app.services.vexa_service import VexaService
 from app.core.database import get_db, get_db_session_context
 
 router = APIRouter(prefix="/meetings", tags=["Meetings"])
@@ -467,10 +466,13 @@ async def generate_minutes(
     if not has_twg_access(current_user, db_meeting.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # 2. Validation & Fallback for Active Vexa Meetings
+    # 2. Validation & Fallback for transcript
     if not db_meeting.transcript:
-        # Check if we have a Vexa placeholder and can fetch a partial transcript
-        from app.services.vexa_service import vexa_service
+        # Legacy: Vexa placeholder fallback (deprecated — Fireflies is primary)
+        try:
+            from app.services.fireflies_service import fireflies_service as _ff_svc
+        except ImportError:
+            _ff_svc = None
         
         # Find placeholder doc
         placeholder_doc = None
@@ -479,25 +481,27 @@ async def generate_minutes(
                 placeholder_doc = doc
                 break
         
-        if placeholder_doc and placeholder_doc.metadata_json:
+        if placeholder_doc and placeholder_doc.metadata_json and _ff_svc:
             platform = placeholder_doc.metadata_json.get("platform")
             native_meeting_id = placeholder_doc.metadata_json.get("native_meeting_id")
             
             if platform and native_meeting_id:
                 try:
                     print(f"Attempting to fetch partial transcript for {platform}/{native_meeting_id}")
-                    transcript_data = await vexa_service.get_transcript(platform, native_meeting_id)
+                    # Try Fireflies transcript lookup by meeting ID
+                    full_transcript = await _ff_svc.get_transcript(native_meeting_id)
                     
-                    if transcript_data and transcript_data.get("text"):
-                        # Save the partial transcript to the meeting
-                        db_meeting.transcript = transcript_data.get("text")
-                        await db.commit()
-                        print(f"Fetched and saved partial transcript ({len(db_meeting.transcript)} chars)")
+                    if full_transcript:
+                        transcript_text = _ff_svc.format_transcript_text(full_transcript)
+                        if transcript_text:
+                            db_meeting.transcript = transcript_text
+                            await db.commit()
+                            print(f"Fetched and saved partial transcript ({len(db_meeting.transcript)} chars)")
                 except Exception as e:
                     print(f"Failed to fetch partial transcript: {e}")
 
     if not db_meeting.transcript:
-        raise HTTPException(status_code=400, detail="No transcript available for this meeting. Please add a transcript first or wait for Vexa processing.")
+        raise HTTPException(status_code=400, detail="No transcript available for this meeting. Please add a transcript first or wait for Fireflies processing.")
 
     # 3. Prepare Context for Synthesizer
     attendees_list = []

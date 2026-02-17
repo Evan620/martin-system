@@ -1,8 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { EnhancedChatRequest } from '../types/agent';
-
-// Get API URL from environment
-const API_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1').trim().replace('localhost', '127.0.0.1');
+import { ThinkingStep } from '../components/agent/ThinkingTimeline';
 
 export interface StreamEvent {
     type: string;
@@ -15,6 +13,10 @@ export interface StreamEvent {
     message?: any;
     error?: string;
     result?: any;
+    payload?: any; // Added for interrupt payloads
+    step_id?: string;
+    icon?: string;
+    image?: string;
 }
 
 export interface StreamingState {
@@ -22,6 +24,8 @@ export interface StreamingState {
     currentStatus: string | null;
     currentTool: string | null;
     error: string | null;
+    steps: ThinkingStep[];
+    startTime: number;
 }
 
 export function useStreamingChat() {
@@ -30,6 +34,8 @@ export function useStreamingChat() {
         currentStatus: null,
         currentTool: null,
         error: null,
+        steps: [],
+        startTime: 0
     });
 
     const eventSourceRef = useRef<EventSource | null>(null);
@@ -55,139 +61,71 @@ export function useStreamingChat() {
                 currentStatus: 'Connecting...',
                 currentTool: null,
                 error: null,
+                steps: [],
+                startTime: Date.now()
             });
 
             try {
-                // Use fetch with streaming for SSE
+                // Use agentService for consistent handling
                 abortControllerRef.current = new AbortController();
 
-                const token = localStorage.getItem('token');
-                const response = await fetch(`${API_URL}/agents/chat/stream`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': token ? `Bearer ${token}` : '',
-                        'X-User-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    },
-                    body: JSON.stringify(request),
-                    signal: abortControllerRef.current.signal,
-                });
+                const { agentService } = await import('../services/agentService');
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const reader = response.body?.getReader();
-                const decoder = new TextDecoder();
-
-                if (!reader) {
-                    throw new Error('No response body');
-                }
-
-                let buffer = '';
-
-                while (true) {
-                    const { done, value } = await reader.read();
-
-                    if (done) {
-                        break;
-                    }
-
-                    // Decode the chunk and add to buffer
-                    buffer += decoder.decode(value, { stream: true });
-
-                    // Process complete SSE messages
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const data = line.substring(6);
-                            try {
-                                const event: StreamEvent = JSON.parse(data);
-
-                                // Update streaming state based on event type
-                                switch (event.type) {
-                                    case 'start':
-                                        setStreamingState((prev) => ({
-                                            ...prev,
-                                            currentStatus: 'Connected',
-                                        }));
-                                        break;
-
-                                    case 'parsing':
-                                        setStreamingState((prev) => ({
-                                            ...prev,
-                                            currentStatus: 'Parsing message...',
-                                        }));
-                                        break;
-
-                                    case 'command_detected':
-                                        setStreamingState((prev) => ({
-                                            ...prev,
-                                            currentStatus: `Executing command: ${event.command}`,
-                                        }));
-                                        break;
-
-                                    case 'tool_start':
-                                        setStreamingState((prev) => ({
-                                            ...prev,
-                                            currentTool: event.tool || null,
-                                            currentStatus: event.status || 'Running tool...',
-                                        }));
-                                        break;
-
-                                    case 'agent_routing':
-                                        setStreamingState((prev) => ({
-                                            ...prev,
-                                            currentStatus: event.status || 'Routing to agent...',
-                                        }));
-                                        break;
-
-                                    case 'thinking':
-                                        setStreamingState((prev) => ({
-                                            ...prev,
-                                            currentStatus: event.status || 'Thinking...',
-                                        }));
-                                        break;
-
-                                    case 'tool_complete':
-                                        setStreamingState((prev) => ({
-                                            ...prev,
-                                            currentTool: null,
-                                        }));
-                                        break;
-
-                                    case 'response':
-                                        onComplete(event.message);
-                                        break;
-
-                                    case 'error':
-                                        setStreamingState((prev) => ({
-                                            ...prev,
-                                            error: event.error || 'Unknown error',
-                                        }));
-                                        onError(event.error || 'Unknown error');
-                                        break;
-
-                                    case 'done':
-                                        setStreamingState({
-                                            isStreaming: false,
-                                            currentStatus: null,
-                                            currentTool: null,
-                                            error: null,
-                                        });
-                                        break;
+                await agentService.chatStream(request, {
+                    onStep: (step) => {
+                        setStreamingState(prev => {
+                            const newSteps = [...prev.steps];
+                            // Mark previous step as complete if new one starts
+                            if (newSteps.length > 0) {
+                                const lastStep = newSteps[newSteps.length - 1];
+                                if (lastStep.status === 'active') {
+                                    lastStep.status = 'complete';
+                                    lastStep.durationMs = Date.now() - lastStep.timestamp;
                                 }
-
-                                // Call the event callback
-                                onEvent(event);
-                            } catch (parseError) {
-                                console.error('Error parsing SSE data:', parseError);
                             }
-                        }
+                            // Add new step
+                            newSteps.push({
+                                ...step,
+                                timestamp: Date.now()
+                            });
+                            return { ...prev, steps: newSteps, currentStatus: step.label };
+                        });
+                        // Forward to generic event handler if needed
+                        onEvent({ type: 'step', ...step });
+                    },
+                    onThinking: (status) => {
+                        onEvent({ type: 'thinking', status });
+                    },
+                    onResponse: (msg) => {
+                        // Mark all steps complete
+                        setStreamingState(prev => ({
+                            ...prev,
+                            steps: prev.steps.map(s => s.status === 'active' ? { ...s, status: 'complete', durationMs: Date.now() - s.timestamp } : s)
+                        }));
+                        onComplete(msg);
+                    },
+                    onInterrupt: (payload) => {
+                        // Mark steps complete
+                        setStreamingState(prev => ({
+                            ...prev,
+                            steps: prev.steps.map(s => s.status === 'active' ? { ...s, status: 'complete', durationMs: Date.now() - s.timestamp } : s)
+                        }));
+                        onEvent({ type: 'interrupt', payload });
+                    },
+                    onError: (err) => {
+                        setStreamingState(prev => {
+                            const newSteps = [...prev.steps];
+                            if (newSteps.length > 0) {
+                                newSteps[newSteps.length - 1].status = 'error';
+                            }
+                            return { ...prev, error: typeof err === 'string' ? err : 'Unknown error', isStreaming: false, steps: newSteps };
+                        });
+                        onError(typeof err === 'string' ? err : 'Unknown error');
+                    },
+                    onDone: () => {
+                        setStreamingState(prev => ({ ...prev, isStreaming: false }));
                     }
-                }
+                });
             } catch (error: any) {
                 if (error.name === 'AbortError') {
                     console.log('Stream aborted');
@@ -196,9 +134,9 @@ export function useStreamingChat() {
                     setStreamingState((prev) => ({
                         ...prev,
                         isStreaming: false,
-                        error: error.message,
+                        error: error.message || 'Unknown error',
                     }));
-                    onError(error.message);
+                    onError(error.message || 'Unknown error');
                 }
             }
         },
@@ -219,6 +157,8 @@ export function useStreamingChat() {
             currentStatus: null,
             currentTool: null,
             error: null,
+            steps: [],
+            startTime: 0
         });
     }, []);
 

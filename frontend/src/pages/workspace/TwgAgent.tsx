@@ -10,7 +10,7 @@ import EmailApprovalModal, { EmailApprovalRequest, EmailDraft } from '../../comp
 import DocumentApprovalModal from '../../components/modals/DocumentApprovalModal';
 import SettingsModal from '../../components/agent/SettingsModal';
 import EnhancedMessageBubble from '../../components/agent/EnhancedMessageBubble';
-import TypingIndicator from '../../components/agent/TypingIndicator';
+import ThinkingTimeline, { ThinkingStep } from '../../components/agent/ThinkingTimeline';
 import WorkspaceContextPanel from '../../components/workspace/WorkspaceContextPanel';
 import { CommandAutocompleteResult } from '../../types/agent';
 import { UserRole } from '../../types/auth';
@@ -119,7 +119,8 @@ export default function TwgAgent() {
 
     // Typing state
     const [typingMessage, setTypingMessage] = useState<string | null>(null);
-    const [thinkingSteps, setThinkingSteps] = useState<string[]>([]);
+    const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
+    const [streamStartTime, setStreamStartTime] = useState<number>(0);
 
     // ========================================================================
     // CHAT HISTORY PERSISTENCE (localStorage)
@@ -261,6 +262,7 @@ export default function TwgAgent() {
         setInputMessage('');
         setIsLoading(true);
         setThinkingSteps([]); // Clear previous steps
+        setStreamStartTime(Date.now());
         setTypingMessage('Processing...');
 
         // Create new AbortController for this request
@@ -272,13 +274,28 @@ export default function TwgAgent() {
                 conversation_id: conversationId,
                 twg_id: activeTwg?.id !== 'secretariat' ? activeTwg?.id : undefined // Pass TWG ID if not secretariat
             }, {
-                onThinking: (status) => {
+                onStep: (step: ThinkingStep) => {
                     setThinkingSteps(prev => {
-                        // Avoid duplicates if same status comes twice
-                        if (prev[prev.length - 1] === status) return prev;
-                        return [...prev, status];
+                        const newSteps = [...prev];
+                        // Mark previous step as complete
+                        if (newSteps.length > 0) {
+                            const lastStep = newSteps[newSteps.length - 1];
+                            if (lastStep.status === 'active') {
+                                lastStep.status = 'complete';
+                                lastStep.durationMs = Date.now() - lastStep.timestamp;
+                            }
+                        }
+                        // Add new step
+                        newSteps.push({
+                            ...step,
+                            timestamp: Date.now()
+                        });
+                        return newSteps;
                     });
-                    setTypingMessage(status);
+                    setTypingMessage(step.label);
+                },
+                onThinking: (status) => {
+                    // Fallback or additional handling if needed
                 },
                 onResponse: (msg: any) => {
                     console.log('[STREAM] Received response:', msg);
@@ -771,10 +788,12 @@ export default function TwgAgent() {
                                 />
                             ))
                         )}
-                        {(isLoading || typingMessage) && (
-                            <TypingIndicator
-                                agentName={currentAgentName}
+                        {(isLoading || thinkingSteps.length > 0) && (
+                            <ThinkingTimeline
                                 steps={thinkingSteps}
+                                isComplete={!isLoading && thinkingSteps.length > 0}
+                                startTime={streamStartTime}
+                                agentName={currentAgentName}
                             />
                         )}
                         <div ref={messagesEndRef} />

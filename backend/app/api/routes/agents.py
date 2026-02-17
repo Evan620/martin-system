@@ -536,10 +536,10 @@ async def stream_chat(
 
             else:
                 # Natural language - show thinking
-                yield f"data: {json.dumps({'type': 'thinking', 'status': 'Processing your request...'})}\n\n"
+                yield f"data: {json.dumps({'type': 'thinking', 'status': 'Processing your request...', 'step_id': str(uuid.uuid4())})}\n\n"
 
                 # Natural language - stream real graph events
-                yield f"data: {json.dumps({'type': 'thinking', 'status': 'Starting Supervisor...'})}\n\n"
+                yield f"data: {json.dumps({'type': 'thinking', 'status': 'Starting Supervisor...', 'icon': 'admin_panel_settings', 'step_id': str(uuid.uuid4())})}\n\n"
 
                 response_text = ""
                 citations = []
@@ -549,20 +549,26 @@ async def stream_chat(
                     if event["type"] == "node_update":
                         node = event["node"]
                         status_msg = f"Processing step: {node}"
+                        icon = "smart_toy" # Default
                         
-                        # Map nodes to friendly messages
+                        # Map nodes to friendly messages and icons
                         if node == "route_query":
                             status_msg = "Routing your query..."
+                            icon = "alt_route"
                         elif node == "supervisor":
                             status_msg = "Supervisor Analyzing..."
+                            icon = "admin_panel_settings"
                         elif node == "dispatch_multiple":
                             status_msg = "Dispatching to multiple agents..."
+                            icon = "hub"
                         elif node == "synthesis":
                             status_msg = "Synthesizing insights..."
+                            icon = "auto_awesome"
                         elif node in ["energy", "agriculture", "minerals", "digital", "protocol", "resource_mobilization"]:
                             status_msg = f"Consulting {node.title()} TWG Agent..."
+                            icon = "group"
                         
-                        yield f"data: {json.dumps({'type': 'thinking', 'status': status_msg})}\n\n"
+                        yield f"data: {json.dumps({'type': 'thinking', 'status': status_msg, 'icon': icon, 'step_id': str(uuid.uuid4())})}\n\n"
                     
                     elif event["type"] == "final_response":
                         raw_content = event["content"]
@@ -576,7 +582,7 @@ async def stream_chat(
                 message_type = ChatMessageType.AGENT_TEXT
 
             # Send completion event
-            yield f"data: {json.dumps({'type': 'tool_complete', 'status': 'Completed'})}\n\n"
+            yield f"data: {json.dumps({'type': 'tool_complete', 'status': 'Completed', 'step_id': str(uuid.uuid4())})}\n\n"
 
             # Create the final message
             agent_message = ChatMessage(

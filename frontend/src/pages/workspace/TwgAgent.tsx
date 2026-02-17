@@ -294,7 +294,7 @@ export default function TwgAgent() {
                     });
                     setTypingMessage(step.label);
                 },
-                onThinking: (status) => {
+                onThinking: (_status) => {
                     // Fallback or additional handling if needed
                 },
                 onResponse: (msg: any) => {

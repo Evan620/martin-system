@@ -88,17 +88,18 @@ async def route_query_node(state: AgentState) -> AgentState:
 
     # --- 1. SEMANTIC EMBEDDING ROUTING ---
     from app.services.semantic_router import get_semantic_router
-    
+
+    relevant = []  # Initialize before try block to avoid NameError on fallback
     try:
         router = get_semantic_router()
         routed_agents, del_type = router.route(query)
-        
+
         if routed_agents:
             # Need to verify if the semantic router returned valid registered agents,
             # but currently ALL main TWGs are valid.
             relevant = routed_agents
             logger.info(f"[ROUTE] Semantic Router delegated to: {relevant} ({del_type})")
-            
+
     except Exception as e:
         logger.error(f"[ROUTE] Semantic routing failed, falling back to supervisor: {e}")
 

@@ -961,7 +961,7 @@ class LangGraphSupervisor:
         logger.info("[SUPERVISOR] ✓ LangGraph StateGraph compiled successfully")
         logger.info(f"[SUPERVISOR] Nodes: route_query, supervisor, {', '.join(self._twg_agents.keys())}, synthesis, single_agent_response, dispatch_multiple")
 
-    async def chat(self, message: str, thread_id: Optional[str] = None, twg_id: Optional[str] = None, user_timezone: Optional[str] = None) -> str:
+    async def chat(self, message: str, thread_id: Optional[str] = None, twg_id: Optional[str] = None, user_timezone: Optional[str] = None) -> dict:
         """
         Chat interface using LangGraph execution.
 
@@ -992,7 +992,9 @@ class LangGraphSupervisor:
             "delegation_type": "supervisor_only",
             "session_id": thread_id,
             "user_id": None,
-            "context": {"twg_id": twg_id} if twg_id else None
+            "context": {"twg_id": twg_id} if twg_id else None,
+            "user_timezone": user_timezone,
+            "citations": []
         }
 
         # Run the graph
@@ -1018,22 +1020,32 @@ class LangGraphSupervisor:
                             raise GI(interrupt_value)
 
             final_response = result.get("final_response", "")
+            citations = result.get("citations", [])
 
             logger.info(f"[SUPERVISOR:{thread_id}] Response generated")
 
-            return final_response
+            return {
+                "response": final_response,
+                "citations": citations
+            }
 
         except GraphRecursionError:
             logger.warning(f"[SUPERVISOR:{thread_id}] GraphRecursionError: Max iterations reached")
-            return "I apologize, but the supervisor reached the maximum number of steps. This usually indicates a complex loop or conflict. Please refine your request."
-            
+            return {
+                "response": "I apologize, but the supervisor reached the maximum number of steps. This usually indicates a complex loop or conflict. Please refine your request.",
+                "citations": []
+            }
+
         except Exception as e:
             # Check for GraphInterrupt by name to avoid import/scope issues
             if type(e).__name__ == "GraphInterrupt":
                 raise e
-            
+
             logger.error(f"[SUPERVISOR:{thread_id}] Error: {e}")
-            return f"I apologize, but I encountered an error: {str(e)}"
+            return {
+                "response": f"I apologize, but I encountered an error: {str(e)}",
+                "citations": []
+            }
 
     async def stream_chat(self, message: str, thread_id: Optional[str] = None, twg_id: Optional[str] = None, user_timezone: Optional[str] = None):
         """

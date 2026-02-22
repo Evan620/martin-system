@@ -26,7 +26,7 @@ class SupervisorAPIAdapter:
         )
         logger.info("[ADAPTER] LangGraph supervisor initialized for API")
 
-    async def chat_with_tools(self, message: str, twg_id: str = None, thread_id: str = None, user_timezone: str = None) -> str:
+    async def chat_with_tools(self, message: str, twg_id: str = None, thread_id: str = None, user_timezone: str = None) -> dict:
         """
         Async wrapper around LangGraph supervisor chat.
 
@@ -56,8 +56,10 @@ class SupervisorAPIAdapter:
             raise gi
         except Exception as e:
             logger.error(f"[ADAPTER] Error in chat_with_tools: {e}")
-            logger.error(f"[ADAPTER] Error in chat_with_tools: {e}")
-            return f"I apologize, but I encountered an error: {str(e)}"
+            return {
+                "response": f"I apologize, but I encountered an error: {str(e)}",
+                "citations": []
+            }
 
     async def stream_chat_events(self, message: str, twg_id: str = None, thread_id: str = None, user_timezone: str = None):
         """Stream events from the underlying graph."""

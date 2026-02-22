@@ -236,7 +236,6 @@ class LangGraphBaseAgent:
             self.kb = None
             
         # Resolve TWG ID for RAG context scoping
-        from app.agents.utils import get_twg_id_by_agent_id 
         self.twg_id = get_twg_id_by_agent_id(agent_id)
         if self.twg_id:
             logger.info(f"[{agent_id}] RAG Enabled. Scoped to TWG: {self.twg_id}")
@@ -764,7 +763,7 @@ CRITICAL TOOL USAGE RULES:
             from app.models.models import TWG, Notification, NotificationType
             from sqlalchemy import select, and_
             
-            twg_id_str = get_twg_id_by_agent_id(self.agent_id)
+            twg_id_str = self.twg_id
             if twg_id_str:
                 async with get_db_session_context() as db:
                      # Get Lead ID

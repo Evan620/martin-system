@@ -622,15 +622,31 @@ CRITICAL TOOL USAGE RULES:
             logger.info(f"[{self.agent_id}] Executing tool: {tool_name}")
             
             try:
-                # Zero-Trust execution via ToolRegistry
-                # Validates access, auto-injects twg_id/timezone, and executes
-                output_str = await self._tool_registry.execute_tool(
-                    tool_name=tool_name,
-                    tool_args=tool_args,
-                    agent_id=self.agent_id,
-                    twg_id=self.twg_id,
-                    user_timezone=user_timezone,
-                )
+                # Try Zero-Trust ToolRegistry first, fall back to local tool_map
+                # (Supervisor state tools added via add_tool() live in tool_map only)
+                if self._tool_registry and tool_name in self._tool_registry._tools:
+                    output_str = await self._tool_registry.execute_tool(
+                        tool_name=tool_name,
+                        tool_args=tool_args,
+                        agent_id=self.agent_id,
+                        twg_id=self.twg_id,
+                        user_timezone=user_timezone,
+                    )
+                elif tool_name in self.tool_map:
+                    import asyncio, inspect
+                    func = self.tool_map[tool_name]
+                    # Auto-inject twg_id/user_timezone if the function accepts them
+                    sig = inspect.signature(func)
+                    if "twg_id" in sig.parameters and self.twg_id and "twg_id" not in tool_args:
+                        tool_args["twg_id"] = self.twg_id
+                    if "user_timezone" in sig.parameters and user_timezone and "user_timezone" not in tool_args:
+                        tool_args["user_timezone"] = user_timezone
+                    if asyncio.iscoroutinefunction(func):
+                        output_str = str(await func(**tool_args))
+                    else:
+                        output_str = str(await asyncio.to_thread(func, **tool_args))
+                else:
+                    output_str = json.dumps({"error": f"Tool '{tool_name}' not found"})
                 
                 # SPECIAL HANDLING FOR APPROVAL REQUESTS
                 if isinstance(output_str, str) and "approval_request_id" in output_str:

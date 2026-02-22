@@ -143,7 +143,14 @@ async def supervisor_node(state: AgentState, supervisor_agent: LangGraphBaseAgen
     user_timezone = state.get("user_timezone")
     response = await supervisor_agent.chat(query, thread_id=thread_id, user_timezone=user_timezone)
 
-    state["final_response"] = response
+    # chat() returns dict {"response": str, "citations": list} — extract text for final_response
+    if isinstance(response, dict):
+        state["final_response"] = response.get("response", "")
+        citations = response.get("citations", [])
+        if citations:
+            state["citations"] = citations
+    else:
+        state["final_response"] = str(response)
     state["agent_responses"]["supervisor"] = response
 
     return state
@@ -246,7 +253,11 @@ FORMATTING RULES:
     # Get supervisor's unified memo
     try:
         unified_memo = await supervisor_agent.chat(synthesis_prompt)
-        output = unified_memo
+        # chat() returns dict {"response": str, "citations": list} — extract text
+        if isinstance(unified_memo, dict):
+            output = unified_memo.get("response", "")
+        else:
+            output = str(unified_memo)
     except Exception as e:
         logger.error(f"[SYNTHESIS] Synthesis generation failed: {e}")
         output = f"Error generating unified memo: {str(e)}\n\nPlease review the request and try again."
@@ -265,7 +276,8 @@ FORMATTING RULES:
         """
 
         try:
-            conflict_check = await supervisor_agent.chat(conflict_prompt)
+            conflict_check_raw = await supervisor_agent.chat(conflict_prompt)
+            conflict_check = conflict_check_raw.get("response", "") if isinstance(conflict_check_raw, dict) else str(conflict_check_raw)
 
             if "CONFLICT DETECTED" in conflict_check.upper():
                 output += f"\n\nCONFLICT ALERT:\n{conflict_check}"

@@ -6,8 +6,10 @@ terminology, and formatting. Ensures citation of knowledge base sources.
 """
 
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from loguru import logger
+
+UTC = timezone.utc
 import re
 from enum import Enum
 

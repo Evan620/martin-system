@@ -5,7 +5,8 @@ Generates contextual recommendations for investment projects using LLM analysis.
 """
 
 from typing import Dict, List, Optional
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select

@@ -7,7 +7,8 @@ coordinating synthesis across TWG agents.
 """
 
 from typing import Dict, List, Optional, Any
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc

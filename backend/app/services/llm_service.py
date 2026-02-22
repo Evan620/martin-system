@@ -19,10 +19,16 @@ except ImportError:
 
 class LLMService:
     """Base interface for LLM services"""
-    def chat(self, prompt: str, system_prompt: Optional[str] = None, **kwargs) -> str:
+    def chat(self, prompt: str, system_prompt: Optional[str] = None, **kwargs) -> Any:
         raise NotImplementedError
 
-    def chat_with_history(self, messages: List[Dict[str, str]], system_prompt: Optional[str] = None, **kwargs) -> str:
+    def chat_with_history(self, messages: List[Dict[str, Any]], system_prompt: Optional[str] = None, **kwargs) -> Any:
+        raise NotImplementedError
+
+    def structured_output(self, messages: List[Dict[str, Any]], schema: dict, system_prompt: Optional[str] = None, **kwargs) -> dict:
+        """
+        Generate a guaranteed JSON structured output conforming to the provided JSON Schema.
+        """
         raise NotImplementedError
 
     def transcribe_audio(self, file_path: str, **kwargs) -> str:
@@ -47,7 +53,7 @@ class OllamaLLMService(LLMService):
 
         logger.info(f"Initialized Ollama LLM Service: {self.model} @ {self.base_url}")
 
-    def chat(self, prompt: str, system_prompt: Optional[str] = None, temperature: Optional[float] = None, max_tokens: int = 1000) -> str:
+    def chat(self, prompt: str, system_prompt: Optional[str] = None, temperature: Optional[float] = None, max_tokens: int = 1000, **kwargs) -> str:
         full_prompt = prompt
         if system_prompt:
             full_prompt = f"{system_prompt}\n\nUser: {prompt}\n\nAssistant:"
@@ -70,7 +76,7 @@ class OllamaLLMService(LLMService):
             logger.error(f"Ollama API error: {e}")
             raise Exception(f"Ollama Error: {str(e)}")
 
-    def chat_with_history(self, messages: List[Dict[str, str]], system_prompt: Optional[str] = None, temperature: Optional[float] = None) -> str:
+    def chat_with_history(self, messages: List[Dict[str, Any]], system_prompt: Optional[str] = None, temperature: Optional[float] = None, **kwargs) -> str:
         conversation = ""
         if system_prompt:
             conversation = f"{system_prompt}\n\n"
@@ -99,6 +105,22 @@ class OllamaLLMService(LLMService):
             logger.error(f"Ollama History error: {e}")
             raise Exception(f"Ollama Error: {str(e)}")
 
+    def structured_output(self, messages: List[Dict[str, Any]], schema: dict, system_prompt: Optional[str] = None, **kwargs) -> dict:
+        """Fallback structured output (Ollama doesn't natively support OpenAI json_schema response_format yet)"""
+        if system_prompt:
+             system_prompt += f"\n\nYou MUST return only valid JSON matching this schema: {json.dumps(schema)}"
+        else:
+             system_prompt = f"You MUST return only valid JSON matching this schema: {json.dumps(schema)}"
+        
+        response_text = self.chat_with_history(messages, system_prompt=system_prompt)
+        try:
+            # Strip markdown if present
+            clean_text = response_text.replace("```json", "").replace("```", "").strip()
+            return json.loads(clean_text)
+        except Exception as e:
+            logger.error(f"Failed to parse Ollama structured output: {e}\nResponse: {response_text}")
+            raise Exception("Failed to generate valid structured output")
+
 
 class OpenAILLMService(LLMService):
     """Service for interacting with OpenAI-compatible APIs"""
@@ -112,7 +134,7 @@ class OpenAILLMService(LLMService):
         self.temperature = temperature
         logger.info(f"Initialized OpenAILLMService: {self.model} (Base URL: {base_url or 'Default'})")
 
-    def chat(self, prompt: str, system_prompt: Optional[str] = None, temperature: Optional[float] = None, max_tokens: int = 2000, tools: Optional[List[Dict]] = None) -> Any:
+    def chat(self, prompt: str, system_prompt: Optional[str] = None, temperature: Optional[float] = None, max_tokens: int = 2000, tools: Optional[List[Dict]] = None, model: Optional[str] = None, response_format: Optional[Dict] = None, tool_choice: Optional[Any] = None, **kwargs) -> Any:
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -121,8 +143,8 @@ class OpenAILLMService(LLMService):
         # Diagnostic log
         logger.info(f"[OpenAILLMService] Connecting to: {self.client.base_url} (Model: {self.model})")
         
-        create_kwargs = {
-            "model": self.model,
+        create_kwargs: Dict[str, Any] = {
+            "model": model or self.model,
             "messages": messages,
             "temperature": temperature if temperature is not None else self.temperature,
             "max_tokens": max_tokens
@@ -130,6 +152,10 @@ class OpenAILLMService(LLMService):
         
         if tools:
             create_kwargs["tools"] = tools
+        if response_format:
+            create_kwargs["response_format"] = response_format
+        if tool_choice:
+            create_kwargs["tool_choice"] = tool_choice
 
         try:
             response = self.client.chat.completions.create(**create_kwargs)
@@ -138,12 +164,12 @@ class OpenAILLMService(LLMService):
             if message.tool_calls:
                  return message
             
-            return message.content.strip()
+            return (message.content or "").strip()
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")
             raise Exception(f"OpenAI Error: {str(e)}")
 
-    def chat_with_history(self, messages: List[Dict[str, str]], system_prompt: Optional[str] = None, temperature: Optional[float] = None, tools: Optional[List[Dict]] = None) -> Any:
+    def chat_with_history(self, messages: List[Dict[str, Any]], system_prompt: Optional[str] = None, temperature: Optional[float] = None, tools: Optional[List[Dict]] = None, model: Optional[str] = None, response_format: Optional[Dict] = None, tool_choice: Optional[Any] = None, **kwargs) -> Any:
         full_messages = []
         if system_prompt:
             full_messages.append({"role": "system", "content": system_prompt})
@@ -157,7 +183,7 @@ class OpenAILLMService(LLMService):
                  if role == "model": role = "assistant"
                  else: role = "user"
             
-            msg_obj = {"role": role, "content": m.get("content", "")}
+            msg_obj: Dict[str, Any] = {"role": role, "content": m.get("content", "")}
             
             if "tool_calls" in m and m["tool_calls"]:
                 msg_obj["tool_calls"] = m["tool_calls"]
@@ -168,14 +194,18 @@ class OpenAILLMService(LLMService):
                  
             full_messages.append(msg_obj)
 
-        create_kwargs = {
-            "model": self.model,
+        create_kwargs: Dict[str, Any] = {
+            "model": model or self.model,
             "messages": full_messages,
             "temperature": temperature if temperature is not None else self.temperature
         }
         
         if tools:
             create_kwargs["tools"] = tools
+        if response_format:
+            create_kwargs["response_format"] = response_format
+        if tool_choice:
+            create_kwargs["tool_choice"] = tool_choice
 
         try:
             response = self.client.chat.completions.create(**create_kwargs)
@@ -184,10 +214,36 @@ class OpenAILLMService(LLMService):
             if message.tool_calls:
                  return message
                  
-            return message.content.strip()
+            return (message.content or "").strip()
         except Exception as e:
             logger.error(f"OpenAI History error: {e}")
             raise Exception(f"OpenAI Error: {str(e)}")
+
+    def structured_output(self, messages: List[Dict[str, Any]], schema: dict, system_prompt: Optional[str] = None, **kwargs) -> dict:
+        """
+        Use OpenAI's response_format: {"type": "json_schema"} for structured data.
+        """
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "structured_response",
+                "schema": schema,
+                "strict": True
+            }
+        }
+        
+        raw_response = self.chat_with_history(
+            messages=messages,
+            system_prompt=system_prompt,
+            response_format=response_format,
+            **kwargs
+        )
+        
+        try:
+            return json.loads(raw_response)
+        except Exception as e:
+            logger.error(f"Failed to parse structured output payload: {e}")
+            raise Exception("Invalid structured output returned by logic model.")
 
     def transcribe_audio(self, file_path: str, model: str = "whisper-1", **kwargs) -> str:
         """
@@ -209,7 +265,7 @@ class OpenAILLMService(LLMService):
 
 
 # Singleton instance
-_llm_service = None
+_llm_service: Optional[LLMService] = None
 
 
 def get_llm_service() -> LLMService:
@@ -241,6 +297,13 @@ def get_llm_service() -> LLMService:
                 model=getattr(settings, "GITHUB_MODEL", "gpt-4o-mini").replace("openai/", ""),
                 temperature=settings.LLM_TEMPERATURE,
                 base_url=settings.GITHUB_BASE_URL
+            )
+        elif provider == "gemini" and getattr(settings, "GEMINI_API_KEY", None):
+             _llm_service = OpenAILLMService(
+                api_key=settings.GEMINI_API_KEY,
+                model=getattr(settings, "GEMINI_MODEL", "gemini-1.5-pro"),
+                temperature=settings.LLM_TEMPERATURE,
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
             )
         else:
             if provider != "ollama":

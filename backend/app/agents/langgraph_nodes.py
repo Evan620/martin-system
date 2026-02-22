@@ -86,108 +86,21 @@ async def route_query_node(state: AgentState) -> AgentState:
         state["query"] = clean_q
         return state
 
-    relevant = []
-    
-    # --- 1. LLM INTENT PARSING ---
-    from app.agents.intent_parser import get_intent_parser
+    # --- 1. SEMANTIC EMBEDDING ROUTING ---
+    from app.services.semantic_router import get_semantic_router
     
     try:
-        parser = get_intent_parser()
-        # Parse intent
-        intent = await parser.parse_directive(query, context)
+        router = get_semantic_router()
+        routed_agents, del_type = router.route(query)
         
-        # Store intent in state
-        if intent:
-            state["directive_intent"] = intent.dict()
-            logger.info(f"[ROUTE] Intent Parsed: {intent.primary_action}, Targets: {intent.target_twgs}")
+        if routed_agents:
+            # Need to verify if the semantic router returned valid registered agents,
+            # but currently ALL main TWGs are valid.
+            relevant = routed_agents
+            logger.info(f"[ROUTE] Semantic Router delegated to: {relevant} ({del_type})")
             
-            # Use parsed targets if available and valid
-            if intent.target_twgs:
-                # Normalize TWG names (handle "ALL" or specific list)
-                if "ALL" in [t.upper() for t in intent.target_twgs]:
-                    # All agents
-                    agent_domains = ["energy", "agriculture", "minerals", "digital"]
-                    relevant = agent_domains
-                    logger.info("[ROUTE] Routing to ALL agents based on intent")
-                else:
-                    # Filter valid agents
-                    valid_agents = ["energy", "agriculture", "minerals", "digital"]
-                    for target in intent.target_twgs:
-                        target_clean = target.lower().strip()
-                        if target_clean in valid_agents:
-                            relevant.append(target_clean)
-                        # Handle mapping (e.g. 'finance' -> 'resource_mobilization') if needed, 
-                        # but keyword fallback catches most.
-                        
-                if relevant:
-                    logger.info(f"[ROUTE] Using LLM-routed agents: {relevant}")
-    
     except Exception as e:
-        logger.error(f"[ROUTE] Intent parsing failed: {e}")
-        # Continue to fallback
-        
-    # --- 2. KEYWORD FALLBACK (if LLM didn't find specific targets) ---
-    if not relevant:
-        logger.info("[ROUTE] Fallback to Keyword Routing")
-        
-        agent_domains = {
-            "energy": {
-                "primary": ["energy", "infrastructure", "power", "electricity", "renewable", "solar", "wind", "wapp"],
-                "secondary": ["grid", "transmission", "hydroelectric", "fuel", "petroleum"]
-            },
-            "agriculture": {
-                "primary": ["agriculture", "food system", "food security", "farming", "crop", "livestock", "agribusiness"],
-                "secondary": ["fertilizer", "irrigation", "harvest", "rural", "farmer", "food production"]
-            },
-            "minerals": {
-                "primary": ["mining", "mineral", "critical minerals", "industrialization", "cobalt", "lithium", "gold", "bauxite", "extraction"],
-                "secondary": ["value chain", "ore", "quarry", "geology"]
-            },
-            "digital": {
-                "primary": ["digital", "technology", "internet", "broadband", "fintech", "e-commerce", "e-government", "transformation"],
-                "secondary": ["cybersecurity", "ai", "software", "tech", "online", "platform"]
-            },
-
-        }
-
-        agent_scores = {}
-
-        # Score each agent based on keyword matches
-        for agent_id, keywords in agent_domains.items():
-            score = 0
-
-            # Check primary keywords (10 points each)
-            for keyword in keywords.get("primary", []):
-                if keyword in query_lower:
-                    score += 10
-                    logger.debug(f"Primary match '{keyword}' for {agent_id} (+10)")
-
-            # Check secondary keywords (3 points each)
-            for keyword in keywords.get("secondary", []):
-                if keyword in query_lower:
-                    score += 3
-                    logger.debug(f"Secondary match '{keyword}' for {agent_id} (+3)")
-
-            if score > 0:
-                agent_scores[agent_id] = score
-
-        # Filter agents that meet threshold (5 points minimum)
-        relevant_threshold = 5
-        relevant_keyword = [
-            agent_id for agent_id, score in agent_scores.items()
-            if score >= relevant_threshold
-        ]
-
-        # Sort by score (highest first)
-        relevant_keyword.sort(key=lambda x: agent_scores[x], reverse=True)
-        
-        relevant = relevant_keyword
-
-        if relevant:
-            scores_str = ", ".join([f"{a}({agent_scores[a]})" for a in relevant])
-            logger.info(f"[ROUTE] Relevant agents identified via keywords: {scores_str}")
-        else:
-            logger.info(f"[ROUTE] No specific TWG identified, will use supervisor")
+        logger.error(f"[ROUTE] Semantic routing failed, falling back to supervisor: {e}")
 
     # --- 3. SCHEDULING OVERRIDE ---
     # If this is a scheduling request, ALWAYS route to supervisor (it has the scheduling tools)

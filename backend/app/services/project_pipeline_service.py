@@ -8,7 +8,8 @@ Coordinates with TWG agents for vetting and provides pipeline health monitoring.
 """
 
 from typing import Dict, List, Optional, Any
-from datetime import datetime, UTC, timedelta
+from datetime import datetime, timezone, timedelta
+UTC = timezone.utc
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select

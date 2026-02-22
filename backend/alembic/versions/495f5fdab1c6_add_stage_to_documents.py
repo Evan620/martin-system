@@ -20,15 +20,24 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Create enum type for PostgreSQL idempotently
-    op.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'documentstage') THEN CREATE TYPE documentstage AS ENUM ('ZERO_DRAFT', 'RAP_MODE', 'DECLARATION_TXT', 'FINAL'); END IF; END $$;")
-    
-    # Add column
-    op.add_column('documents', 
-        sa.Column('stage', postgresql.ENUM('ZERO_DRAFT', 'RAP_MODE', 'DECLARATION_TXT', 'FINAL', name='documentstage', create_type=False), 
-        nullable=False, 
-        server_default='FINAL')
-    )
+    bind = op.get_bind()
+    if bind.engine.name == 'postgresql':
+        # Create enum type for PostgreSQL idempotently
+        op.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'documentstage') THEN CREATE TYPE documentstage AS ENUM ('ZERO_DRAFT', 'RAP_MODE', 'DECLARATION_TXT', 'FINAL'); END IF; END $$;")
+        
+        # Add column for PostgreSQL
+        op.add_column('documents', 
+            sa.Column('stage', postgresql.ENUM('ZERO_DRAFT', 'RAP_MODE', 'DECLARATION_TXT', 'FINAL', name='documentstage', create_type=False), 
+            nullable=False, 
+            server_default='FINAL')
+        )
+    else:
+        # SQLite compatibility
+        op.add_column('documents', 
+            sa.Column('stage', sa.String(50), 
+            nullable=False, 
+            server_default='FINAL')
+        )
 
 
 def downgrade() -> None:

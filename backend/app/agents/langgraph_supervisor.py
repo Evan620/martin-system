@@ -65,7 +65,7 @@ class LangGraphSupervisor:
         self.supervisor_agent = LangGraphBaseAgent(
             agent_id="supervisor",
             keep_history=keep_history,
-            max_history=3,  # REDUCED from 20 to prevent context overflow
+            max_history=6,  # INCREASED from 3 to 6 to prevent context loss on follow-ups (e.g. "proceed")
             session_id=session_id,
             use_redis=use_redis,
             memory_ttl=memory_ttl
@@ -265,6 +265,54 @@ class LangGraphSupervisor:
             # This returns a special flag that the graph routing logic will pick up
             return f"NEGOTIATION_STARTED::{conflict_description}::{agent_a}::{agent_b}"
 
+        async def consult_twg_agents_tool(agent_names: List[str], query: str) -> str:
+            """
+            Consult multiple TWG agents simultaneously to gather domain-specific information or execute a plan.
+            Use this tool when you need input from specific TWGs to answer a user's request.
+            Args:
+                agent_names: List of TWG names to consult (e.g. ['energy', 'agriculture', 'minerals', 'digital'])
+                query: The specific question or instruction for the TWG agents.
+            """
+            import asyncio
+            
+            if not self._twg_agents:
+                return "Error: No TWG agents are currently registered."
+                
+            tasks = []
+            valid_agents = []
+            
+            for raw_name in agent_names:
+                # Normalize name (e.g. "Energy TWG" -> "energy")
+                name = raw_name.lower().replace(" twg", "").replace(" agent", "").strip()
+                if name in self._twg_agents:
+                    valid_agents.append(name)
+                    # We pass the same session_id to maintain thread context if needed,
+                    # but typically sub-agents can have their own isolated threads or share.
+                    tasks.append(self._twg_agents[name].chat(query, thread_id=self.session_id))
+                else:
+                    logger.warning(f"[SUPERVISOR] Requested agent '{name}' not found. Available: {list(self._twg_agents.keys())}")
+                    
+            if not tasks:
+                return f"Error: None of the requested agents were found. Available agents: {', '.join(self._twg_agents.keys())}"
+                
+            try:
+                logger.info(f"[SUPERVISOR] Consulting agents {valid_agents} with query: {query}")
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                response_parts = []
+                for agent_name, result in zip(valid_agents, results):
+                    if isinstance(result, Exception):
+                        response_parts.append(f"[{agent_name.upper()} TWG] Error: {str(result)}")
+                    else:
+                        # Extract response text (can be dict or str)
+                        res_text = result.get("response", str(result)) if isinstance(result, dict) else str(result)
+                        response_parts.append(f"[{agent_name.upper()} TWG]\n{res_text}")
+                        
+                return "\n\n---\n\n".join(response_parts)
+            except Exception as e:
+                logger.error(f"[SUPERVISOR] Error consulting agents: {e}")
+                return f"Error executing cross-agent query: {str(e)}"
+
         # Register tools
         if hasattr(self.supervisor_agent, "add_tool"):
             self.supervisor_agent.add_tool(get_global_calendar_tool)
@@ -273,6 +321,7 @@ class LangGraphSupervisor:
             self.supervisor_agent.add_tool(get_summit_status_tool)
             self.supervisor_agent.add_tool(detect_conflicts_tool)
             self.supervisor_agent.add_tool(start_negotiation_tool)
+            self.supervisor_agent.add_tool(consult_twg_agents_tool)
 
         # Add Scheduler Tools
         self._add_scheduler_tools()
@@ -750,33 +799,50 @@ class LangGraphSupervisor:
         # Add dispatch_multiple node for handling multiple agents
         async def dispatch_multiple_node(state: AgentState) -> AgentState:
             """
-            Dispatch query to multiple TWG agents sequentially (Async).
+            Dispatch query to multiple TWG agents in PARALLEL (Async Fan-Out).
             """
+            import asyncio
             relevant_agents = state["relevant_agents"]
             query = state["query"]
 
             state["agent_responses"] = {}
+            
+            # Helper function for parallel execution
+            async def query_agent(agent_id: str, agent: LangGraphBaseAgent, dispatch_thread_id: Optional[str], user_timezone: Optional[str]) -> tuple[str, str]:
+                try:
+                    logger.info(f"[DISPATCH] Querying {agent_id} in parallel...")
+                    response = await agent.chat(query, thread_id=dispatch_thread_id, user_timezone=user_timezone)
+                    return (agent_id, response)
+                except GraphInterrupt:
+                    logger.info(f"[DISPATCH] Interrupt from {agent_id} detected in supervisor")
+                    raise
+                except Exception as e:
+                    if type(e).__name__ == "GraphInterrupt":
+                        logger.info(f"[DISPATCH] GraphInterrupt caught as Exception from {agent_id}")
+                        raise e
+                    logger.error(f"[DISPATCH] Error with {agent_id}: {e}")
+                    return (agent_id, f"Error: {str(e)}")
 
+            dispatch_thread_id = state.get("session_id")
+            user_timezone = state.get("user_timezone")
+            
+            # Prepare tasks
+            tasks = []
             for agent_id in relevant_agents:
                 if agent_id in self._twg_agents:
-                    logger.info(f"[DISPATCH] Querying {agent_id}...")
-                    try:
-                        agent = self._twg_agents[agent_id]
-                        # Await the async chat method
-                        dispatch_thread_id = state.get("session_id")
-                        user_timezone = state.get("user_timezone")
-                        response = await agent.chat(query, thread_id=dispatch_thread_id, user_timezone=user_timezone)
-                        state["agent_responses"][agent_id] = response
-                    except GraphInterrupt:
-                        logger.info(f"[DISPATCH] Interrupt from {agent_id} detected in supervisor")
-                        raise
-                    except Exception as e:
-                        if type(e).__name__ == "GraphInterrupt":
-                            logger.info(f"[DISPATCH] GraphInterrupt caught as Exception from {agent_id}")
-                            raise e
-                            
-                        logger.error(f"[DISPATCH] Error with {agent_id}: {e}")
-                        state["agent_responses"][agent_id] = f"Error: {str(e)}"
+                    tasks.append(query_agent(agent_id, self._twg_agents[agent_id], dispatch_thread_id, user_timezone))
+            
+            if not tasks:
+                 return state
+
+            # Execute in parallel
+            try:
+                results = await asyncio.gather(*tasks)
+                for agent_id, response in results:
+                    state["agent_responses"][agent_id] = response
+            except GraphInterrupt:
+                # Re-raise interruption immediately
+                raise
 
             return state
 
@@ -999,21 +1065,47 @@ class LangGraphSupervisor:
         config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 30}
 
         try:
-            # Use astream just for state updates.
-            # astream yields the state updates after each node.
-            # We can infer which node just ran based on the keys in the chunk or explicit events if we used astream_events
-            # For simplicity in this codebase, let's use astream and map output keys to "Thinking" steps.
-            
-            async for chunk in self.compiled_graph.astream(initial_state, config):
-                # chunk is a dict where keys are node names and values are the state update
-                for node_name, state_update in chunk.items():
+            # Use astream_events(version="v2") for granular token and tool streaming
+            async for event in self.compiled_graph.astream_events(initial_state, config, version="v2"):
+                event_type = event["event"]
+                name = event.get("name", "")
+                
+                # Yield Node starts (chain starts that match our graph nodes)
+                if event_type == "on_chain_start" and name in ["route_query", "supervisor", "dispatch_multiple", "synthesis", "energy", "agriculture", "minerals", "digital", "protocol", "resource_mobilization"]:
                     yield {
                         "type": "node_update",
-                        "node": node_name,
-                        "state": state_update # Be careful exposing full state
+                        "node": name
                     }
-                    
-                    if "final_response" in state_update and state_update["final_response"]:
+
+                # Granular Streaming: Tool Starts
+                elif event_type == "on_tool_start":
+                    yield {
+                        "type": "tool_start",
+                        "tool": name,
+                        "args": event.get("data", {}).get("input", {})
+                    }
+                
+                # Granular Streaming: Tool Ends
+                elif event_type == "on_tool_end":
+                    yield {
+                        "type": "tool_result",
+                        "tool": name,
+                        "result": str(event.get("data", {}).get("output", ""))[:200] + "..." # Truncate long results for UI
+                    }
+                
+                # Granular Streaming: LLM Tokens
+                elif event_type == "on_chat_model_stream":
+                    chunk = event.get("data", {}).get("chunk")
+                    if chunk and hasattr(chunk, "content") and chunk.content:
+                        yield {
+                            "type": "token",
+                            "content": chunk.content
+                        }
+                
+                # End of specific graph nodes producing final response
+                elif event_type == "on_chain_end" and name in ["supervisor", "synthesis", "energy", "agriculture", "minerals", "digital", "protocol", "resource_mobilization"]:
+                    state_update = event.get("data", {}).get("output", {})
+                    if isinstance(state_update, dict) and "final_response" in state_update and state_update["final_response"]:
                         yield {
                              "type": "final_response",
                              "content": state_update["final_response"]

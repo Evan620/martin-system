@@ -19,7 +19,8 @@ from app.services.document_synthesizer import DocumentSynthesizer
 from app.services.llm_service import get_llm_service
 from sqlalchemy import select, and_, or_
 import datetime
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 
 logger = logging.getLogger(__name__)
 
@@ -557,7 +558,8 @@ class FirefliesService:
             from app.core.database import get_db_session_context
             from sqlalchemy.orm import selectinload
             from app.models.models import MeetingParticipant
-            from datetime import datetime, UTC
+            from datetime import datetime, timezone
+            UTC = timezone.utc
 
             async with get_db_session_context() as db:
                 # Find local meeting by title match (no transcript yet)

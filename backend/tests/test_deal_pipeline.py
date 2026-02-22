@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from decimal import Decimal
 from uuid import uuid4
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 
 from app.core.database import Base
 from app.models.models import (

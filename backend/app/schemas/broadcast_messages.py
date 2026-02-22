@@ -5,7 +5,8 @@ Defines message types for broadcasting context, documents, and policy updates
 from Supervisor to all TWG agents.
 """
 
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 from typing import Dict, List, Optional, Any
 from enum import Enum
 from pydantic import BaseModel, Field

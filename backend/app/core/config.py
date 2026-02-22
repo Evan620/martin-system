@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     # LLM Provider Configuration
     LLM_PROVIDER: str = "github"
     LLM_MODEL: str = "gpt-4o-mini"
+    LLM_MODEL_FAST: str = "gemini-1.5-flash"
+    LLM_MODEL_POWERFUL: str = "gemini-1.5-pro"
     LLM_MAX_TOKENS: int = 4000
 
     # Groq

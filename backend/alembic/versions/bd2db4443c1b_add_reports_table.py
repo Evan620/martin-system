@@ -36,12 +36,22 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['twg_id'], ['twgs.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.alter_column('meeting_participants', 'rsvp_status',
-               existing_type=postgresql.ENUM('PENDING', 'ACCEPTED', 'DECLINED', name='rsvpstatus'),
-               nullable=False)
-    op.alter_column('meeting_participants', 'attended',
-               existing_type=sa.BOOLEAN(),
-               nullable=False)
+    bind = op.get_bind()
+    if bind.engine.name == 'postgresql':
+        op.alter_column('meeting_participants', 'rsvp_status',
+                   existing_type=postgresql.ENUM('PENDING', 'ACCEPTED', 'DECLINED', name='rsvpstatus'),
+                   nullable=False)
+        op.alter_column('meeting_participants', 'attended',
+                   existing_type=sa.BOOLEAN(),
+                   nullable=False)
+    else:
+        with op.batch_alter_table('meeting_participants') as batch_op:
+            batch_op.alter_column('rsvp_status',
+                       existing_type=sa.String(length=50),
+                       nullable=False)
+            batch_op.alter_column('attended',
+                       existing_type=sa.BOOLEAN(),
+                       nullable=False)
     # ### end Alembic commands ###
 
 

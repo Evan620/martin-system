@@ -29,10 +29,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Set the database URL from environment variable, with explicit fallback
-database_url = os.getenv("DATABASE_URL")
-if not database_url:
-    database_url = "sqlite+aiosqlite:///./ecowas_db.sqlite"
+# Set the database URL from centralized settings
+from app.core.config import settings
+database_url = settings.DATABASE_URL
 # Ensure we use the async driver for Postgres
 if database_url.startswith("postgresql://"):
     database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
@@ -74,6 +73,7 @@ async def run_migrations_online() -> None:
     
     # create_async_engine requires the URL to be suitable for an async driver
     url = config.get_main_option("sqlalchemy.url")
+    print(f"ALEMBIC DEBUG: url={url}")
     connectable = create_async_engine(
         url,
         poolclass=pool.NullPool,

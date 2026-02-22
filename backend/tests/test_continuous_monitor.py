@@ -1,7 +1,8 @@
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
 from app.services.continuous_monitor import ContinuousMonitor
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 
 @pytest.fixture
 def monitor():

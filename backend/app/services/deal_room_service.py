@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_

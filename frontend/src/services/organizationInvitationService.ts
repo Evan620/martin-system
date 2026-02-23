@@ -112,10 +112,34 @@ export const organizationInvitationService = {
         return response.data;
     },
 
-    async createInvitation(data: OrganizationInvitationCreate) {
-        const response = await api.post<OrganizationInvitation>('/organization-invitations/', {
-            ...data,
-            send_email: data.send_email ?? true
+    async createInvitation(data: OrganizationInvitationCreate, attachments: File[] = []) {
+        // If no attachments, use regular JSON
+        if (attachments.length === 0) {
+            const response = await api.post<OrganizationInvitation>('/organization-invitations/', {
+                ...data,
+                send_email: data.send_email ?? true
+            });
+            return response.data;
+        }
+
+        // With attachments, use FormData
+        const formData = new FormData();
+        formData.append('organization_name', data.organization_name);
+        formData.append('contact_email', data.contact_email);
+        formData.append('twg_id', data.twg_id);
+        if (data.custom_message) {
+            formData.append('custom_message', data.custom_message);
+        }
+        formData.append('send_email', String(data.send_email ?? true));
+
+        attachments.forEach((file) => {
+            formData.append('attachments', file);
+        });
+
+        const response = await api.post<OrganizationInvitation>('/organization-invitations/', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
         });
         return response.data;
     },

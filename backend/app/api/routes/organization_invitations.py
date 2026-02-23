@@ -8,12 +8,13 @@ TWG_FACILITATOR can only invite to their assigned TWGs.
 
 from datetime import datetime, timedelta
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, update
 from sqlalchemy.orm import selectinload
 import uuid
 import math
+import base64
 
 from app.core.database import get_db
 from app.models.models import (
@@ -58,25 +59,32 @@ def can_access_invitation(user: User, invitation: OrganizationInvitation) -> boo
 
 @router.post("/", response_model=OrganizationInvitationResponse, status_code=status.HTTP_201_CREATED)
 async def create_invitation(
-    invitation_data: OrganizationInvitationCreate,
+    organization_name: str = Form(...),
+    contact_email: str = Form(...),
+    twg_id: str = Form(...),
+    custom_message: Optional[str] = Form(None),
+    send_email: bool = Form(True),
+    attachments: List[UploadFile] = File(default=[]),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Create a new organization invitation.
+    Create a new organization invitation with optional file attachments.
 
     ADMIN/SECRETARIAT_LEAD: Can invite to any TWG.
     TWG_FACILITATOR: Can only invite to their assigned TWGs.
     """
+    twg_id_uuid = uuid.UUID(twg_id)
+
     # Permission check
-    if not can_send_invitation(current_user, invitation_data.twg_id):
+    if not can_send_invitation(current_user, twg_id_uuid):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to send invitations for this TWG"
         )
 
     # Verify TWG exists
-    twg_result = await db.execute(select(TWG).where(TWG.id == invitation_data.twg_id))
+    twg_result = await db.execute(select(TWG).where(TWG.id == twg_id_uuid))
     twg = twg_result.scalar_one_or_none()
     if not twg:
         raise HTTPException(
@@ -88,8 +96,8 @@ async def create_invitation(
     existing_result = await db.execute(
         select(OrganizationInvitation).where(
             and_(
-                OrganizationInvitation.contact_email == invitation_data.contact_email,
-                OrganizationInvitation.twg_id == invitation_data.twg_id,
+                OrganizationInvitation.contact_email == contact_email,
+                OrganizationInvitation.twg_id == twg_id_uuid,
                 OrganizationInvitation.status == OrganizationInvitationStatus.PENDING
             )
         )
@@ -103,10 +111,10 @@ async def create_invitation(
 
     # Create invitation with 30-day expiry
     invitation = OrganizationInvitation(
-        organization_name=invitation_data.organization_name,
-        contact_email=invitation_data.contact_email,
-        twg_id=invitation_data.twg_id,
-        custom_message=invitation_data.custom_message,
+        organization_name=organization_name,
+        contact_email=contact_email,
+        twg_id=twg_id_uuid,
+        custom_message=custom_message,
         status=OrganizationInvitationStatus.PENDING,
         expires_at=datetime.utcnow() + timedelta(days=30),
         created_by_id=current_user.id
@@ -117,9 +125,21 @@ async def create_invitation(
     await db.refresh(invitation)
 
     # Send email if requested
-    if invitation_data.send_email:
+    if send_email:
         try:
             from app.services.email_service import email_service
+
+            # Process attachments
+            email_attachments = []
+            for attachment in attachments:
+                if attachment.filename:
+                    content = await attachment.read()
+                    email_attachments.append({
+                        "filename": attachment.filename,
+                        "content": content,
+                        "content_type": attachment.content_type or "application/octet-stream"
+                    })
+
             await email_service.send_organization_invitation(
                 to_email=invitation.contact_email,
                 organization_name=invitation.organization_name,
@@ -127,7 +147,8 @@ async def create_invitation(
                 inviter_name=current_user.full_name,
                 custom_message=invitation.custom_message,
                 invitation_id=str(invitation.id),
-                expires_at=invitation.expires_at
+                expires_at=invitation.expires_at,
+                attachments=email_attachments
             )
             invitation.sent_at = datetime.utcnow()
             await db.commit()

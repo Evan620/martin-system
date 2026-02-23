@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
     organizationInvitationService,
     OrganizationInvitation,
@@ -39,6 +39,10 @@ export default function OrganizationInvitations() {
         custom_message: '',
         send_email: true
     })
+
+    // File attachments
+    const fileInputRef = useRef<HTMLInputElement>(null)
+    const [attachments, setAttachments] = useState<File[]>([])
 
     // Resend state
     const [resendingId, setResendingId] = useState<string | null>(null)
@@ -88,7 +92,7 @@ export default function OrganizationInvitations() {
 
         setIsSubmitting(true)
         try {
-            await organizationInvitationService.createInvitation(createForm)
+            await organizationInvitationService.createInvitation(createForm, attachments)
             toast.success('Invitation sent successfully')
             setIsCreateModalOpen(false)
             resetCreateForm()
@@ -138,6 +142,39 @@ export default function OrganizationInvitations() {
             custom_message: '',
             send_email: true
         })
+        setAttachments([])
+        if (fileInputRef.current) {
+            fileInputRef.current.value = ''
+        }
+    }
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || [])
+        // Limit to 5 files and max 10MB each
+        const validFiles = files.filter(file => {
+            if (file.size > 10 * 1024 * 1024) {
+                toast.error(`${file.name} is too large (max 10MB)`)
+                return false
+            }
+            return true
+        })
+
+        if (attachments.length + validFiles.length > 5) {
+            toast.error('Maximum 5 attachments allowed')
+            return
+        }
+
+        setAttachments(prev => [...prev, ...validFiles])
+    }
+
+    const removeAttachment = (index: number) => {
+        setAttachments(prev => prev.filter((_, i) => i !== index))
+    }
+
+    const formatFileSize = (bytes: number) => {
+        if (bytes < 1024) return bytes + ' B'
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
     }
 
     const formatDate = (dateString: string | null) => {
@@ -449,6 +486,57 @@ export default function OrganizationInvitations() {
                                     className="w-full px-3 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm min-h-[100px] resize-y"
                                     placeholder="Optional personal message to include in the invitation..."
                                 />
+                            </div>
+
+                            {/* Attachments */}
+                            <div>
+                                <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">
+                                    Attachments
+                                </label>
+                                <div
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="border-2 border-dashed border-[#e7ebf3] dark:border-[#4a5568] rounded-lg p-4 text-center cursor-pointer hover:border-[#1152d4] dark:hover:border-[#1152d4] transition-colors"
+                                >
+                                    <span className="material-symbols-outlined text-3xl text-[#4c669a] dark:text-[#a0aec0]">attach_file</span>
+                                    <p className="text-sm text-[#4c669a] dark:text-[#a0aec0] mt-1">
+                                        Click to attach files (PDF, images, documents)
+                                    </p>
+                                    <p className="text-xs text-[#4c669a] dark:text-[#a0aec0]">
+                                        Max 5 files, 10MB each
+                                    </p>
+                                </div>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    multiple
+                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                                    onChange={handleFileSelect}
+                                    className="hidden"
+                                />
+
+                                {/* Selected files */}
+                                {attachments.length > 0 && (
+                                    <div className="mt-3 space-y-2">
+                                        {attachments.map((file, index) => (
+                                            <div key={index} className="flex items-center justify-between bg-gray-50 dark:bg-[#2d3748] rounded-lg px-3 py-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="material-symbols-outlined text-[20px] text-[#4c669a]">description</span>
+                                                    <div>
+                                                        <p className="text-sm font-medium text-[#0d121b] dark:text-white">{file.name}</p>
+                                                        <p className="text-xs text-[#4c669a]">{formatFileSize(file.size)}</p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeAttachment(index)}
+                                                    className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">close</span>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex items-center gap-2">

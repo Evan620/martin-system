@@ -22,7 +22,6 @@ export default function PublicInvitationRespond() {
     const [invitation, setInvitation] = useState<PublicInvitation | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [isResponding, setIsResponding] = useState(false)
-    const [showChat, setShowChat] = useState(false)
     const [responseGiven, setResponseGiven] = useState<'accept' | 'decline' | null>(null)
 
     // Check for action param in URL
@@ -225,7 +224,7 @@ export default function PublicInvitationRespond() {
 
                         {/* Already Responded */}
                         {invitation.status !== 'pending' && !responseGiven && (
-                            <div className={`mt-4 p-4 rounded-xl ${
+                            <div className={`p-4 rounded-xl ${
                                 invitation.status === 'accepted'
                                     ? 'bg-green-50 border border-green-200'
                                     : invitation.status === 'declined'
@@ -242,45 +241,25 @@ export default function PublicInvitationRespond() {
                                 </div>
                             </div>
                         )}
-
-                        {/* Chat Toggle */}
-                        <div className="mt-6 pt-6 border-t border-gray-200">
-                            <button
-                                onClick={() => setShowChat(!showChat)}
-                                className="flex items-center gap-2 text-[#1152d4] hover:text-[#0e44b1] font-medium"
-                            >
-                                <span className="material-symbols-outlined">
-                                    {showChat ? 'expand_less' : 'chat'}
-                                </span>
-                                {showChat ? 'Hide Conversation' : 'View Conversation'}
-                                {invitation.has_messages && !showChat && (
-                                    <span className="px-2 py-0.5 bg-[#1152d4] text-white text-xs rounded-full">
-                                        New
-                                    </span>
-                                )}
-                            </button>
-                        </div>
                     </div>
                 </div>
 
-                {/* Chat Section */}
-                {showChat && (
-                    <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                        <div className="p-4 border-b border-[#e7ebf3]">
-                            <h2 className="text-lg font-bold text-[#0d121b]">Conversation</h2>
-                            <p className="text-sm text-[#4c669a]">
-                                Send a message to the {invitation.twg_name} team
-                            </p>
-                        </div>
-                        <div className="h-[400px]">
-                            <InvitationChat
-                                invitationId={invitationId!}
-                                isPublic={true}
-                                organizationName={invitation.organization_name}
-                            />
-                        </div>
+                {/* Chat Section - Always Visible */}
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                    <div className="p-4 border-b border-[#e7ebf3]">
+                        <h2 className="text-lg font-bold text-[#0d121b]">Conversation</h2>
+                        <p className="text-sm text-[#4c669a]">
+                            Send a message to the {invitation.twg_name} team
+                        </p>
                     </div>
-                )}
+                    <div className="h-[400px]">
+                        <InvitationChat
+                            invitationId={invitationId!}
+                            isPublic={true}
+                            organizationName={invitation.organization_name}
+                        />
+                    </div>
+                </div>
 
                 {/* Footer */}
                 <div className="mt-8 text-center">

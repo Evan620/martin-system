@@ -566,10 +566,11 @@ class EmailService:
         inviter_name: str,
         invitation_id: str,
         expires_at: datetime,
-        custom_message: Optional[str] = None
+        custom_message: Optional[str] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None
     ):
         """
-        Sends an organization invitation email with accept/decline buttons.
+        Sends an organization invitation email with accept/decline buttons and optional attachments.
         """
         template = self.jinja_env.get_template("organization_invitation.html")
 
@@ -585,7 +586,8 @@ class EmailService:
             "custom_message": custom_message,
             "accept_url": accept_url,
             "decline_url": decline_url,
-            "expires_at": expires_at.strftime("%B %d, %Y")
+            "expires_at": expires_at.strftime("%B %d, %Y"),
+            "has_attachments": bool(attachments)
         }
         html_content = template.render(**context)
         subject = f"Invitation to Join {twg_name} - ECOWAS Summit TWG"
@@ -593,19 +595,23 @@ class EmailService:
         if not settings.EMAILS_ENABLED:
             print(f"[EmailService] Emails disabled. Would send org invitation to: {to_email}")
             print(f"[EmailService] Accept URL: {accept_url}")
+            if attachments:
+                print(f"[EmailService] Attachments: {[a['filename'] for a in attachments]}")
             return True
 
         if self.use_resend:
             return await self._send_via_resend(
                 to_emails=[to_email],
                 subject=subject,
-                html_content=html_content
+                html_content=html_content,
+                extra_attachments=attachments
             )
         else:
             return await self._send_via_smtp(
                 to_emails=[to_email],
                 subject=subject,
-                html_content=html_content
+                html_content=html_content,
+                extra_attachments=attachments
             )
 
     async def send_invitation_message_notification(

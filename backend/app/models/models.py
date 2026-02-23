@@ -143,6 +143,12 @@ class DependencySource(str, enum.Enum):
     AI_INFERRED = "ai_inferred"
     MANUAL = "manual"
 
+class OrganizationInvitationStatus(str, enum.Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    EXPIRED = "expired"
+
 # --- Association Tables ---
 
 twg_members = Table(
@@ -774,6 +780,34 @@ class TwgSettings(Base):
     
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    
+
     # Relationships
     twg: Mapped["TWG"] = relationship("TWG")
+
+class OrganizationInvitation(Base):
+    """
+    Invitations sent to external organizations to join TWGs.
+    Tracks invitation status through pending, accepted, declined, expired states.
+    """
+    __tablename__ = "organization_invitations"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    organization_name: Mapped[str] = mapped_column(String(255))
+    contact_email: Mapped[str] = mapped_column(String(255), index=True)
+    twg_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("twgs.id"))
+    custom_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[OrganizationInvitationStatus] = mapped_column(
+        Enum(OrganizationInvitationStatus), default=OrganizationInvitationStatus.PENDING
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    responded_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_by_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"))
+    resend_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_resend_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    twg: Mapped["TWG"] = relationship("TWG")
+    created_by: Mapped["User"] = relationship("User")

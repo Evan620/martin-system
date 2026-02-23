@@ -558,5 +558,55 @@ class EmailService:
                 html_content=html_content
             )
 
+    async def send_organization_invitation(
+        self,
+        to_email: str,
+        organization_name: str,
+        twg_name: str,
+        inviter_name: str,
+        invitation_id: str,
+        expires_at: datetime,
+        custom_message: Optional[str] = None
+    ):
+        """
+        Sends an organization invitation email with accept/decline buttons.
+        """
+        template = self.jinja_env.get_template("organization_invitation.html")
+
+        # Build response URLs
+        base_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+        accept_url = f"{base_url}/invitations/{invitation_id}/respond?action=accept"
+        decline_url = f"{base_url}/invitations/{invitation_id}/respond?action=decline"
+
+        context = {
+            "organization_name": organization_name,
+            "twg_name": twg_name,
+            "inviter_name": inviter_name,
+            "custom_message": custom_message,
+            "accept_url": accept_url,
+            "decline_url": decline_url,
+            "expires_at": expires_at.strftime("%B %d, %Y")
+        }
+        html_content = template.render(**context)
+        subject = f"Invitation to Join {twg_name} - ECOWAS Summit TWG"
+
+        if not settings.EMAILS_ENABLED:
+            print(f"[EmailService] Emails disabled. Would send org invitation to: {to_email}")
+            print(f"[EmailService] Accept URL: {accept_url}")
+            return True
+
+        if self.use_resend:
+            return await self._send_via_resend(
+                to_emails=[to_email],
+                subject=subject,
+                html_content=html_content
+            )
+        else:
+            return await self._send_via_smtp(
+                to_emails=[to_email],
+                subject=subject,
+                html_content=html_content
+            )
+
 
 email_service = EmailService()

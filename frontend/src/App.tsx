@@ -30,6 +30,7 @@ import NotificationCenter from './pages/notifications/NotificationCenter'
 import TeamManagement from './pages/admin/TeamManagement'
 import ControlTower from './pages/admin/ControlTower'
 import AuditLogs from './pages/admin/AuditLogs'
+import OrganizationInvitations from './pages/admin/OrganizationInvitations'
 import ProjectConflicts from './pages/Conflicts/ProjectConflicts'
 import ProtectedRoute from './components/ProtectedRoute'
 
@@ -140,6 +141,11 @@ function App() {
                 <Route path="/admin/logs" element={
                     <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]}>
                         <AuditLogs />
+                    </ProtectedRoute>
+                } />
+                <Route path="/admin/invitations" element={
+                    <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]}>
+                        <OrganizationInvitations />
                     </ProtectedRoute>
                 } />
             </Route>

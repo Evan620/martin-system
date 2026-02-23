@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            background-color: #004a99;
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .header p {
+            color: #ffffff;
+            opacity: 0.9;
+            margin: 10px 0 0;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .salutation {
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+
+        .invitation-details {
+            background-color: #f8f9fa;
+            border-left: 4px solid #004a99;
+            padding: 20px;
+            margin: 25px 0;
+        }
+
+        .invitation-details h2 {
+            color: #004a99;
+            margin: 0 0 10px;
+            font-size: 18px;
+        }
+
+        .invitation-details p {
+            margin: 5px 0;
+            font-size: 15px;
+        }
+
+        .custom-message {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+            font-style: italic;
+        }
+
+        .custom-message-label {
+            font-weight: bold;
+            font-style: normal;
+            color: #856404;
+            margin-bottom: 8px;
+        }
+
+        .buttons {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 14px 32px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 15px;
+            margin: 0 10px;
+            transition: all 0.2s;
+        }
+
+        .button-accept {
+            background-color: #28a745;
+            color: #ffffff !important;
+        }
+
+        .button-decline {
+            background-color: #6c757d;
+            color: #ffffff !important;
+        }
+
+        .expiry-notice {
+            background-color: #e7f3ff;
+            border: 1px solid #b8daff;
+            border-radius: 4px;
+            padding: 12px 15px;
+            font-size: 14px;
+            color: #004085;
+            margin: 20px 0;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 25px 20px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .footer p {
+            margin: 5px 0;
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .footer a {
+            color: #004a99;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ECOWAS Summit TWG</h1>
+            <p>Technical Working Group Invitation</p>
+        </div>
+
+        <div class="content">
+            <p class="salutation">Dear <strong>{{ organization_name }}</strong>,</p>
+
+            <p>You have been invited to participate in the <strong>{{ twg_name }}</strong> Technical Working Group as
+                part of the ECOWAS Summit initiative.</p>
+
+            <div class="invitation-details">
+                <h2>Invitation Details</h2>
+                <p><strong>Organization:</strong> {{ organization_name }}</p>
+                <p><strong>Technical Working Group:</strong> {{ twg_name }}</p>
+                <p><strong>Invited by:</strong> {{ inviter_name }}</p>
+            </div>
+
+            {% if custom_message %}
+            <div class="custom-message">
+                <div class="custom-message-label">Personal Message from {{ inviter_name }}:</div>
+                {{ custom_message }}
+            </div>
+            {% endif %}
+
+            <p>Please respond to this invitation by clicking one of the buttons below:</p>
+
+            <div class="buttons">
+                <a href="{{ accept_url }}" class="button button-accept">Accept Invitation</a>
+                <a href="{{ decline_url }}" class="button button-decline">Decline</a>
+            </div>
+
+            <div class="expiry-notice">
+                <strong>Note:</strong> This invitation will expire on <strong>{{ expires_at }}</strong>. Please respond
+                before this date.
+            </div>
+
+            <p>If you have any questions about this invitation or the TWG activities, please reply to this email or
+                contact the ECOWAS Summit Secretariat.</p>
+
+            <p>Thank you for your consideration.</p>
+
+            <p>
+                Best regards,<br>
+                <strong>{{ inviter_name }}</strong><br>
+                ECOWAS Summit TWG Support Team
+            </p>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2026 ECOWAS Summit TWG Support System. All rights reserved.</p>
+            <p>This is an official communication from the ECOWAS Summit Technical Working Group.</p>
+        </div>
+    </div>
+</body>
+
+</html>

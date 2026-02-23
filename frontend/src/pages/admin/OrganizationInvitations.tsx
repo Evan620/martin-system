@@ -7,7 +7,6 @@ import {
 } from '../../services/organizationInvitationService'
 import { twgs as twgService } from '../../services/api'
 import { toast } from 'react-toastify'
-import { useAppSelector } from '../../hooks/useRedux'
 
 const STATUS_COLORS: Record<OrganizationInvitationStatus, string> = {
     pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
@@ -17,7 +16,6 @@ const STATUS_COLORS: Record<OrganizationInvitationStatus, string> = {
 }
 
 export default function OrganizationInvitations() {
-    const currentUser = useAppSelector((state) => state.auth.user)
     const [invitations, setInvitations] = useState<OrganizationInvitation[]>([])
     const [twgs, setTwgs] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(true)

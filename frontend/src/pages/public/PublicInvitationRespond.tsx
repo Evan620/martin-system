@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import {
     organizationInvitationService,
     PublicInvitation,
@@ -18,7 +18,6 @@ const STATUS_COLORS: Record<OrganizationInvitationStatus, string> = {
 export default function PublicInvitationRespond() {
     const { invitationId } = useParams<{ invitationId: string }>()
     const [searchParams] = useSearchParams()
-    const navigate = useNavigate()
 
     const [invitation, setInvitation] = useState<PublicInvitation | null>(null)
     const [isLoading, setIsLoading] = useState(true)

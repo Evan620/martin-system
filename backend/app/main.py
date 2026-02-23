@@ -4,7 +4,7 @@ faulthandler.enable()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users, notifications, supervisor, debug, pipeline, conflicts, settings as settings_router, shared_documents, organization_invitations
+from app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users, notifications, supervisor, debug, pipeline, conflicts, settings as settings_router, shared_documents, organization_invitations, public_invitations
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -185,6 +185,7 @@ app.include_router(conflicts.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(settings_router.router, prefix=f"{settings.API_V1_STR}/settings", tags=["Settings"])
 app.include_router(shared_documents.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(organization_invitations.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(public_invitations.router, prefix=f"{settings.API_V1_STR}")
 from app.api.routes import webhooks
 app.include_router(webhooks.router, prefix=f"{settings.API_V1_STR}/webhooks", tags=["Webhooks"])
 

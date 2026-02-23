@@ -608,5 +608,50 @@ class EmailService:
                 html_content=html_content
             )
 
+    async def send_invitation_message_notification(
+        self,
+        to_email: str,
+        organization_name: str,
+        twg_name: str,
+        sender_name: str,
+        message_preview: str,
+        invitation_id: str
+    ):
+        """
+        Sends notification to invitee when admin sends a message.
+        """
+        template = self.jinja_env.get_template("invitation_message_notification.html")
+
+        # Build conversation URL
+        base_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+        conversation_url = f"{base_url}/invitations/{invitation_id}/respond"
+
+        context = {
+            "organization_name": organization_name,
+            "twg_name": twg_name,
+            "sender_name": sender_name,
+            "message_preview": message_preview,
+            "conversation_url": conversation_url
+        }
+        html_content = template.render(**context)
+        subject = f"New Message from {twg_name} - ECOWAS Summit TWG"
+
+        if not settings.EMAILS_ENABLED:
+            print(f"[EmailService] Emails disabled. Would send message notification to: {to_email}")
+            return True
+
+        if self.use_resend:
+            return await self._send_via_resend(
+                to_emails=[to_email],
+                subject=subject,
+                html_content=html_content
+            )
+        else:
+            return await self._send_via_smtp(
+                to_emails=[to_email],
+                subject=subject,
+                html_content=html_content
+            )
+
 
 email_service = EmailService()

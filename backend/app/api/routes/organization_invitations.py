@@ -10,14 +10,15 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, update
 from sqlalchemy.orm import selectinload
 import uuid
 import math
 
 from app.core.database import get_db
 from app.models.models import (
-    User, UserRole, TWG, OrganizationInvitation, OrganizationInvitationStatus
+    User, UserRole, TWG, OrganizationInvitation, OrganizationInvitationStatus,
+    InvitationMessage, InvitationMessageSender
 )
 from app.api.deps import get_current_active_user, has_twg_access
 from app.schemas.organization_invitation import (
@@ -27,7 +28,10 @@ from app.schemas.organization_invitation import (
     OrganizationInvitationListResponse,
     ResendInvitationResponse,
     InvitationRespondRequest,
-    InvitationRespondResponse
+    InvitationRespondResponse,
+    InvitationMessageCreate,
+    InvitationMessageResponse,
+    InvitationMessageListResponse
 )
 from app.core.config import settings
 
@@ -147,7 +151,9 @@ async def create_invitation(
         created_by_name=current_user.full_name,
         resend_count=invitation.resend_count,
         last_resend_at=invitation.last_resend_at,
-        created_at=invitation.created_at
+        created_at=invitation.created_at,
+        unread_message_count=0,
+        has_messages=False
     )
 
 
@@ -171,7 +177,8 @@ async def list_invitations(
         select(OrganizationInvitation)
         .options(
             selectinload(OrganizationInvitation.twg),
-            selectinload(OrganizationInvitation.created_by)
+            selectinload(OrganizationInvitation.created_by),
+            selectinload(OrganizationInvitation.messages)
         )
     )
 
@@ -222,7 +229,9 @@ async def list_invitations(
             created_by_name=inv.created_by.full_name if inv.created_by else None,
             resend_count=inv.resend_count,
             last_resend_at=inv.last_resend_at,
-            created_at=inv.created_at
+            created_at=inv.created_at,
+            unread_message_count=inv.unread_by_admin_count,
+            has_messages=len(inv.messages) > 0 if hasattr(inv, 'messages') else False
         )
         for inv in invitations
     ]
@@ -248,7 +257,8 @@ async def get_invitation(
         .where(OrganizationInvitation.id == invitation_id)
         .options(
             selectinload(OrganizationInvitation.twg),
-            selectinload(OrganizationInvitation.created_by)
+            selectinload(OrganizationInvitation.created_by),
+            selectinload(OrganizationInvitation.messages)
         )
     )
     result = await db.execute(query)
@@ -282,7 +292,9 @@ async def get_invitation(
         created_by_name=invitation.created_by.full_name if invitation.created_by else None,
         resend_count=invitation.resend_count,
         last_resend_at=invitation.last_resend_at,
-        created_at=invitation.created_at
+        created_at=invitation.created_at,
+        unread_message_count=invitation.unread_by_admin_count,
+        has_messages=len(invitation.messages) > 0
     )
 
 
@@ -303,7 +315,8 @@ async def update_invitation(
         .where(OrganizationInvitation.id == invitation_id)
         .options(
             selectinload(OrganizationInvitation.twg),
-            selectinload(OrganizationInvitation.created_by)
+            selectinload(OrganizationInvitation.created_by),
+            selectinload(OrganizationInvitation.messages)
         )
     )
     result = await db.execute(query)
@@ -368,7 +381,9 @@ async def update_invitation(
         created_by_name=invitation.created_by.full_name if invitation.created_by else None,
         resend_count=invitation.resend_count,
         last_resend_at=invitation.last_resend_at,
-        created_at=invitation.created_at
+        created_at=invitation.created_at,
+        unread_message_count=invitation.unread_by_admin_count,
+        has_messages=len(invitation.messages) > 0 if hasattr(invitation, 'messages') else False
     )
 
 
@@ -543,4 +558,155 @@ async def respond_to_invitation(
                 f"You will be contacted by the {twg_name} team shortly."
                 if response == "accept"
                 else f"Invitation to join {twg_name} has been declined."
+    )
+
+
+@router.get("/{invitation_id}/messages", response_model=InvitationMessageListResponse)
+async def get_invitation_messages(
+    invitation_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get all messages for an invitation (authenticated admin view).
+
+    Marks invitee messages as read by admin when fetched.
+    """
+    query = (
+        select(OrganizationInvitation)
+        .where(OrganizationInvitation.id == invitation_id)
+        .options(selectinload(OrganizationInvitation.messages))
+    )
+    result = await db.execute(query)
+    invitation = result.scalar_one_or_none()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found"
+        )
+
+    # Permission check
+    if not can_access_invitation(current_user, invitation):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this invitation"
+        )
+
+    # Mark all invitee messages as read by admin
+    if invitation.unread_by_admin_count > 0:
+        await db.execute(
+            update(InvitationMessage)
+            .where(
+                InvitationMessage.invitation_id == invitation_id,
+                InvitationMessage.sender_type == InvitationMessageSender.INVITEE,
+                InvitationMessage.is_read_by_admin == False
+            )
+            .values(is_read_by_admin=True)
+        )
+        invitation.unread_by_admin_count = 0
+        await db.commit()
+
+    # Build response
+    messages = [
+        InvitationMessageResponse(
+            id=msg.id,
+            invitation_id=msg.invitation_id,
+            sender_type=msg.sender_type,
+            sender_user_id=msg.sender_user_id,
+            sender_name=msg.sender_name,
+            content=msg.content,
+            is_read_by_admin=msg.is_read_by_admin,
+            is_read_by_invitee=msg.is_read_by_invitee,
+            created_at=msg.created_at,
+            is_read=True  # Admin viewing their own fetched messages
+        )
+        for msg in invitation.messages
+    ]
+
+    return InvitationMessageListResponse(
+        items=messages,
+        total=len(messages),
+        unread_count=0  # Just marked as read
+    )
+
+
+@router.post("/{invitation_id}/messages", response_model=InvitationMessageResponse, status_code=status.HTTP_201_CREATED)
+async def send_invitation_message(
+    invitation_id: uuid.UUID,
+    message_data: InvitationMessageCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Send a message from admin to invitee.
+
+    Notifies invitee via email.
+    """
+    query = (
+        select(OrganizationInvitation)
+        .where(OrganizationInvitation.id == invitation_id)
+        .options(
+            selectinload(OrganizationInvitation.twg),
+            selectinload(OrganizationInvitation.messages)
+        )
+    )
+    result = await db.execute(query)
+    invitation = result.scalar_one_or_none()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found"
+        )
+
+    # Permission check
+    if not can_access_invitation(current_user, invitation):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this invitation"
+        )
+
+    # Create message
+    message = InvitationMessage(
+        invitation_id=invitation_id,
+        sender_type=InvitationMessageSender.ADMIN,
+        sender_user_id=current_user.id,
+        sender_name=current_user.full_name,
+        content=message_data.content,
+        is_read_by_admin=True,
+        is_read_by_invitee=False
+    )
+
+    db.add(message)
+    invitation.unread_by_invitee_count += 1
+    await db.commit()
+    await db.refresh(message)
+
+    # Send email notification to invitee
+    try:
+        from app.services.email_service import email_service
+        await email_service.send_invitation_message_notification(
+            to_email=invitation.contact_email,
+            organization_name=invitation.organization_name,
+            twg_name=invitation.twg.name if invitation.twg else "TWG",
+            sender_name=current_user.full_name,
+            message_preview=message_data.content[:100] + "..." if len(message_data.content) > 100 else message_data.content,
+            invitation_id=str(invitation.id)
+        )
+    except Exception as e:
+        print(f"Failed to send message notification email: {e}")
+        # Don't fail the request if email fails
+
+    return InvitationMessageResponse(
+        id=message.id,
+        invitation_id=message.invitation_id,
+        sender_type=message.sender_type,
+        sender_user_id=message.sender_user_id,
+        sender_name=message.sender_name,
+        content=message.content,
+        is_read_by_admin=message.is_read_by_admin,
+        is_read_by_invitee=message.is_read_by_invitee,
+        created_at=message.created_at,
+        is_read=True
     )

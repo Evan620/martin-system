@@ -33,6 +33,7 @@ import AuditLogs from './pages/admin/AuditLogs'
 import OrganizationInvitations from './pages/admin/OrganizationInvitations'
 import ProjectConflicts from './pages/Conflicts/ProjectConflicts'
 import ProtectedRoute from './components/ProtectedRoute'
+import PublicInvitationRespond from './pages/public/PublicInvitationRespond'
 
 function HomeRedirect() {
     const user = useAppSelector((state) => state.auth.user)
@@ -92,6 +93,7 @@ function App() {
         <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/invitations/:invitationId/respond" element={<PublicInvitationRespond />} />
 
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />

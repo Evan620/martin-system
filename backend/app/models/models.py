@@ -149,6 +149,10 @@ class OrganizationInvitationStatus(str, enum.Enum):
     DECLINED = "declined"
     EXPIRED = "expired"
 
+class InvitationMessageSender(str, enum.Enum):
+    ADMIN = "admin"
+    INVITEE = "invitee"
+
 # --- Association Tables ---
 
 twg_members = Table(
@@ -808,6 +812,35 @@ class OrganizationInvitation(Base):
     last_resend_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    # Unread message counts for quick lookup
+    unread_by_admin_count: Mapped[int] = mapped_column(Integer, default=0)
+    unread_by_invitee_count: Mapped[int] = mapped_column(Integer, default=0)
+
     # Relationships
     twg: Mapped["TWG"] = relationship("TWG")
     created_by: Mapped["User"] = relationship("User")
+    messages: Mapped[List["InvitationMessage"]] = relationship(
+        back_populates="invitation", cascade="all, delete-orphan", order_by="InvitationMessage.created_at"
+    )
+
+
+class InvitationMessage(Base):
+    """
+    Messages exchanged between admins and invitees within an invitation thread.
+    """
+    __tablename__ = "invitation_messages"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    invitation_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("organization_invitations.id", ondelete="CASCADE"))
+    sender_type: Mapped[InvitationMessageSender] = mapped_column(Enum(InvitationMessageSender))
+    sender_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    sender_name: Mapped[str] = mapped_column(String(255))  # Display name (admin name or organization name)
+    content: Mapped[str] = mapped_column(Text)
+    is_read_by_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_read_by_invitee: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    invitation: Mapped["OrganizationInvitation"] = relationship(back_populates="messages")
+    sender_user: Mapped[Optional["User"]] = relationship("User")

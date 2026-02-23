@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Message - ECOWAS Summit TWG</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7fa;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f7fa; padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #1152d4 0%, #0e44b1 100%); padding: 30px 40px; text-align: center;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700;">
+                                New Message
+                            </h1>
+                            <p style="margin: 10px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 16px;">
+                                ECOWAS Summit TWG Platform
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 40px 20px 40px;">
+                            <p style="margin: 0 0 20px 0; color: #0d121b; font-size: 16px; line-height: 1.6;">
+                                Hello {{ organization_name }},
+                            </p>
+                            <p style="margin: 0 0 20px 0; color: #4c669a; font-size: 15px; line-height: 1.6;">
+                                You have received a new message from <strong>{{ sender_name }}</strong> regarding your invitation to join <strong>{{ twg_name }}</strong>.
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Message Preview -->
+                    <tr>
+                        <td style="padding: 0 40px 20px 40px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border-left: 4px solid #1152d4; border-radius: 8px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <p style="margin: 0 0 10px 0; color: #4c669a; font-size: 12px; text-transform: uppercase; font-weight: 600;">
+                                            Message Preview
+                                        </p>
+                                        <p style="margin: 0; color: #0d121b; font-size: 15px; line-height: 1.6; font-style: italic;">
+                                            "{{ message_preview }}"
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- CTA Button -->
+                    <tr>
+                        <td style="padding: 20px 40px 40px 40px; text-align: center;">
+                            <a href="{{ conversation_url }}" style="display: inline-block; background: linear-gradient(135deg, #1152d4 0%, #0e44b1 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 12px rgba(17, 82, 212, 0.3);">
+                                View Full Conversation
+                            </a>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f8fafc; padding: 30px 40px; border-top: 1px solid #e7ebf3;">
+                            <p style="margin: 0 0 10px 0; color: #4c669a; font-size: 13px; line-height: 1.6;">
+                                This is an automated message from the ECOWAS Summit Technical Working Group platform.
+                                Please do not reply directly to this email.
+                            </p>
+                            <p style="margin: 0; color: #4c669a; font-size: 12px;">
+                                &copy; 2026 ECOWAS Summit. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

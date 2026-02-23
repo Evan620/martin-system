@@ -1,6 +1,7 @@
 import api from './api';
 
 export type OrganizationInvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired';
+export type InvitationMessageSender = 'admin' | 'invitee';
 
 export interface OrganizationInvitation {
     id: string;
@@ -18,6 +19,8 @@ export interface OrganizationInvitation {
     resend_count: number;
     last_resend_at: string | null;
     created_at: string;
+    unread_message_count: number;
+    has_messages: boolean;
 }
 
 export interface OrganizationInvitationCreate {
@@ -59,7 +62,41 @@ export interface InvitationRespondResponse {
     message: string;
 }
 
+export interface InvitationMessage {
+    id: string;
+    invitation_id: string;
+    sender_type: InvitationMessageSender;
+    sender_user_id: string | null;
+    sender_name: string;
+    content: string;
+    is_read_by_admin: boolean;
+    is_read_by_invitee: boolean;
+    created_at: string;
+    is_read: boolean;
+}
+
+export interface InvitationMessageCreate {
+    content: string;
+}
+
+export interface InvitationMessageListResponse {
+    items: InvitationMessage[];
+    total: number;
+    unread_count: number;
+}
+
+export interface PublicInvitation {
+    id: string;
+    organization_name: string;
+    twg_name: string;
+    status: OrganizationInvitationStatus;
+    expires_at: string;
+    custom_message: string | null;
+    has_messages: boolean;
+}
+
 export const organizationInvitationService = {
+    // Authenticated endpoints
     async getInvitations(params?: {
         page?: number;
         page_size?: number;
@@ -102,9 +139,48 @@ export const organizationInvitationService = {
         return response.data;
     },
 
+    // Authenticated message endpoints
+    async getMessages(invitationId: string) {
+        const response = await api.get<InvitationMessageListResponse>(
+            `/organization-invitations/${invitationId}/messages`
+        );
+        return response.data;
+    },
+
+    async sendMessage(invitationId: string, data: InvitationMessageCreate) {
+        const response = await api.post<InvitationMessage>(
+            `/organization-invitations/${invitationId}/messages`,
+            data
+        );
+        return response.data;
+    },
+
+    // Public endpoints (no auth required)
+    async getPublicInvitation(invitationId: string) {
+        const response = await api.get<PublicInvitation>(
+            `/public/invitations/${invitationId}`
+        );
+        return response.data;
+    },
+
+    async getPublicMessages(invitationId: string) {
+        const response = await api.get<InvitationMessageListResponse>(
+            `/public/invitations/${invitationId}/messages`
+        );
+        return response.data;
+    },
+
+    async sendPublicMessage(invitationId: string, data: InvitationMessageCreate) {
+        const response = await api.post<InvitationMessage>(
+            `/public/invitations/${invitationId}/messages`,
+            data
+        );
+        return response.data;
+    },
+
     async respondToInvitation(invitationId: string, response: 'accept' | 'decline') {
         const res = await api.post<InvitationRespondResponse>(
-            `/organization-invitations/${invitationId}/respond`,
+            `/public/invitations/${invitationId}/respond`,
             { response }
         );
         return res.data;

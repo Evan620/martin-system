@@ -7,7 +7,7 @@ Used by administrators to invite external organizations to join TWGs.
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime
-from app.models.models import OrganizationInvitationStatus
+from app.models.models import OrganizationInvitationStatus, InvitationMessageSender
 import uuid
 
 
@@ -45,6 +45,8 @@ class OrganizationInvitationResponse(BaseModel):
     resend_count: int = 0
     last_resend_at: Optional[datetime] = None
     created_at: datetime
+    unread_message_count: int = 0
+    has_messages: bool = False
 
     class Config:
         from_attributes = True
@@ -80,3 +82,47 @@ class InvitationRespondResponse(BaseModel):
     twg_name: str
     status: OrganizationInvitationStatus
     message: str
+
+
+# --- Message Schemas ---
+
+class InvitationMessageCreate(BaseModel):
+    """Schema for creating a new message in an invitation thread."""
+    content: str
+
+
+class InvitationMessageResponse(BaseModel):
+    """Response schema for a single invitation message."""
+    id: uuid.UUID
+    invitation_id: uuid.UUID
+    sender_type: InvitationMessageSender
+    sender_user_id: Optional[uuid.UUID] = None
+    sender_name: str
+    content: str
+    is_read_by_admin: bool = False
+    is_read_by_invitee: bool = False
+    created_at: datetime
+
+    # Computed field based on who is viewing
+    is_read: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class InvitationMessageListResponse(BaseModel):
+    """Response schema for paginated list of invitation messages."""
+    items: List[InvitationMessageResponse]
+    total: int
+    unread_count: int = 0
+
+
+class PublicInvitationResponse(BaseModel):
+    """Response schema for public invitation details (no auth required)."""
+    id: uuid.UUID
+    organization_name: str
+    twg_name: str
+    status: OrganizationInvitationStatus
+    expires_at: datetime
+    custom_message: Optional[str] = None
+    has_messages: bool = False

@@ -6,6 +6,7 @@ import {
     OrganizationInvitationCreate
 } from '../../services/organizationInvitationService'
 import { twgs as twgService } from '../../services/api'
+import InvitationChat from '../../components/invitations/InvitationChat'
 import { toast } from 'react-toastify'
 
 const STATUS_COLORS: Record<OrganizationInvitationStatus, string> = {
@@ -41,6 +42,10 @@ export default function OrganizationInvitations() {
 
     // Resend state
     const [resendingId, setResendingId] = useState<string | null>(null)
+
+    // Chat modal state
+    const [isChatModalOpen, setIsChatModalOpen] = useState(false)
+    const [selectedInvitation, setSelectedInvitation] = useState<OrganizationInvitation | null>(null)
 
     useEffect(() => {
         loadInvitations()
@@ -281,6 +286,26 @@ export default function OrganizationInvitations() {
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex justify-end gap-2">
+                                                {/* Chat button */}
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedInvitation(invitation)
+                                                        setIsChatModalOpen(true)
+                                                    }}
+                                                    className={`p-2 rounded-lg transition-colors relative ${
+                                                        invitation.unread_message_count > 0
+                                                            ? 'text-[#1152d4] bg-blue-50 dark:bg-blue-900/20'
+                                                            : 'text-[#4c669a] hover:bg-gray-100 dark:hover:bg-[#2d3748]'
+                                                    }`}
+                                                    title={invitation.has_messages ? 'View Conversation' : 'Start Conversation'}
+                                                >
+                                                    <span className="material-symbols-outlined text-[20px]">chat</span>
+                                                    {invitation.unread_message_count > 0 && (
+                                                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                                                            {invitation.unread_message_count > 9 ? '9+' : invitation.unread_message_count}
+                                                        </span>
+                                                    )}
+                                                </button>
                                                 {invitation.status === 'pending' && (
                                                     <>
                                                         <button
@@ -458,6 +483,41 @@ export default function OrganizationInvitations() {
                                 {isSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
                                 Send Invitation
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Chat Modal */}
+            {isChatModalOpen && selectedInvitation && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-2xl w-full max-w-2xl border border-[#e7ebf3] dark:border-[#2d3748] overflow-hidden flex flex-col max-h-[80vh]">
+                        <div className="p-6 border-b border-[#e7ebf3] dark:border-[#2d3748] flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold text-[#0d121b] dark:text-white">
+                                    Conversation with {selectedInvitation.organization_name}
+                                </h3>
+                                <p className="text-sm text-[#4c669a] dark:text-[#a0aec0]">
+                                    {selectedInvitation.twg_name} • {selectedInvitation.contact_email}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setIsChatModalOpen(false)
+                                    setSelectedInvitation(null)
+                                    loadInvitations() // Refresh to update unread counts
+                                }}
+                                className="p-2 text-[#4c669a] hover:text-[#0d121b] dark:text-[#a0aec0] dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-[#2d3748]"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <div className="flex-1 min-h-0">
+                            <InvitationChat
+                                invitationId={selectedInvitation.id}
+                                isPublic={false}
+                                organizationName={selectedInvitation.organization_name}
+                            />
                         </div>
                     </div>
                 </div>

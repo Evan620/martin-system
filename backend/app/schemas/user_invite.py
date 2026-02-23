@@ -26,3 +26,11 @@ class UserInviteResponse(BaseModel):
     email: str
     temporary_password: str  # Only shown once
     invite_sent: bool
+
+
+class ResendInviteResponse(BaseModel):
+    """Response after resending an invite."""
+    user_id: uuid.UUID
+    email: str
+    temporary_password: str
+    invite_sent: bool

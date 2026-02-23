@@ -117,6 +117,24 @@ export default function TeamManagement() {
         }
     }
 
+    const [resendingUserId, setResendingUserId] = useState<string | null>(null)
+
+    const handleResendInvite = async (user: User) => {
+        if (!window.confirm(`Resend invite to ${user.full_name} (${user.email})? This will reset their password.`)) return
+        setResendingUserId(user.id)
+        try {
+            const result = await userService.resendInvite(user.id)
+            toast.success(`Invite resent! New temporary password: ${result.temporary_password}`)
+            loadUsers()
+        } catch (error: any) {
+            const message = error.response?.data?.detail || 'Failed to resend invite'
+            console.error('Failed to resend invite:', error)
+            toast.error(message)
+        } finally {
+            setResendingUserId(null)
+        }
+    }
+
     const handleDeleteUser = async (userId: string) => {
         if (!window.confirm('Are you sure you want to delete this user?')) return
         try {
@@ -338,12 +356,24 @@ export default function TeamManagement() {
                                                 </select>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${user.is_active
-                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                                    }`}>
-                                                    {user.is_active ? 'Active' : 'Inactive'}
-                                                </span>
+                                                <div className="flex flex-col gap-1">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${user.is_active
+                                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                                        }`}>
+                                                        {user.is_active ? 'Active' : 'Inactive'}
+                                                    </span>
+                                                    {user.invite_sent_at && !user.invite_accepted_at && (
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                                            Invite Pending
+                                                        </span>
+                                                    )}
+                                                    {user.invite_accepted_at && (
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                                            Invite Accepted
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex justify-end gap-2">
@@ -366,6 +396,18 @@ export default function TeamManagement() {
                                                         title="Manage Teams"
                                                     >
                                                         <span className="material-symbols-outlined text-[20px]">groups</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleResendInvite(user)}
+                                                        disabled={resendingUserId === user.id}
+                                                        className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors disabled:opacity-50"
+                                                        title="Resend Invite"
+                                                    >
+                                                        {resendingUserId === user.id ? (
+                                                            <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                                                        ) : (
+                                                            <span className="material-symbols-outlined text-[20px]">forward_to_inbox</span>
+                                                        )}
                                                     </button>
                                                     <button
                                                         onClick={() => handleDeleteUser(user.id)}

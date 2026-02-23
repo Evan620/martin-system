@@ -28,5 +28,15 @@ export const userService = {
     async deleteUser(userId: string) {
         const response = await api.delete(`/users/${userId}`);
         return response.data;
+    },
+
+    async resendInvite(userId: string) {
+        const response = await api.post<{
+            user_id: string;
+            email: string;
+            temporary_password: string;
+            invite_sent: boolean;
+        }>(`/users/${userId}/resend-invite`);
+        return response.data;
     }
 };

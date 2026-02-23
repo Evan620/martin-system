@@ -4,6 +4,7 @@ User Management API Routes
 Provides endpoints for administrators to manage user accounts, roles, and access.
 """
 
+from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +17,7 @@ from app.models.models import User, UserRole, TWG
 from app.core.config import settings
 from app.schemas.auth import UserResponse, UserUpdate
 from app.api.deps import require_admin
-from app.schemas.user_invite import UserInvite, UserInviteResponse
+from app.schemas.user_invite import UserInvite, UserInviteResponse, ResendInviteResponse
 import secrets
 import string
 
@@ -60,6 +61,9 @@ async def list_users(
             "is_active": u.is_active,
             "last_login": u.last_login,
             "created_at": u.created_at,
+            "invite_sent_at": u.invite_sent_at,
+            "invite_accepted_at": u.invite_accepted_at,
+            "password_reset_at": u.password_reset_at,
             "twg_ids": [str(twg.id) for twg in u.twgs],
             "twgs": [{"id": str(twg.id), "name": twg.name} for twg in u.twgs]
         }
@@ -99,6 +103,9 @@ async def get_user_details(
         "is_active": user.is_active,
         "last_login": user.last_login,
         "created_at": user.created_at,
+        "invite_sent_at": user.invite_sent_at,
+        "invite_accepted_at": user.invite_accepted_at,
+        "password_reset_at": user.password_reset_at,
         "twg_ids": [str(twg.id) for twg in user.twgs],
         "twgs": [{"id": str(twg.id), "name": twg.name} for twg in user.twgs]
     }
@@ -272,8 +279,78 @@ async def invite_user(
             # Log error but don't fail the request
             print(f"Failed to send invite email: {e}")
             pass
-    
+
+    # Track invite timestamp
+    user.invite_sent_at = datetime.utcnow()
+    await db.commit()
+
     return UserInviteResponse(
+        user_id=user.id,
+        email=user.email,
+        temporary_password=temp_password,
+        invite_sent=invite_sent
+    )
+
+
+@router.post("/{user_id}/resend-invite", response_model=ResendInviteResponse)
+async def resend_invite(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    Resend invite to an existing user (Admin only).
+
+    Generates a new temporary password, updates the user's credentials,
+    sends an invite email, and revokes all existing refresh tokens.
+    """
+    from app.services.auth_service import AuthService
+    from app.utils.security import hash_password
+
+    query = select(User).where(User.id == user_id)
+    result = await db.execute(query)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Generate new temporary password
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    temp_password = ''.join(secrets.choice(alphabet) for _ in range(16))
+
+    # Update user's password
+    user.hashed_password = hash_password(temp_password)
+
+    # Revoke all existing refresh tokens for security
+    auth_service = AuthService(db)
+    await auth_service._revoke_all_user_tokens(user.id)
+
+    # Send invite email
+    invite_sent = False
+    try:
+        from app.services.email_service import email_service
+
+        login_url = settings.FRONTEND_URL
+
+        await email_service.send_user_invite(
+            to_email=user.email,
+            full_name=user.full_name,
+            password=temp_password,
+            role=user.role.value,
+            login_url=login_url
+        )
+        invite_sent = True
+    except Exception as e:
+        print(f"Failed to send invite email: {e}")
+
+    # Update invite tracking
+    user.invite_sent_at = datetime.utcnow()
+    await db.commit()
+
+    return ResendInviteResponse(
         user_id=user.id,
         email=user.email,
         temporary_password=temp_password,

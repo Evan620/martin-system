@@ -210,7 +210,10 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    
+    invite_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    invite_accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    password_reset_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
     # Relationships
     twgs: Mapped[List["TWG"]] = relationship(
         secondary=twg_members, back_populates="members"

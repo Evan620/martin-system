@@ -19,6 +19,11 @@ export interface User {
         name: string;
     }>;
     avatar?: string;
+    invite_sent_at?: string;
+    invite_accepted_at?: string;
+    password_reset_at?: string;
+    last_login?: string;
+    created_at?: string;
 }
 
 export interface AuthState {

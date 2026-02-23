@@ -322,7 +322,7 @@ export default function OrganizationInvitations() {
                                             {formatDate(invitation.expires_at)}
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <div className="flex justify-end gap-2">
+                                            <div className="flex justify-end gap-2 items-center">
                                                 {/* Chat button */}
                                                 <button
                                                     onClick={() => {
@@ -343,6 +343,22 @@ export default function OrganizationInvitations() {
                                                         </span>
                                                     )}
                                                 </button>
+
+                                                {/* Copy Link button */}
+                                                <button
+                                                    onClick={() => {
+                                                        const baseUrl = window.location.origin
+                                                        const link = `${baseUrl}/invitations/${invitation.id}/respond`
+                                                        navigator.clipboard.writeText(link)
+                                                        toast.success('Invitation link copied!')
+                                                    }}
+                                                    className="p-2 text-[#4c669a] hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
+                                                    title="Copy Invitation Link"
+                                                >
+                                                    <span className="material-symbols-outlined text-[20px]">link</span>
+                                                </button>
+
+                                                {/* Pending-only actions */}
                                                 {invitation.status === 'pending' && (
                                                     <>
                                                         <button
@@ -357,21 +373,22 @@ export default function OrganizationInvitations() {
                                                                 <span className="material-symbols-outlined text-[20px]">forward_to_inbox</span>
                                                             )}
                                                         </button>
-                                                        <button
-                                                            onClick={() => handleDeleteInvitation(invitation.id, invitation.organization_name)}
-                                                            className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                            title="Delete Invitation"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[20px]">delete</span>
-                                                        </button>
                                                     </>
                                                 )}
-                                                {invitation.status !== 'pending' && (
-                                                    <span className="text-xs text-[#4c669a] dark:text-[#a0aec0]">
-                                                        {invitation.responded_at
-                                                            ? `Responded: ${formatDate(invitation.responded_at)}`
-                                                            : ''
-                                                        }
+
+                                                {/* Delete button for all invitations */}
+                                                <button
+                                                    onClick={() => handleDeleteInvitation(invitation.id, invitation.organization_name)}
+                                                    className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                    title="Delete Invitation"
+                                                >
+                                                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                                                </button>
+
+                                                {/* Response date for non-pending */}
+                                                {invitation.status !== 'pending' && invitation.responded_at && (
+                                                    <span className="text-xs text-[#4c669a] dark:text-[#a0aec0] ml-2 whitespace-nowrap">
+                                                        {formatDate(invitation.responded_at)}
                                                     </span>
                                                 )}
                                             </div>

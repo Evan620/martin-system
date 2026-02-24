@@ -295,14 +295,15 @@ class ToolRegistry:
             )
 
         # get_twg_members — lets agents look up member names and emails
+        # twg_id is auto-injected at execution time, so NOT required in schema
         self.register(
             name="get_twg_members",
-            description="Fetch all members of a TWG with their names and email addresses. Use this when you need to send emails to TWG members.",
+            description="Fetch all members of this TWG with their names and email addresses. Use this when you need to send emails to TWG members, check membership, or look up who belongs to the working group.",
             parameters={
-                "twg_id": {"type": "string", "description": "UUID of the TWG"},
+                "twg_id": {"type": "string", "description": "TWG UUID (auto-injected, do not provide)"},
             },
             handler=get_twg_members,
-            required_params=["twg_id"],
+            required_params=[],
         )
 
     def _register_deal_pipeline_tools(self) -> None:

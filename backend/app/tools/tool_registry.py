@@ -295,12 +295,13 @@ class ToolRegistry:
             )
 
         # get_twg_members — lets agents look up member names and emails
-        # twg_id is auto-injected at execution time, so NOT required in schema
+        # twg_id is auto-injected for TWG agents; supervisor can use twg_name instead
         self.register(
             name="get_twg_members",
-            description="Fetch all members of this TWG with their names and email addresses. Use this when you need to send emails to TWG members, check membership, or look up who belongs to the working group.",
+            description="Fetch all members of a TWG with their names and email addresses. Use this when you need to send emails to TWG members, check membership, or look up who belongs to a working group. TWG agents: twg_id is auto-injected. Supervisor: pass twg_name (e.g. 'energy', 'agriculture').",
             parameters={
-                "twg_id": {"type": "string", "description": "TWG UUID (auto-injected, do not provide)"},
+                "twg_id": {"type": "string", "description": "TWG UUID (auto-injected for TWG agents)"},
+                "twg_name": {"type": "string", "description": "TWG name to search for (e.g. 'energy', 'agriculture', 'minerals', 'digital', 'protocol', 'resource')"},
             },
             handler=get_twg_members,
             required_params=[],

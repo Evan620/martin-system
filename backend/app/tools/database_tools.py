@@ -37,20 +37,33 @@ async def get_twg_info(twg_id: uuid.UUID) -> Dict[str, Any]:
             "member_count": len(twg.members)
         }
 
-async def get_twg_members(twg_id: Optional[str] = None) -> List[Dict[str, Any]]:
+async def get_twg_members(twg_id: Optional[str] = None, twg_name: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Fetch all members of a specific Technical Working Group with their names and email addresses.
     Use this tool when you need to send emails to TWG members or look up who belongs to a TWG.
+    Accepts either a twg_id (UUID) or twg_name (e.g. "energy", "agriculture") to find the TWG.
     """
-    if not twg_id:
-        return [{"error": "twg_id is required"}]
+    if not twg_id and not twg_name:
+        return [{"error": "Provide either twg_id or twg_name"}]
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            select(TWG).where(TWG.id == uuid.UUID(twg_id)).options(selectinload(TWG.members))
-        )
+        if twg_id:
+            # Try UUID lookup first
+            try:
+                result = await session.execute(
+                    select(TWG).where(TWG.id == uuid.UUID(twg_id)).options(selectinload(TWG.members))
+                )
+            except (ValueError, AttributeError):
+                # twg_id wasn't a valid UUID — treat it as a name search
+                result = await session.execute(
+                    select(TWG).where(TWG.name.ilike(f"%{twg_id}%")).options(selectinload(TWG.members))
+                )
+        else:
+            result = await session.execute(
+                select(TWG).where(TWG.name.ilike(f"%{twg_name}%")).options(selectinload(TWG.members))
+            )
         twg = result.scalar_one_or_none()
         if not twg:
-            return [{"error": "TWG not found"}]
+            return [{"error": f"TWG not found. Use a name like 'energy', 'agriculture', 'minerals', 'digital', 'protocol', or 'resource'."}]
 
         members = []
         for user in twg.members:

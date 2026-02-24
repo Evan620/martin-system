@@ -69,10 +69,10 @@ class Settings(BaseSettings):
     )
     
     # LLM Provider Configuration
-    LLM_PROVIDER: str = "github"
-    LLM_MODEL: str = "gpt-4o-mini"
-    LLM_MODEL_FAST: str = "gemini-1.5-flash"
-    LLM_MODEL_POWERFUL: str = "gemini-1.5-pro"
+    LLM_PROVIDER: str = "gemini"
+    LLM_MODEL: str = "gemini-2.5-flash"
+    LLM_MODEL_FAST: str = "gemini-2.5-flash"
+    LLM_MODEL_POWERFUL: str = "gemini-2.5-pro"
     LLM_MAX_TOKENS: int = 4000
 
     # Groq
@@ -85,7 +85,7 @@ class Settings(BaseSettings):
 
     # Gemini
     GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
 
     # GitHub Models
     GITHUB_TOKEN: Optional[str] = None

@@ -305,6 +305,13 @@ def get_llm_service() -> LLMService:
                 temperature=settings.LLM_TEMPERATURE,
                 base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
             )
+        elif provider == "groq" and getattr(settings, "GROQ_API_KEY", None):
+             _llm_service = OpenAILLMService(
+                api_key=settings.GROQ_API_KEY,
+                model=getattr(settings, "GROQ_MODEL", "llama-3.3-70b-versatile"),
+                temperature=settings.LLM_TEMPERATURE,
+                base_url="https://api.groq.com/openai/v1"
+            )
         else:
             if provider != "ollama":
                 logger.warning(f"Provider '{provider}' selected but not configured or unsupported. Falling back to Ollama.")

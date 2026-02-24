@@ -1083,7 +1083,7 @@ class LangGraphSupervisor:
                 name = event.get("name", "")
                 
                 # Yield Node starts (chain starts that match our graph nodes)
-                if event_type == "on_chain_start" and name in ["route_query", "supervisor", "dispatch_multiple", "synthesis", "energy", "agriculture", "minerals", "digital", "protocol", "resource_mobilization"]:
+                if event_type == "on_chain_start" and name in ["route_query", "supervisor", "dispatch_multiple", "synthesis", "single_agent_response", "energy", "agriculture", "minerals", "digital", "protocol", "resource_mobilization"]:
                     yield {
                         "type": "node_update",
                         "node": name

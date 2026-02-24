@@ -69,10 +69,10 @@ class Settings(BaseSettings):
     )
     
     # LLM Provider Configuration
-    LLM_PROVIDER: str = "gemini"
-    LLM_MODEL: str = "gemini-2.5-flash"
-    LLM_MODEL_FAST: str = "gemini-2.5-flash"
-    LLM_MODEL_POWERFUL: str = "gemini-2.5-pro"
+    LLM_PROVIDER: str = "groq"
+    LLM_MODEL: str = "llama-3.3-70b-versatile"
+    LLM_MODEL_FAST: str = "llama-3.3-70b-versatile"
+    LLM_MODEL_POWERFUL: str = "llama-3.3-70b-versatile"
     LLM_MAX_TOKENS: int = 4000
 
     # Groq

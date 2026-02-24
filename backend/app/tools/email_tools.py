@@ -217,18 +217,6 @@ async def send_email(
             }
         }
 
-    except FileNotFoundError:
-        logger.error("Gmail credentials file not found")
-        return {
-            "status": "error",
-            "error": "CONFIGURATION ERROR: Gmail credentials file not found. Please contact the administrator. DO NOT RETRY."
-        }
-    except HttpError as error:
-        logger.error(f"Gmail API error: {error}")
-        return {
-            "status": "error",
-            "error": f"Gmail API error: {error.reason if hasattr(error, 'reason') else str(error)}"
-        }
     except Exception as error:
         logger.error(f"Error sending email: {error}")
         return {"status": "error", "error": str(error)}

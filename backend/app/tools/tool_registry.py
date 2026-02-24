@@ -471,6 +471,10 @@ class ToolRegistry:
         else:
             result = await asyncio.to_thread(func, **tool_args)
 
+        # Use json.dumps for dict/list results so downstream json.loads() works correctly.
+        # str(dict) produces Python repr (single quotes, True/False) which is not valid JSON.
+        if isinstance(result, (dict, list)):
+            return json.dumps(result, default=str)
         return str(result)
 
     # -------------------------------------------------------------------------

@@ -642,9 +642,14 @@ CRITICAL TOOL USAGE RULES:
                     if "user_timezone" in sig.parameters and user_timezone and "user_timezone" not in tool_args:
                         tool_args["user_timezone"] = user_timezone
                     if asyncio.iscoroutinefunction(func):
-                        output_str = str(await func(**tool_args))
+                        raw_result = await func(**tool_args)
                     else:
-                        output_str = str(await asyncio.to_thread(func, **tool_args))
+                        raw_result = await asyncio.to_thread(func, **tool_args)
+                    # Use json.dumps for dict/list so downstream json.loads() works
+                    if isinstance(raw_result, (dict, list)):
+                        output_str = json.dumps(raw_result, default=str)
+                    else:
+                        output_str = str(raw_result)
                 else:
                     output_str = json.dumps({"error": f"Tool '{tool_name}' not found"})
                 

@@ -278,6 +278,7 @@ class ToolRegistry:
         from app.tools.database_tools import (
             SEARCH_DOCUMENTS_TOOL_DEF, search_documents,
             GET_MEETING_MINUTES_TOOL_DEF, get_meeting_minutes,
+            get_twg_members,
         )
         for tool_def, handler in [
             (SEARCH_DOCUMENTS_TOOL_DEF, search_documents),
@@ -291,6 +292,17 @@ class ToolRegistry:
                 handler=handler,
                 required_params=func_def["parameters"].get("required", []),
             )
+
+        # get_twg_members — lets agents look up member names and emails
+        self.register(
+            name="get_twg_members",
+            description="Fetch all members of a TWG with their names and email addresses. Use this when you need to send emails to TWG members.",
+            parameters={
+                "twg_id": {"type": "string", "description": "UUID of the TWG"},
+            },
+            handler=get_twg_members,
+            required_params=["twg_id"],
+        )
 
     def _register_deal_pipeline_tools(self) -> None:
         """Register deal pipeline tools for resource mobilization agent."""

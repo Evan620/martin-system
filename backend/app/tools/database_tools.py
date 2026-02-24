@@ -37,6 +37,43 @@ async def get_twg_info(twg_id: uuid.UUID) -> Dict[str, Any]:
             "member_count": len(twg.members)
         }
 
+async def get_twg_members(twg_id: uuid.UUID) -> List[Dict[str, Any]]:
+    """
+    Fetch all members of a specific Technical Working Group with their names and email addresses.
+    Use this tool when you need to send emails to TWG members or look up who belongs to a TWG.
+    """
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(TWG).where(TWG.id == twg_id).options(selectinload(TWG.members))
+        )
+        twg = result.scalar_one_or_none()
+        if not twg:
+            return [{"error": "TWG not found"}]
+
+        members = []
+        for user in twg.members:
+            members.append({
+                "name": user.full_name,
+                "email": user.email,
+                "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+            })
+
+        # Also include leads if assigned
+        if twg.political_lead_id:
+            lead_result = await session.execute(select(User).where(User.id == twg.political_lead_id))
+            lead = lead_result.scalar_one_or_none()
+            if lead and not any(m["email"] == lead.email for m in members):
+                members.append({"name": lead.full_name, "email": lead.email, "role": "political_lead"})
+
+        if twg.technical_lead_id:
+            lead_result = await session.execute(select(User).where(User.id == twg.technical_lead_id))
+            lead = lead_result.scalar_one_or_none()
+            if lead and not any(m["email"] == lead.email for m in members):
+                members.append({"name": lead.full_name, "email": lead.email, "role": "technical_lead"})
+
+        return members
+
+
 async def list_twg_meetings(twg_id: uuid.UUID) -> List[Dict[str, Any]]:
     """
     Retrieve a timeline of meetings for a specific TWG.
@@ -265,6 +302,14 @@ DATABASE_TOOLS = [
             "twg_id": "UUID of the TWG"
         },
         "coroutine": get_twg_info
+    },
+    {
+        "name": "get_twg_members",
+        "description": "Fetch all members of a TWG with their names and email addresses. Use this when you need to send emails to TWG members or check who belongs to a working group.",
+        "parameters": {
+            "twg_id": "UUID of the TWG"
+        },
+        "coroutine": get_twg_members
     },
     {
         "name": "list_twg_meetings",

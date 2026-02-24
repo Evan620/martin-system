@@ -1115,7 +1115,7 @@ class LangGraphSupervisor:
                         }
                 
                 # End of specific graph nodes producing final response
-                elif event_type == "on_chain_end" and name in ["supervisor", "synthesis", "energy", "agriculture", "minerals", "digital", "protocol", "resource_mobilization"]:
+                elif event_type == "on_chain_end" and name in ["supervisor", "synthesis", "single_agent_response", "energy", "agriculture", "minerals", "digital", "protocol", "resource_mobilization"]:
                     state_update = event.get("data", {}).get("output", {})
                     if isinstance(state_update, dict) and "final_response" in state_update and state_update["final_response"]:
                         yield {

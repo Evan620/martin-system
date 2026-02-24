@@ -37,14 +37,16 @@ async def get_twg_info(twg_id: uuid.UUID) -> Dict[str, Any]:
             "member_count": len(twg.members)
         }
 
-async def get_twg_members(twg_id: uuid.UUID) -> List[Dict[str, Any]]:
+async def get_twg_members(twg_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Fetch all members of a specific Technical Working Group with their names and email addresses.
     Use this tool when you need to send emails to TWG members or look up who belongs to a TWG.
     """
+    if not twg_id:
+        return [{"error": "twg_id is required"}]
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            select(TWG).where(TWG.id == twg_id).options(selectinload(TWG.members))
+            select(TWG).where(TWG.id == uuid.UUID(twg_id)).options(selectinload(TWG.members))
         )
         twg = result.scalar_one_or_none()
         if not twg:

@@ -30,6 +30,7 @@ TWG_SCOPED_TOOLS: Set[str] = {
     "update_meeting",
     "search_documents",
     "get_meeting_minutes",
+    "get_twg_members",
     "send_email",
     "create_email_draft",
     "request_document_approval_tool",

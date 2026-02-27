@@ -40,6 +40,8 @@ export default function MeetingDetail() {
     // Participant State
     const [guestName, setGuestName] = useState('')
     const [guestEmail, setGuestEmail] = useState('')
+    const [bulkGuestsText, setBulkGuestsText] = useState('')
+    const [isBulkMode, setIsBulkMode] = useState(false)
     const [isAddingGuest, setIsAddingGuest] = useState(false)
     const [isSendingInvites, setIsSendingInvites] = useState(false)
     const [isCheckingConflicts, setIsCheckingConflicts] = useState(false)
@@ -316,6 +318,68 @@ export default function MeetingDetail() {
         } catch (error) {
             console.error("Failed to add guest", error)
             alert("Failed to add guest")
+        } finally {
+            setIsLoadingAction(false)
+        }
+    }
+
+    // Parse bulk guest input - supports formats:
+    // - email@example.com
+    // - Name <email@example.com>
+    // - Name, email@example.com
+    // - One per line or comma/semicolon separated
+    const parseBulkGuests = (text: string): Array<{ name?: string; email: string }> => {
+        const guests: Array<{ name?: string; email: string }> = []
+
+        // Split by newlines, commas, or semicolons
+        const lines = text.split(/[\n,;]+/).map(l => l.trim()).filter(l => l)
+
+        for (const line of lines) {
+            // Try "Name <email>" format
+            const angleMatch = line.match(/(.+?)\s*<([^>]+)>/)
+            if (angleMatch) {
+                guests.push({
+                    name: angleMatch[1].trim(),
+                    email: angleMatch[2].trim()
+                })
+                continue
+            }
+
+            // Just an email
+            const emailMatch = line.match(/[\w.-]+@[\w.-]+\.\w+/)
+            if (emailMatch) {
+                guests.push({ email: emailMatch[0] })
+            }
+        }
+
+        return guests
+    }
+
+    const handleBulkAddGuests = async () => {
+        if (!meetingId || !bulkGuestsText.trim()) return
+
+        const guests = parseBulkGuests(bulkGuestsText)
+        if (guests.length === 0) {
+            alert('No valid email addresses found')
+            return
+        }
+
+        setIsLoadingAction(true)
+        try {
+            await meetings.addParticipants(meetingId, guests)
+            setBulkGuestsText('')
+            setIsAddingGuest(false)
+            setIsBulkMode(false)
+            await loadMeetingDetails()
+            setStatusModal({
+                isOpen: true,
+                type: 'success',
+                title: 'Guests Added',
+                message: `Successfully added ${guests.length} guest${guests.length > 1 ? 's' : ''} to the meeting.`
+            })
+        } catch (error) {
+            console.error("Failed to add guests", error)
+            alert("Failed to add guests")
         } finally {
             setIsLoadingAction(false)
         }
@@ -1263,34 +1327,93 @@ export default function MeetingDetail() {
 
                                             {isAddingGuest && (
                                                 <Card className="p-4 bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800">
-                                                    <h4 className="font-bold text-sm mb-3 text-blue-900 dark:text-blue-100">Add External Guest</h4>
-                                                    <div className="flex gap-3">
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Name (Optional)"
-                                                            className="flex-1 px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm"
-                                                            value={guestName}
-                                                            onChange={e => setGuestName(e.target.value)}
-                                                        />
-                                                        <input
-                                                            type="email"
-                                                            placeholder="Email Address"
-                                                            className="flex-1 px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm"
-                                                            value={guestEmail}
-                                                            onChange={e => setGuestEmail(e.target.value)}
-                                                        />
-                                                        <button
-                                                            onClick={handleAddGuest}
-                                                            disabled={!guestEmail || isLoadingAction}
-                                                            className="btn-primary text-sm flex items-center gap-2"
-                                                        >
-                                                            {isLoadingAction ? (
-                                                                <><span className="animate-spin">⏳</span> Adding...</>
-                                                            ) : (
-                                                                'Add'
-                                                            )}
-                                                        </button>
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <h4 className="font-bold text-sm text-blue-900 dark:text-blue-100">
+                                                            {isBulkMode ? 'Add Multiple Guests' : 'Add External Guest'}
+                                                        </h4>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setIsBulkMode(!isBulkMode)
+                                                                    setGuestName('')
+                                                                    setGuestEmail('')
+                                                                    setBulkGuestsText('')
+                                                                }}
+                                                                className="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700 transition-colors"
+                                                            >
+                                                                {isBulkMode ? 'Single Guest' : 'Bulk Add'}
+                                                            </button>
+                                                        </div>
                                                     </div>
+
+                                                    {isBulkMode ? (
+                                                        // Bulk Add Mode
+                                                        <div className="space-y-3">
+                                                            <textarea
+                                                                placeholder={`Paste guest list (one per line or comma-separated)&#10;Supported formats:&#10;• email@example.com&#10;• Name <email@example.com>&#10;• Name, email@example.com`}
+                                                                className="w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm min-h-[120px] font-mono"
+                                                                value={bulkGuestsText}
+                                                                onChange={e => setBulkGuestsText(e.target.value)}
+                                                            />
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-xs text-slate-500">
+                                                                    {parseBulkGuests(bulkGuestsText).length} guest(s) detected
+                                                                </span>
+                                                                <div className="flex gap-2">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setIsAddingGuest(false)
+                                                                            setIsBulkMode(false)
+                                                                            setBulkGuestsText('')
+                                                                        }}
+                                                                        className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={handleBulkAddGuests}
+                                                                        disabled={parseBulkGuests(bulkGuestsText).length === 0 || isLoadingAction}
+                                                                        className="btn-primary text-sm flex items-center gap-2 disabled:opacity-50"
+                                                                    >
+                                                                        {isLoadingAction ? (
+                                                                            <><span className="animate-spin">⏳</span> Adding...</>
+                                                                        ) : (
+                                                                            <>Add All Guests</>
+                                                                        )}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        // Single Guest Mode
+                                                        <div className="flex gap-3">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Name (Optional)"
+                                                                className="flex-1 px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm"
+                                                                value={guestName}
+                                                                onChange={e => setGuestName(e.target.value)}
+                                                            />
+                                                            <input
+                                                                type="email"
+                                                                placeholder="Email Address"
+                                                                className="flex-1 px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm"
+                                                                value={guestEmail}
+                                                                onChange={e => setGuestEmail(e.target.value)}
+                                                            />
+                                                            <button
+                                                                onClick={handleAddGuest}
+                                                                disabled={!guestEmail || isLoadingAction}
+                                                                className="btn-primary text-sm flex items-center gap-2"
+                                                            >
+                                                                {isLoadingAction ? (
+                                                                    <><span className="animate-spin">⏳</span> Adding...</>
+                                                                ) : (
+                                                                    'Add'
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </Card>
                                             )}
 

@@ -1,6 +1,6 @@
 """add recurring meetings
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: rc2026mtg2702
 Revises: i1j2k3l4m5n6, g1h2i3j4k5l6
 Create Date: 2026-02-27 12:00:00.000000
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'a1b2c3d4e5f6'
+revision: str = 'rc2026mtg2702'
 down_revision: Union[str, Sequence[str], None] = ('i1j2k3l4m5n6', 'g1h2i3j4k5l6')
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

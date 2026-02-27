@@ -119,9 +119,16 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
             if (recurrence.isRecurring) {
                 // Create recurring meeting
                 const dayOfWeek = getDayOfWeek(formData.date);
+                const effectiveTwgId = twgId || selectedTwgId;
+
+                if (!effectiveTwgId) {
+                    alert('Please select a TWG for the recurring meeting.');
+                    setLoading(false);
+                    return;
+                }
 
                 const recurringData = {
-                    twg_id: twgId || selectedTwgId || undefined,
+                    twg_id: effectiveTwgId,
                     title_template: formData.title,
                     duration_minutes: parseInt(formData.duration),
                     location: formData.location,

@@ -105,7 +105,11 @@ export default function TwgWorkspace() {
                                     </div>
                                     <h1 className="text-4xl font-display font-bold text-white tracking-tight">{twg?.name || 'Loading TWG...'}</h1>
                                     <p className="text-blue-200/70 text-sm max-w-2xl leading-relaxed">
-                                        Strategic coordination for regional power pool integration and sustainable energy transition frameworks.
+                                        {twg?.pillar === 'energy_infrastructure' && 'Strategic coordination for regional power pool integration and sustainable energy transition frameworks.'}
+                                        {twg?.pillar === 'agriculture_food_systems' && 'Advancing agricultural transformation, food security, and sustainable farming systems across the region.'}
+                                        {twg?.pillar === 'critical_minerals_industrialization' && 'Developing critical mineral value chains, resource beneficiation, and industrialization strategies.'}
+                                        {twg?.pillar === 'digital_economy_transformation' && 'Driving digital infrastructure, connectivity, and technology ecosystem development.'}
+                                        {!twg?.pillar && 'Technical Working Group for the ECOWAS Summit.'}
                                     </p>
                                 </div>
 
@@ -422,8 +426,8 @@ export default function TwgWorkspace() {
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => setActiveTab('factory')}
-                                            className="w-full py-2 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-700 transition-all active:scale-95"
+                                            onClick={() => navigate(`/documents?twg=${twgId}`)}
+                                            className="w-full py-2 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95"
                                         >
                                             Open Full Repository →
                                         </button>

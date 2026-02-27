@@ -189,6 +189,7 @@ export const sharedDocuments = {
         });
     },
     delete: (fileId: string) => api.delete(`/shared-documents/${fileId}`),
+    cleanupOrphans: () => api.delete('/shared-documents/cleanup-orphans'),
 };
 
 export const recurringMeetings = {

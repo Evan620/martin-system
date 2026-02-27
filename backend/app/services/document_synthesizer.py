@@ -736,10 +736,10 @@ EXAMPLE: "Regional integration will accelerate through three mechanisms..."
 
         # Add each TWG section with proper formatting
         section_titles = {
-            "energy": "I. Energy & Infrastructure",
+            "energy": "I. Energy Trade and Industrial Growth",
             "agriculture": "II. Agriculture & Food Security",
-            "minerals": "III. Critical Minerals & Industrialization",
-            "digital": "IV. Digital Economy & Transformation",
+            "minerals": "III. Strategic Minerals and Natural Resource Development",
+            "digital": "IV. Digital Transformation",
             "protocol": "V. Implementation Framework",
             "resource_mobilization": "VI. Resource Mobilization & Investment"
         }

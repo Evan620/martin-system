@@ -3,6 +3,7 @@ import { User, UserRole } from '../types/auth';
 
 export interface UserUpdateData {
     full_name?: string;
+    email?: string;
     role?: UserRole;
     organization?: string;
     is_active?: boolean;

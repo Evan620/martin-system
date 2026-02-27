@@ -167,6 +167,33 @@ async def create_meeting(
         db_meeting = Meeting(**meeting_data)
         db.add(db_meeting)
         await db.commit()
+
+        # Auto-include all SECRETARIAT_LEAD users as participants
+        secretariat_result = await db.execute(
+            select(User).where(User.role == UserRole.SECRETARIAT_LEAD).where(User.is_active == True)
+        )
+        secretariat_users = secretariat_result.scalars().all()
+
+        for secretariat_user in secretariat_users:
+            # Check if already a participant to avoid duplicates
+            existing_participant = await db.execute(
+                select(MeetingParticipant).where(
+                    and_(
+                        MeetingParticipant.meeting_id == db_meeting.id,
+                        MeetingParticipant.user_id == secretariat_user.id
+                    )
+                )
+            )
+            if not existing_participant.scalar_one_or_none():
+                participant = MeetingParticipant(
+                    id=uuid.uuid4(),
+                    meeting_id=db_meeting.id,
+                    user_id=secretariat_user.id,
+                    rsvp_status=RsvpStatus.ACCEPTED
+                )
+                db.add(participant)
+
+        await db.commit()
         
         # Eagerly load relationships to avoid MissingGreenlet during serialization
         result = await db.execute(

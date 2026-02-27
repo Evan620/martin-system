@@ -1136,6 +1136,34 @@ class LangGraphSupervisor:
                             from langgraph.errors import GraphInterrupt as GI
                             raise GI(interrupt_value)
 
+            # AFTER STREAM: Check if we have a final_response that wasn't yielded
+            # This handles cases where on_chain_end events don't properly propagate state
+            final_state = snapshot.values if snapshot else None
+            if final_state and isinstance(final_state, dict):
+                final_response = final_state.get("final_response")
+                if final_response:
+                    logger.info(f"[SUPERVISOR] Yielding final_response from final state")
+                    yield {
+                        "type": "final_response",
+                        "content": final_response
+                    }
+                # Also check agent_responses for single agent case
+                elif "agent_responses" in final_state and final_state["agent_responses"]:
+                    # Extract response from the single agent
+                    for agent_id, response_raw in final_state["agent_responses"].items():
+                        response_text = ""
+                        if isinstance(response_raw, dict):
+                            response_text = response_raw.get("response", "")
+                        else:
+                            response_text = str(response_raw)
+                        if response_text:
+                            logger.info(f"[SUPERVISOR] Yielding response from agent_responses[{agent_id}]")
+                            yield {
+                                "type": "final_response",
+                                "content": f"[Consulted {agent_id.upper()} TWG]\n\n{response_text}"
+                            }
+                            break
+
         except Exception as e:
             # Check for GraphInterrupt by name to avoid import/scope issues or re-raise if caught
             if type(e).__name__ == "GraphInterrupt":

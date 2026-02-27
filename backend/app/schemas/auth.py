@@ -117,6 +117,7 @@ class UserWithToken(BaseModel):
 class UserUpdate(BaseModel):
     """Schema for updating user data (Admin only)."""
     full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
     role: Optional[UserRole] = None
     organization: Optional[str] = None
     is_active: Optional[bool] = None

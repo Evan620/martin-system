@@ -183,16 +183,34 @@ async def get_dashboard_stats(
     
     upcoming_res = await db.execute(q_upcoming)
     upcoming_meetings = upcoming_res.scalar() or 0
-    
-    # Next Plenary Calculation (Global Event, maybe visible to all? Spec says "cross-TWG outputs" restricted. 
-    # But Plenary is usually for everyone. Let's start restricted.)
-    q_plenary = select(Meeting).where(
+
+    # Next Major Event Calculation
+    # First, look for "plenary" or "summit" meetings
+    q_plenary = select(Meeting).options(selectinload(Meeting.twg)).where(
             Meeting.status == MeetingStatus.SCHEDULED,
             or_(Meeting.title.ilike("%plenary%"), Meeting.title.ilike("%summit%"))
         ).order_by(Meeting.scheduled_at).limit(1)
-        
+
+    if not is_universal_access:
+        q_plenary = q_plenary.where(Meeting.twg_id.in_(user_twg_ids))
+
     next_plenary_res = await db.execute(q_plenary)
     next_plenary = next_plenary_res.scalar_one_or_none()
+
+    # If no plenary/summit found, fall back to the next TWG meeting
+    if not next_plenary:
+        q_next_meeting = select(Meeting).options(selectinload(Meeting.twg)).where(
+            Meeting.status == MeetingStatus.SCHEDULED
+        ).order_by(Meeting.scheduled_at).limit(1)
+
+        if not is_universal_access:
+            q_next_meeting = q_next_meeting.where(Meeting.twg_id.in_(user_twg_ids))
+
+        next_meeting_res = await db.execute(q_next_meeting)
+        next_meeting = next_meeting_res.scalar_one_or_none()
+
+        if next_meeting:
+            next_plenary = next_meeting  # Use next TWG meeting as fallback
     
     # 2. Action Item Stats
     q_items = select(func.count(ActionItem.id))
@@ -301,7 +319,8 @@ async def get_dashboard_stats(
             "pending_approvals": pending_approvals,
             "next_plenary": {
                 "date": next_plenary.scheduled_at if next_plenary else None,
-                "title": next_plenary.title if next_plenary else "TBD"
+                "title": next_plenary.title if next_plenary else "TBD",
+                "twg": next_plenary.twg.name if next_plenary and next_plenary.twg else None
             }
         },
         "pipeline": pipeline_stats,

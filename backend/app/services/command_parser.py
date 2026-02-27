@@ -109,9 +109,9 @@ class CommandParser:
     AGENT_MENTIONS = {
         "@EnergyAgent": {
             "agent_id": "energy",
-            "name": "Energy & Infrastructure TWG Agent",
+            "name": "Energy Trade and Industrial Growth TWG Agent",
             "icon": "bolt",
-            "description": "Handles energy transition, renewable targets, and infrastructure"
+            "description": "Handles energy trade, industrial growth, and infrastructure"
         },
         "@AgricultureAgent": {
             "agent_id": "agriculture",
@@ -121,13 +121,13 @@ class CommandParser:
         },
         "@MineralsAgent": {
             "agent_id": "minerals",
-            "name": "Mineral Industrialization TWG Agent",
+            "name": "Strategic Minerals and Natural Resource Development TWG Agent",
             "icon": "science",
-            "description": "Handles mineral resources, industrialization"
+            "description": "Handles strategic minerals, natural resource development"
         },
         "@DigitalAgent": {
             "agent_id": "digital",
-            "name": "Digital Economy TWG Agent",
+            "name": "Digital Transformation TWG Agent",
             "icon": "computer",
             "description": "Handles digital transformation, technology"
         },

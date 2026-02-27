@@ -21,10 +21,10 @@ const NewProject: React.FC = () => {
   });
 
   const pillars = [
-    { value: 'Infrastructure', icon: 'train', color: 'blue' },
-    { value: 'Energy', icon: 'solar_power', color: 'orange' },
+    { value: 'Strategic Minerals and Natural Resource Development', icon: 'train', color: 'blue' },
+    { value: 'Energy Trade and Industrial Growth', icon: 'solar_power', color: 'orange' },
     { value: 'Agribusiness and Food Systems Transformation', icon: 'agriculture', color: 'green' },
-    { value: 'Technology', icon: 'computer', color: 'indigo' },
+    { value: 'Digital Transformation', icon: 'computer', color: 'indigo' },
   ];
 
   const ecowasCountries = [
@@ -102,10 +102,10 @@ const NewProject: React.FC = () => {
         if (twgsResponse.data && twgsResponse.data.length > 0) {
           // Map pillar to TWG pillar enum
           const pillarMap: Record<string, string> = {
-            'Infrastructure': 'critical_minerals_industrialization',
-            'Energy': 'energy_infrastructure',
+            'Strategic Minerals and Natural Resource Development': 'critical_minerals_industrialization',
+            'Energy Trade and Industrial Growth': 'energy_infrastructure',
             'Agribusiness and Food Systems Transformation': 'agriculture_food_systems',
-            'Technology': 'digital_economy_transformation',
+            'Digital Transformation': 'digital_economy_transformation',
           };
 
           const targetPillar = pillarMap[formData.pillar];

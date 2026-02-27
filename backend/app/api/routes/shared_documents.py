@@ -649,15 +649,19 @@ async def delete_shared_document(
         # Delete the shortcut (for links) or file (for uploads)
         id_to_delete = shortcut_id_to_delete if shortcut_id_to_delete else file_id
 
-        success = await asyncio.to_thread(
-            drive_service.delete_file_from_drive,
-            id_to_delete
-        )
+        # Try to delete from Drive, but don't fail if the file is already gone
+        try:
+            success = await asyncio.to_thread(
+                drive_service.delete_file_from_drive,
+                id_to_delete
+            )
+            if not success:
+                logger.warning(f"Failed to delete from Drive, but removing DB record: {id_to_delete}")
+        except Exception as drive_error:
+            logger.warning(f"Drive deletion failed (file may already be deleted): {drive_error}")
+            # Continue with DB deletion even if Drive deletion fails
 
-        if not success:
-            logger.warning(f"Failed to delete from Drive, but removing DB record: {id_to_delete}")
-
-        # Delete the DB tracking record
+        # Always delete the DB tracking record
         await db.delete(matching_doc)
         await db.commit()
 
@@ -672,4 +676,72 @@ async def delete_shared_document(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to delete file: {str(e)}"
+        )
+
+@router.delete("/cleanup-orphans", response_model=dict, status_code=status.HTTP_200_OK)
+async def cleanup_orphaned_documents(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Remove database records for shared_workspace documents that no longer exist in Google Drive.
+    Only accessible by ADMIN and SECRETARIAT_LEAD roles.
+
+    Useful for cleaning up after manual deletions from Google Drive.
+    """
+    # Permission check: Only admins and secretariat leads can cleanup
+    if current_user.role not in [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]:
+        raise HTTPException(
+            status_code=403,
+            detail="Only administrators and secretariat leads can cleanup orphaned documents"
+        )
+
+    try:
+        from app.services.drive_service import drive_service
+
+        # Get all shared_workspace document records
+        stmt = select(Document).where(Document.document_type == "shared_workspace")
+        result = await db.execute(stmt)
+        all_docs = result.scalars().all()
+
+        # Get all actual files from Drive
+        drive_files = await asyncio.to_thread(drive_service.list_shared_documents)
+        drive_file_ids = {f.get("id") for f in drive_files}
+
+        orphaned_count = 0
+        orphaned_names = []
+
+        for doc in all_docs:
+            metadata = doc.metadata_json or {}
+            drive_id = metadata.get("drive_file_id")
+
+            if not drive_id:
+                # No drive file ID - this is definitely orphaned
+                orphaned_count += 1
+                orphaned_names.append(doc.file_name)
+                await db.delete(doc)
+                logger.info(f"Deleting orphaned DB record (no drive_file_id): {doc.file_name}")
+                continue
+
+            if drive_id not in drive_file_ids:
+                # File exists in DB but not in Drive
+                orphaned_count += 1
+                orphaned_names.append(doc.file_name)
+                await db.delete(doc)
+                logger.info(f"Deleting orphaned DB record (file not in Drive): {doc.file_name} (ID: {drive_id})")
+
+        await db.commit()
+
+        return {
+            "status": "success",
+            "orphaned_count": orphaned_count,
+            "orphaned_names": orphaned_names,
+            "message": f"Cleaned up {orphaned_count} orphaned database records"
+        }
+
+    except Exception as e:
+        logger.error(f"Error cleaning up orphaned documents: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to cleanup: {str(e)}"
         )

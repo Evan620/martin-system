@@ -259,6 +259,37 @@ class RecurringMeetingService:
 
         await self.db.commit()
 
+        # Auto-include all SECRETARIAT_LEAD users as participants for each new meeting
+        from sqlalchemy import and_
+        from app.models.models import MeetingParticipant, RsvpStatus
+
+        secretariat_result = await self.db.execute(
+            select(User).where(User.role == UserRole.SECRETARIAT_LEAD).where(User.is_active == True)
+        )
+        secretariat_users = secretariat_result.scalars().all()
+
+        for meeting in new_instances:
+            for secretariat_user in secretariat_users:
+                # Check if already a participant to avoid duplicates
+                existing_participant = await self.db.execute(
+                    select(MeetingParticipant).where(
+                        and_(
+                            MeetingParticipant.meeting_id == meeting.id,
+                            MeetingParticipant.user_id == secretariat_user.id
+                        )
+                    )
+                )
+                if not existing_participant.scalar_one_or_none():
+                    participant = MeetingParticipant(
+                        id=uuid.uuid4(),
+                        meeting_id=meeting.id,
+                        user_id=secretariat_user.id,
+                        rsvp_status=RsvpStatus.ACCEPTED
+                    )
+                    self.db.add(participant)
+
+        await self.db.commit()
+
         logger.info(
             f"Generated {len(new_instances)} new instances for recurring meeting {recurring_meeting.id}"
         )

@@ -167,12 +167,21 @@ async def get_twg(
     )
     pipeline_projects = projects_res.scalar() or 0
     
-    # Resources
+    # Resources - explicitly fetch documents for this TWG
+    # Exclude transcripts and shared_workspace from the count
     docs_res = await db.execute(
-        select(func.count(Document.id)).where(Document.twg_id == twg_id)
+        select(Document).options(selectinload(Document.uploaded_by))
+        .where(
+            Document.twg_id == twg_id,
+            or_(
+                Document.document_type.notin_(["transcript", "transcript_placeholder", "shared_workspace"]),
+                Document.document_type.is_(None)
+            )
+        )
     )
-    resources_count = docs_res.scalar() or 0
-    
+    twg_documents = docs_res.scalars().all()
+    resources_count = len(twg_documents)
+
     db_twg.stats = {
         "meetings_held": meetings_held,
         "open_actions": open_actions,

@@ -143,7 +143,12 @@ export default function Dashboard() {
                     </div>
                     <div className="flex items-center gap-1 text-white text-xs font-bold bg-white/20 w-fit px-3 py-1.5 rounded-full backdrop-blur-sm">
                         <span className="material-symbols-outlined text-[16px] text-white">calendar_month</span>
-                        <span className="text-white truncate max-w-[120px]">{stats?.metrics.next_plenary.date ? formatDate(stats.metrics.next_plenary.date) : stats?.metrics.next_plenary.title}</span>
+                        <span className="text-white truncate max-w-[180px]">
+                            {stats?.metrics.next_plenary.date
+                                ? formatDate(stats.metrics.next_plenary.date)
+                                : stats?.metrics.next_plenary.title}
+                            {stats?.metrics.next_plenary.twg && ` (${stats.metrics.next_plenary.twg})`}
+                        </span>
                     </div>
                 </div>
             </div>

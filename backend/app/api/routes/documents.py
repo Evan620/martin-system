@@ -313,12 +313,37 @@ async def download_document(
             "Content-Disposition": f"attachment; filename={db_doc.file_name or 'transcript_status.txt'}"
         })
 
+    # Handle shared_workspace documents (Core Workspace)
+    if db_doc.document_type == "shared_workspace":
+        metadata = db_doc.metadata_json or {}
+        web_view_link = metadata.get("web_view_link")
+        if web_view_link:
+            # Return a JSON response with the link for the frontend to open
+            from fastapi.responses import JSONResponse
+            return JSONResponse(content={
+                "redirect_url": web_view_link,
+                "file_name": db_doc.file_name,
+                "message": "This is a Google Docs/Sheets file. Opening in Google Drive..."
+            })
+        # If no link, try to get it from drive file ID
+        drive_file_id = metadata.get("drive_file_id") or db_doc.file_path.replace("drive://", "")
+        if drive_file_id:
+            # Construct Google Drive URL
+            return JSONResponse(content={
+                "redirect_url": f"https://drive.google.com/file/d/{drive_file_id}/view",
+                "file_name": db_doc.file_name,
+                "message": "Opening in Google Drive..."
+            })
+
     # Get cloud file ID from metadata or file_path
     metadata = db_doc.metadata_json or {}
     cloud_file_id = metadata.get("cloud_file_id") or db_doc.file_path
 
-    if not cloud_file_id:
-        raise HTTPException(status_code=404, detail="No cloud file ID found for document")
+    # Handle legacy file_path format (local paths)
+    if not cloud_file_id or cloud_file_id.startswith('/'):
+        error_msg = "This document was uploaded before cloud storage was enabled. Please re-upload the file."
+        logger.error(f"Document {doc_id} ({db_doc.file_name}) has no valid cloud_file_id. file_path: {db_doc.file_path}")
+        raise HTTPException(status_code=404, detail=error_msg)
 
     try:
         storage = get_storage_service()

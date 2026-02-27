@@ -460,6 +460,9 @@ async def stream_chat(
             # Send initial event
             yield f"data: {json.dumps({'type': 'start', 'conversation_id': conv_id})}\n\n"
 
+            # Track if we've sent a final_response event (to avoid duplicates)
+            final_response_sent = False
+
             # Use singleton supervisor to ensure memory persistence (MemorySaver)
             supervisor = get_supervisor()
 
@@ -578,7 +581,12 @@ async def stream_chat(
                             response_text = raw_content.get("response", "")
                         else:
                             response_text = str(raw_content)
-                    
+
+                        # Send the final response immediately as a 'final_response' event
+                        # The frontend will convert this to a proper message
+                        yield f"data: {json.dumps({'type': 'final_response', 'content': response_text, 'conversation_id': conv_id})}\n\n"
+                        final_response_sent = True
+
                     # Pass through new granular events for Generative UI
                     elif event["type"] in ["tool_start", "tool_result", "token"]:
                         yield f"data: {json.dumps(event)}\n\n"
@@ -588,19 +596,21 @@ async def stream_chat(
             # Send completion event
             yield f"data: {json.dumps({'type': 'tool_complete', 'status': 'Completed', 'step_id': str(uuid.uuid4())})}\n\n"
 
-            # Create the final message
-            agent_message = ChatMessage(
-                message_id=uuid.uuid4(),
-                conversation_id=conv_id,
-                message_type=message_type,
-                content=response_text,
-                sender="agent",
-                timestamp=datetime.utcnow(),
-                metadata={"parsed": parsed, "citations": citations} if citations else ({"parsed": parsed} if parsed["type"] != MessageParseType.NATURAL else None)
-            )
+            # Only send fallback response if we haven't already sent a final_response event
+            if not final_response_sent:
+                # Create the final message
+                agent_message = ChatMessage(
+                    message_id=uuid.uuid4(),
+                    conversation_id=conv_id,
+                    message_type=message_type,
+                    content=response_text,
+                    sender="agent",
+                    timestamp=datetime.utcnow(),
+                    metadata={"parsed": parsed, "citations": citations} if citations else ({"parsed": parsed} if parsed["type"] != MessageParseType.NATURAL else None)
+                )
 
-            # Send final response - use model_dump with mode='json' to handle UUID serialization
-            yield f"data: {json.dumps({'type': 'response', 'message': agent_message.model_dump(mode='json')})}\n\n"
+                # Send final response - use model_dump with mode='json' to handle UUID serialization
+                yield f"data: {json.dumps({'type': 'response', 'message': agent_message.model_dump(mode='json')})}\n\n"
 
             # Send done event
             yield f"data: {json.dumps({'type': 'done'})}\n\n"

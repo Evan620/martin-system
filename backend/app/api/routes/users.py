@@ -10,6 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 import uuid
+import io
+import csv
 
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
@@ -17,7 +19,7 @@ from app.models.models import User, UserRole, TWG
 from app.core.config import settings
 from app.schemas.auth import UserResponse, UserUpdate
 from app.api.deps import require_admin
-from app.schemas.user_invite import UserInvite, UserInviteResponse, ResendInviteResponse
+from app.schemas.user_invite import UserInvite, UserInviteResponse, ResendInviteResponse, BulkInviteRequest, BulkInviteResponse, BulkUserInvite
 import secrets
 import string
 
@@ -121,20 +123,17 @@ async def update_user(
     """
     Update a user's details, role, or active status.
     """
-    """
-    Update a user's details, role, or active status.
-    """
     # Eager load TWGs to enable relationship update
     query = select(User).where(User.id == user_id).options(selectinload(User.twgs))
     result = await db.execute(query)
     user = result.scalar_one_or_none()
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-        
+
     # Prevent admin from deactivating themselves or changing their own role
     if user.id == admin.id:
         if user_update.is_active is False:
@@ -149,19 +148,28 @@ async def update_user(
             )
 
     update_data = user_update.model_dump(exclude_unset=True)
-    
+
+    # Check for email duplicate if email is being updated
+    if user_update.email is not None and user_update.email != user.email:
+        existing = await db.execute(select(User).where(User.email == user_update.email))
+        if existing.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User with this email already exists"
+            )
+
     # Update TWG assignments if provided
     if user_update.twg_ids is not None:
         twg_query = select(TWG).where(TWG.id.in_(user_update.twg_ids))
         twg_res = await db.execute(twg_query)
         new_twgs = twg_res.scalars().all()
         user.twgs = new_twgs  # Update relationship
-        
+
     update_data = user_update.model_dump(exclude_unset=True, exclude={'twg_ids'})
-    
+
     for field, value in update_data.items():
         setattr(user, field, value)
-        
+
     await db.commit()
     await db.refresh(user, attribute_names=['twgs'])
 
@@ -355,4 +363,120 @@ async def resend_invite(
         email=user.email,
         temporary_password=temp_password,
         invite_sent=invite_sent
+    )
+
+
+@router.post("/bulk-invite", response_model=BulkInviteResponse, status_code=status.HTTP_201_CREATED)
+async def bulk_invite_users(
+    request: BulkInviteRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    Bulk invite multiple users (Admin only).
+
+    Creates multiple user accounts with temporary passwords and optionally sends
+    invitation emails. Returns lists of successful and failed creations.
+    """
+    from app.services.auth_service import AuthService
+    from app.schemas.auth import UserRegister
+    from app.services.email_service import email_service
+
+    successful = []
+    failed = []
+    login_url = settings.FRONTEND_URL
+
+    for user_data in request.users:
+        try:
+            # Check if user already exists
+            existing = await db.execute(select(User).where(User.email == user_data.email))
+            if existing.scalar_one_or_none():
+                failed.append({
+                    "email": user_data.email,
+                    "full_name": user_data.full_name,
+                    "error": "User with this email already exists"
+                })
+                continue
+
+            # Generate secure temporary password
+            alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+            temp_password = ''.join(secrets.choice(alphabet) for _ in range(16))
+
+            # Create user via auth service
+            auth_service = AuthService(db)
+            user_register = UserRegister(
+                email=user_data.email,
+                password=temp_password,
+                full_name=user_data.full_name,
+                organization=user_data.organization
+            )
+
+            user, _, _ = await auth_service.register_user(user_register)
+
+            # Re-fetch user with TWGs loaded
+            query = select(User).where(User.id == user.id).options(selectinload(User.twgs))
+            result = await db.execute(query)
+            user = result.scalar_one()
+
+            # Update role
+            try:
+                user.role = UserRole(user_data.role) if user_data.role else UserRole.TWG_MEMBER
+            except ValueError:
+                user.role = UserRole.TWG_MEMBER
+
+            # Assign TWGs if provided
+            if user_data.twg_ids:
+                try:
+                    twg_uuids = [uuid.UUID(twg_id) for twg_id in user_data.twg_ids if twg_id]
+                    if twg_uuids:
+                        twg_query = select(TWG).where(TWG.id.in_(twg_uuids))
+                        twg_res = await db.execute(twg_query)
+                        user.twgs = twg_res.scalars().all()
+                except ValueError:
+                    pass  # Invalid UUID, skip TWG assignment
+
+            await db.commit()
+            await db.refresh(user)
+
+            # Send invitation email
+            invite_sent = False
+            if request.send_emails:
+                try:
+                    await email_service.send_user_invite(
+                        to_email=user.email,
+                        full_name=user.full_name,
+                        password=temp_password,
+                        role=user.role.value,
+                        login_url=login_url
+                    )
+                    invite_sent = True
+                except Exception as e:
+                    print(f"Failed to send invite email to {user.email}: {e}")
+
+            # Track invite timestamp
+            user.invite_sent_at = datetime.utcnow()
+            await db.commit()
+
+            successful.append({
+                "user_id": str(user.id),
+                "email": user.email,
+                "full_name": user.full_name,
+                "role": user.role.value,
+                "temporary_password": temp_password,
+                "invite_sent": invite_sent
+            })
+
+        except Exception as e:
+            failed.append({
+                "email": user_data.email,
+                "full_name": user_data.full_name,
+                "error": str(e)
+            })
+
+    return BulkInviteResponse(
+        successful=successful,
+        failed=failed,
+        total=len(request.users),
+        success_count=len(successful),
+        failure_count=len(failed)
     )

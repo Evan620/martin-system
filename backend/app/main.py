@@ -4,7 +4,7 @@ faulthandler.enable()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users, notifications, supervisor, debug, pipeline, conflicts, settings as settings_router, shared_documents, organization_invitations, public_invitations
+from app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users, notifications, supervisor, debug, pipeline, conflicts, settings as settings_router, shared_documents, organization_invitations, public_invitations, recurring_meetings
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -188,6 +188,7 @@ app.include_router(organization_invitations.router, prefix=f"{settings.API_V1_ST
 app.include_router(public_invitations.router, prefix=f"{settings.API_V1_STR}")
 from app.api.routes import webhooks
 app.include_router(webhooks.router, prefix=f"{settings.API_V1_STR}/webhooks", tags=["Webhooks"])
+app.include_router(recurring_meetings.router, prefix=f"{settings.API_V1_STR}")
 
 @app.get("/")
 async def root():

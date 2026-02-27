@@ -75,6 +75,9 @@ celery_app.conf.update(
         "app.services.tasks.sync_rsvps": {"queue": "periodic"},
         "app.services.tasks.generate_project_pdf": {"queue": "formatting"},
         "app.services.scoring_tasks.rescore_project_async": {"queue": "scoring"},
+
+        # Recurring Meetings
+        "app.tasks.recurring_tasks.*": {"queue": "periodic"},
     },
 )
 
@@ -89,7 +92,21 @@ celery_app.conf.beat_schedule = {
         "task": "app.services.tasks.sync_rsvps",
         "schedule": 900.0,  # 15 minutes
     },
-    
+
+    # ── Recurring Meeting Tasks ─────────────────────────────────────
+    "generate-recurring-meetings-daily": {
+        "task": "app.tasks.recurring_tasks.generate_upcoming_recurring_instances_task",
+        "schedule": crontab(hour=2, minute=0),  # Run at 2 AM daily
+    },
+    "cleanup-ended-recurring-meetings-weekly": {
+        "task": "app.tasks.recurring_tasks.cleanup_ended_recurring_meetings_task",
+        "schedule": crontab(hour=3, minute=0, day_of_week=0),  # Run weekly on Sunday at 3 AM
+    },
+    "send-recurring-meeting-reminders-daily": {
+        "task": "app.tasks.recurring_tasks.send_recurring_meeting_reminders_task",
+        "schedule": crontab(hour=8, minute=0),  # Run at 8 AM daily
+    },
+
     # ── Governance scans — DISABLED (re-enable when needed) ──────────
     # These consume LLM tokens on every run. Not needed for meeting lifecycle.
     #

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card } from '../ui';
-import { meetings, twgs } from '../../services/api';
+import { meetings, twgs, recurringMeetings } from '../../services/api';
 import { useAppSelector } from '../../hooks/useRedux';
 import { UserRole } from '../../types/auth';
 
@@ -10,6 +10,17 @@ interface CreateMeetingModalProps {
     twgId?: string;
     onSuccess: () => void;
     prefilledDate?: Date | null;
+}
+
+type RecurrenceFrequency = 'weekly' | 'biweekly' | 'monthly';
+type RecurrenceEndType = 'never' | 'after_date' | 'after_occurrences';
+
+interface RecurrenceState {
+    isRecurring: boolean;
+    frequency: RecurrenceFrequency;
+    endType: RecurrenceEndType;
+    endDate: string;
+    maxOccurrences: number;
 }
 
 export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, prefilledDate }: CreateMeetingModalProps) {
@@ -40,6 +51,14 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
         type: 'virtual' // Default to virtual for Google Meet link generation
     });
 
+    const [recurrence, setRecurrence] = useState<RecurrenceState>({
+        isRecurring: false,
+        frequency: 'weekly',
+        endType: 'never',
+        endDate: '',
+        maxOccurrences: 10
+    });
+
     // Update date when prefilledDate changes
     useEffect(() => {
         if (prefilledDate) {
@@ -66,6 +85,16 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
         }
     };
 
+    // Get day of week from date (0 = Monday, 6 = Sunday)
+    const getDayOfWeek = (dateStr: string): number => {
+        if (!dateStr) return 0;
+        const date = new Date(dateStr);
+        // JavaScript: 0 = Sunday, 6 = Saturday
+        // Our format: 0 = Monday, 6 = Sunday
+        const jsDay = date.getDay();
+        return jsDay === 0 ? 6 : jsDay - 1;
+    };
+
     if (!isOpen) return null;
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -87,14 +116,47 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
             console.log('🌍 User timezone:', Intl.DateTimeFormat().resolvedOptions().timeZone);
             console.log('⏰ Sending to backend (UTC):', scheduledAtUTC);
 
-            await meetings.create({
-                title: formData.title,
-                twg_id: twgId || selectedTwgId || undefined,
-                scheduled_at: scheduledAtUTC,
-                duration_minutes: parseInt(formData.duration),
-                location: formData.location,
-                meeting_type: formData.type
-            });
+            if (recurrence.isRecurring) {
+                // Create recurring meeting
+                const dayOfWeek = getDayOfWeek(formData.date);
+
+                const recurringData = {
+                    twg_id: twgId || selectedTwgId || undefined,
+                    title_template: formData.title,
+                    duration_minutes: parseInt(formData.duration),
+                    location: formData.location,
+                    meeting_type: formData.type,
+                    recurrence_rule: {
+                        frequency: recurrence.frequency,
+                        interval_weeks: 1,
+                        day_of_week: dayOfWeek
+                    },
+                    recurrence_end: {
+                        end_type: recurrence.endType,
+                        end_date: recurrence.endType === 'after_date' && recurrence.endDate
+                            ? new Date(recurrence.endDate).toISOString()
+                            : null,
+                        max_occurrences: recurrence.endType === 'after_occurrences'
+                            ? recurrence.maxOccurrences
+                            : null
+                    },
+                    start_date: scheduledAtUTC,
+                    start_time: formData.time
+                };
+
+                console.log('🔄 Creating recurring meeting:', recurringData);
+                await recurringMeetings.create(recurringData);
+            } else {
+                // Create single meeting
+                await meetings.create({
+                    title: formData.title,
+                    twg_id: twgId || selectedTwgId || undefined,
+                    scheduled_at: scheduledAtUTC,
+                    duration_minutes: parseInt(formData.duration),
+                    location: formData.location,
+                    meeting_type: formData.type
+                });
+            }
 
             onSuccess();
             onClose();
@@ -108,8 +170,8 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <Card className="w-full max-w-lg bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xl">
-                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+            <Card className="w-full max-w-lg bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center sticky top-0 bg-white dark:bg-slate-900 z-10">
                     <h2 className="text-xl font-display font-bold text-slate-900 dark:text-white">Schedule New Session</h2>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -207,8 +269,8 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                                     location: e.target.value === 'virtual' ? 'Virtual' : ''
                                 })}
                             >
-                                <option value="virtual">🎥 Virtual (Google Meet)</option>
-                                <option value="in_person">📍 In-Person</option>
+                                <option value="virtual">Virtual (Google Meet)</option>
+                                <option value="in_person">In-Person</option>
                             </select>
                         </div>
                     </div>
@@ -227,6 +289,115 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                         </div>
                     )}
 
+                    {/* Recurring Meeting Section */}
+                    <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={recurrence.isRecurring}
+                                onChange={e => setRecurrence({ ...recurrence, isRecurring: e.target.checked })}
+                                className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Make this a recurring meeting
+                            </span>
+                        </label>
+
+                        {recurrence.isRecurring && (
+                            <div className="mt-4 space-y-4 pl-8 border-l-2 border-blue-200 dark:border-blue-800">
+                                {/* Frequency */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Repeat</label>
+                                    <select
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 outline-none text-sm dark:text-white"
+                                        value={recurrence.frequency}
+                                        onChange={e => setRecurrence({ ...recurrence, frequency: e.target.value as RecurrenceFrequency })}
+                                    >
+                                        <option value="weekly">Weekly</option>
+                                        <option value="biweekly">Bi-weekly (Every 2 weeks)</option>
+                                        <option value="monthly">Monthly</option>
+                                    </select>
+                                </div>
+
+                                {/* End Condition */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">End Condition</label>
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2">
+                                            <input
+                                                type="radio"
+                                                name="endType"
+                                                value="never"
+                                                checked={recurrence.endType === 'never'}
+                                                onChange={() => setRecurrence({ ...recurrence, endType: 'never' })}
+                                                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className="text-sm text-slate-700 dark:text-slate-300">Never (keep generating)</span>
+                                        </label>
+                                        <label className="flex items-center gap-2">
+                                            <input
+                                                type="radio"
+                                                name="endType"
+                                                value="after_date"
+                                                checked={recurrence.endType === 'after_date'}
+                                                onChange={() => setRecurrence({ ...recurrence, endType: 'after_date' })}
+                                                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className="text-sm text-slate-700 dark:text-slate-300">On a specific date</span>
+                                        </label>
+                                        <label className="flex items-center gap-2">
+                                            <input
+                                                type="radio"
+                                                name="endType"
+                                                value="after_occurrences"
+                                                checked={recurrence.endType === 'after_occurrences'}
+                                                onChange={() => setRecurrence({ ...recurrence, endType: 'after_occurrences' })}
+                                                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className="text-sm text-slate-700 dark:text-slate-300">After a number of meetings</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Conditional End Date */}
+                                {recurrence.endType === 'after_date' && (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">End Date</label>
+                                        <input
+                                            type="date"
+                                            required
+                                            min={formData.date}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 outline-none text-sm dark:text-white"
+                                            value={recurrence.endDate}
+                                            onChange={e => setRecurrence({ ...recurrence, endDate: e.target.value })}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Conditional Max Occurrences */}
+                                {recurrence.endType === 'after_occurrences' && (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Number of Meetings</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="100"
+                                            required
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 outline-none text-sm dark:text-white"
+                                            value={recurrence.maxOccurrences}
+                                            onChange={e => setRecurrence({ ...recurrence, maxOccurrences: parseInt(e.target.value) || 10 })}
+                                        />
+                                        <p className="text-xs text-slate-500 mt-1">Will generate {recurrence.maxOccurrences} meeting instances</p>
+                                    </div>
+                                )}
+
+                                <p className="text-xs text-slate-500 italic">
+                                    Meetings will be automatically generated 30 days in advance.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
                     <div className="pt-4 flex gap-3">
                         <button
                             type="button"
@@ -240,7 +411,12 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                             disabled={loading}
                             className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                         >
-                            {loading ? 'Scheduling...' : 'Schedule Session'}
+                            {loading
+                                ? 'Scheduling...'
+                                : recurrence.isRecurring
+                                    ? 'Create Recurring Series'
+                                    : 'Schedule Session'
+                            }
                         </button>
                     </div>
                 </form>

@@ -133,6 +133,7 @@ export const meetings = {
     }),
     compileMeetingPack: (id: string) => api.post(`/meetings/${id}/meeting-pack`),
     proposeNextMeeting: (id: string) => api.post(`/meetings/${id}/propose-next`),
+    detachFromSeries: (id: string) => api.patch(`/meetings/${id}/detach-from-series`),
 };
 
 export const actionItems = {
@@ -188,5 +189,86 @@ export const sharedDocuments = {
         });
     },
     delete: (fileId: string) => api.delete(`/shared-documents/${fileId}`),
+};
+
+export const recurringMeetings = {
+    list: (params?: { twg_id?: string; status?: string; skip?: number; limit?: number }) => {
+        const queryParams = new URLSearchParams();
+        if (params?.twg_id) queryParams.append('twg_id', params.twg_id);
+        if (params?.status) queryParams.append('status', params.status);
+        if (params?.skip !== undefined) queryParams.append('skip', params.skip.toString());
+        if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
+        const query = queryParams.toString();
+        return api.get(`/recurring-meetings/${query ? `?${query}` : ''}`);
+    },
+
+    get: (id: string) => api.get(`/recurring-meetings/${id}`),
+
+    create: (data: {
+        twg_id: string;
+        title_template: string;
+        duration_minutes?: number;
+        location?: string;
+        meeting_type?: string;
+        recurrence_rule: {
+            frequency: 'weekly' | 'biweekly' | 'monthly';
+            interval_weeks?: number;
+            day_of_week?: number | null;
+        };
+        recurrence_end: {
+            end_type: 'after_date' | 'after_occurrences' | 'never';
+            end_date?: string | null;
+            max_occurrences?: number | null;
+        };
+        start_date: string;
+        start_time: string;
+    }) => api.post('/recurring-meetings/', data),
+
+    update: (id: string, data: {
+        title_template?: string;
+        duration_minutes?: number;
+        location?: string;
+        meeting_type?: string;
+        recurrence_rule?: {
+            frequency: 'weekly' | 'biweekly' | 'monthly';
+            interval_weeks?: number;
+            day_of_week?: number | null;
+        };
+        recurrence_end?: {
+            end_type: 'after_date' | 'after_occurrences' | 'never';
+            end_date?: string | null;
+            max_occurrences?: number | null;
+        };
+        start_time?: string;
+        status?: 'active' | 'paused' | 'ended' | 'cancelled';
+        update_scope?: 'future' | 'all';
+    }) => api.patch(`/recurring-meetings/${id}`, data),
+
+    delete: (id: string, cancelFuture: boolean = true) =>
+        api.delete(`/recurring-meetings/${id}?cancel_future=${cancelFuture}`),
+
+    preview: (data: {
+        twg_id: string;
+        title_template: string;
+        duration_minutes?: number;
+        location?: string;
+        meeting_type?: string;
+        recurrence_rule: {
+            frequency: 'weekly' | 'biweekly' | 'monthly';
+            interval_weeks?: number;
+            day_of_week?: number | null;
+        };
+        recurrence_end: {
+            end_type: 'after_date' | 'after_occurrences' | 'never';
+            end_date?: string | null;
+            max_occurrences?: number | null;
+        };
+        start_date: string;
+        start_time: string;
+    }) => api.post('/recurring-meetings/preview', data),
+
+    pause: (id: string) => api.post(`/recurring-meetings/${id}/pause`),
+
+    resume: (id: string) => api.post(`/recurring-meetings/${id}/resume`),
 };
 

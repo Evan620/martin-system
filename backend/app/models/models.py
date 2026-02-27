@@ -153,6 +153,22 @@ class InvitationMessageSender(str, enum.Enum):
     ADMIN = "admin"
     INVITEE = "invitee"
 
+class RecurrenceFrequency(str, enum.Enum):
+    WEEKLY = "weekly"
+    BIWEEKLY = "biweekly"
+    MONTHLY = "monthly"
+
+class RecurrenceEndType(str, enum.Enum):
+    AFTER_DATE = "after_date"
+    AFTER_OCCURRENCES = "after_occurrences"
+    NEVER = "never"
+
+class RecurringMeetingStatus(str, enum.Enum):
+    ACTIVE = "active"
+    PAUSED = "paused"
+    ENDED = "ended"
+    CANCELLED = "cancelled"
+
 # --- Association Tables ---
 
 twg_members = Table(
@@ -305,7 +321,8 @@ class TWG(Base):
     projects: Mapped[List["Project"]] = relationship(back_populates="twg")
     action_items: Mapped[List["ActionItem"]] = relationship(back_populates="twg")
     documents: Mapped[List["Document"]] = relationship(back_populates="twg")
-    
+    recurring_meetings: Mapped[List["RecurringMeeting"]] = relationship(back_populates="twg")
+
     # Dependencies
     dependencies_as_source: Mapped[List["Dependency"]] = relationship("Dependency", foreign_keys="[Dependency.source_twg_id]", back_populates="source_twg")
     dependencies_as_target: Mapped[List["Dependency"]] = relationship("Dependency", foreign_keys="[Dependency.target_twg_id]", back_populates="target_twg")
@@ -354,7 +371,14 @@ class Meeting(Base):
     meeting_type: Mapped[str] = mapped_column(String(50), default="virtual") # virtual, in-person
     transcript: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # Text or link to transcript
     video_link: Mapped[Optional[str]] = mapped_column(String(512), nullable=True) # Google Meet / Zoom link
-    
+
+    # Recurring Meeting Fields
+    recurring_meeting_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid, ForeignKey("recurring_meetings.id", ondelete="SET NULL"), nullable=True
+    )
+    is_recurring_exception: Mapped[bool] = mapped_column(Boolean, default=False)
+    original_scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
     # Relationships
     twg: Mapped["TWG"] = relationship(back_populates="meetings")
     participants: Mapped[List["MeetingParticipant"]] = relationship(
@@ -367,17 +391,66 @@ class Meeting(Base):
 
     # Dependency Graph Relationships
     successors: Mapped[List["MeetingDependency"]] = relationship(
-        "MeetingDependency", 
-        foreign_keys="[MeetingDependency.source_meeting_id]", 
+        "MeetingDependency",
+        foreign_keys="[MeetingDependency.source_meeting_id]",
         back_populates="source_meeting",
         cascade="all, delete-orphan"
     )
     predecessors: Mapped[List["MeetingDependency"]] = relationship(
-        "MeetingDependency", 
-        foreign_keys="[MeetingDependency.target_meeting_id]", 
+        "MeetingDependency",
+        foreign_keys="[MeetingDependency.target_meeting_id]",
         back_populates="target_meeting",
         cascade="all, delete-orphan"
     )
+
+    # Recurring Meeting Relationship
+    recurring_parent: Mapped[Optional["RecurringMeeting"]] = relationship(back_populates="instances")
+
+class RecurringMeeting(Base):
+    """
+    Template for recurring meetings that automatically generates Meeting instances.
+    Uses a parent-child pattern where this is the template and Meeting instances are children.
+    """
+    __tablename__ = "recurring_meetings"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    twg_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("twgs.id"))
+
+    # Template fields (copied to each instance)
+    title_template: Mapped[str] = mapped_column(String(255))
+    duration_minutes: Mapped[int] = mapped_column(default=60)
+    location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    meeting_type: Mapped[str] = mapped_column(String(50), default="virtual")
+
+    # Recurrence Configuration
+    frequency: Mapped[RecurrenceFrequency] = mapped_column(Enum(RecurrenceFrequency))
+    interval_weeks: Mapped[int] = mapped_column(Integer, default=1)
+    day_of_week: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 0=Mon, 6=Sun
+
+    # Start/End Configuration
+    start_date: Mapped[datetime] = mapped_column(DateTime)
+    start_time: Mapped[str] = mapped_column(String(10))  # "14:00" format
+    timezone: Mapped[str] = mapped_column(String(50), default="UTC")
+
+    end_type: Mapped[RecurrenceEndType] = mapped_column(Enum(RecurrenceEndType))
+    end_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    max_occurrences: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # State
+    status: Mapped[RecurringMeetingStatus] = mapped_column(
+        Enum(RecurringMeetingStatus), default=RecurringMeetingStatus.ACTIVE
+    )
+    occurrences_created: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Metadata
+    created_by_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    twg: Mapped["TWG"] = relationship(back_populates="recurring_meetings")
+    instances: Mapped[List["Meeting"]] = relationship(back_populates="recurring_parent")
+    created_by: Mapped["User"] = relationship("User")
 
 class Agenda(Base):
     __tablename__ = "agendas"

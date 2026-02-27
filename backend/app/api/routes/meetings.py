@@ -3271,8 +3271,77 @@ async def restore_minutes_version(
     db_minutes.current_version += 1
     db_minutes.last_edited_by = current_user.id
     db_minutes.last_edited_at = datetime.utcnow()
-    
+
     await db.commit()
     await db.refresh(db_minutes)
-    
+
     return db_minutes
+
+
+# ==================== RECURRING MEETING ENDPOINTS ====================
+
+@router.patch("/{meeting_id}/detach-from-series", response_model=MeetingRead)
+async def detach_meeting_from_series(
+    meeting_id: uuid.UUID,
+    current_user: User = Depends(require_facilitator),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Detach a meeting instance from its recurring meeting series.
+
+    This makes the meeting standalone - future updates to the series
+    will not affect this instance. The meeting becomes an exception.
+
+    This is useful when:
+    - A specific instance needs a different time/location
+    - One meeting in a series needs different participants
+    - You want to edit a single occurrence without affecting others
+    """
+    # Get the meeting
+    result = await db.execute(
+        select(Meeting)
+        .options(
+            selectinload(Meeting.twg),
+            selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
+            selectinload(Meeting.agenda),
+            selectinload(Meeting.minutes),
+            selectinload(Meeting.documents),
+        )
+        .where(Meeting.id == meeting_id)
+    )
+    db_meeting = result.scalar_one_or_none()
+
+    if not db_meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    if not has_twg_access(current_user, db_meeting.twg_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not db_meeting.recurring_meeting_id:
+        raise HTTPException(
+            status_code=400,
+            detail="This meeting is not part of a recurring series"
+        )
+
+    # Mark as exception and detach
+    db_meeting.is_recurring_exception = True
+    db_meeting.recurring_meeting_id = None
+
+    await db.commit()
+    await db.refresh(db_meeting)
+
+    # Log the activity
+    await audit_service.log_activity(
+        db=db,
+        user_id=current_user.id,
+        action="MEETING_DETACHED_FROM_SERIES",
+        resource_type="meeting",
+        resource_id=meeting_id,
+        details={
+            "meeting_title": db_meeting.title,
+            "original_scheduled_at": db_meeting.original_scheduled_at.isoformat() if db_meeting.original_scheduled_at else None,
+        },
+        ip_address=None
+    )
+
+    return db_meeting

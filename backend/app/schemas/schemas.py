@@ -109,6 +109,22 @@ class DependencyType(str, enum.Enum):
     FINISH_TO_FINISH = "finish_to_finish"
     START_TO_FINISH = "start_to_finish"
 
+class RecurrenceFrequency(str, enum.Enum):
+    WEEKLY = "weekly"
+    BIWEEKLY = "biweekly"
+    MONTHLY = "monthly"
+
+class RecurrenceEndType(str, enum.Enum):
+    AFTER_DATE = "after_date"
+    AFTER_OCCURRENCES = "after_occurrences"
+    NEVER = "never"
+
+class RecurringMeetingStatus(str, enum.Enum):
+    ACTIVE = "active"
+    PAUSED = "paused"
+    ENDED = "ended"
+    CANCELLED = "cancelled"
+
 # --- Base Schema ---
 
 class SchemaBase(BaseModel):
@@ -309,6 +325,67 @@ class MeetingRead(MeetingBase):
     # Optional: only populated when fetching a single meeting with eager loading
     successors: Optional[List[MeetingDependencyRead]] = None
     predecessors: Optional[List[MeetingDependencyRead]] = None
+    # Recurring meeting fields
+    recurring_meeting_id: Optional[uuid.UUID] = None
+    is_recurring_exception: bool = False
+
+# --- Recurring Meeting Schemas ---
+
+class RecurrenceRule(SchemaBase):
+    frequency: RecurrenceFrequency
+    interval_weeks: int = 1
+    day_of_week: Optional[int] = None  # 0=Mon, 6=Sun
+
+class RecurrenceEnd(SchemaBase):
+    end_type: RecurrenceEndType
+    end_date: Optional[datetime] = None
+    max_occurrences: Optional[int] = None
+
+class RecurringMeetingBase(SchemaBase):
+    twg_id: uuid.UUID
+    title_template: str
+    duration_minutes: int = 60
+    location: Optional[str] = None
+    meeting_type: str = "virtual"
+
+class RecurringMeetingCreate(RecurringMeetingBase):
+    recurrence_rule: RecurrenceRule
+    recurrence_end: RecurrenceEnd
+    start_date: datetime
+    start_time: str  # "14:00" format
+
+class RecurringMeetingUpdate(SchemaBase):
+    title_template: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    location: Optional[str] = None
+    meeting_type: Optional[str] = None
+    recurrence_rule: Optional[RecurrenceRule] = None
+    recurrence_end: Optional[RecurrenceEnd] = None
+    start_time: Optional[str] = None
+    status: Optional[RecurringMeetingStatus] = None
+    update_scope: str = "future"  # "future" or "all"
+
+class RecurringMeetingRead(RecurringMeetingBase):
+    id: uuid.UUID
+    frequency: RecurrenceFrequency
+    interval_weeks: int
+    day_of_week: Optional[int] = None
+    start_date: datetime
+    start_time: str
+    timezone: str
+    end_type: RecurrenceEndType
+    end_date: Optional[datetime] = None
+    max_occurrences: Optional[int] = None
+    status: RecurringMeetingStatus
+    occurrences_created: int
+    created_at: datetime
+    created_by_id: uuid.UUID
+    upcoming_instances: List[MeetingRead] = []
+
+class RecurringMeetingPreview(SchemaBase):
+    """Preview of dates that will be generated for a recurring meeting"""
+    occurrence_dates: List[datetime]
+    conflicts_detected: List[dict] = []
 
 # --- Agenda Schemas ---
 

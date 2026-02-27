@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request, WebSocket, WebSocketDisconnect, Query
+from fastapi.responses import StreamingResponse
 from app.services.audit_service import audit_service
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, and_, or_
@@ -10,6 +11,7 @@ import json
 import redis
 import logging
 import traceback
+import io
 
 from app.core.database import get_db
 from app.models.models import Meeting, Agenda, Minutes, User, UserRole, MinutesStatus, MeetingParticipant, RsvpStatus, ActionItem, ActionItemStatus, TWG, Document, MeetingStatus, MeetingDependency, DependencyType
@@ -30,6 +32,7 @@ from app.services.llm_service import llm_service
 from app.utils.security import verify_token
 from app.core.ws_manager import ws_manager
 from app.core.database import get_db, get_db_session_context
+from app.services.storage_service import get_storage_service
 
 router = APIRouter(prefix="/meetings", tags=["Meetings"])
 
@@ -2082,44 +2085,66 @@ async def approve_minutes(
     except Exception as e:
         print(f"PDF Gen Failure: {e}")
         # Log warning but don't crash, the status is already updated
-    
-    # 1b. Save PDF to disk and create Document record for the Document Library
+
+    # 1b. Save PDF to cloud storage and create Document record for the Document Library
     if pdf_bytes:
         try:
-            import os
-            upload_dir = os.path.join(settings.UPLOAD_DIR, "minutes")
-            os.makedirs(upload_dir, exist_ok=True)
-            pdf_filename = f"Minutes - {db_meeting.title}.pdf"
-            pdf_path = os.path.join(upload_dir, f"minutes_{db_meeting.id}.pdf")
-            with open(pdf_path, "wb") as f:
-                f.write(pdf_bytes)
+            storage = get_storage_service()
 
-            # Check if a minutes Document already exists for this meeting
-            existing = await db.execute(
-                select(Document).where(
-                    and_(Document.meeting_id == db_meeting.id, Document.document_type == "minutes")
-                )
+            # Get TWG name for folder organization
+            twg_result = await db.execute(select(TWG).where(TWG.id == db_meeting.twg_id))
+            twg = twg_result.scalar_one_or_none()
+            target_folder_id = None
+            if twg:
+                target_folder_id = storage.get_or_create_twg_folder(twg.name)
+
+            pdf_filename = f"Minutes - {db_meeting.title}.pdf"
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            safe_filename = f"{timestamp}_minutes_{db_meeting.id}.pdf"
+
+            # Upload to cloud storage
+            cloud_file_id, cloud_view_link, cloud_download_url = storage.upload_bytes(
+                file_bytes=pdf_bytes,
+                file_name=safe_filename,
+                mime_type="application/pdf",
+                folder_id=target_folder_id
             )
-            if not existing.scalar_one_or_none():
-                minutes_doc = Document(
-                    twg_id=db_meeting.twg_id,
-                    meeting_id=db_meeting.id,
-                    file_name=pdf_filename,
-                    file_path=pdf_path,
-                    file_type="application/pdf",
-                    document_type="minutes",
-                    uploaded_by_id=current_user.id,
-                    metadata_json={
-                        "meeting_id": str(db_meeting.id),
-                        "meeting_title": db_meeting.title,
-                        "status": "approved",
-                        "file_size": len(pdf_bytes),
-                    }
+
+            if cloud_file_id:
+                # Check if a minutes Document already exists for this meeting
+                existing = await db.execute(
+                    select(Document).where(
+                        and_(Document.meeting_id == db_meeting.id, Document.document_type == "minutes")
+                    )
                 )
-                db.add(minutes_doc)
-                await db.commit()
+                if not existing.scalar_one_or_none():
+                    minutes_doc = Document(
+                        twg_id=db_meeting.twg_id,
+                        meeting_id=db_meeting.id,
+                        file_name=pdf_filename,
+                        file_path=cloud_file_id,
+                        file_type="application/pdf",
+                        document_type="minutes",
+                        uploaded_by_id=current_user.id,
+                        metadata_json={
+                            "meeting_id": str(db_meeting.id),
+                            "meeting_title": db_meeting.title,
+                            "status": "approved",
+                            "file_size": len(pdf_bytes),
+                            "storage_mode": "cloud",
+                            "cloud_file_id": cloud_file_id,
+                            "cloud_view_link": cloud_view_link,
+                            "cloud_download_url": cloud_download_url
+                        }
+                    )
+                    db.add(minutes_doc)
+                    await db.commit()
+                    logging.info(f"Saved minutes PDF to cloud storage: {cloud_file_id}")
+            else:
+                logging.warning(f"Failed to upload minutes PDF to cloud storage for meeting {db_meeting.id}")
+
         except Exception as e:
-            print(f"Minutes Document creation failed: {e}")
+            logging.error(f"Minutes Document creation failed: {e}")
 
     # 2. Index to Knowledge Base (RAG)
     try:
@@ -2633,54 +2658,75 @@ async def upload_meeting_document(
     current_user: User = Depends(require_facilitator),
     db: AsyncSession = Depends(get_db)
 ):
-    """Upload a document for a meeting."""
-    import os
-    import shutil
-    
+    """Upload a document for a meeting to cloud storage."""
     result = await db.execute(select(Meeting).where(Meeting.id == meeting_id))
     db_meeting = result.scalar_one_or_none()
-    
+
     if not db_meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
-        
+
     if not has_twg_access(current_user, db_meeting.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
-    
-    upload_dir = "uploads/meetings"
+
+    # Read file content
+    file_content = await file.read()
+    file_size = len(file_content)
+
+    # Upload to cloud storage
     try:
-        os.makedirs(upload_dir, exist_ok=True)
-        
+        storage = get_storage_service()
+
+        # Get TWG name for folder organization
+        twg_result = await db.execute(select(TWG).where(TWG.id == db_meeting.twg_id))
+        twg = twg_result.scalar_one_or_none()
+        target_folder_id = None
+        if twg:
+            target_folder_id = storage.get_or_create_twg_folder(twg.name)
+
+        # Generate unique filename
+        import os
         file_extension = os.path.splitext(file.filename)[1]
-        unique_filename = f"{uuid.uuid4()}{file_extension}"
-        file_path = os.path.join(upload_dir, unique_filename)
-        
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        file_size = os.path.getsize(file_path)
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        safe_filename = f"{timestamp}_{uuid.uuid4()}{file_extension}"
+
+        # Upload to cloud
+        cloud_file_id, cloud_view_link, cloud_download_url = storage.upload_bytes(
+            file_bytes=file_content,
+            file_name=safe_filename,
+            mime_type=file.content_type or "application/octet-stream",
+            folder_id=target_folder_id
+        )
+
+        if not cloud_file_id:
+            raise HTTPException(status_code=500, detail="Failed to upload file to cloud storage")
+
+    except HTTPException:
+        raise
     except Exception as e:
-        import traceback
-        print(f"File Upload Error: {e}")
-        print(traceback.format_exc())
+        logging.error(f"File Upload Error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
-    
+
     db_document = Document(
         twg_id=db_meeting.twg_id,
-        meeting_id=meeting_id, # Link to meeting!
+        meeting_id=meeting_id,
         file_name=file.filename,
-        file_path=file_path,
+        file_path=cloud_file_id,
         file_type=file.content_type or "application/octet-stream",
         uploaded_by_id=current_user.id,
         metadata_json={
             "meeting_id": str(meeting_id),
-            "file_size": file_size
+            "file_size": file_size,
+            "storage_mode": "cloud",
+            "cloud_file_id": cloud_file_id,
+            "cloud_view_link": cloud_view_link,
+            "cloud_download_url": cloud_download_url
         }
     )
-    
+
     db.add(db_document)
     await db.commit()
     await db.refresh(db_document)
-    
+
     return {
         "id": str(db_document.id),
         "file_name": db_document.file_name,
@@ -2696,29 +2742,45 @@ async def download_document(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Download a document."""
-    from fastapi.responses import FileResponse
-    import os
-    
+    """Download a document from cloud storage."""
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
-    
+
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    
+
     # Check TWG access
     if document.twg_id and not has_twg_access(current_user, document.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
-    
-    # Check if file exists
-    if not os.path.exists(document.file_path):
-        raise HTTPException(status_code=404, detail="File not found on server")
-    
-    return FileResponse(
-        path=document.file_path,
-        filename=document.file_name,
-        media_type=document.file_type
-    )
+
+    # Get cloud file ID from metadata or file_path
+    metadata = document.metadata_json or {}
+    cloud_file_id = metadata.get("cloud_file_id") or document.file_path
+
+    if not cloud_file_id:
+        raise HTTPException(status_code=404, detail="No cloud file ID found for document")
+
+    try:
+        storage = get_storage_service()
+        file_bytes = storage.download_file(cloud_file_id)
+
+        if not file_bytes:
+            raise HTTPException(status_code=404, detail="File not found in cloud storage")
+
+        # Return file as streaming response
+        return StreamingResponse(
+            io.BytesIO(file_bytes),
+            media_type=document.file_type or "application/octet-stream",
+            headers={
+                "Content-Disposition": f"attachment; filename={document.file_name}"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Failed to download file from cloud storage: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to download file: {str(e)}")
 
 
 @router.delete("/documents/{document_id}")
@@ -2727,27 +2789,35 @@ async def delete_document(
     current_user: User = Depends(require_facilitator),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a document."""
-    import os
-    
+    """Delete a document from cloud storage and database."""
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
-    
+
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    
+
     # Check TWG access
     if document.twg_id and not has_twg_access(current_user, document.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
-    
-    # Delete file from filesystem
-    if os.path.exists(document.file_path):
-        os.remove(document.file_path)
-    
+
+    # Get cloud file ID and delete from cloud storage
+    metadata = document.metadata_json or {}
+    cloud_file_id = metadata.get("cloud_file_id") or document.file_path
+
+    if cloud_file_id:
+        try:
+            storage = get_storage_service()
+            if storage.delete_file(cloud_file_id):
+                logging.info(f"Deleted cloud file {cloud_file_id} for document {document_id}")
+            else:
+                logging.warning(f"Failed to delete cloud file {cloud_file_id} for document {document_id}")
+        except Exception as e:
+            logging.warning(f"Error deleting cloud file for document {document_id}: {e}")
+
     # Delete from database
     await db.delete(document)
     await db.commit()
-    
+
     return {"message": "Document deleted successfully"}
 
 

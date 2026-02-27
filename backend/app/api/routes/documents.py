@@ -1,29 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Response, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, or_
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 import uuid
 import os
-import shutil
 import logging
+import io
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
-from app.models.models import Document, User, UserRole
+from app.models.models import Document, User, UserRole, TWG
 from app.schemas.schemas import DocumentRead
 from app.api.deps import get_current_active_user, has_twg_access
 from app.core.knowledge_base import get_knowledge_base
 from app.utils.document_processor import get_document_processor
+from app.services.storage_service import get_storage_service
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
-
-UPLOAD_DIR = "uploads"
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
 
 @router.post("/upload", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 async def upload_document(
@@ -92,36 +89,66 @@ async def upload_document(
     if resolved_twg_id and not has_twg_access(current_user, resolved_twg_id):
         raise HTTPException(status_code=403, detail="You do not have access to upload to this TWG")
 
-    # Generate safe filename
+    # Read file content
+    file_content = await file.read()
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     safe_filename = f"{timestamp}_{file.filename}"
-    file_path = os.path.join(UPLOAD_DIR, safe_filename)
-    
-    # Save file
+
+    # Upload to cloud storage (Google Drive)
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        storage = get_storage_service()
+
+        # Determine target folder
+        target_folder_id = None
+        if resolved_twg_id:
+            # Get TWG name for folder organization
+            twg_result = await db.execute(select(TWG).where(TWG.id == resolved_twg_id))
+            twg = twg_result.scalar_one_or_none()
+            if twg:
+                target_folder_id = storage.get_or_create_twg_folder(twg.name)
+
+        # Upload to cloud
+        cloud_file_id, cloud_view_link, cloud_download_url = storage.upload_bytes(
+            file_bytes=file_content,
+            file_name=safe_filename,
+            mime_type=file.content_type or "application/octet-stream",
+            folder_id=target_folder_id
+        )
+
+        if not cloud_file_id:
+            raise HTTPException(status_code=500, detail="Failed to upload file to cloud storage")
+
+        logger.info(f"Uploaded file to cloud storage: {cloud_file_id}")
+
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Could not save file: {str(e)}")
+        logger.error(f"Cloud storage error: {e}")
+        raise HTTPException(status_code=500, detail=f"Cloud storage unavailable: {str(e)}")
         
     # Create DB record
     # Workaround: Explicitly truncate file_type to 50 chars to avoid persistent DBAPIError
     safe_file_type = (file.content_type or "unknown")[:50]
-    
-    # Build metadata_json with document_type if provided
-    metadata = {}
+
+    # Build metadata_json with document_type and cloud storage info
+    metadata = {
+        "storage_mode": "cloud",
+        "cloud_file_id": cloud_file_id,
+        "cloud_view_link": cloud_view_link,
+        "cloud_download_url": cloud_download_url
+    }
     if document_type:
         metadata["document_type"] = document_type
-    
+
     db_doc = Document(
         twg_id=resolved_twg_id,
         project_id=resolved_project_id,
         file_name=file.filename,
-        file_path=file_path,
+        file_path=cloud_file_id,  # Store cloud file ID as path
         file_type=safe_file_type,
         uploaded_by_id=current_user.id,
         is_confidential=is_confidential,
-        metadata_json=metadata if metadata else None
+        metadata_json=metadata
     )
     
     db.add(db_doc)
@@ -257,19 +284,19 @@ async def download_document(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Download a document.
+    Download a document from cloud storage (Google Drive).
     """
     result = await db.execute(select(Document).where(Document.id == doc_id))
     db_doc = result.scalar_one_or_none()
-    
+
     if not db_doc:
         raise HTTPException(status_code=404, detail="Document not found")
-        
+
     # Permission check
     if db_doc.twg_id and not has_twg_access(current_user, db_doc.twg_id):
         logger.warning(f"Access denied for user {current_user.email} (role: {current_user.role}) to doc {doc_id} (TWG: {db_doc.twg_id})")
         raise HTTPException(status_code=403, detail="Access denied")
-        
+
     # Handle Transcript Placeholders specifically
     if db_doc.document_type == "transcript_placeholder":
         # Create a dynamic status file instead of looking for file on disk
@@ -281,16 +308,39 @@ async def download_document(
                       f"The audio is currently being transcribed. Once the meeting ends and processing is complete,\n" \
                       f"this file will be replaced with the final transcript and minutes will be generated.\n\n" \
                       f"Please come back later."
-        
+
         return Response(content=status_text, media_type="text/plain", headers={
             "Content-Disposition": f"attachment; filename={db_doc.file_name or 'transcript_status.txt'}"
         })
 
-    if not os.path.exists(db_doc.file_path):
-        logger.error(f"File missing on disk: {db_doc.file_path} for doc {doc_id}")
-        raise HTTPException(status_code=404, detail="File on disk not found")
-        
-    return FileResponse(path=db_doc.file_path, filename=db_doc.file_name, media_type=db_doc.file_type)
+    # Get cloud file ID from metadata or file_path
+    metadata = db_doc.metadata_json or {}
+    cloud_file_id = metadata.get("cloud_file_id") or db_doc.file_path
+
+    if not cloud_file_id:
+        raise HTTPException(status_code=404, detail="No cloud file ID found for document")
+
+    try:
+        storage = get_storage_service()
+        file_bytes = storage.download_file(cloud_file_id)
+
+        if not file_bytes:
+            raise HTTPException(status_code=404, detail="File not found in cloud storage")
+
+        # Return file as streaming response
+        return StreamingResponse(
+            io.BytesIO(file_bytes),
+            media_type=db_doc.file_type or "application/octet-stream",
+            headers={
+                "Content-Disposition": f"attachment; filename={db_doc.file_name}"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to download file from cloud storage: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to download file: {str(e)}")
 
 @router.post("/{doc_id}/ingest", status_code=status.HTTP_200_OK)
 async def ingest_document(
@@ -300,13 +350,14 @@ async def ingest_document(
 ):
     """
     Ingest a document into the vector database (Pinecone).
+    Downloads from cloud storage for processing.
     """
     result = await db.execute(select(Document).where(Document.id == doc_id))
     db_doc = result.scalar_one_or_none()
-    
+
     if not db_doc:
         raise HTTPException(status_code=404, detail="Document not found")
-        
+
     if not has_twg_access(current_user, db_doc.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -314,16 +365,45 @@ async def ingest_document(
     kb = get_knowledge_base()
 
     try:
+        # Get cloud file ID
+        metadata = db_doc.metadata_json or {}
+        cloud_file_id = metadata.get("cloud_file_id") or db_doc.file_path
+
+        if not cloud_file_id:
+            raise HTTPException(status_code=404, detail="No cloud file ID found for document")
+
+        # Download from cloud to temp file for processing
+        storage = get_storage_service()
+        file_bytes = storage.download_file(cloud_file_id)
+
+        if not file_bytes:
+            raise HTTPException(status_code=404, detail="File not found in cloud storage")
+
+        # Write to temp file
+        import tempfile
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f"_{db_doc.file_name}")
+        temp_file.write(file_bytes)
+        temp_file.close()
+        temp_file_path = temp_file.name
+        logger.info(f"Downloaded cloud file {cloud_file_id} to temp for processing")
+
         # Process document
         processed = processor.process_document(
-            db_doc.file_path,
+            temp_file_path,
             additional_metadata={
                 'twg_id': str(db_doc.twg_id),
                 'doc_id': str(db_doc.id),
                 'file_name': db_doc.file_name
             }
         )
-        
+
+        # Cleanup temp file
+        if os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+            except:
+                pass
+
         if processed['status'] != 'success':
             raise HTTPException(status_code=500, detail=f"Processing failed: {processed.get('error')}")
 
@@ -411,24 +491,31 @@ async def delete_document(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Delete a document and its file.
+    Delete a document from cloud storage and database.
     """
     result = await db.execute(select(Document).where(Document.id == doc_id))
     db_doc = result.scalar_one_or_none()
-    
+
     if not db_doc:
         raise HTTPException(status_code=404, detail="Document not found")
-        
+
     # Only admin or uploader can delete
     if current_user.role != UserRole.ADMIN and db_doc.uploaded_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this document")
 
-    # Delete file from disk
-    if os.path.exists(db_doc.file_path):
+    # Get cloud file ID and delete from cloud storage
+    metadata = db_doc.metadata_json or {}
+    cloud_file_id = metadata.get("cloud_file_id") or db_doc.file_path
+
+    if cloud_file_id:
         try:
-            os.remove(db_doc.file_path)
+            storage = get_storage_service()
+            if storage.delete_file(cloud_file_id):
+                logger.info(f"Deleted cloud file {cloud_file_id} for doc {doc_id}")
+            else:
+                logger.warning(f"Failed to delete cloud file {cloud_file_id} for doc {doc_id}")
         except Exception as e:
-            print(f"Error deleting file {db_doc.file_path}: {e}")
+            logger.warning(f"Error deleting cloud file for doc {doc_id}: {e}")
 
     # Store project_id before deletion
     project_id = db_doc.project_id
@@ -462,7 +549,7 @@ async def bulk_delete_documents(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Delete multiple documents.
+    Delete multiple documents from cloud storage.
     """
     if not doc_ids:
         return None
@@ -470,21 +557,32 @@ async def bulk_delete_documents(
     # Get documents to delete
     result = await db.execute(select(Document).where(Document.id.in_(doc_ids)))
     db_docs = result.scalars().all()
-    
+
+    # Initialize storage service once
+    try:
+        storage = get_storage_service()
+    except Exception as e:
+        logger.warning(f"Could not initialize storage service: {e}")
+        storage = None
+
     for db_doc in db_docs:
         # Check permissions for each (unless admin)
         if current_user.role != UserRole.ADMIN and db_doc.uploaded_by_id != current_user.id:
             continue
-            
-        # Delete file from disk
-        if os.path.exists(db_doc.file_path):
+
+        # Get cloud file ID and delete from cloud
+        metadata = db_doc.metadata_json or {}
+        cloud_file_id = metadata.get("cloud_file_id") or db_doc.file_path
+
+        if cloud_file_id and storage:
             try:
-                os.remove(db_doc.file_path)
+                if storage.delete_file(cloud_file_id):
+                    logger.info(f"Deleted cloud file {cloud_file_id} for doc {db_doc.id}")
             except Exception as e:
-                print(f"Error deleting file {db_doc.file_path}: {e}")
+                logger.warning(f"Error deleting cloud file for doc {db_doc.id}: {e}")
 
         # Delete from DB
         await db.delete(db_doc)
-    
+
     await db.commit()
     return None

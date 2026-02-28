@@ -403,7 +403,7 @@ export default function TeamManagement() {
                         .filter((t: string) => t)
 
                     twgIds = twgs
-                        .filter(twg => twgNames.some(name => twg.name.toLowerCase().includes(name) || twg.pillar?.toLowerCase().includes(name)))
+                        .filter(twg => twgNames.some((name: string) => twg.name.toLowerCase().includes(name) || twg.pillar?.toLowerCase().includes(name)))
                         .map(twg => twg.id)
                 }
 

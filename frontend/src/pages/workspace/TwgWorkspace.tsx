@@ -101,7 +101,7 @@ export default function TwgWorkspace() {
                                 <div className="space-y-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px]">PILLAR: {twg?.pillar?.toUpperCase().replace('_', ' ') || 'LOADING...'}</Badge>
-                                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold text-[10px]">ECOWAS SUMMIT '24</Badge>
+                                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold text-[10px]">ECOWAS SUMMIT '26</Badge>
                                     </div>
                                     <h1 className="text-2xl font-display font-bold text-white tracking-tight truncate">{twg?.name || 'Loading TWG...'}</h1>
                                     {!isCopilotExpanded && (

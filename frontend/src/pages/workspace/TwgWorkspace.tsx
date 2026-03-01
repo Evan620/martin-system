@@ -90,41 +90,43 @@ export default function TwgWorkspace() {
 
     return (
         <>
-            <div className="flex h-[calc(100vh-140px)] gap-6">
-                <div className="flex-1 space-y-6">
+            <div className="flex h-[calc(100vh-140px)] gap-4">
+                <div className="flex-1 min-w-0 space-y-4 overflow-y-auto">
                     {/* Banner Section */}
-                    <div className="relative h-56 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-900 via-blue-950 to-slate-950 border border-slate-800 shadow-2xl">
+                    <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-blue-900 via-blue-950 to-slate-950 border border-slate-800 shadow-2xl">
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_-20%,_var(--tw-gradient-stops))] from-blue-500/20 via-transparent to-transparent"></div>
 
-                        <div className="relative z-10 h-full flex flex-col justify-between p-8">
-                            <div className="flex justify-between items-start">
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                        <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">PILLAR: {twg?.pillar?.toUpperCase().replace('_', ' ') || 'LOADING...'}</Badge>
-                                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold">ECOWAS SUMMIT '24</Badge>
+                        <div className="relative z-10 flex flex-col justify-between p-5">
+                            <div className="flex justify-between items-start gap-3">
+                                <div className="space-y-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px]">PILLAR: {twg?.pillar?.toUpperCase().replace('_', ' ') || 'LOADING...'}</Badge>
+                                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold text-[10px]">ECOWAS SUMMIT '24</Badge>
                                     </div>
-                                    <h1 className="text-4xl font-display font-bold text-white tracking-tight">{twg?.name || 'Loading TWG...'}</h1>
-                                    <p className="text-blue-200/70 text-sm max-w-2xl leading-relaxed">
-                                        {twg?.pillar === 'energy_infrastructure' && 'Strategic coordination for regional power pool integration and sustainable energy transition frameworks.'}
-                                        {twg?.pillar === 'agriculture_food_systems' && 'Advancing agricultural transformation, food security, and sustainable farming systems across the region.'}
-                                        {twg?.pillar === 'critical_minerals_industrialization' && 'Developing critical mineral value chains, resource beneficiation, and industrialization strategies.'}
-                                        {twg?.pillar === 'digital_economy_transformation' && 'Driving digital infrastructure, connectivity, and technology ecosystem development.'}
-                                        {!twg?.pillar && 'Technical Working Group for the ECOWAS Summit.'}
-                                    </p>
+                                    <h1 className="text-2xl font-display font-bold text-white tracking-tight truncate">{twg?.name || 'Loading TWG...'}</h1>
+                                    {!isCopilotExpanded && (
+                                        <p className="text-blue-200/70 text-xs max-w-xl leading-relaxed line-clamp-2">
+                                            {twg?.pillar === 'energy_infrastructure' && 'Strategic coordination for regional power pool integration and sustainable energy transition.'}
+                                            {twg?.pillar === 'agriculture_food_systems' && 'Advancing agricultural transformation, food security, and sustainable farming systems.'}
+                                            {twg?.pillar === 'critical_minerals_industrialization' && 'Developing critical mineral value chains and industrialization strategies.'}
+                                            {twg?.pillar === 'digital_economy_transformation' && 'Driving digital infrastructure, connectivity, and technology ecosystem development.'}
+                                            {!twg?.pillar && 'Technical Working Group for the ECOWAS Summit.'}
+                                        </p>
+                                    )}
                                 </div>
 
-                                <div className="flex gap-3">
-                                    <button className="p-2.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-xl text-white transition-all">
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <div className="flex gap-2 shrink-0">
+                                    <button className="p-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg text-white transition-all">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                         </svg>
                                     </button>
                                     {canCreateMeetings && (
                                         <button
                                             onClick={() => setIsScheduling(true)}
-                                            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold shadow-lg shadow-blue-900/40 transition-all flex items-center gap-2"
+                                            className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold shadow-lg shadow-blue-900/40 transition-all flex items-center gap-1.5 whitespace-nowrap"
                                         >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                                             New Meeting
                                         </button>
                                     )}
@@ -132,35 +134,35 @@ export default function TwgWorkspace() {
                             </div>
 
                             {/* Governance Row */}
-                            <div className="flex gap-8 pt-6 border-t border-white/10">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold border border-blue-500/30">
+                            <div className="flex flex-wrap gap-4 pt-4 mt-3 border-t border-white/10">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xs font-bold border border-blue-500/30">
                                         {twg?.political_lead?.full_name?.charAt(0) || 'P'}
                                     </div>
                                     <div>
-                                        <p className="text-[10px] text-blue-300/70 font-bold tracking-wider uppercase">Political Lead</p>
-                                        <p className="text-sm font-bold text-white">{twg?.political_lead?.full_name || 'Unassigned'}</p>
+                                        <p className="text-[9px] text-blue-300/70 font-bold tracking-wider uppercase">Political Lead</p>
+                                        <p className="text-xs font-bold text-white whitespace-nowrap">{twg?.political_lead?.full_name || 'Unassigned'}</p>
                                     </div>
                                 </div>
 
                                 {/* Technical Lead */}
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold border border-emerald-500/30">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-xs font-bold border border-emerald-500/30">
                                         {twg?.technical_lead?.full_name?.charAt(0) || 'T'}
                                     </div>
                                     <div>
-                                        <p className="text-[10px] text-emerald-300/70 font-bold tracking-wider uppercase">Technical Lead</p>
-                                        <p className="text-sm font-bold text-white">{twg?.technical_lead?.full_name || 'Unassigned'}</p>
+                                        <p className="text-[9px] text-emerald-300/70 font-bold tracking-wider uppercase">Technical Lead</p>
+                                        <p className="text-xs font-bold text-white whitespace-nowrap">{twg?.technical_lead?.full_name || 'Unassigned'}</p>
                                     </div>
                                 </div>
-                                <div className="ml-auto flex items-center gap-6">
+                                <div className="ml-auto flex items-center gap-4">
                                     <div className="text-right">
-                                        <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Next Meeting</p>
-                                        <p className="text-sm font-bold text-white">{nextMeetingDate}</p>
+                                        <p className="text-[9px] uppercase font-black text-slate-500 tracking-widest">Next Meeting</p>
+                                        <p className="text-xs font-bold text-white">{nextMeetingDate}</p>
                                     </div>
-                                    <div className="h-8 w-px bg-white/10"></div>
-                                    <div className="flex -space-x-2">
-                                        {(twg?.members || []).slice(0, 4).map((m: any, i: number) => (
+                                    <div className="h-6 w-px bg-white/10 hidden sm:block"></div>
+                                    <div className="flex -space-x-2 hidden sm:flex">
+                                        {(twg?.members || []).slice(0, 3).map((m: any, i: number) => (
                                             <Avatar
                                                 key={m.id || i}
                                                 fallback={m.full_name?.split(' ').map((n: string) => n[0]).join('').substring(0, 2) || 'U'}
@@ -169,9 +171,9 @@ export default function TwgWorkspace() {
                                                 title={`${m.full_name} (${m.role?.replace('TWG_', '')})`}
                                             />
                                         ))}
-                                        {(twg?.members?.length || 0) > 4 && (
-                                            <div className="w-8 h-8 rounded-full bg-blue-600 border-2 border-blue-900 flex items-center justify-center text-[10px] font-black text-white">
-                                                +{(twg?.members?.length || 0) - 4}
+                                        {(twg?.members?.length || 0) > 3 && (
+                                            <div className="w-7 h-7 rounded-full bg-blue-600 border-2 border-blue-900 flex items-center justify-center text-[9px] font-black text-white">
+                                                +{(twg?.members?.length || 0) - 3}
                                             </div>
                                         )}
                                     </div>
@@ -181,47 +183,47 @@ export default function TwgWorkspace() {
                     </div>
 
                     {/* Quick Stats Grid */}
-                    <div className="grid grid-cols-4 gap-6">
-                        <Card className="p-5 flex items-center gap-4 group hover:border-blue-500/50 transition-all">
-                            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    <div className={`grid ${isCopilotExpanded ? 'grid-cols-2' : 'grid-cols-4'} gap-3 transition-all`}>
+                        <Card className="p-3 flex items-center gap-3 group hover:border-blue-500/50 transition-all">
+                            <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                             </div>
                             <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Meetings Held</p>
-                                <h3 className="text-2xl font-display font-bold text-slate-900 dark:text-white transition-colors">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Meetings</p>
+                                <h3 className="text-xl font-display font-bold text-slate-900 dark:text-white transition-colors">
                                     {twg?.stats?.meetings_held ?? '-'}
                                 </h3>
                             </div>
                         </Card>
-                        <Card className="p-5 flex items-center gap-4 group hover:border-orange-500/50 transition-all">
-                            <div className="p-3 rounded-xl bg-orange-50 dark:bg-orange-900/20 text-orange-500 dark:text-orange-400">
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                        <Card className="p-3 flex items-center gap-3 group hover:border-orange-500/50 transition-all">
+                            <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-500 dark:text-orange-400">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
                             </div>
                             <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Open Actions</p>
-                                <h3 className="text-2xl font-display font-bold text-slate-900 dark:text-white transition-colors">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Actions</p>
+                                <h3 className="text-xl font-display font-bold text-slate-900 dark:text-white transition-colors">
                                     {twg?.stats?.open_actions ?? '-'}
                                 </h3>
                             </div>
                         </Card>
-                        <Card className="p-5 flex items-center gap-4 group hover:border-emerald-500/50 transition-all">
-                            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                        <Card className="p-3 flex items-center gap-3 group hover:border-emerald-500/50 transition-all">
+                            <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
                             </div>
                             <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pipeline Projects</p>
-                                <h3 className="text-2xl font-display font-bold text-slate-900 dark:text-white transition-colors">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pipeline</p>
+                                <h3 className="text-xl font-display font-bold text-slate-900 dark:text-white transition-colors">
                                     {twg?.stats?.pipeline_projects ?? '-'}
                                 </h3>
                             </div>
                         </Card>
-                        <Card className="p-5 flex items-center gap-4 group hover:border-purple-500/50 transition-all">
-                            <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400">
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        <Card className="p-3 flex items-center gap-3 group hover:border-purple-500/50 transition-all">
+                            <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                             </div>
                             <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resources Out</p>
-                                <h3 className="text-2xl font-display font-bold text-slate-900 dark:text-white transition-colors">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Resources</p>
+                                <h3 className="text-xl font-display font-bold text-slate-900 dark:text-white transition-colors">
                                     {twg?.stats?.resources_count ?? '-'}
                                 </h3>
                             </div>

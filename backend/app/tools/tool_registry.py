@@ -29,6 +29,7 @@ TWG_SCOPED_TOOLS: Set[str] = {
     "get_past_meetings",
     "update_meeting",
     "search_documents",
+    "retrieve_document_content",
     "get_meeting_minutes",
     "get_twg_members",
     "send_email",
@@ -264,6 +265,7 @@ class ToolRegistry:
         """Register database query tools."""
         from app.tools.database_tools import (
             SEARCH_DOCUMENTS_TOOL_DEF, search_documents,
+            RETRIEVE_DOCUMENT_CONTENT_TOOL_DEF, retrieve_document_content,
             GET_MEETING_MINUTES_TOOL_DEF, get_meeting_minutes,
             GET_ACTION_ITEMS_TOOL_DEF, get_action_items,
             UPDATE_ACTION_ITEM_STATUS_TOOL_DEF, update_action_item_status,
@@ -271,6 +273,7 @@ class ToolRegistry:
         )
         for tool_def, handler in [
             (SEARCH_DOCUMENTS_TOOL_DEF, search_documents),
+            (RETRIEVE_DOCUMENT_CONTENT_TOOL_DEF, retrieve_document_content),
             (GET_MEETING_MINUTES_TOOL_DEF, get_meeting_minutes),
             (GET_ACTION_ITEMS_TOOL_DEF, get_action_items),
             (UPDATE_ACTION_ITEM_STATUS_TOOL_DEF, update_action_item_status),
@@ -392,8 +395,8 @@ class ToolRegistry:
                 return True
             if tool_name in UNRESTRICTED_TOOLS:
                 return True
-            # Supervisor can send emails, create meetings, and search documents directly
-            if tool_name in {"send_email", "create_email_draft", "create_meeting_invite", "search_documents"}:
+            # Supervisor can send emails, create meetings, and search/retrieve documents directly
+            if tool_name in {"send_email", "create_email_draft", "create_meeting_invite", "search_documents", "retrieve_document_content"}:
                 return True
             raise ToolAccessDenied(
                 f"Supervisor delegates '{tool_name}' to TWG agents via consult_twg_agents_tool."

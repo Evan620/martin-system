@@ -516,6 +516,89 @@ async def search_documents(
         ]
 
 
+async def retrieve_document_content(
+    query: str,
+    document_id: Optional[str] = None,
+    twg_id: Optional[uuid.UUID] = None,
+    top_k: int = 5
+) -> Dict[str, Any]:
+    """
+    Retrieve actual document content from Pinecone vector store.
+    Use when user asks about the contents/details of a specific document,
+    or wants to know what a document says.
+    """
+    import asyncio
+    from app.core.knowledge_base import get_knowledge_base
+
+    try:
+        kb = get_knowledge_base()
+    except Exception as e:
+        return {"error": f"Knowledge base unavailable: {e}"}
+
+    # Determine namespace
+    if twg_id:
+        namespace = f"twg-{twg_id}"
+    else:
+        namespace = "twg-general"
+
+    # Build metadata filter for specific document
+    filter_dict = None
+    if document_id:
+        # Strip any UUID formatting issues
+        doc_id_clean = str(document_id).strip()
+        filter_dict = {"doc_id": doc_id_clean}
+
+    try:
+        results = await asyncio.to_thread(
+            kb.search,
+            query=query,
+            namespace=namespace,
+            top_k=top_k,
+            filter=filter_dict
+        )
+
+        # If no results in TWG namespace and no specific twg_id was forced, try twg-general
+        if not results and twg_id:
+            results = await asyncio.to_thread(
+                kb.search,
+                query=query,
+                namespace="twg-general",
+                top_k=top_k,
+                filter=filter_dict
+            )
+
+        if not results:
+            return {
+                "message": "No content found. The document may not have been ingested into the knowledge base yet.",
+                "suggestion": "Use search_documents to check if the document exists in the registry, then ask an admin to ingest it."
+            }
+
+        # Format results with actual text content
+        chunks = []
+        for r in results:
+            meta = r.get("metadata", {})
+            chunks.append({
+                "text": meta.get("text", ""),
+                "source": meta.get("file_name", meta.get("filename", "Unknown")),
+                "chunk_index": meta.get("chunk_index", 0),
+                "total_chunks": meta.get("total_chunks", 0),
+                "relevance": round(r.get("score", 0), 3),
+            })
+
+        # Sort by chunk_index for reading order (if from same doc)
+        chunks.sort(key=lambda c: c["chunk_index"])
+
+        return {
+            "document_source": chunks[0]["source"] if chunks else "Unknown",
+            "chunks_retrieved": len(chunks),
+            "content": chunks,
+        }
+
+    except Exception as e:
+        logger.error(f"retrieve_document_content error: {e}")
+        return {"error": f"Failed to retrieve document content: {str(e)}"}
+
+
 async def get_meeting_minutes(
     twg_id: Optional[uuid.UUID] = None,
     meeting_id: Optional[str] = None,
@@ -646,6 +729,32 @@ SEARCH_DOCUMENTS_TOOL_DEF = {
                 }
             },
             "required": []
+        }
+    }
+}
+
+RETRIEVE_DOCUMENT_CONTENT_TOOL_DEF = {
+    "type": "function",
+    "function": {
+        "name": "retrieve_document_content",
+        "description": "[WHEN] User asks what a document says, its contents, or details about a specific document. [WHAT] Searches Pinecone vector store and returns actual text content from ingested documents. [EXAMPLE] User asks 'what does the government support letter say?' → retrieve_document_content(query='government support letter'). User asks 'tell me about document b9ba3d0f...' → retrieve_document_content(query='government support letter', document_id='b9ba3d0f-...'). ALWAYS try this tool when user wants to READ a document, not just find it.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Describe what you want to find in the document (e.g. 'government support letter contents')"
+                },
+                "document_id": {
+                    "type": "string",
+                    "description": "Optional document UUID to retrieve specific document chunks"
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": "Number of text chunks to retrieve (default: 5, max: 10)"
+                }
+            },
+            "required": ["query"]
         }
     }
 }

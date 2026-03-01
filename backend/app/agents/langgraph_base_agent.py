@@ -322,31 +322,36 @@ CRITICAL TOOL USAGE RULES:
         if state.get("citations") is None:
             state["citations"] = []
 
-        # RAG Retrieval
-        if self.twg_id and self.kb:
+        # RAG Retrieval — works for TWG agents (scoped) and supervisor (general)
+        if self.kb:
             try:
-                # Search KB restricted to TWG namespace
-                namespace = f"twg-{self.twg_id}"
-                # Use asyncio.to_thread if kb.search is blocking and slow
-                # Assuming kb.search is synchronous for now
                 import asyncio
-                twg_results = await asyncio.to_thread(self.kb.search, 
-                    query=query,
-                    namespace=namespace,
-                    top_k=3
-                )
-                
-                # Search Global Broadcast namespace
-                global_results = await asyncio.to_thread(self.kb.search,
-                    query=query,
-                    namespace="global",
-                    top_k=2
-                )
-                
-                # Merge and Sort by Score
-                results = twg_results + global_results
+
+                if self.twg_id:
+                    # TWG agent: search own namespace + global
+                    namespace = f"twg-{self.twg_id}"
+                    twg_results = await asyncio.to_thread(self.kb.search,
+                        query=query,
+                        namespace=namespace,
+                        top_k=3
+                    )
+                    global_results = await asyncio.to_thread(self.kb.search,
+                        query=query,
+                        namespace="twg-general",
+                        top_k=2
+                    )
+                    results = twg_results + global_results
+                else:
+                    # Supervisor: search twg-general (secretariat docs)
+                    results = await asyncio.to_thread(self.kb.search,
+                        query=query,
+                        namespace="twg-general",
+                        top_k=5
+                    )
+
+                # Sort by score and keep top 3
                 results.sort(key=lambda x: x['score'], reverse=True)
-                results = results[:3] # Keep top 3 most relevant context pieces
+                results = results[:3]
                 
                 # Format context
                 if results:

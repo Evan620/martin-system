@@ -69,10 +69,10 @@ class Settings(BaseSettings):
     )
     
     # LLM Provider Configuration
-    LLM_PROVIDER: str = "groq"
-    LLM_MODEL: str = "llama-3.3-70b-versatile"
-    LLM_MODEL_FAST: str = "llama-3.3-70b-versatile"
-    LLM_MODEL_POWERFUL: str = "llama-3.3-70b-versatile"
+    LLM_PROVIDER: str = "anthropic"
+    LLM_MODEL: str = "claude-sonnet-4-20250514"
+    LLM_MODEL_FAST: str = "claude-sonnet-4-20250514"
+    LLM_MODEL_POWERFUL: str = "claude-sonnet-4-20250514"
     LLM_MAX_TOKENS: int = 4000
 
     # Groq

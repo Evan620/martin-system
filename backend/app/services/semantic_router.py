@@ -133,12 +133,22 @@ class SemanticRouter:
         if "[routing strictly to supervisor]" in query_lower:
             return [], "supervisor_only"
 
-        # 2. Short-circuit for greetings and low-information queries
+        # 2. Short-circuit for greetings, meta-questions, and low-information queries
         #    These have no domain relevance and should go straight to supervisor
+        meta_phrases = [
+            "what are your capabilities", "what can you do", "who are you",
+            "how can you help", "what do you do", "tell me about yourself",
+            "what are you", "how do you work", "what tools do you have",
+            "what is martin", "help me", "capabilities",
+        ]
+        if any(phrase in query_lower for phrase in meta_phrases):
+            logger.info(f"[SemanticRouter] Meta/about-me query -> supervisor_only")
+            return [], "supervisor_only"
+
         if len(query_lower.split()) <= 3:
             greeting_words = {"hello", "hi", "hey", "hola", "good morning", "good afternoon",
                               "good evening", "thanks", "thank you", "bye", "goodbye",
-                              "help", "who are you", "what can you do", "capabilities"}
+                              "help", "who are you", "what can you do"}
             if query_lower in greeting_words or any(query_lower.startswith(g) for g in greeting_words):
                 logger.info(f"[SemanticRouter] Short greeting/generic query -> supervisor_only")
                 return [], "supervisor_only"

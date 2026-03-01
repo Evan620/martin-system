@@ -103,14 +103,21 @@ async def route_query_node(state: AgentState) -> AgentState:
     except Exception as e:
         logger.error(f"[ROUTE] Semantic routing failed, falling back to supervisor: {e}")
 
-    # --- 3. SCHEDULING OVERRIDE ---
-    # If this is a scheduling request, ALWAYS route to supervisor (it has the scheduling tools)
+    # --- 3. SUPERVISOR OVERRIDE FOR CROSS-CUTTING QUERIES ---
+    # Scheduling requests → supervisor (has scheduling tools)
     scheduling_keywords = ["schedule", "book", "meeting", "calendar", "appointment"]
     is_scheduling_request = any(keyword in query_lower for keyword in scheduling_keywords)
-    
+
     if is_scheduling_request and relevant:
         logger.info(f"[ROUTE] Scheduling request detected - overriding to supervisor_only (has scheduling tools)")
-        # Clear TWG routing and force supervisor
+        relevant = []
+
+    # Document queries → supervisor (has get_document_registry_tool for cross-TWG search)
+    document_keywords = ["document", "file", "pdf", "upload", "registry", "letter", "report", "memo", "brief"]
+    is_document_query = any(keyword in query_lower for keyword in document_keywords)
+
+    if is_document_query and relevant:
+        logger.info(f"[ROUTE] Document query detected - overriding to supervisor_only (has document registry tool)")
         relevant = []
 
     # Determine delegation type
@@ -141,18 +148,25 @@ async def supervisor_node(state: AgentState, supervisor_agent: LangGraphBaseAgen
     thread_id = state.get("session_id")
     logger.info(f"[SUPERVISOR] Handling query with general knowledge")
 
-    user_timezone = state.get("user_timezone")
-    response = await supervisor_agent.chat(query, thread_id=thread_id, user_timezone=user_timezone)
+    try:
+        user_timezone = state.get("user_timezone")
+        response = await supervisor_agent.chat(query, thread_id=thread_id, user_timezone=user_timezone)
 
-    # chat() returns dict {"response": str, "citations": list} — extract text for final_response
-    if isinstance(response, dict):
-        state["final_response"] = response.get("response", "")
-        citations = response.get("citations", [])
-        if citations:
-            state["citations"] = citations
-    else:
-        state["final_response"] = str(response)
-    state["agent_responses"]["supervisor"] = response
+        # chat() returns dict {"response": str, "citations": list} — extract text for final_response
+        if isinstance(response, dict):
+            state["final_response"] = response.get("response", "")
+            citations = response.get("citations", [])
+            if citations:
+                state["citations"] = citations
+        else:
+            state["final_response"] = str(response)
+        state["agent_responses"]["supervisor"] = response
+    except GraphInterrupt:
+        # Re-raise so it bubbles up to the outer graph and API layer
+        raise
+    except Exception as e:
+        logger.error(f"[SUPERVISOR] Error in supervisor_node: {e}")
+        state["final_response"] = f"I encountered an error processing your request: {str(e)}"
 
     return state
 

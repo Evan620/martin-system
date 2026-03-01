@@ -42,39 +42,40 @@ export default function WorkspaceContextPanel({ twgName, twgId, onInsertContext 
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (!twgId || twgId === 'secretariat') return;
+        if (!twgId) return;
 
         const fetchData = async () => {
             setLoading(true);
+            // Secretariat sees all TWGs — omit twg_id filter
+            const isSecretariat = twgId === 'secretariat';
+            const params = isSecretariat ? {} : { twg_id: twgId };
+
             try {
                 if (activeTab === 'meetings') {
-                    const res = await api.get('/meetings', { params: { twg_id: twgId } });
-                    // Map backend response to UI interface if needed
-                    // Backend returns MeetingRead. UI expects Meeting interface.
-                    // meeting.scheduled_at -> meeting.date
+                    const res = await api.get('/meetings', { params });
                     setMeetings(res.data.map((m: any) => ({
                         id: m.id,
                         title: m.title,
                         date: new Date(m.scheduled_at).toLocaleString(),
-                        status: m.status === 'scheduled' ? 'upcoming' : 'completed', // Simple mapping
-                        hasAgenda: !!m.agenda, // Check if agenda exists
+                        status: m.status === 'scheduled' ? 'upcoming' : 'completed',
+                        hasAgenda: !!m.agenda,
                         hasMinutes: !!m.minutes
                     })));
                 } else if (activeTab === 'actions') {
-                    const res = await api.get('/action-items', { params: { twg_id: twgId } });
+                    const res = await api.get('/action-items', { params });
                     setActions(res.data.map((a: any) => ({
                         id: a.id,
-                        task: a.description, // Corrected from a.title
+                        task: a.description,
                         assignee: a.owner?.full_name || 'Unassigned',
                         dueDate: a.due_date ? new Date(a.due_date).toLocaleDateString() : 'No Date',
                         status: a.status.toLowerCase()
                     })));
                 } else if (activeTab === 'documents') {
-                    const res = await api.get('/documents', { params: { twg_id: twgId } });
+                    const res = await api.get('/documents', { params });
                     setDocuments(res.data.map((d: any) => ({
                         id: d.id,
                         name: d.file_name,
-                        type: d.file_type.includes('pdf') ? 'output' : 'template', // Simple heuristic
+                        type: d.file_type.includes('pdf') ? 'output' : 'template',
                         uploadedAt: new Date(d.created_at).toLocaleDateString()
                     })));
                 }

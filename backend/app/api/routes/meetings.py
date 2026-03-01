@@ -14,7 +14,7 @@ import traceback
 import io
 
 from app.core.database import get_db
-from app.models.models import Meeting, Agenda, Minutes, User, UserRole, MinutesStatus, MeetingParticipant, RsvpStatus, ActionItem, ActionItemStatus, TWG, Document, MeetingStatus, MeetingDependency, DependencyType
+from app.models.models import Meeting, Agenda, Minutes, User, UserRole, MinutesStatus, MeetingParticipant, RsvpStatus, ActionItem, ActionItemStatus, TWG, Document, MeetingStatus, MeetingDependency, DependencyType, twg_members
 from app.schemas.schemas import (
     MeetingCreate, MeetingRead, MeetingUpdate, MeetingCancel, MeetingUpdateNotification,
     AgendaCreate, AgendaRead, MinutesCreate, MinutesRead, MinutesUpdate, MinutesRejectionRequest,
@@ -29,6 +29,8 @@ from app.core.config import settings
 from sqlalchemy.orm import selectinload
 from app.services.document_synthesizer import DocumentSynthesizer
 from app.services.llm_service import llm_service
+from app.services.notification_service import create_notification
+from app.models.models import NotificationType
 from app.utils.security import verify_token
 from app.core.ws_manager import ws_manager
 from app.core.database import get_db, get_db_session_context
@@ -193,8 +195,81 @@ async def create_meeting(
                 )
                 db.add(participant)
 
+        # Auto-include all TWG members as participants
+        twg_member_result = await db.execute(
+            select(User).join(twg_members, twg_members.c.user_id == User.id).where(
+                and_(twg_members.c.twg_id == db_meeting.twg_id, User.is_active == True)
+            )
+        )
+        twg_member_users = twg_member_result.scalars().all()
+
+        for member in twg_member_users:
+            existing_participant = await db.execute(
+                select(MeetingParticipant).where(
+                    and_(
+                        MeetingParticipant.meeting_id == db_meeting.id,
+                        MeetingParticipant.user_id == member.id
+                    )
+                )
+            )
+            if not existing_participant.scalar_one_or_none():
+                participant = MeetingParticipant(
+                    id=uuid.uuid4(),
+                    meeting_id=db_meeting.id,
+                    user_id=member.id,
+                    rsvp_status=RsvpStatus.PENDING
+                )
+                db.add(participant)
+
         await db.commit()
-        
+
+        # Send invitation emails to all participants
+        try:
+            from app.services.email_service import email_service
+            import pytz
+
+            # Get participant emails
+            p_result = await db.execute(
+                select(User.email).join(
+                    MeetingParticipant, MeetingParticipant.user_id == User.id
+                ).where(MeetingParticipant.meeting_id == db_meeting.id)
+            )
+            invite_emails = [row[0] for row in p_result.all() if row[0]]
+
+            # Get TWG name
+            twg_result = await db.execute(select(TWG).where(TWG.id == db_meeting.twg_id))
+            twg_obj = twg_result.scalar_one_or_none()
+            twg_display_name = twg_obj.name if twg_obj else "TWG"
+
+            # Format display time (default to EAT for display)
+            display_tz = pytz.timezone("Africa/Nairobi")
+            utc_time = pytz.UTC.localize(db_meeting.scheduled_at) if db_meeting.scheduled_at.tzinfo is None else db_meeting.scheduled_at
+            local_display = utc_time.astimezone(display_tz)
+
+            if invite_emails:
+                await email_service.send_meeting_invite(
+                    to_emails=invite_emails,
+                    subject=f"Meeting Invitation: {db_meeting.title}",
+                    template_name="meeting_invite.html",
+                    template_context={
+                        "title": db_meeting.title,
+                        "scheduled_time": local_display.strftime('%A, %B %d, %Y at %I:%M %p %Z'),
+                        "duration_minutes": db_meeting.duration_minutes,
+                        "twg_name": twg_display_name,
+                        "location": db_meeting.location or "Virtual",
+                        "video_link": generated_video_link,
+                    },
+                    meeting_details={
+                        "title": db_meeting.title,
+                        "start_time": db_meeting.scheduled_at,
+                        "duration": db_meeting.duration_minutes,
+                        "location": generated_video_link or db_meeting.location or "Virtual",
+                    }
+                )
+                logger.info(f"Sent meeting invites to {len(invite_emails)} participants for meeting {db_meeting.id}")
+        except Exception as e:
+            logger.warning(f"Could not send meeting invites: {e}")
+
         # Eagerly load relationships to avoid MissingGreenlet during serialization
         result = await db.execute(
             select(Meeting)
@@ -210,7 +285,7 @@ async def create_meeting(
             .where(Meeting.id == db_meeting.id)
         )
         db_meeting = result.scalar_one()
-            
+
         return db_meeting
     except Exception as e:
         logger.error(f"CREATE_MEETING FAILED: {str(e)}") # Improved logging
@@ -1432,6 +1507,33 @@ async def add_participants(
         
     return new_participants
 
+@router.delete("/{meeting_id}/participants/{participant_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_participant(
+    meeting_id: uuid.UUID,
+    participant_id: uuid.UUID,
+    current_user: User = Depends(require_facilitator),
+    db: AsyncSession = Depends(get_db)
+):
+    """Remove a participant from a meeting."""
+    result = await db.execute(select(Meeting).where(Meeting.id == meeting_id))
+    db_meeting = result.scalar_one_or_none()
+    if not db_meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    if not has_twg_access(current_user, db_meeting.twg_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    result = await db.execute(
+        select(MeetingParticipant).where(
+            and_(MeetingParticipant.id == participant_id, MeetingParticipant.meeting_id == meeting_id)
+        )
+    )
+    participant = result.scalar_one_or_none()
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+
+    await db.delete(participant)
+    await db.commit()
+
 @router.post("/{meeting_id}/agenda", response_model=AgendaRead)
 async def upsert_agenda(
     meeting_id: uuid.UUID,
@@ -2618,12 +2720,26 @@ async def extract_action_items(
             })
     
     await db.commit()
-    
+
+    created_count = len([i for i in created_items if i.get('created')])
+    if created_count > 0:
+        try:
+            await create_notification(
+                db=db,
+                user_id=current_user.id,
+                type=NotificationType.TASK,
+                title="Action Items Extracted",
+                content=f"{created_count} action items extracted from meeting minutes",
+                link="/actions"
+            )
+        except Exception:
+            pass  # Non-critical
+
     return {
         "extracted_actions": extracted_items,
         "created_items": created_items,
         "meeting_id": str(meeting_id),
-        "message": f"Created {len([i for i in created_items if i.get('created')])} action items"
+        "message": f"Created {created_count} action items"
     }
 
 

@@ -15,6 +15,9 @@ langgraph-checkpoint>=2.0.0
 langgraph-prebuilt>=0.2.0
 langsmith>=0.1.0
 
+# Anthropic (Claude)
+anthropic>=0.42.0
+
 # Groq (Fast Inference)
 groq>=0.11.0
 

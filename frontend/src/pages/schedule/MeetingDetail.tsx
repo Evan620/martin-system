@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { RootState } from '../../store'
-import { meetings, actionItems } from '../../services/api'
+import { meetings, actionItems, twgs } from '../../services/api'
 import { Card, Badge } from '../../components/ui'
 import MeetingSidebar from './components/MeetingSidebar'
 import MinutesVersionHistory from '../../components/schedule/MinutesVersionHistory'
@@ -43,6 +43,9 @@ export default function MeetingDetail() {
     const [bulkGuestsText, setBulkGuestsText] = useState('')
     const [isBulkMode, setIsBulkMode] = useState(false)
     const [isAddingGuest, setIsAddingGuest] = useState(false)
+    const [isAddingMember, setIsAddingMember] = useState(false)
+    const [twgMembers, setTwgMembers] = useState<any[]>([])
+    const [selectedMembers, setSelectedMembers] = useState<string[]>([])
     const [isSendingInvites, setIsSendingInvites] = useState(false)
     const [isCheckingConflicts, setIsCheckingConflicts] = useState(false)
     const [showConflictModal, setShowConflictModal] = useState(false)
@@ -320,6 +323,56 @@ export default function MeetingDetail() {
             alert("Failed to add guest")
         } finally {
             setIsLoadingAction(false)
+        }
+    }
+
+    const handleOpenAddMember = async () => {
+        if (!meeting?.twg?.id) return
+        setIsAddingMember(true)
+        setSelectedMembers([])
+        try {
+            const res = await twgs.listMembers(meeting.twg.id)
+            const existingUserIds = new Set(
+                (meeting.participants || [])
+                    .filter((p: any) => p.user_id || p.user?.id)
+                    .map((p: any) => p.user_id || p.user?.id)
+            )
+            const available = (res.data || []).filter((m: any) => !existingUserIds.has(m.id))
+            setTwgMembers(available)
+        } catch (error) {
+            console.error("Failed to load TWG members", error)
+            setTwgMembers([])
+        }
+    }
+
+    const handleAddSelectedMembers = async () => {
+        if (!meetingId || selectedMembers.length === 0) return
+        setIsLoadingAction(true)
+        try {
+            await meetings.addParticipants(
+                meetingId,
+                selectedMembers.map(uid => ({ user_id: uid }))
+            )
+            setIsAddingMember(false)
+            setSelectedMembers([])
+            setTwgMembers([])
+            await loadMeetingDetails()
+        } catch (error) {
+            console.error("Failed to add members", error)
+            alert("Failed to add members")
+        } finally {
+            setIsLoadingAction(false)
+        }
+    }
+
+    const handleRemoveParticipant = async (participantId: string) => {
+        if (!meetingId) return
+        try {
+            await meetings.removeParticipant(meetingId, participantId)
+            await loadMeetingDetails()
+        } catch (error) {
+            console.error("Failed to remove participant", error)
+            alert("Failed to remove participant")
         }
     }
 
@@ -1317,13 +1370,83 @@ export default function MeetingDetail() {
                                                         )}
                                                     </button>
                                                     <button
-                                                        onClick={() => setIsAddingGuest(!isAddingGuest)}
+                                                        onClick={() => {
+                                                            setIsAddingGuest(!isAddingGuest)
+                                                            setIsAddingMember(false)
+                                                        }}
                                                         className="btn-secondary text-sm"
                                                     >
                                                         {isAddingGuest ? 'Cancel' : '+ Add Guest'}
                                                     </button>
+                                                    {meeting?.twg?.id && (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (isAddingMember) {
+                                                                    setIsAddingMember(false)
+                                                                } else {
+                                                                    setIsAddingGuest(false)
+                                                                    handleOpenAddMember()
+                                                                }
+                                                            }}
+                                                            className="btn-secondary text-sm"
+                                                        >
+                                                            {isAddingMember ? 'Cancel' : '+ Add Member'}
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
+
+                                            {isAddingMember && (
+                                                <Card className="p-4 bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-800">
+                                                    <h4 className="font-bold text-sm text-green-900 dark:text-green-100 mb-3">Add TWG Members</h4>
+                                                    {twgMembers.length === 0 ? (
+                                                        <p className="text-sm text-slate-500">All TWG members are already participants.</p>
+                                                    ) : (
+                                                        <>
+                                                            <div className="space-y-2 max-h-60 overflow-y-auto mb-3">
+                                                                {twgMembers.map((m: any) => (
+                                                                    <label key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/20 cursor-pointer">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={selectedMembers.includes(m.id)}
+                                                                            onChange={(e) => {
+                                                                                if (e.target.checked) {
+                                                                                    setSelectedMembers(prev => [...prev, m.id])
+                                                                                } else {
+                                                                                    setSelectedMembers(prev => prev.filter(id => id !== m.id))
+                                                                                }
+                                                                            }}
+                                                                            className="rounded border-slate-300"
+                                                                        />
+                                                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-teal-600 flex items-center justify-center text-white text-xs font-bold">
+                                                                            {(m.full_name || m.email || '?')[0].toUpperCase()}
+                                                                        </div>
+                                                                        <div>
+                                                                            <div className="text-sm font-medium text-slate-900 dark:text-white">{m.full_name || 'Member'}</div>
+                                                                            <div className="text-xs text-slate-500">{m.email}</div>
+                                                                        </div>
+                                                                    </label>
+                                                                ))}
+                                                            </div>
+                                                            <div className="flex justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => setIsAddingMember(false)}
+                                                                    className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                                <button
+                                                                    onClick={handleAddSelectedMembers}
+                                                                    disabled={selectedMembers.length === 0 || isLoadingAction}
+                                                                    className="btn-primary text-sm disabled:opacity-50"
+                                                                >
+                                                                    {isLoadingAction ? 'Adding...' : `Add ${selectedMembers.length} Member${selectedMembers.length !== 1 ? 's' : ''}`}
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </Card>
+                                            )}
 
                                             {isAddingGuest && (
                                                 <Card className="p-4 bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800">
@@ -1450,6 +1573,15 @@ export default function MeetingDetail() {
                                                                     <option value="accepted">Accept</option>
                                                                     <option value="declined">Decline</option>
                                                                 </select>
+                                                                <button
+                                                                    onClick={() => handleRemoveParticipant(p.id)}
+                                                                    className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                                    title="Remove participant"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                    </svg>
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     </Card>

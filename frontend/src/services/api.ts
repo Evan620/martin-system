@@ -106,6 +106,9 @@ export const meetings = {
     updateRsvp: (meetingId: string, participantId: string, status: string) =>
         api.put(`/meetings/${meetingId}/participants/${participantId}/rsvp`, { rsvp_status: status }),
 
+    removeParticipant: (meetingId: string, participantId: string) =>
+        api.delete(`/meetings/${meetingId}/participants/${participantId}`),
+
     getMinutes: (id: string) => api.get(`/meetings/${id}/minutes`),
     updateMinutes: (id: string, data: { content: string, status?: string }) => api.post(`/meetings/${id}/minutes`, data),
     generateMinutes: (id: string) => api.post(`/meetings/${id}/generate-minutes`),
@@ -137,6 +140,11 @@ export const meetings = {
 };
 
 export const actionItems = {
+    list: (params?: { twg_id?: string; mine_only?: boolean; status?: string }) =>
+        api.get('/action-items/', { params }),
+    summary: (params?: { twg_id?: string }) =>
+        api.get('/action-items/summary', { params }),
+    create: (data: any) => api.post('/action-items/', data),
     update: (id: string, data: any) => api.patch(`/action-items/${id}`, data),
     delete: (id: string) => api.delete(`/action-items/${id}`),
 };
@@ -148,6 +156,7 @@ export const twgs = {
     update: (id: string, data: any) => api.patch(`/twgs/${id}`, data),
     listMembers: (twgId: string) => api.get(`/twgs/${twgId}/members`),
     addMember: (twgId: string, email: string, fullName?: string) => api.post(`/twgs/${twgId}/members`, { email, full_name: fullName || '' }),
+    bulkAddMembers: (twgId: string, members: { email: string; full_name: string }[]) => api.post(`/twgs/${twgId}/members/bulk`, { members }),
     removeMember: (twgId: string, userId: string) => api.delete(`/twgs/${twgId}/members/${userId}`),
 };
 

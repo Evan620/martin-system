@@ -16,6 +16,11 @@ try:
 except ImportError:
     OpenAI = None
 
+try:
+    import anthropic as anthropic_sdk
+except ImportError:
+    anthropic_sdk = None
+
 
 class LLMService:
     """Base interface for LLM services"""
@@ -264,6 +269,308 @@ class OpenAILLMService(LLMService):
             raise Exception(f"OpenAI Transcription Error: {str(e)}")
 
 
+# ---------------------------------------------------------------------------
+# Anthropic (Claude) adapter wrappers
+# ---------------------------------------------------------------------------
+# The LangGraph agent at langgraph_base_agent.py:552-567 expects OpenAI
+# message shape: response_obj.tool_calls[i].function.name / .arguments / .id
+# and response_obj.content.  Anthropic returns tool_use content blocks, so
+# we bridge with thin adapter objects.
+
+class _ToolFunction:
+    """Adapter to match OpenAI's tool_call.function shape."""
+    def __init__(self, name: str, arguments: str):
+        self.name = name
+        self.arguments = arguments  # JSON string
+
+class _ToolCall:
+    """Adapter to match OpenAI's tool_call shape."""
+    def __init__(self, id: str, function: _ToolFunction):
+        self.id = id
+        self.function = function
+
+class _AnthropicResponseWrapper:
+    """Wraps an Anthropic response to match OpenAI message shape expected by langgraph_base_agent."""
+    def __init__(self, content: str, tool_calls: list):
+        self.content = content
+        self.tool_calls = tool_calls if tool_calls else None
+
+
+class AnthropicLLMService(LLMService):
+    """Service for interacting with Anthropic Claude API (native SDK)."""
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "claude-sonnet-4-6",
+        temperature: float = 0.7,
+        max_tokens: int = 4000,
+    ):
+        if not anthropic_sdk:
+            raise ImportError("anthropic package not installed. Run 'pip install anthropic'")
+
+        self.client = anthropic_sdk.Anthropic(api_key=api_key)
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        logger.info(f"Initialized AnthropicLLMService: {self.model}")
+
+    # ---- helpers ----------------------------------------------------------
+
+    @staticmethod
+    def _convert_tools_openai_to_anthropic(tools: List[Dict]) -> List[Dict]:
+        """Convert OpenAI-format tool definitions to Anthropic format.
+
+        OpenAI:  {"type": "function", "function": {"name": ..., "description": ..., "parameters": {...}}}
+        Anthropic: {"name": ..., "description": ..., "input_schema": {...}}
+
+        Also sanitizes JSON Schema features Anthropic doesn't support (anyOf, oneOf).
+        """
+        def _sanitize_property(prop: Dict, prop_name: str = "", tool_name: str = "") -> Dict:
+            """Replace anyOf/oneOf and strip 'default' for Anthropic compatibility."""
+            sanitized = False
+
+            if "anyOf" in prop:
+                for option in prop["anyOf"]:
+                    if option.get("type") != "null":
+                        result = {**option}
+                        if "description" in prop:
+                            result["description"] = prop["description"]
+                        result.pop("default", None)
+                        logger.debug(f"[Anthropic] Sanitized anyOf in {tool_name}.{prop_name}")
+                        return result
+                return {"type": "string", "description": prop.get("description", "")}
+
+            if "oneOf" in prop:
+                for option in prop["oneOf"]:
+                    if option.get("type") != "null":
+                        result = {**option}
+                        if "description" in prop:
+                            result["description"] = prop["description"]
+                        result.pop("default", None)
+                        logger.debug(f"[Anthropic] Sanitized oneOf in {tool_name}.{prop_name}")
+                        return result
+                return {"type": "string", "description": prop.get("description", "")}
+
+            # Strip 'default' — Anthropic doesn't support it in tool schemas
+            if "default" in prop:
+                result = {k: v for k, v in prop.items() if k != "default"}
+                logger.debug(f"[Anthropic] Stripped 'default' from {tool_name}.{prop_name}")
+                return result
+
+            return prop
+
+        def _sanitize_schema(schema: Dict, tool_name: str = "") -> Dict:
+            """Sanitize entire input_schema for Anthropic."""
+            result = {**schema}
+            if "properties" in result:
+                result["properties"] = {
+                    k: _sanitize_property(v, prop_name=k, tool_name=tool_name)
+                    for k, v in result["properties"].items()
+                }
+            return result
+
+        converted = []
+        for t in tools:
+            func = t.get("function", t)  # handle both wrapped and unwrapped
+            tool_name = func.get("name", "unknown")
+            raw_schema = func.get("parameters", func.get("input_schema", {"type": "object", "properties": {}}))
+            converted.append({
+                "name": tool_name,
+                "description": func.get("description", ""),
+                "input_schema": _sanitize_schema(raw_schema, tool_name=tool_name),
+            })
+        return converted
+
+    @staticmethod
+    def _wrap_response(response) -> Any:
+        """Wrap an Anthropic Message into the OpenAI shape the agent expects."""
+        text_parts = []
+        tool_calls = []
+
+        for block in response.content:
+            if block.type == "text":
+                text_parts.append(block.text)
+            elif block.type == "tool_use":
+                tool_calls.append(
+                    _ToolCall(
+                        id=block.id,
+                        function=_ToolFunction(
+                            name=block.name,
+                            arguments=json.dumps(block.input),
+                        ),
+                    )
+                )
+
+        content = "\n".join(text_parts) if text_parts else ""
+        return _AnthropicResponseWrapper(content=content, tool_calls=tool_calls)
+
+    # ---- interface --------------------------------------------------------
+
+    def chat(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: int = 2000,
+        tools: Optional[List[Dict]] = None,
+        **kwargs,
+    ) -> Any:
+        messages = [{"role": "user", "content": prompt}]
+
+        create_kwargs: Dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature if temperature is not None else self.temperature,
+            "max_tokens": max_tokens,
+        }
+        if system_prompt:
+            create_kwargs["system"] = system_prompt
+        if tools:
+            create_kwargs["tools"] = self._convert_tools_openai_to_anthropic(tools)
+
+        try:
+            response = self.client.messages.create(**create_kwargs)
+            wrapped = self._wrap_response(response)
+
+            if wrapped.tool_calls:
+                return wrapped
+
+            return (wrapped.content or "").strip()
+        except Exception as e:
+            logger.error(f"Anthropic API error: {e}")
+            raise Exception(f"Anthropic Error: {str(e)}")
+
+    def chat_with_history(
+        self,
+        messages: List[Dict[str, Any]],
+        system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None,
+        tools: Optional[List[Dict]] = None,
+        **kwargs,
+    ) -> Any:
+        anthropic_messages: List[Dict[str, Any]] = []
+        system_text = system_prompt or ""
+
+        for m in messages:
+            role = m.get("role", "user")
+            content = m.get("content", "")
+
+            # --- system messages → collect into system param ---------------
+            if role == "system":
+                system_text = f"{system_text}\n{content}" if system_text else content
+                continue
+
+            # --- tool result messages → Anthropic user message with tool_result block
+            if role == "tool":
+                anthropic_messages.append({
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": m.get("tool_call_id", ""),
+                            "content": content if content else "",
+                        }
+                    ],
+                })
+                continue
+
+            # --- assistant messages (may contain tool_calls) ---------------
+            if role == "assistant":
+                if "tool_calls" in m and m["tool_calls"]:
+                    # Build content blocks: optional text + tool_use blocks
+                    blocks: List[Dict[str, Any]] = []
+                    if content:
+                        blocks.append({"type": "text", "text": content})
+                    for tc in m["tool_calls"]:
+                        func = tc.get("function", {})
+                        args_raw = func.get("arguments", "{}")
+                        try:
+                            args_parsed = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                        except json.JSONDecodeError:
+                            args_parsed = {}
+                        blocks.append({
+                            "type": "tool_use",
+                            "id": tc.get("id", ""),
+                            "name": func.get("name", ""),
+                            "input": args_parsed,
+                        })
+                    anthropic_messages.append({"role": "assistant", "content": blocks})
+                else:
+                    anthropic_messages.append({"role": "assistant", "content": content or ""})
+                continue
+
+            # --- user / other → user message --------------------------------
+            anthropic_messages.append({"role": "user", "content": content or ""})
+
+        # Anthropic requires messages to alternate user/assistant.
+        # Merge consecutive same-role messages when needed.
+        merged: List[Dict[str, Any]] = []
+        for msg in anthropic_messages:
+            if merged and merged[-1]["role"] == msg["role"]:
+                prev_content = merged[-1]["content"]
+                cur_content = msg["content"]
+
+                # Normalise both to list-of-blocks for merging
+                if isinstance(prev_content, str):
+                    prev_content = [{"type": "text", "text": prev_content}] if prev_content else []
+                if isinstance(cur_content, str):
+                    cur_content = [{"type": "text", "text": cur_content}] if cur_content else []
+
+                merged[-1]["content"] = prev_content + cur_content
+            else:
+                merged.append(msg)
+
+        anthropic_messages = merged
+
+        create_kwargs: Dict[str, Any] = {
+            "model": self.model,
+            "messages": anthropic_messages,
+            "temperature": temperature if temperature is not None else self.temperature,
+            "max_tokens": self.max_tokens,
+        }
+        if system_text:
+            create_kwargs["system"] = system_text.strip()
+        if tools:
+            create_kwargs["tools"] = self._convert_tools_openai_to_anthropic(tools)
+
+        try:
+            response = self.client.messages.create(**create_kwargs)
+            wrapped = self._wrap_response(response)
+
+            if wrapped.tool_calls:
+                return wrapped
+
+            return (wrapped.content or "").strip()
+        except Exception as e:
+            logger.error(f"Anthropic History error: {e}")
+            raise Exception(f"Anthropic Error: {str(e)}")
+
+    def structured_output(
+        self,
+        messages: List[Dict[str, Any]],
+        schema: dict,
+        system_prompt: Optional[str] = None,
+        **kwargs,
+    ) -> dict:
+        """Generate structured JSON output by injecting schema into system prompt."""
+        schema_instruction = f"\n\nYou MUST return ONLY valid JSON matching this schema (no markdown, no explanation):\n{json.dumps(schema)}"
+        augmented_system = (system_prompt or "") + schema_instruction
+
+        response_text = self.chat_with_history(
+            messages=messages, system_prompt=augmented_system, **kwargs
+        )
+        try:
+            clean = response_text.replace("```json", "").replace("```", "").strip()
+            return json.loads(clean)
+        except Exception as e:
+            logger.error(f"Failed to parse Anthropic structured output: {e}\nResponse: {response_text}")
+            raise Exception("Failed to generate valid structured output")
+
+    def transcribe_audio(self, file_path: str, **kwargs) -> str:
+        raise NotImplementedError("Anthropic does not provide audio transcription. Use OpenAI Whisper instead.")
+
+
 # Singleton instance
 _llm_service: Optional[LLMService] = None
 
@@ -304,6 +611,13 @@ def get_llm_service() -> LLMService:
                 model=getattr(settings, "GEMINI_MODEL", "gemini-1.5-pro"),
                 temperature=settings.LLM_TEMPERATURE,
                 base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+            )
+        elif provider == "anthropic" and getattr(settings, "ANTHROPIC_API_KEY", None):
+             _llm_service = AnthropicLLMService(
+                api_key=settings.ANTHROPIC_API_KEY,
+                model=getattr(settings, "ANTHROPIC_MODEL", "claude-sonnet-4-6"),
+                temperature=settings.LLM_TEMPERATURE,
+                max_tokens=settings.LLM_MAX_TOKENS,
             )
         elif provider == "groq" and getattr(settings, "GROQ_API_KEY", None):
              _llm_service = OpenAILLMService(

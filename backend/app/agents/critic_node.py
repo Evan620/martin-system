@@ -13,10 +13,10 @@ from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from app.services.llm_service import get_llm_service
 from app.agents.langgraph_state import AgentState
 
-async def critic_analyze_error(
-    failed_tool_name: str, 
-    failed_args: Dict[str, Any], 
-    error_message: str, 
+def critic_analyze_error(
+    failed_tool_name: str,
+    failed_args: Dict[str, Any],
+    error_message: str,
     original_intent: str
 ) -> str:
     """
@@ -61,7 +61,7 @@ async def critic_analyze_error(
     """
     
     try:
-        response = await llm.chat(
+        response = llm.chat(
             prompt=prompt,
             system_prompt=system_prompt,
             temperature=0.1,  # Low temp for analytical feedback
@@ -128,7 +128,7 @@ async def critic_retry_node(state: dict) -> dict:
     logger.info(f"[CriticNode] Analyzing failure for tool '{failed_tool_name}': {tool_error}")
     
     # 3. Analyze
-    feedback = await critic_analyze_error(
+    feedback = critic_analyze_error(
         failed_tool_name=failed_tool_name,
         failed_args=failed_args,
         error_message=tool_error,

@@ -518,7 +518,10 @@ class ActionItem(Base):
     due_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     status: Mapped[ActionItemStatus] = mapped_column(Enum(ActionItemStatus), default=ActionItemStatus.PENDING)
     priority: Mapped[ActionItemPriority] = mapped_column(Enum(ActionItemPriority), default=ActionItemPriority.MEDIUM)
-    
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, onupdate=datetime.utcnow)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
     # Relationships
     twg: Mapped["TWG"] = relationship(back_populates="action_items")
     meeting: Mapped[Optional["Meeting"]] = relationship(back_populates="action_items")
@@ -605,7 +608,8 @@ class Document(Base):
     is_confidential: Mapped[bool] = mapped_column(Boolean, default=False)
     metadata_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    
+    ingested_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
     # Relationships
     twg: Mapped[Optional["TWG"]] = relationship(back_populates="documents")
     meeting: Mapped[Optional["Meeting"]] = relationship(foreign_keys=[meeting_id], back_populates="documents")

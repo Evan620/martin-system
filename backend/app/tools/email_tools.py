@@ -41,8 +41,10 @@ def validate_email_addresses(emails: Union[str, List[str]]) -> bool:
     email_list = [emails] if isinstance(emails, str) else emails
 
     for email in email_list:
-        if not re.match(email_pattern, email.strip()):
-            logger.warning(f"Invalid email address: {email}")
+        # Strip whitespace and common trailing punctuation from LLM parsing
+        cleaned = email.strip().rstrip('.,;:!?…')
+        if not re.match(email_pattern, cleaned):
+            logger.warning(f"Invalid email address: '{email}' (cleaned: '{cleaned}')")
             return False
     return True
 
@@ -132,10 +134,13 @@ async def send_email(
         if bcc and not validate_email_addresses(bcc):
             return {"status": "error", "error": "Invalid BCC email address"}
 
-        # Convert to lists if single strings or None
-        to_list = [to] if isinstance(to, str) else to
-        cc_list = [cc] if isinstance(cc, str) and cc else (cc or None)
-        bcc_list = [bcc] if isinstance(bcc, str) and bcc else (bcc or None)
+        # Clean and convert to lists
+        def _clean_email(e: str) -> str:
+            return e.strip().rstrip('.,;:!?…')
+
+        to_list = [_clean_email(to)] if isinstance(to, str) else [_clean_email(e) for e in to]
+        cc_list = [_clean_email(cc)] if isinstance(cc, str) and cc else ([_clean_email(e) for e in cc] if cc else None)
+        bcc_list = [_clean_email(bcc)] if isinstance(bcc, str) and bcc else ([_clean_email(e) for e in bcc] if bcc else None)
 
         # Handle flexible attachments input (string, list, or None)
         attachments_list = []

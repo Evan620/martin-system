@@ -34,6 +34,8 @@ TWG_SCOPED_TOOLS: Set[str] = {
     "send_email",
     "create_email_draft",
     "request_document_approval_tool",
+    "get_action_items",
+    "update_action_item_status",
 }
 
 # Tools restricted to specific agent roles
@@ -44,6 +46,7 @@ SUPERVISOR_ONLY_TOOLS: Set[str] = {
     "get_summit_status_tool",
     "detect_conflicts_tool",
     "start_negotiation_tool",
+    "consult_twg_agents_tool",
     "check_availability_tool",
     "request_booking_tool",
     "update_meeting_tool",
@@ -160,6 +163,7 @@ class ToolRegistry:
         self._register_document_tools()
         self._register_database_tools()
         self._register_deal_pipeline_tools()
+        self._register_supervisor_tools()
         # Note: knowledge_tools are used for RAG in _process_query_node,
         # not as LLM-callable tools. They remain separate for now.
 
@@ -196,67 +200,49 @@ class ToolRegistry:
         self.register(
             name="send_email",
             description=(
-                "Send a beautifully formatted email via Resend (triggers approval workflow). "
-                "Emails are automatically wrapped in professional ECOWAS branding with AI badge."
+                "Send a professionally formatted email via Resend with ECOWAS branding. Triggers approval workflow before sending. "
+                "Returns confirmation with email status. "
+                "IMPORTANT: You MUST call get_twg_members FIRST to get real email addresses — NEVER use placeholder emails like 'user@example.com'. "
+                "Example: User asks 'email the team about Friday's deadline' → 1) call get_twg_members() 2) call send_email(to='john@real.com,jane@real.com', subject='Friday Deadline Reminder', message='...')."
             ),
             parameters={
                 "to": {
-                    "anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}],
-                    "description": "Recipient email address(es)",
+                    "type": "string",
+                    "description": "Recipient email address (comma-separated for multiple)",
                 },
                 "subject": {"type": "string", "description": "Email subject line"},
                 "message": {"type": "string", "description": "Plain text email body"},
-                "html_body": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
-                    "description": "Optional HTML formatted email body",
-                },
                 "cc": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
-                    "description": "Optional CC recipient(s)",
-                },
-                "bcc": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
-                    "description": "Optional BCC recipient(s)",
-                },
-                "attachments": {
-                    "anyOf": [
-                        {"type": "array", "items": {"type": "string"}},
-                        {"type": "string"},
-                        {"type": "null"},
-                    ],
-                    "description": "Optional list of file paths to attach",
+                    "type": "string",
+                    "description": "Optional CC recipient email(s), comma-separated",
                 },
                 "pillar_name": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
-                    "description": "Optional TWG pillar name for branding",
+                    "type": "string",
+                    "description": "Optional TWG pillar name for branding (e.g. 'Energy', 'Agriculture')",
                 },
             },
             handler=send_email,
-            required_params=[],
+            required_params=["to", "subject", "message"],
         )
 
         # create_email_draft
         self.register(
             name="create_email_draft",
-            description="Create an email draft for human approval.",
+            description="Create an email draft for human approval without sending. Returns the draft for review. IMPORTANT: First call get_twg_members to get actual email addresses — NEVER use placeholder emails. Example: User asks 'draft an email to the Agriculture team' → 1) call get_twg_members(twg_name='agriculture') 2) call create_email_draft(to='...', subject='...', message='...').",
             parameters={
                 "to": {
-                    "anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}],
-                    "description": "Recipient email address(es)",
+                    "type": "string",
+                    "description": "Recipient email address (comma-separated for multiple)",
                 },
                 "subject": {"type": "string", "description": "Email subject line"},
                 "message": {"type": "string", "description": "Plain text email body"},
-                "html_body": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
-                    "description": "Optional HTML formatted email body",
-                },
                 "pillar_name": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "type": "string",
                     "description": "Optional TWG pillar name for branding",
                 },
             },
             handler=create_email_draft,
-            required_params=[],
+            required_params=["to", "subject", "message"],
         )
 
     def _register_document_tools(self) -> None:
@@ -279,11 +265,15 @@ class ToolRegistry:
         from app.tools.database_tools import (
             SEARCH_DOCUMENTS_TOOL_DEF, search_documents,
             GET_MEETING_MINUTES_TOOL_DEF, get_meeting_minutes,
+            GET_ACTION_ITEMS_TOOL_DEF, get_action_items,
+            UPDATE_ACTION_ITEM_STATUS_TOOL_DEF, update_action_item_status,
             get_twg_members,
         )
         for tool_def, handler in [
             (SEARCH_DOCUMENTS_TOOL_DEF, search_documents),
             (GET_MEETING_MINUTES_TOOL_DEF, get_meeting_minutes),
+            (GET_ACTION_ITEMS_TOOL_DEF, get_action_items),
+            (UPDATE_ACTION_ITEM_STATUS_TOOL_DEF, update_action_item_status),
         ]:
             func_def = tool_def["function"]
             self.register(
@@ -294,11 +284,33 @@ class ToolRegistry:
                 required_params=func_def["parameters"].get("required", []),
             )
 
+        # create_meeting_invite — lets TWG agents schedule new meetings
+        from app.tools.database_tools import create_meeting_invite
+        self.register(
+            name="create_meeting_invite",
+            description=(
+                "[WHEN] User asks to schedule/create a new meeting for a TWG. "
+                "[WHAT] Creates a meeting in the database with auto-added participants and returns meeting_id, status, and scheduled time. "
+                "[IMPORTANT] scheduled_at MUST be the user's LOCAL time — do NOT convert to UTC. The timezone param handles conversion. "
+                "[EXAMPLE] 'Schedule energy meeting for tomorrow at 4pm EAT' → create_meeting_invite(twg_id='energy', title='Energy TWG Meeting', scheduled_at='2026-03-02T16:00:00', timezone='Africa/Nairobi')"
+            ),
+            parameters={
+                "twg_id": {"type": "string", "description": "TWG UUID or name (e.g. 'energy', 'agriculture'). Auto-injected for TWG agents."},
+                "title": {"type": "string", "description": "Meeting title"},
+                "scheduled_at": {"type": "string", "description": "ISO 8601 datetime in the user's LOCAL time (e.g. '2026-03-02T16:00:00' for 4pm). Do NOT convert to UTC."},
+                "location": {"type": "string", "description": "Location or meeting link (default: Virtual)"},
+                "duration": {"type": "integer", "description": "Duration in minutes (default: 60)"},
+                "timezone": {"type": "string", "description": "IANA timezone of the scheduled_at time. EAT='Africa/Nairobi', WAT='Africa/Lagos'. Default: Africa/Nairobi."},
+            },
+            handler=create_meeting_invite,
+            required_params=["twg_id", "title", "scheduled_at"],
+        )
+
         # get_twg_members — lets agents look up member names and emails
         # twg_id is auto-injected for TWG agents; supervisor can use twg_name instead
         self.register(
             name="get_twg_members",
-            description="Fetch all members of a TWG with their names and email addresses. Use this when you need to send emails to TWG members, check membership, or look up who belongs to a working group. TWG agents: twg_id is auto-injected. Supervisor: pass twg_name (e.g. 'energy', 'agriculture').",
+            description="Fetch all members of a TWG with their names and email addresses. Returns JSON array of {name, email, role}. MUST be called before send_email to get real email addresses. Use when the user asks to email the team, look up members, or check who belongs to a TWG. Example: User asks 'send an email to the team' → FIRST call get_twg_members() to get emails, THEN call send_email with those addresses.",
             parameters={
                 "twg_id": {"type": "string", "description": "TWG UUID (auto-injected for TWG agents)"},
                 "twg_name": {"type": "string", "description": "TWG name to search for (e.g. 'energy', 'agriculture', 'minerals', 'digital', 'protocol', 'resource')"},
@@ -329,6 +341,26 @@ class ToolRegistry:
                 required_params=list(tool["parameters"].keys()),
             )
 
+    def _register_supervisor_tools(self) -> None:
+        """Register supervisor-only tools with proper schemas."""
+        from app.tools.supervisor_tools import SUPERVISOR_TOOL_DEFS, SUPERVISOR_TOOL_HANDLERS
+
+        for tool_def in SUPERVISOR_TOOL_DEFS:
+            func_def = tool_def["function"]
+            tool_name = func_def["name"]
+            handler = SUPERVISOR_TOOL_HANDLERS.get(tool_name)
+            if not handler:
+                logger.warning(f"[ToolRegistry] No handler for supervisor tool '{tool_name}'")
+                continue
+
+            self.register(
+                name=tool_name,
+                description=func_def["description"],
+                parameters=func_def["parameters"].get("properties", {}),
+                handler=handler,
+                required_params=func_def["parameters"].get("required", []),
+            )
+
     # -------------------------------------------------------------------------
     # Access Control
     # -------------------------------------------------------------------------
@@ -353,9 +385,19 @@ class ToolRegistry:
         Raises:
             ToolAccessDenied: If access is denied
         """
-        # Supervisor can access everything
+        # Supervisor: only gets its own tools + unrestricted + email/meeting creation
+        # It delegates TWG-scoped reads via consult_twg_agents_tool
         if agent_id == "supervisor":
-            return True
+            if tool_name in SUPERVISOR_ONLY_TOOLS:
+                return True
+            if tool_name in UNRESTRICTED_TOOLS:
+                return True
+            # Supervisor can send emails, create meetings, and search documents directly
+            if tool_name in {"send_email", "create_email_draft", "create_meeting_invite", "search_documents"}:
+                return True
+            raise ToolAccessDenied(
+                f"Supervisor delegates '{tool_name}' to TWG agents via consult_twg_agents_tool."
+            )
         
         # Check supervisor-only tools
         if tool_name in SUPERVISOR_ONLY_TOOLS:

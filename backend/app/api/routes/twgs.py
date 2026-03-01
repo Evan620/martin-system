@@ -412,6 +412,118 @@ async def add_twg_member(
     }
 
 
+class BulkAddMemberEntry(BaseModel):
+    email: str
+    full_name: str = ""
+
+
+class BulkAddMembersRequest(BaseModel):
+    members: list[BulkAddMemberEntry]
+
+
+@router.post("/{twg_id}/members/bulk", status_code=status.HTTP_201_CREATED)
+async def bulk_add_twg_members(
+    twg_id: uuid.UUID,
+    body: BulkAddMembersRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Bulk add members to a TWG.
+    Accepts a list of {email, full_name} entries.
+    Skips duplicates, auto-creates new users, sends invite emails.
+    """
+    from app.utils.security import hash_password
+
+    twg = await _check_twg_management_access(twg_id, current_user, db)
+    existing_member_emails = {m.email.lower() for m in twg.members}
+
+    results = {"added": [], "skipped": [], "errors": []}
+
+    for entry in body.members:
+        email = entry.email.strip().lower()
+        if not email:
+            continue
+
+        # Skip duplicates
+        if email in existing_member_emails:
+            results["skipped"].append({"email": email, "reason": "Already a member"})
+            continue
+
+        try:
+            # Find or create user
+            result = await db.execute(
+                select(User).where(User.email == email).options(selectinload(User.twgs))
+            )
+            user_to_add = result.scalar_one_or_none()
+            created_new = False
+
+            if not user_to_add:
+                if not entry.full_name.strip():
+                    results["errors"].append({"email": email, "reason": "Full name required for new users"})
+                    continue
+
+                temp_password = secrets.token_urlsafe(16)
+                user_to_add = User(
+                    full_name=entry.full_name.strip(),
+                    email=email,
+                    hashed_password=hash_password(temp_password),
+                    role=UserRole.TWG_MEMBER,
+                    is_active=True,
+                )
+                db.add(user_to_add)
+                await db.flush()
+                created_new = True
+
+            twg.members.append(user_to_add)
+            existing_member_emails.add(email)
+
+            added_entry = {
+                "id": str(user_to_add.id),
+                "email": email,
+                "full_name": user_to_add.full_name,
+                "created_new": created_new,
+            }
+
+            # Send invite for new users
+            if created_new:
+                try:
+                    from app.services.email_service import email_service
+                    from app.core.config import settings
+                    await email_service.send_user_invite(
+                        to_email=email,
+                        full_name=user_to_add.full_name,
+                        password=temp_password,
+                        role=user_to_add.role.value,
+                        login_url=settings.FRONTEND_URL
+                    )
+                    added_entry["invite_sent"] = True
+                except Exception as e:
+                    added_entry["invite_sent"] = False
+                    print(f"[TWG Bulk] Failed to send invite to {email}: {e}")
+
+            results["added"].append(added_entry)
+
+        except Exception as e:
+            results["errors"].append({"email": email, "reason": str(e)})
+
+    await db.commit()
+
+    total_added = len(results["added"])
+    total_skipped = len(results["skipped"])
+    total_errors = len(results["errors"])
+    new_accounts = sum(1 for a in results["added"] if a.get("created_new"))
+
+    return {
+        "message": f"Added {total_added} member{'s' if total_added != 1 else ''} to {twg.name}."
+                   + (f" {new_accounts} new account{'s' if new_accounts != 1 else ''} created." if new_accounts else "")
+                   + (f" {total_skipped} skipped (already members)." if total_skipped else "")
+                   + (f" {total_errors} failed." if total_errors else ""),
+        "summary": {"added": total_added, "skipped": total_skipped, "errors": total_errors, "new_accounts": new_accounts},
+        "results": results,
+    }
+
+
 @router.delete("/{twg_id}/members/{user_id}", status_code=status.HTTP_200_OK)
 async def remove_twg_member(
     twg_id: uuid.UUID,

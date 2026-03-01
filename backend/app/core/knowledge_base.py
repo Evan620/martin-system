@@ -7,6 +7,7 @@ including document ingestion, vector storage, and semantic search for RAG.
 
 from typing import List, Dict, Any, Optional, Tuple
 import os
+import requests as http_requests
 from datetime import datetime
 import logging
 from pinecone import Pinecone, ServerlessSpec
@@ -36,11 +37,12 @@ class PineconeKnowledgeBase:
         embedding_model: str = "text-embedding-3-small",
         dimension: int = 1536,
         namespace_prefix: str = "twg",
-        openai_api_key: Optional[str] = None
+        openai_api_key: Optional[str] = None,
+        gemini_api_key: Optional[str] = None
     ):
         """
         Initialize Pinecone knowledge base.
-        
+
         Args:
             api_key: Pinecone API key
             environment: Pinecone environment (e.g., 'us-east-1')
@@ -48,6 +50,8 @@ class PineconeKnowledgeBase:
             embedding_model: OpenAI embedding model name
             dimension: Embedding dimension (1536 for text-embedding-3-small)
             namespace_prefix: Prefix for TWG namespaces
+            openai_api_key: Optional OpenAI API key for embeddings
+            gemini_api_key: Optional Gemini API key for embeddings (fallback)
         """
         self.api_key = api_key
         self.environment = environment
@@ -55,26 +59,37 @@ class PineconeKnowledgeBase:
         self.embedding_model = embedding_model
         self.dimension = dimension
         self.namespace_prefix = namespace_prefix
-        
+        self.gemini_api_key = gemini_api_key
+
         # Initialize Pinecone client
         self.pc = Pinecone(api_key=api_key)
-        
-        # Initialize OpenAI client if key is provided
+
+        # Initialize embedding client (priority: OpenAI key → GitHub Models → Gemini → Ollama)
         self.openai_client = None
+        self._embedding_provider = None
+
         if openai_api_key:
             self.openai_client = openai.Client(api_key=openai_api_key)
+            self._embedding_provider = "openai"
         elif settings.GITHUB_TOKEN:
-            # GitHub Models (via Azure OpenAI)
+            # Test GitHub Models for embeddings availability
             self.openai_client = openai.Client(
                 api_key=settings.GITHUB_TOKEN,
                 base_url=settings.GITHUB_BASE_URL
             )
+            self._embedding_provider = "github"
             logger.info("Initialized OpenAI Client using GitHub Models")
-            
+
+        if self.gemini_api_key:
+            # Gemini available as fallback even if OpenAI/GitHub is primary
+            if not self._embedding_provider:
+                self._embedding_provider = "gemini"
+                logger.info("Using Gemini for embeddings (gemini-embedding-001)")
+
         # Get or create index
         self.index = self._get_or_create_index()
-        
-        logger.info(f"Initialized PineconeKnowledgeBase with index: {index_name}")
+
+        logger.info(f"Initialized PineconeKnowledgeBase with index: {index_name} (embedding provider: {self._embedding_provider or 'ollama'})")
     
     def _get_or_create_index(self):
         """Get existing index or create new one."""
@@ -132,53 +147,71 @@ class PineconeKnowledgeBase:
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
-        Generate embeddings for a list of texts using OpenAI or Ollama.
-        
+        Generate embeddings using available provider (OpenAI → Gemini → Ollama).
+
         Args:
             texts: List of text strings to embed
-            
+
         Returns:
             List of embedding vectors
         """
-        # Check if using OpenAI model (or GitHub Models) and client is available
-        if self.embedding_model.startswith("text-embedding") and self.openai_client:
+        # 1) OpenAI / GitHub Models
+        if self._embedding_provider in ("openai", "github") and self.openai_client:
             try:
-                # OpenAI Embeddings
-                embeddings = []
-                
-                # OpenAI has a batch size limit, process in chunks if needed
-                # For now, simplistic implementation
                 response = self.openai_client.embeddings.create(
                     model=self.embedding_model,
                     input=texts,
                     encoding_format="float"
                 )
-                
-                # Extract embeddings in order
                 return [data.embedding for data in response.data]
-                
             except Exception as e:
-                logger.error(f"OpenAI/GitHub embedding error: {e}")
+                logger.warning(f"OpenAI/GitHub embedding failed: {e}")
+                # Fall through to Gemini if available
+                if self.gemini_api_key:
+                    logger.info("Falling back to Gemini embeddings")
+                else:
+                    raise
+
+        # 2) Gemini embeddings (gemini-embedding-001 with outputDimensionality)
+        if self.gemini_api_key:
+            try:
+                embeddings = []
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key={self.gemini_api_key}"
+
+                for text in texts:
+                    safe_text = text[:8000]  # Gemini supports longer input
+                    resp = http_requests.post(url, json={
+                        "content": {"parts": [{"text": safe_text}]},
+                        "outputDimensionality": self.dimension
+                    }, timeout=30)
+
+                    if resp.status_code == 200:
+                        embedding = resp.json()["embedding"]["values"]
+                        embeddings.append(embedding)
+                    else:
+                        raise Exception(f"Gemini embedding error {resp.status_code}: {resp.text}")
+
+                logger.debug(f"Generated {len(embeddings)} embeddings using Gemini")
+                return embeddings
+            except Exception as e:
+                logger.error(f"Gemini embedding error: {e}")
                 raise
-        
-        # Fallback to Ollama (local development)
+
+        # 3) Fallback to Ollama (local development)
         try:
-            import requests
             embeddings = []
-            
+
             for text in texts:
-                # Ensure text is not too long for Ollama (nomic-embed-text limit is ~2048 tokens)
-                # Truncate to a safe length (~4000 chars approx 1000 tokens) to be safe for 2048 limit
                 safe_text = text[:4000]
-                
-                response = requests.post(
+
+                response = http_requests.post(
                     'http://localhost:11434/api/embeddings',
                     json={
                         'model': self.embedding_model if not self.embedding_model.startswith("text-embedding") else "nomic-embed-text",
                         'prompt': safe_text
                     }
                 )
-                
+
                 if response.status_code == 200:
                     embedding = response.json()['embedding']
                     embeddings.append(embedding)
@@ -186,10 +219,10 @@ class PineconeKnowledgeBase:
                     error_msg = response.json().get('error', response.text)
                     logger.error(f"Ollama error for model {self.embedding_model}: {error_msg}")
                     raise Exception(f"Ollama embedding failed: {error_msg}")
-            
+
             logger.debug(f"Generated {len(embeddings)} embeddings using Ollama")
             return embeddings
-            
+
         except Exception as e:
             logger.error(f"Error generating embeddings: {e}")
             raise
@@ -434,7 +467,8 @@ def get_knowledge_base() -> PineconeKnowledgeBase:
             index_name=index_name,
             embedding_model=embedding_model,
             dimension=dimension,
-            openai_api_key=settings.OPENAI_API_KEY
+            openai_api_key=settings.OPENAI_API_KEY,
+            gemini_api_key=getattr(settings, "GEMINI_API_KEY", None)
         )
     
     return _knowledge_base_instance

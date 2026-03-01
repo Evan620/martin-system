@@ -1,6 +1,23 @@
 import faulthandler
 faulthandler.enable()
 
+import os
+import sys
+from loguru import logger
+
+# Configure file logging
+_log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+os.makedirs(_log_dir, exist_ok=True)
+logger.add(
+    os.path.join(_log_dir, "app.log"),
+    rotation="10 MB",
+    retention="7 days",
+    level="INFO",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} | {message}",
+    backtrace=True,
+    diagnose=False,
+)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings

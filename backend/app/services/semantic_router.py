@@ -112,58 +112,77 @@ class SemanticRouter:
             return {}
 
     def route(
-        self, 
-        query: str, 
-        confidence_threshold: float = 0.35,
-        multi_agent_threshold: float = 0.50
+        self,
+        query: str,
+        confidence_threshold: float = 0.45,
+        multi_agent_threshold: float = 0.65
     ) -> Tuple[List[str], str]:
         """
         Determine relevant agents based on semantic similarity.
-        
+
         Args:
             query: The user query
             confidence_threshold: Minimum cosine similarity to select an agent at all
             multi_agent_threshold: If multiple agents score above this, consult them all
-            
+
         Returns:
             Tuple: (List of relevant agent IDs, Delegation Type 'single'|'multiple'|'supervisor_only')
         """
         # 1. Look for explicit routing overrides FIRST (fast-path)
-        query_lower = query.lower()
+        query_lower = query.lower().strip()
         if "[routing strictly to supervisor]" in query_lower:
             return [], "supervisor_only"
-            
-        # 2. Compute semantic semantic similarity
+
+        # 2. Short-circuit for greetings and low-information queries
+        #    These have no domain relevance and should go straight to supervisor
+        if len(query_lower.split()) <= 3:
+            greeting_words = {"hello", "hi", "hey", "hola", "good morning", "good afternoon",
+                              "good evening", "thanks", "thank you", "bye", "goodbye",
+                              "help", "who are you", "what can you do", "capabilities"}
+            if query_lower in greeting_words or any(query_lower.startswith(g) for g in greeting_words):
+                logger.info(f"[SemanticRouter] Short greeting/generic query -> supervisor_only")
+                return [], "supervisor_only"
+
+        # 3. Compute semantic similarity
         scores = self.get_routing_scores(query)
-        
+
         if not scores:
             # Fallback to supervisor if scoring failed
-            return [], "supervisor_only" 
-            
+            return [], "supervisor_only"
+
         logger.info(f"[SemanticRouter] Raw routing scores: {[(k, round(v, 3)) for k, v in scores.items()]}")
-        
-        # 3. Filter by threshold
+
+        # 4. Filter by threshold
         relevant_agents = []
-        
+
         # Find the absolute best match
         best_agent = max(scores.items(), key=lambda x: x[1])
-        
+
+        # Check score spread — if all agents score similarly, query is generic → supervisor
+        all_scores = list(scores.values())
+        score_spread = max(all_scores) - min(all_scores)
+        if score_spread < 0.05 and best_agent[1] < 0.60:
+            logger.info(f"[SemanticRouter] Low spread ({score_spread:.3f}) + low peak ({best_agent[1]:.3f}) -> supervisor_only")
+            return [], "supervisor_only"
+
         if best_agent[1] >= confidence_threshold:
             relevant_agents.append(best_agent[0])
-            
-            # Check for multiple strong matches
+
+            # Check for multiple strong matches (but cap at 2 to avoid slow fan-out)
             for agent_id, score in scores.items():
                 if agent_id != best_agent[0] and score >= multi_agent_threshold:
                     relevant_agents.append(agent_id)
-                    
-        # 4. Final Delegation Type determination
+                    if len(relevant_agents) >= 3:
+                        break
+
+        # 5. Final Delegation Type determination
         if not relevant_agents:
             delegation_type = "supervisor_only"
         elif len(relevant_agents) == 1:
             delegation_type = "single"
         else:
             delegation_type = "multiple"
-            
+
         return relevant_agents, delegation_type
 
 # Singleton instance

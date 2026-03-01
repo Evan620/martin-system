@@ -73,9 +73,11 @@ class LangGraphSupervisor:
 
         # Initialize access to Global State
         self.state_service = get_supervisor_state()
-        
-        # Add tools to supervisor agent for accessing state
-        self._add_state_tools()
+
+        # Supervisor tools are now registered in the ToolRegistry.
+        # Set the module-level context so consult_twg_agents_tool can reach agents.
+        from app.tools.supervisor_tools import set_supervisor_context
+        set_supervisor_context(twg_agents={}, session_id=session_id)
 
         # Registry of TWG agents
         self._twg_agents: Dict[str, LangGraphBaseAgent] = {}
@@ -89,636 +91,16 @@ class LangGraphSupervisor:
 
         logger.info(f"LangGraphSupervisor initialized for session '{self.session_id}'")
 
-    def _add_state_tools(self):
-        """Add tools for accessing global state to the supervisor agent."""
-        
-        def get_global_calendar_tool() -> str:
-            """
-            Get the unified schedule of all TWG meetings. 
-            Useful for checking availability, finding conflicts, or seeing the overall timeline.
-            """
-            from app.core.database import get_sync_db_session
-            from app.models.models import Meeting, MeetingStatus
-            from sqlalchemy import select
-            from datetime import timezone as tz
-            from zoneinfo import ZoneInfo
-            
-            # Default to Africa/Nairobi for ECOWAS context
-            user_tz = ZoneInfo("Africa/Nairobi")
-            
-            try:
-                # Use live DB session to ensure fresh data (fixes hallucination/stale cache)
-                session = get_sync_db_session()
-                try:
-                    stmt = select(Meeting).where(Meeting.status == MeetingStatus.SCHEDULED).order_by(Meeting.scheduled_at)
-                    meetings = session.execute(stmt).scalars().all()
-                    
-                    if not meetings:
-                        return "Global Calendar: No upcoming meetings scheduled."
-                    
-                    response = f"Global Calendar ({len(meetings)} upcoming):\n"
-                    for m in meetings:
-                        # Convert UTC to user timezone for display
-                        utc_time = m.scheduled_at.replace(tzinfo=tz.utc)
-                        local_time = utc_time.astimezone(user_tz)
-                        time_str = local_time.strftime('%Y-%m-%d %I:%M %p EAT')  # e.g. "2026-01-27 11:18 AM EAT"
-                        
-                        # Use video_link if present, otherwise location
-                        loc = m.location or "TBD"
-                        if m.video_link:
-                             loc += f" (Link: {m.video_link})"
-                             
-                        response += f"- [ID: {m.id}] {time_str}: {m.title} ({m.twg.name if m.twg else 'General'})\n  Location: {loc}\n"
-                    
-                    return response
-                finally:
-                    session.close()
-            except Exception as e:
-                return f"Error accessing calendar: {str(e)}"
-
-        def get_document_registry_tool() -> str:
-            """
-            Get the registry of all documents across TWGs.
-            Useful for finding existing policies, drafts, or memos.
-            """
-            try:
-                state = self.state_service.get_state()
-                if not state:
-                    return "Global state not yet initialized."
-                
-                registry = self.state_service.get_document_registry()
-                
-                response = f"Document Registry ({registry.total_documents} documents):\n"
-                for doc in registry.documents[:20]: # Limit to 20 for brevity
-                    response += f"- {doc.file_name} ({doc.twg_name or 'General'}) - {doc.file_type}\n"
-                
-                if registry.total_documents > 20:
-                    response += f"... and {registry.total_documents - 20} more."
-                
-                return response
-            except Exception as e:
-                return f"Error accessing documents: {str(e)}"
-        
-        def get_project_pipeline_tool() -> str:
-            """
-            Get the status of the project pipeline.
-            Useful for tracking deal flow and investment readiness.
-            """
-            try:
-                state = self.state_service.get_state()
-                if not state:
-                    return "Global state not yet initialized."
-                
-                pipeline = self.state_service.get_project_pipeline()
-                
-                response = f"Project Pipeline ({pipeline.total_projects} projects, Total Investment: ${pipeline.total_investment:,.2f}):\n"
-                
-                by_status = {}
-                for p in pipeline.projects:
-                    if p.status.value not in by_status:
-                        by_status[p.status.value] = []
-                    by_status[p.status.value].append(p)
-                
-                for status, projects in by_status.items():
-                    response += f"\n{status.upper()}:\n"
-                    for p in projects:
-                        response += f"- {p.name} ({p.twg_name}): ${p.investment_size:,.0f} (Readiness: {p.readiness_score}/10)\n"
-                
-                return response
-            except Exception as e:
-                return f"Error accessing pipeline: {str(e)}"
-
-        async def get_summit_status_tool() -> str:
-            """
-            Get the High-Level Summit Status Overview.
-            Returns the Global Status % (simulated logic) and TWG-level breakdown.
-            Use this for the 'Greeting' and 'Status Overview' sections of your response.
-            """
-            try:
-                state = self.state_service.get_state()
-                if not state:
-                    return "Status unavailable (System initializing)"
-                
-                # Mock Calculation Logic (since we don't have historical baselines yet)
-                # 1. Project Health (50% weight)
-                pipeline = self.state_service.get_project_pipeline()
-                proj_score = min(100, (pipeline.total_projects * 5)) # 20 projects = 100%
-                
-                # 2. Meeting Health (30% weight)
-                cal = self.state_service.get_global_calendar()
-                meet_score = 100 if cal.conflicts_detected == 0 else 70
-                
-                # 3. Document/Declaration Progress (20% weight)
-                docs = self.state_service.get_document_registry()
-                doc_score = min(100, docs.total_documents * 10)
-                
-                overall = int((proj_score * 0.5) + (meet_score * 0.3) + (doc_score * 0.2))
-                
-                # Format Response
-                res = f"📊 **Summit Status: {overall}% On Track**\n\n"
-                res += "**TWG Performance:**\n"
-                # Mock statuses based on real activity
-                twgs = ["Energy", "Agriculture", "Minerals", "Digital"]
-                for twg in twgs:
-                    # Logic: If they have projects or meetings, they are 'On Schedule'
-                    status = "✅ On schedule"
-                    if twg == "Minerals" and overall < 80:
-                         status = "⚠️ Minor delay (Data collection)" # Hardcoded flavor for demo
-                    res += f"{status}: {twg}\n"
-                    
-                res += "\n**Critical Path Items:**\n"
-                res += "1. Ministerial Harmonization Workshop (April 2026)\n"
-                res += "2. Declaration Draft (Deadline: March 15)\n"
-                
-                return res
-            except Exception as e:
-                return f"Error calculating status: {e}"
-
-        async def detect_conflicts_tool() -> str:
-            """
-            Run a deep scan for Policy and Scheduling conflicts across all TWGs.
-            """
-            try:
-                # 1. Check Schedule Conflicts
-                cal = self.state_service.get_global_calendar()
-                conflicts = []
-                if cal.conflicts_detected > 0:
-                    conflicts.append(f"• {cal.conflicts_detected} scheduling clashes detected in Global Calendar.")
-                
-                # 2. Check Policy Conflicts (Mocked for now - eventually query NegotiationService)
-                
-                if not conflicts:
-                     return "✅ No conflicts detected. All systems aligned."
-                
-                return "⚠️ **Conflicts Detected:**\n" + "\n".join(conflicts)
-            except Exception as e:
-                return f"Error scanning conflicts: {e}"
-
-        def start_negotiation_tool(conflict_description: str, agent_a: str, agent_b: str) -> str:
-            """
-            Initiate an automated negotiation between two agents to resolve a conflict.
-            Args:
-                conflict_description: Clear description of the policy divergence.
-                agent_a: ID of first agent (e.g. 'energy')
-                agent_b: ID of second agent (e.g. 'minerals')
-            """
-            # This returns a special flag that the graph routing logic will pick up
-            return f"NEGOTIATION_STARTED::{conflict_description}::{agent_a}::{agent_b}"
-
-        async def consult_twg_agents_tool(agent_names: List[str], query: str) -> str:
-            """
-            Consult multiple TWG agents simultaneously to gather domain-specific information or execute a plan.
-            Use this tool when you need input from specific TWGs to answer a user's request.
-            Args:
-                agent_names: List of TWG names to consult (e.g. ['energy', 'agriculture', 'minerals', 'digital'])
-                query: The specific question or instruction for the TWG agents.
-            """
-            import asyncio
-            
-            if not self._twg_agents:
-                return "Error: No TWG agents are currently registered."
-                
-            tasks = []
-            valid_agents = []
-            
-            for raw_name in agent_names:
-                # Normalize name (e.g. "Energy TWG" -> "energy")
-                name = raw_name.lower().replace(" twg", "").replace(" agent", "").strip()
-                if name in self._twg_agents:
-                    valid_agents.append(name)
-                    # We pass the same session_id to maintain thread context if needed,
-                    # but typically sub-agents can have their own isolated threads or share.
-                    tasks.append(self._twg_agents[name].chat(query, thread_id=self.session_id))
-                else:
-                    logger.warning(f"[SUPERVISOR] Requested agent '{name}' not found. Available: {list(self._twg_agents.keys())}")
-                    
-            if not tasks:
-                return f"Error: None of the requested agents were found. Available agents: {', '.join(self._twg_agents.keys())}"
-                
-            try:
-                logger.info(f"[SUPERVISOR] Consulting agents {valid_agents} with query: {query}")
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                
-                response_parts = []
-                for agent_name, result in zip(valid_agents, results):
-                    if isinstance(result, Exception):
-                        response_parts.append(f"[{agent_name.upper()} TWG] Error: {str(result)}")
-                    else:
-                        # Extract response text (can be dict or str)
-                        res_text = result.get("response", str(result)) if isinstance(result, dict) else str(result)
-                        response_parts.append(f"[{agent_name.upper()} TWG]\n{res_text}")
-                        
-                return "\n\n---\n\n".join(response_parts)
-            except Exception as e:
-                logger.error(f"[SUPERVISOR] Error consulting agents: {e}")
-                return f"Error executing cross-agent query: {str(e)}"
-
-        # Register tools
-        if hasattr(self.supervisor_agent, "add_tool"):
-            self.supervisor_agent.add_tool(get_global_calendar_tool)
-            self.supervisor_agent.add_tool(get_document_registry_tool)
-            self.supervisor_agent.add_tool(get_project_pipeline_tool)
-            self.supervisor_agent.add_tool(get_summit_status_tool)
-            self.supervisor_agent.add_tool(detect_conflicts_tool)
-            self.supervisor_agent.add_tool(start_negotiation_tool)
-            self.supervisor_agent.add_tool(consult_twg_agents_tool)
-
-        # Add Scheduler Tools
-        self._add_scheduler_tools()
-
-    def _add_scheduler_tools(self):
-        """Add tools for proactive scheduling interaction."""
-        from app.services.global_scheduler import global_scheduler
-        from app.core.database import get_db_session_context
-        from sqlalchemy import select
-        from app.models.models import User, TWG, VipProfile
-        from datetime import datetime
-
-        def check_availability_tool(start_time_iso: str, duration_minutes: int, vip_names: List[str] = []) -> str:
-            """
-            Check availability for a potential meeting without booking it.
-            Args:
-                start_time_iso: Start time (ISO 8601 string, e.g. "2026-03-15T14:00:00")
-                duration_minutes: Duration in minutes
-                vip_names: List of VIP names to check (e.g. "Minister of Energy")
-            """
-            from loguru import logger
-            from app.core.database import get_sync_db_session
-            from app.models.models import Meeting
-            from datetime import timedelta
-            from sqlalchemy import text
-            
-            try:
-                start_time = datetime.fromisoformat(start_time_iso)
-                end_time = start_time + timedelta(minutes=duration_minutes)
-                
-                session = get_sync_db_session()
-                try:
-                    # Check for overlapping meetings
-                    # Fix: Ensure we compare against values, not attributes directly if they are causing issues
-                    # In raw SQL or pure SQLAlchemy Core, this is usually fine, but let's be explicit
-                    stmt = select(Meeting).where(
-                        Meeting.scheduled_at < end_time,
-                        # Use simple overlap logic: (StartA < EndB) and (EndA > StartB)
-                        # We calculate EndA dynamically in SQL if needed, but here we can just use the column if it existed
-                        # Since we only have duration, we construct the expression
-                        (Meeting.scheduled_at + (Meeting.duration_minutes * text("'1 minute'::interval"))) > start_time
-                    )
-                    result = session.execute(stmt)
-                    overlapping = result.scalars().all()
-                    
-                    if not overlapping:
-                        return "✅ Slot is available. No conflicts detected."
-                    
-                    response = f"⚠️ {len(overlapping)} Potential Conflicts Detected:\n"
-                    for m in overlapping:
-                        response += f"- {m.title} at {m.scheduled_at.isoformat()}\n"
-                    
-                    return response
-                finally:
-                    session.close()
-                    
-            except Exception as e:
-                logger.error(f"[AVAILABILITY_TOOL] Error: {e}")
-                return f"Error checking availability: {str(e)}"
-
-        def request_booking_tool(
-            title: str,
-            twg_name: str,
-            start_time_iso: str,
-            duration_minutes: int,
-            vip_names: List[str] = [],
-            attendee_emails: List[str] = [],
-            location: str = None,
-            user_timezone: str = None
-        ) -> str:
-            """
-            Request to officially book a meeting.
-            Args:
-                title: Meeting title
-                twg_name: Name of the hosting TWG (e.g. "Energy", "Minerals")
-                start_time_iso: ISO 8601 Start time in UTC (e.g. "2026-03-15T14:00:00" or "2026-03-15T14:00:00Z")
-                duration_minutes: Duration
-                vip_names: VIPs to invite (by name/title)
-                attendee_emails: List of participant emails to invite
-                location: Location (optional). If None/ambiguous, will be inferred.
-            
-            IMPORTANT: start_time_iso must be in UTC. The system stores all times as UTC.
-            """
-            from loguru import logger
-            from app.core.database import SyncSessionLocal
-            from sqlalchemy import text
-            from uuid import uuid4
-            import random
-            import string
-            from datetime import timezone as tz
-            
-            try:
-                logger.info(f"[BOOKING_TOOL] Starting booking: {title}")
-                
-                # CRITICAL FIX: Strip 'Z' suffix if present
-                # The LLM often passes "2026-01-27T10:41:00Z" which Python interprets as UTC
-                # We need to treat this as naive local time and convert using user_timezone
-                clean_time_str = start_time_iso.rstrip('Z')
-                
-                # Parse the ISO datetime string (now guaranteed to be naive)
-                start_time = datetime.fromisoformat(clean_time_str)
-                
-                # CRITICAL: Ensure timezone handling
-                # If it's naive AND user_timezone provided, treat as local time and convert to UTC
-                
-                from zoneinfo import ZoneInfo
-                from datetime import timezone as tz
-                
-                if user_timezone and start_time.tzinfo is None:
-                    # User provided naive time (e.g. "10:00") intending it to be their local time
-                    try:
-                        user_tz = ZoneInfo(user_timezone)
-                        # Localize it
-                        local_dt = start_time.replace(tzinfo=user_tz)
-                        # Convert to UTC
-                        utc_time = local_dt.astimezone(tz.utc).replace(tzinfo=None)
-                        logger.info(f"[BOOKING_TOOL] Converted User Local Time ({start_time_iso} {user_timezone}) -> UTC: {utc_time}")
-                        start_time = utc_time
-                    except Exception as e:
-                        logger.error(f"[BOOKING_TOOL] Timezone conversion failed: {e}. Fallback to UTC assumption.")
-                        logger.info(f"[BOOKING_TOOL] Using naive datetime as UTC: {start_time}")
-                elif start_time.tzinfo is not None:
-                    # Somehow still has timezone info, convert to UTC
-                    start_time = start_time.astimezone(tz.utc).replace(tzinfo=None)
-                    logger.info(f"[BOOKING_TOOL] Converted timezone-aware time to UTC: {start_time}")
-                else:
-                    logger.info(f"[BOOKING_TOOL] Using naive datetime as UTC (No user_timezone provided): {start_time}")
-                
-                # DEBUG: Log the final time
-                logger.info(f"[BOOKING_TOOL] Final UTC Time for DB: {start_time}")
-
-                # Smart Location Inference
-                is_virtual = False
-                generated_link = None
-                
-                # Keywords that imply virtual meeting
-                virtual_keywords = ["virtual", "online", "zoom", "meet", "teams", "remote", "call"]
-                
-                # Determine explicit or implicit location
-                final_location = location
-                if not final_location:
-                    # Default to virtual for safety/accessibility
-                    final_location = "Virtual (Pending Link)"
-                    is_virtual = True
-                else:
-                    # BLOCK FAKE LINKS: If location contains a google meet link not generated by us, STRIP IT
-                    if "meet.google.com" in final_location:
-                        logger.warning(f"[BOOKING_TOOL] Stripping potential fake link from location: {final_location}")
-                        final_location = "Virtual (Pending Link)"
-                        is_virtual = True
-                    elif any(k in final_location.lower() for k in virtual_keywords):
-                        is_virtual = True
-                
-                # NOTE: Real Google Meet link generation requires Google Calendar API integration
-                # For now, we do NOT generate fake links as they don't work
-                # The video_link will remain None unless provided via calendar integration
-                # Users can manually add video links through the meeting update interface
-                if is_virtual and "meet.google.com" not in final_location:
-                    # Do not generate fake links - they cause "Invalid meeting code" errors
-                    logger.warning("[BOOKING_TOOL] Virtual meeting requested but no real Meet link available. Set video_link=None")
-                    generated_link = None
-
-                logger.info(f"[BOOKING_TOOL] Final Location: {final_location} (Virtual: {is_virtual})")
-
-                # Use SYNC database session to avoid event loop issues
-                session = SyncSessionLocal()
-                
-                try:
-                    # Resolve TWG using raw SQL
-                    twg_query = text("SELECT id, name FROM twgs WHERE name ILIKE :twg_name LIMIT 1")
-                    result = session.execute(twg_query, {"twg_name": f"%{twg_name}%"})
-                    twg_row = result.fetchone()
-                    
-                    if not twg_row:
-                        logger.error(f"[BOOKING_TOOL] TWG '{twg_name}' not found")
-                        return f"Error: TWG '{twg_name}' not found."
-                    
-                    twg_id = twg_row[0]
-                    twg_name_found = twg_row[1]
-                    logger.info(f"[BOOKING_TOOL] Found TWG: {twg_name_found} ({twg_id})")
-                    
-                    # 1. Resolve VIPs
-                    vip_user_ids = []
-                    if vip_names:
-                        placeholders = ','.join([f":name{i}" for i in range(len(vip_names))])
-                        vip_query = text(f"""
-                            SELECT vip_profiles.user_id 
-                            FROM vip_profiles 
-                            JOIN users ON users.id = vip_profiles.user_id 
-                            WHERE users.full_name IN ({placeholders}) OR vip_profiles.title IN ({placeholders})
-                        """)
-                        params_vip = {f"name{i}": name for i, name in enumerate(vip_names)}
-                        result = session.execute(vip_query, params_vip)
-                        vip_user_ids = [row[0] for row in result.fetchall()]
-                        logger.info(f"[BOOKING_TOOL] Found {len(vip_user_ids)} VIPs")
-
-                    # 2. Resolve Regular Attendees by Email
-                    regular_user_ids = []
-                    found_emails = []
-                    guest_list = []
-                    
-                    if attendee_emails:
-                        # Clean emails
-                        clean_emails = [e.strip().lower() for e in attendee_emails]
-                        
-                        if clean_emails:
-                            placeholders = ','.join([f":email{i}" for i in range(len(clean_emails))])
-                            user_query = text(f"""
-                                SELECT id, email FROM users WHERE LOWER(email) IN ({placeholders})
-                            """)
-                            params_email = {f"email{i}": e for i, e in enumerate(clean_emails)}
-                            result = session.execute(user_query, params_email)
-                            rows = result.fetchall()
-                            
-                            for r in rows:
-                                regular_user_ids.append(r[0])
-                                found_emails.append(r[1].lower())
-                            
-                            # Identify guests (emails not found in system)
-                            guest_list = [e for e in clean_emails if e not in found_emails]
-                            
-                            logger.info(f"[BOOKING_TOOL] Found {len(regular_user_ids)} internal users, {len(guest_list)} external guests")
-
-                    # Deduplicate user IDs (VIPs might also be in attendee_emails)
-                    all_participant_ids = list(set(vip_user_ids + regular_user_ids))
-                    
-                    # Prevent Double Booking (Same TWG, Same Time)
-                    check_dup = text("""
-                        SELECT id FROM meetings 
-                        WHERE twg_id = :twg_id 
-                        AND scheduled_at = :scheduled_at
-                    """)
-                    dup_result = session.execute(check_dup, {"twg_id": twg_id, "scheduled_at": start_time})
-                    existing_meeting = dup_result.fetchone()
-                    
-                    if existing_meeting:
-                        logger.warning(f"[BOOKING_TOOL] Duplicate meeting detected for TWG {twg_name} at {start_time}")
-                        # FORCE STOP execution via GraphInterrupt
-                        # This prevents the agent from ignoring the instructions and ensures no email is sent.
-                        raise GraphInterrupt(f"DUPLICATE MEETING DETECTED (ID: {existing_meeting[0]}). Execution halted to prevent double booking.")
-                    
-                    # Create Meeting using raw SQL
-                    meeting_id = uuid4()
-                    meeting_type = "virtual" if is_virtual else "in-person"
-                    
-                    # Append guest list to description (title for now, or ideally a dedicated field)
-                    # Since we don't have a description field yet, we'll append to location or implicit knowledge
-                    # But wait, we can't easily modify title.
-                    # We will log it and maybe the user will see it in the email draft which uses this info
-                    
-                    insert_meeting = text("""
-                        INSERT INTO meetings (id, twg_id, title, scheduled_at, duration_minutes, location, status, meeting_type, video_link)
-                        VALUES (:id, :twg_id, :title, :scheduled_at, :duration_minutes, :location, :status, :meeting_type, :video_link)
-                    """)
-                    
-                    session.execute(insert_meeting, {
-                        "id": meeting_id,
-                        "twg_id": twg_id,
-                        "title": title,
-                        "scheduled_at": start_time,
-                        "duration_minutes": duration_minutes,
-                        "location": final_location, # Use the clean location text
-                        "status": "SCHEDULED",
-                        "meeting_type": meeting_type,
-                        "video_link": generated_link # Save link separately
-                    })
-                    
-                    if all_participant_ids:
-                        # Fallback to f-string due to persistent SQLAlchemy binding issues
-                        # UUIDs are safe to interpolate
-                        for uid in all_participant_ids:
-                            sql = f"INSERT INTO meeting_participants (meeting_id, user_id, rsvp_status, attended) VALUES ('{meeting_id}', '{uid}', 'PENDING', false)"
-                            session.execute(text(sql))
-                    
-                    session.commit()
-                    
-                    guest_msg = ""
-                    if guest_list:
-                        guest_msg = f" (Guests added to list: {', '.join(guest_list)})"
-
-                    logger.info(f"[BOOKING_TOOL] ✓ Meeting created: {meeting_id}")
-                    link_status = "Video Link: Pending (Will be updated via Calendar Integration)" if is_virtual else "Video Link: N/A"
-                    return f"✅ Meeting '{title}' SCHEDULED. ID: {meeting_id}\nLocation: {final_location}\n{link_status}{guest_msg}"
-                    
-                except GraphInterrupt:
-                    raise
-                except Exception as e:
-                    session.rollback()
-                    logger.error(f"[BOOKING_TOOL] Database error: {e}", exc_info=True)
-                    return f"Error creating meeting: {str(e)}"
-                finally:
-                    session.close()
-
-            except GraphInterrupt:
-                raise
-            except Exception as e:
-                logger.error(f"[BOOKING_TOOL] Error requesting booking: {e}", exc_info=True)
-                return f"Error requesting booking: {str(e)}"
-
-        def update_meeting_tool(
-            meeting_id: str,
-            new_title: Optional[str] = None,
-            new_location: Optional[str] = None,
-            is_virtual: Optional[bool] = None,
-            new_time_iso: Optional[str] = None,
-            new_duration: Optional[int] = None
-        ) -> str:
-            """
-            Update an existing meeting.
-            Args:
-                meeting_id: ID of the meeting to update (from calendar)
-                new_title: New title (optional)
-                new_location: New venue prompt (e.g. "Virtual" or "Conference Room 1")
-                is_virtual: Whether it should be a virtual meeting (generates link if True)
-                new_time_iso: New start time ISO 8601 (optional) (e.g. "2026-03-15T14:00:00")
-                new_duration: New duration in minutes (optional)
-            """
-            from app.core.database import get_sync_db_session
-            from app.models.models import Meeting
-            from sqlalchemy import select
-            import random, string, datetime
-
-            try:
-                session = get_sync_db_session()
-                try:
-                    stmt = select(Meeting).where(Meeting.id == meeting_id) 
-                    meeting = session.execute(stmt).scalars().first()
-                    
-                    if not meeting:
-                        return f"Error: Meeting ID {meeting_id} not found."
-                    
-                    changes = []
-                    
-                    if new_title:
-                        meeting.title = new_title
-                        changes.append(f"Title -> {new_title}")
-                        
-                    if new_time_iso:
-                        # Parse ISO format
-                        try:
-                            # If only time provided, merge with existing date? No, assume full ISO.
-                            # Usually LLM provides full ISO.
-                            dt = datetime.datetime.fromisoformat(new_time_iso)
-                            meeting.scheduled_at = dt
-                            changes.append(f"Time -> {new_time_iso}")
-                        except ValueError:
-                             return "Error: Invalid ISO format for time. Use YYYY-MM-DDTHH:MM:SS"
-
-                    if new_duration:
-                        meeting.duration_minutes = new_duration
-                        changes.append(f"Duration -> {new_duration}m")
-
-                    # Location Logic
-                    if new_location:
-                        meeting.location = new_location
-                        changes.append(f"Location -> {new_location}")
-                        
-                        # Auto-infer virtual from location keywords if is_virtual not specified
-                        if is_virtual is None:
-                            virtual_keywords = ["virtual", "online", "zoom", "meet", "teams"]
-                            if any(k in new_location.lower() for k in virtual_keywords):
-                                is_virtual = True
-
-                    # Virtual/Link Logic
-                    if is_virtual is True:
-                        if not meeting.video_link:
-                            # Do NOT generate fake links - they don't work
-                            # Real links should come from Google Calendar API integration
-                            logger.warning(f"[UPDATE_MEETING] Virtual meeting but no video_link. Keeping as None.")
-                            changes.append("Video Link -> Not available (requires Calendar API integration)")
-                        
-                        # If location is ambiguous or generic "Virtual", standardize it
-                        if not meeting.location or meeting.location.strip() == "Virtual":
-                             meeting.location = "Virtual (Google Meet)"
-
-                    elif is_virtual is False:
-                        # Switching to physical -> Clear link
-                        meeting.video_link = None
-                        changes.append("Video Link -> Removed (Physical meeting)")
-
-                    session.commit()
-                    return f"✅ Meeting Updated: {', '.join(changes)}"
-                    
-                finally:
-                    session.close()
-            except Exception as e:
-                return f"Error updating meeting: {str(e)}"
-
-        if hasattr(self.supervisor_agent, "add_tool"):
-            self.supervisor_agent.add_tool(update_meeting_tool)
-            self.supervisor_agent.add_tool(check_availability_tool)
-            self.supervisor_agent.add_tool(request_booking_tool)
+    def _update_supervisor_context(self):
+        """Update the supervisor tool context with current agent references."""
+        from app.tools.supervisor_tools import set_supervisor_context
+        set_supervisor_context(twg_agents=self._twg_agents, session_id=self.session_id)
 
 
     def register_agent(self, agent_id: str, agent: LangGraphBaseAgent) -> None:
         """Register a TWG agent."""
         self._twg_agents[agent_id] = agent
+        self._update_supervisor_context()
         logger.info(f"[SUPERVISOR] Registered {agent_id} agent")
 
     def register_all_agents(self) -> None:
@@ -736,6 +118,8 @@ class LangGraphSupervisor:
             "agriculture": create_langgraph_agriculture_agent(keep_history=True),
             "minerals": create_langgraph_minerals_agent(keep_history=True),
             "digital": create_langgraph_digital_agent(keep_history=True),
+            "protocol": create_langgraph_protocol_agent(keep_history=True),
+            "resource_mobilization": create_langgraph_resource_mobilization_agent(keep_history=True),
         }
 
         for agent_id, agent in agents.items():
@@ -1077,11 +461,14 @@ class LangGraphSupervisor:
         config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 30}
 
         try:
+            # Track whether we already yielded a final response to prevent duplicates
+            _final_response_yielded = False
+
             # Use astream_events(version="v2") for granular token and tool streaming
             async for event in self.compiled_graph.astream_events(initial_state, config, version="v2"):
                 event_type = event["event"]
                 name = event.get("name", "")
-                
+
                 # Yield Node starts (chain starts that match our graph nodes)
                 if event_type == "on_chain_start" and name in ["route_query", "supervisor", "dispatch_multiple", "synthesis", "single_agent_response", "energy", "agriculture", "minerals", "digital", "protocol", "resource_mobilization"]:
                     yield {
@@ -1096,7 +483,7 @@ class LangGraphSupervisor:
                         "tool": name,
                         "args": event.get("data", {}).get("input", {})
                     }
-                
+
                 # Granular Streaming: Tool Ends
                 elif event_type == "on_tool_end":
                     yield {
@@ -1104,7 +491,7 @@ class LangGraphSupervisor:
                         "tool": name,
                         "result": str(event.get("data", {}).get("output", ""))[:200] + "..." # Truncate long results for UI
                     }
-                
+
                 # Granular Streaming: LLM Tokens
                 elif event_type == "on_chat_model_stream":
                     chunk = event.get("data", {}).get("chunk")
@@ -1113,56 +500,69 @@ class LangGraphSupervisor:
                             "type": "token",
                             "content": chunk.content
                         }
-                
+
                 # End of specific graph nodes producing final response
                 elif event_type == "on_chain_end" and name in ["supervisor", "synthesis", "single_agent_response", "energy", "agriculture", "minerals", "digital", "protocol", "resource_mobilization"]:
                     state_update = event.get("data", {}).get("output", {})
                     if isinstance(state_update, dict) and "final_response" in state_update and state_update["final_response"]:
-                        yield {
-                             "type": "final_response",
-                             "content": state_update["final_response"]
-                        }
+                        if not _final_response_yielded:
+                            _final_response_yielded = True
+                            yield {
+                                 "type": "final_response",
+                                 "content": state_update["final_response"]
+                            }
 
             # CHECK FOR INTERRUPTS (After stream ends, check if it was paused)
             snapshot = await self.compiled_graph.aget_state(config)
             if snapshot.tasks:
                 for task in snapshot.tasks:
-                    if hasattr(task, 'interrupts') and task.interrupts:
-                        for inter in task.interrupts:
-                            # inter.value contains the actual payload
-                            interrupt_value = inter.value if hasattr(inter, 'value') else inter
+                    interrupts = getattr(task, 'interrupts', None)
+                    if interrupts:
+                        for inter in interrupts:
+                            interrupt_value = getattr(inter, 'value', inter)
                             logger.info(f"[SUPERVISOR] Detected interrupt in state after stream: {interrupt_value}")
-                            # Import here to avoid scope issues
                             from langgraph.errors import GraphInterrupt as GI
                             raise GI(interrupt_value)
+            # Also check snapshot.next — if graph is paused (not at END), it may be interrupted
+            if snapshot.next and not _final_response_yielded:
+                logger.info(f"[SUPERVISOR] Graph paused at node(s): {snapshot.next} — possible interrupt")
 
-            # AFTER STREAM: Check if we have a final_response that wasn't yielded
-            # This handles cases where on_chain_end events don't properly propagate state
-            final_state = snapshot.values if snapshot else None
-            if final_state and isinstance(final_state, dict):
-                final_response = final_state.get("final_response")
-                if final_response:
-                    logger.info(f"[SUPERVISOR] Yielding final_response from final state")
-                    yield {
-                        "type": "final_response",
-                        "content": final_response
-                    }
-                # Also check agent_responses for single agent case
-                elif "agent_responses" in final_state and final_state["agent_responses"]:
-                    # Extract response from the single agent
-                    for agent_id, response_raw in final_state["agent_responses"].items():
-                        response_text = ""
-                        if isinstance(response_raw, dict):
-                            response_text = response_raw.get("response", "")
-                        else:
-                            response_text = str(response_raw)
-                        if response_text:
-                            logger.info(f"[SUPERVISOR] Yielding response from agent_responses[{agent_id}]")
-                            yield {
-                                "type": "final_response",
-                                "content": f"[Consulted {agent_id.upper()} TWG]\n\n{response_text}"
-                            }
-                            break
+            # AFTER STREAM: Fallback — only yield if nothing was yielded during stream
+            if not _final_response_yielded:
+                final_state = snapshot.values if snapshot else None
+                if final_state and isinstance(final_state, dict):
+                    final_response = final_state.get("final_response")
+                    if final_response:
+                        logger.info(f"[SUPERVISOR] Yielding final_response from final state (fallback)")
+                        _final_response_yielded = True
+                        yield {
+                            "type": "final_response",
+                            "content": final_response
+                        }
+                    # Also check agent_responses for single agent case
+                    elif "agent_responses" in final_state and final_state["agent_responses"]:
+                        for agent_id, response_raw in final_state["agent_responses"].items():
+                            response_text = ""
+                            if isinstance(response_raw, dict):
+                                response_text = response_raw.get("response", "")
+                            else:
+                                response_text = str(response_raw)
+                            if response_text:
+                                logger.info(f"[SUPERVISOR] Yielding response from agent_responses[{agent_id}] (fallback)")
+                                _final_response_yielded = True
+                                yield {
+                                    "type": "final_response",
+                                    "content": f"[Consulted {agent_id.upper()} TWG]\n\n{response_text}"
+                                }
+                                break
+
+            # 3d. Empty response fallback — if nothing was yielded at all
+            if not _final_response_yielded:
+                logger.warning(f"[SUPERVISOR:{thread_id}] Stream completed with no final response — yielding fallback")
+                yield {
+                    "type": "final_response",
+                    "content": "I encountered an issue processing your request. Please try rephrasing or ask about a specific topic."
+                }
 
         except Exception as e:
             # Check for GraphInterrupt by name to avoid import/scope issues or re-raise if caught

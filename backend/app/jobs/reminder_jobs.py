@@ -3,9 +3,10 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.core.database import AsyncSessionLocal
-from app.models.models import Meeting, MeetingStatus, AuditLog, MeetingParticipant, TWG
+from app.models.models import Meeting, MeetingStatus, AuditLog, MeetingParticipant, TWG, ActionItem, ActionItemStatus, Notification, NotificationType
 from app.services.email_service import email_service
 from app.core.config import settings
+from app.core.ws_manager import ws_manager
 
 logger = logging.getLogger(__name__)
 
@@ -163,3 +164,63 @@ async def check_missing_minutes():
                 logger.info(f"Sent minutes nudge for meeting {meeting.id}")
             except Exception as e:
                  logger.error(f"Failed to send nudge for meeting {meeting.id}: {e}")
+
+
+async def check_overdue_action_items():
+    """
+    Job to detect action items past their due date and flip them to OVERDUE.
+    Creates a notification for each affected owner. Runs every 6 hours.
+    """
+    logger.info("Running check_overdue_action_items job")
+
+    async with AsyncSessionLocal() as db:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        result = await db.execute(
+            select(ActionItem).where(
+                ActionItem.due_date < now,
+                ActionItem.status.in_([ActionItemStatus.PENDING, ActionItemStatus.IN_PROGRESS])
+            )
+        )
+        overdue_items = result.scalars().all()
+
+        if not overdue_items:
+            logger.info("No overdue action items found")
+            return
+
+        for item in overdue_items:
+            item.status = ActionItemStatus.OVERDUE
+
+            # Create notification for owner
+            notification = Notification(
+                user_id=item.owner_id,
+                type=NotificationType.WARNING,
+                title="Action Item Overdue",
+                content=f"'{item.description[:80]}' is past its due date",
+                link="/actions",
+                is_read=False,
+                created_at=datetime.utcnow()
+            )
+            db.add(notification)
+
+            # Broadcast via WebSocket
+            try:
+                await ws_manager.send_personal_message(
+                    {
+                        "type": "NEW_NOTIFICATION",
+                        "data": {
+                            "id": str(notification.id),
+                            "type": notification.type.value,
+                            "title": notification.title,
+                            "content": notification.content,
+                            "link": notification.link,
+                            "created_at": notification.created_at.isoformat()
+                        }
+                    },
+                    str(item.owner_id)
+                )
+            except Exception as e:
+                logger.warning(f"Failed to broadcast overdue notification: {e}")
+
+        await db.commit()
+        logger.info(f"Marked {len(overdue_items)} action items as OVERDUE")

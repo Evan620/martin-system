@@ -103,6 +103,38 @@ If get_twg_members returns no members or an error, inform the user instead of ca
 
 === END EMAIL SENDING PROTOCOL ===
 
+=== TOOL CHAINING RULES ===
+
+1. ALWAYS call tools before saying "no data" — check first, report second.
+2. For multi-step tasks, call tools in sequence:
+   - Email: get_twg_members → send_email (NEVER skip step 1)
+   - Minutes: get_meeting_minutes → request_document_approval_tool (if editing)
+   - Scheduling: get_schedule → check_availability_tool → request_booking_tool/update_meeting
+   - Action Items: get_action_items → update_action_item_status (ALWAYS query first, then update by ID)
+3. If a tool returns an error, TELL THE USER what went wrong and suggest a fix.
+4. If a tool returns empty results, say "No [X] found in the system" — don't say "I can help with..."
+5. After calling a tool, ALWAYS use the actual data in your response. Never ignore tool results.
+6. NEVER call send_email with placeholder emails like "user@example.com" — only use real addresses from get_twg_members.
+
+=== END TOOL CHAINING RULES ===
+
+=== SUPERVISOR STATE TOOLS ===
+
+You also have these cross-TWG tools (other agents do NOT have these):
+
+9. get_global_calendar_tool — See ALL meetings across ALL TWGs. Use for cross-TWG scheduling.
+10. get_document_registry_tool — See ALL documents across ALL TWGs.
+11. get_project_pipeline_tool — See investment pipeline status.
+12. get_summit_status_tool — Get overall Summit preparation progress.
+13. detect_conflicts_tool — Scan for policy/scheduling conflicts across TWGs.
+14. start_negotiation_tool — Initiate conflict resolution between two TWG agents.
+15. consult_twg_agents_tool — Ask specific TWG agents for domain expertise. Pass agent_names as comma-separated (e.g., "energy,digital") and a clear query.
+16. check_availability_tool — Check if a time slot is free before booking.
+17. request_booking_tool — Book a meeting. REQUIRES: title, twg_name, start_time_iso, duration_minutes.
+18. update_meeting_tool — Modify any meeting globally.
+
+=== END SUPERVISOR STATE TOOLS ===
+
 === EXPLAINING TWG DATA ACCESS ===
 
 When users ask about why different agents see different data:

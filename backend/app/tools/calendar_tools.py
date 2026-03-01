@@ -116,7 +116,7 @@ GET_SCHEDULE_TOOL_DEF = {
     "type": "function",
     "function": {
         "name": "get_schedule",
-        "description": "Get the calendar schedule and events for the upcoming days. Use this to answer questions about availability or agenda.",
+        "description": "Get the calendar schedule for the upcoming days. Use when the user asks about meetings, schedule, agenda, or availability. Returns JSON array of meetings with: id, summary, date_label (TODAY/TOMORROW/day name), start time, end time, status, meet_link, location, twg_name. Example: User asks 'what meetings do we have this week?' → call get_schedule(days=7). User asks 'am I free tomorrow?' → call get_schedule(days=2).",
         "parameters": {
             "type": "object",
             "properties": {
@@ -244,7 +244,7 @@ GET_PAST_MEETINGS_TOOL_DEF = {
     "type": "function",
     "function": {
         "name": "get_past_meetings",
-        "description": "Get past meetings and their history. Use this to answer questions about previous meetings, what was discussed, or meeting history.",
+        "description": "Get past meetings and their history. Use when the user asks about previous meetings, what was discussed, or meeting history. Returns JSON array of past meetings with: id, summary, date_label (e.g. 'YESTERDAY', '3 days ago'), start time, status, meet_link, location, twg_name. Example: User asks 'what did we discuss last month?' → call get_past_meetings(days=30). User asks 'show me yesterday's meetings' → call get_past_meetings(days=2, limit=5).",
         "parameters": {
             "type": "object",
             "properties": {
@@ -406,7 +406,7 @@ UPDATE_MEETING_TOOL_DEF = {
     "type": "function",
     "function": {
         "name": "update_meeting",
-        "description": "Update an existing meeting. Use this to change the location, title, time, or convert between virtual and in-person meetings. IMPORTANT: You MUST call this tool to make any changes - do not just say you updated it without calling this tool.",
+        "description": "Update an existing meeting. Use when the user asks to change a meeting's location, title, time, duration, or convert between virtual and in-person. Returns a confirmation message with all changes made. IMPORTANT: You MUST call this tool to make any changes - do not just say you updated it without calling this tool. First call get_schedule to find the meeting ID, then call update_meeting with that ID. Example: User asks 'move the Energy meeting to 3pm' → call get_schedule() to find meeting ID, then call update_meeting(meeting_id='...', new_time_iso='2026-03-15T15:00:00').",
         "parameters": {
             "type": "object",
             "properties": {

@@ -464,9 +464,19 @@ class ActionItemBase(SchemaBase):
 class ActionItemCreate(ActionItemBase):
     pass
 
+class ActionItemUpdate(SchemaBase):
+    description: Optional[str] = None
+    owner_id: Optional[uuid.UUID] = None
+    due_date: Optional[datetime] = None
+    status: Optional[ActionItemStatus] = None
+    priority: Optional[ActionItemPriority] = None
+
 class ActionItemRead(ActionItemBase):
     id: uuid.UUID
     owner: Optional["UserRead"] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
 
 # --- Project Schemas ---
 

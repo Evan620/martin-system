@@ -392,17 +392,28 @@ async def ingest_document(
     try:
         # Get cloud file ID
         metadata = db_doc.metadata_json or {}
-        cloud_file_id = metadata.get("cloud_file_id") or db_doc.file_path
+        cloud_file_id = metadata.get("cloud_file_id")
+        file_bytes = None
 
-        if not cloud_file_id:
-            raise HTTPException(status_code=404, detail="No cloud file ID found for document")
+        # Try cloud storage first (Google Drive)
+        if cloud_file_id:
+            storage = get_storage_service()
+            file_bytes = storage.download_file(cloud_file_id)
+            if file_bytes:
+                logger.info(f"Downloaded from cloud storage: {cloud_file_id}")
 
-        # Download from cloud to temp file for processing
-        storage = get_storage_service()
-        file_bytes = storage.download_file(cloud_file_id)
+        # Fallback: read from local file path
+        if not file_bytes and db_doc.file_path:
+            local_path = db_doc.file_path
+            if not os.path.isabs(local_path):
+                local_path = os.path.join(os.getcwd(), local_path)
+            if os.path.exists(local_path):
+                with open(local_path, "rb") as f:
+                    file_bytes = f.read()
+                logger.info(f"Read from local storage: {local_path}")
 
         if not file_bytes:
-            raise HTTPException(status_code=404, detail="File not found in cloud storage")
+            raise HTTPException(status_code=404, detail="File not found in cloud or local storage")
 
         # Write to temp file
         import tempfile

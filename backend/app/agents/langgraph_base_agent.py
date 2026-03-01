@@ -426,11 +426,11 @@ CRITICAL TOOL USAGE RULES:
         logger.info(f"[{self.agent_id}] Generating response using dynamic tiered memory window of {len(history)} messages...")
 
         try:
-            # Prepare messages for LLM service (dict format)
-            history: List[Dict[str, Any]] = []
-            for msg in messages:
+            # Prepare windowed messages for LLM service (dict format)
+            formatted_history: List[Dict[str, Any]] = []
+            for msg in history:
                 if isinstance(msg, HumanMessage):
-                    history.append({"role": "user", "content": msg.content})
+                    formatted_history.append({"role": "user", "content": msg.content})
                 elif isinstance(msg, AIMessage):
                     msg_dict = {"role": "assistant", "content": msg.content}
                     if hasattr(msg, "tool_calls") and msg.tool_calls:
@@ -445,9 +445,9 @@ CRITICAL TOOL USAGE RULES:
                                  }
                              })
                          msg_dict["tool_calls"] = api_tool_calls
-                    history.append(msg_dict)
+                    formatted_history.append(msg_dict)
                 elif msg.type == "tool":
-                    history.append({
+                    formatted_history.append({
                         "role": "tool",
                         "tool_call_id": msg.tool_call_id,
                         "content": msg.content
@@ -458,21 +458,21 @@ CRITICAL TOOL USAGE RULES:
             # Rule 2: Tool messages MUST be preceded by an assistant message with matching tool_calls
             sanitized_history = []
             skip_indices = set()
-            
-            for i in range(len(history)):
-                msg = history[i]
-                
+
+            for i in range(len(formatted_history)):
+                msg = formatted_history[i]
+
                 # Check for dangling tool calls (assistant with tool_calls but no tool responses)
                 if msg.get("role") == "assistant" and "tool_calls" in msg:
                     # Look ahead for matching tool outputs
                     tool_call_ids = {tc.get("id") for tc in msg.get("tool_calls", []) if isinstance(tc, dict)} # pyre-ignore[16, 29]
                     found_responses = set()
-                    
+
                     # Scan subsequent messages for tool responses
                     j = i + 1
-                    while j < len(history) and history[j].get("role") == "tool":
-                        if history[j].get("tool_call_id") in tool_call_ids:
-                             found_responses.add(history[j].get("tool_call_id"))
+                    while j < len(formatted_history) and formatted_history[j].get("role") == "tool":
+                        if formatted_history[j].get("tool_call_id") in tool_call_ids:
+                             found_responses.add(formatted_history[j].get("tool_call_id"))
                         j += 1
                         
                     # If any tool call is missing a response, strip the tool_calls
@@ -708,15 +708,17 @@ CRITICAL TOOL USAGE RULES:
             
             except ToolAccessDenied as tad:
                 logger.warning(f"[{self.agent_id}] Access denied for tool '{tool_name}': {tad}")
+                error_msg = json.dumps({"error": f"Access denied: {str(tad)}"})
                 new_messages.append(ToolMessage(
                     tool_call_id=tool_id,
-                    content=json.dumps({"error": f"Access denied: {str(tad)}"})
+                    content=error_msg
                 ))
             except GraphInterrupt:
                 raise
             except Exception as e:
-                logger.error(f"[{self.agent_id}] Tool execution failed: {e}")
-                new_messages.append(ToolMessage(tool_call_id=tool_id, content=f"Error: {str(e)}"))
+                logger.error(f"[{self.agent_id}] Tool execution failed for '{tool_name}': {e}", exc_info=True)
+                error_msg = f"Error executing {tool_name}: {str(e)}. Please inform the user about this failure and suggest an alternative approach."
+                new_messages.append(ToolMessage(tool_call_id=tool_id, content=error_msg))
 
         # Update state with all tool results
         cast(List[BaseMessage], state["messages"]).extend(new_messages) # pyre-ignore[16]
@@ -803,18 +805,15 @@ CRITICAL TOOL USAGE RULES:
             result = await graph.ainvoke(initial_state, config)
 
             # CHECK FOR INTERRUPTS (async state retrieval)
+            # Re-raise as GraphInterrupt so it propagates through the outer graph
             snapshot = await graph.aget_state(config)
             if snapshot.tasks:
                 for task in snapshot.tasks:
                     interrupts = getattr(task, 'interrupts', [])
                     if interrupts:
                         interrupt_val = getattr(interrupts[0], 'value', {})
-                        return {
-                            "status": "approval_required",
-                            "approval_request_id": interrupt_val.get("approval_request_id", ""),
-                            "tool_id": interrupt_val.get("tool_id", ""),
-                            "description": interrupt_val.get("description", "A tool requires approval")
-                        }
+                        logger.info(f"[{self.agent_id}] Interrupt detected in snapshot — re-raising GraphInterrupt")
+                        raise GraphInterrupt(interrupt_val)
 
             response_text = result.get("response", "No response generated.")
             citations = result.get("citations", [])

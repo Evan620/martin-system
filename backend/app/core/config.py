@@ -87,6 +87,10 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-2.5-flash"
 
+    # Anthropic (Claude)
+    ANTHROPIC_API_KEY: Optional[str] = None
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
+
     # GitHub Models
     GITHUB_TOKEN: Optional[str] = None
     GITHUB_MODEL: str = "gpt-4o-mini"

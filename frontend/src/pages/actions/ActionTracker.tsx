@@ -1,60 +1,126 @@
+import { useState, useEffect, useCallback } from 'react'
 import { Card, Badge, Avatar } from '../../components/ui'
+import { actionItems } from '../../services/api'
 
-interface Task {
-    title: string
-    source: 'AI Extracted' | 'Manual Entry'
-    date: string
-    avatar: string
-    priority: 'low' | 'medium' | 'high'
-    progress?: number
-    overdue?: boolean
-    completed?: boolean
+interface ActionItemData {
+    id: string
+    description: string
+    owner_id: string
+    owner?: { full_name: string; email: string } | null
+    due_date: string | null
+    status: string
+    priority: string
+    meeting_id?: string | null
+    twg_id: string
+    created_at: string | null
+    updated_at: string | null
+    completed_at: string | null
 }
 
-interface Column {
-    name: string
-    count: number
-    tasks: Task[]
+interface SummaryData {
+    pending: number
+    in_progress: number
+    completed: number
+    overdue: number
+    due_this_week: number
+    completed_this_week: number
+}
+
+const STATUS_COLUMNS = [
+    { key: 'PENDING', label: 'To Do', color: 'bg-slate-400' },
+    { key: 'IN_PROGRESS', label: 'In Progress', color: 'bg-blue-600' },
+    { key: 'OVERDUE', label: 'Overdue', color: 'bg-red-500' },
+    { key: 'COMPLETED', label: 'Completed', color: 'bg-green-500' },
+] as const
+
+const PRIORITY_COLORS: Record<string, string> = {
+    high: 'text-red-600 bg-red-50 dark:bg-red-900/30',
+    medium: 'text-amber-600 bg-amber-50 dark:bg-amber-900/30',
+    low: 'text-green-600 bg-green-50 dark:bg-green-900/30',
+}
+
+const STATUS_TRANSITIONS: Record<string, string[]> = {
+    PENDING: ['IN_PROGRESS', 'COMPLETED'],
+    IN_PROGRESS: ['COMPLETED', 'PENDING'],
+    OVERDUE: ['IN_PROGRESS', 'COMPLETED'],
+    COMPLETED: [],
 }
 
 export default function ActionTracker() {
+    const [items, setItems] = useState<ActionItemData[]>([])
+    const [summary, setSummary] = useState<SummaryData | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [statusFilter, setStatusFilter] = useState<string>('')
+    const [mineOnly, setMineOnly] = useState(false)
+    const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+    const fetchData = useCallback(async () => {
+        try {
+            const params: Record<string, any> = {}
+            if (statusFilter) params.status = statusFilter
+            if (mineOnly) params.mine_only = true
+
+            const [itemsRes, summaryRes] = await Promise.all([
+                actionItems.list(params),
+                actionItems.summary(),
+            ])
+            setItems(itemsRes.data)
+            setSummary(summaryRes.data)
+        } catch (err) {
+            console.error('Failed to fetch action items:', err)
+        } finally {
+            setLoading(false)
+        }
+    }, [statusFilter, mineOnly])
+
+    useEffect(() => {
+        fetchData()
+    }, [fetchData])
+
+    const handleStatusChange = async (itemId: string, newStatus: string) => {
+        setUpdatingId(itemId)
+        try {
+            await actionItems.update(itemId, { status: newStatus })
+            await fetchData()
+        } catch (err: any) {
+            const detail = err?.response?.data?.detail || 'Failed to update status'
+            alert(detail)
+        } finally {
+            setUpdatingId(null)
+        }
+    }
+
+    const getInitials = (name?: string) => {
+        if (!name) return '??'
+        return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    }
+
+    const formatDate = (dateStr: string | null) => {
+        if (!dateStr) return 'No date'
+        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+
+    const isRecentlyCreated = (createdAt: string | null) => {
+        if (!createdAt) return false
+        const diff = Date.now() - new Date(createdAt).getTime()
+        return diff < 24 * 60 * 60 * 1000
+    }
+
+    const recentCount = items.filter(i => isRecentlyCreated(i.created_at)).length
+
     const stats = [
-        { label: 'Open Items', value: '12', change: '+2 new', icon: ListIcon, color: 'text-blue-500' },
-        { label: 'Overdue', value: '5', change: '+1 today', icon: AlertIcon, color: 'text-red-500' },
-        { label: 'Completed (Week)', value: '8', change: '+3 items', icon: CheckIcon, color: 'text-green-500' },
+        { label: 'Open Items', value: summary ? summary.pending + summary.in_progress : 0, change: `${summary?.due_this_week || 0} due this week`, icon: ListIcon, color: 'text-blue-500' },
+        { label: 'Overdue', value: summary?.overdue || 0, change: 'need attention', icon: AlertIcon, color: 'text-red-500' },
+        { label: 'Completed (Week)', value: summary?.completed_this_week || 0, change: 'items done', icon: CheckIcon, color: 'text-green-500' },
     ]
 
-    const columns: Column[] = [
-        {
-            name: 'To Do',
-            count: 4,
-            tasks: [
-                { title: 'Draft Logistics Protocol for VVIPs', source: 'AI Extracted', date: 'Nov 12', avatar: 'JD', priority: 'medium' },
-                { title: 'Update Security Clearance List', source: 'Manual Entry', date: 'Nov 15', avatar: 'MK', priority: 'low' }
-            ]
-        },
-        {
-            name: 'In Progress',
-            count: 3,
-            tasks: [
-                { title: 'Review Border Control Integration Plan', source: 'AI Extracted', date: 'Nov 10', avatar: 'AS', priority: 'high', progress: 65 }
-            ]
-        },
-        {
-            name: 'Review',
-            count: 2,
-            tasks: [
-                { title: 'Finalize budget for Q4 Summit', source: 'Manual Entry', date: 'Oct 30', avatar: 'SF', priority: 'high', overdue: true }
-            ]
-        },
-        {
-            name: 'Completed',
-            count: 8,
-            tasks: [
-                { title: 'Distribute meeting agenda', source: 'AI Extracted', date: 'Nov 01', avatar: 'JD', priority: 'medium', completed: true }
-            ]
-        }
-    ]
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+        )
+    }
 
     return (
         <div className="space-y-6">
@@ -62,17 +128,7 @@ export default function ActionTracker() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white transition-colors">Action Items Tracker</h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Manage and track tasks for the Security Technical Working Group</p>
-                </div>
-                <div className="flex gap-3">
-                    <button className="btn-secondary text-sm flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                        Upload Minutes
-                    </button>
-                    <button className="btn-primary text-sm flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                        Add New Task
-                    </button>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Track and manage action items across your working groups</p>
                 </div>
             </div>
 
@@ -96,111 +152,129 @@ export default function ActionTracker() {
                 ))}
             </div>
 
-            {/* AI extraction alert */}
-            <div className="bg-blue-600/10 border border-blue-500/20 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white">
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-slate-900 dark:text-white transition-colors">AI Extraction Complete</h4>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">3 new action items extracted from "Meeting Minutes - Nov 10"</p>
+            {/* AI extraction alert — only show if recent items exist */}
+            {recentCount > 0 && (
+                <div className="bg-blue-600/10 border border-blue-500/20 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white">
+                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-slate-900 dark:text-white transition-colors">New Action Items</h4>
+                            <p className="text-xs text-slate-600 dark:text-slate-400">{recentCount} action item{recentCount > 1 ? 's' : ''} created in the last 24 hours</p>
+                        </div>
                     </div>
                 </div>
-                <button className="btn-primary py-1.5 px-4 text-xs font-bold">Review Items</button>
-            </div>
+            )}
 
-            {/* Toolbar */}
+            {/* Filter toolbar */}
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-dark-border pb-4 transition-colors">
-                <div className="flex gap-4">
-                    <button className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-2">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-                        Filter
-                    </button>
-                    <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
-                        <div className="flex items-center gap-1 cursor-pointer hover:text-blue-600 transition-colors">Assignee <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M19 9l-7 7-7-7" /></svg></div>
-                        <div className="flex items-center gap-1 cursor-pointer hover:text-blue-600 transition-colors">Priority <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M19 9l-7 7-7-7" /></svg></div>
-                        <div className="flex items-center gap-1 cursor-pointer hover:text-blue-600 transition-colors">Due Date <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M19 9l-7 7-7-7" /></svg></div>
-                    </div>
-                </div>
-                <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 transition-colors">
-                    <button className="bg-white dark:bg-dark-card shadow-sm px-3 py-1.5 rounded-md flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white transition-all">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-                        Board
-                    </button>
-                    <button className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-                        List
+                <div className="flex gap-3 items-center">
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-card text-slate-700 dark:text-slate-300"
+                    >
+                        <option value="">All Statuses</option>
+                        <option value="PENDING">To Do</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="OVERDUE">Overdue</option>
+                        <option value="COMPLETED">Completed</option>
+                    </select>
+                    <button
+                        onClick={() => setMineOnly(!mineOnly)}
+                        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${mineOnly ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-blue-500'}`}
+                    >
+                        My Items
                     </button>
                 </div>
             </div>
 
             {/* Kanban Board */}
-            <div className="grid grid-cols-4 gap-6">
-                {columns.map((column) => (
-                    <div key={column.name} className="space-y-4">
-                        <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${column.name === 'To Do' ? 'bg-slate-400' :
-                                column.name === 'In Progress' ? 'bg-blue-600' :
-                                    column.name === 'Review' ? 'bg-orange-500' :
-                                        'bg-green-500'
-                                }`}></div>
-                            <h3 className="font-bold text-sm text-slate-900 dark:text-white transition-colors">{column.name}</h3>
-                            <Badge size="sm" className="bg-slate-100 dark:bg-slate-800 text-slate-500 transition-colors">{column.count}</Badge>
-                        </div>
+            {items.length === 0 && !statusFilter ? (
+                <div className="text-center py-16 text-slate-400">
+                    <p className="text-lg font-medium">No action items yet</p>
+                    <p className="text-sm mt-1">Action items will appear here once created from meeting minutes</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {(statusFilter ? STATUS_COLUMNS.filter(c => c.key === statusFilter) : STATUS_COLUMNS).map((column) => {
+                        const columnItems = items.filter(i => i.status === column.key)
+                        return (
+                            <div key={column.key} className="space-y-4">
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-2 h-2 rounded-full ${column.color}`}></div>
+                                    <h3 className="font-bold text-sm text-slate-900 dark:text-white transition-colors">{column.label}</h3>
+                                    <Badge size="sm" className="bg-slate-100 dark:bg-slate-800 text-slate-500 transition-colors">{columnItems.length}</Badge>
+                                </div>
 
-                        <div className="space-y-4">
-                            {column.tasks.map((task, i) => (
-                                <Card key={i} className={`p-4 space-y-4 hover:ring-2 hover:ring-blue-500/50 transition-all cursor-pointer ${task.overdue ? 'border-red-500' : ''}`}>
-                                    <div className="flex items-center justify-between">
-                                        <Badge variant="neutral" className="text-[9px] px-1.5 py-0 flex items-center gap-1 transition-colors">
-                                            <svg className="w-2.5 h-2.5 text-purple-600" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" /></svg>
-                                            {task.source}
-                                        </Badge>
-                                        {task.completed && (
-                                            <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white">
-                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                            </div>
-                                        )}
-                                        {task.overdue && (
-                                            <Badge variant="danger" size="sm" className="text-[9px] uppercase font-bold">Overdue</Badge>
-                                        )}
-                                    </div>
+                                <div className="space-y-4">
+                                    {columnItems.map((item) => {
+                                        const isOverdue = item.status === 'OVERDUE'
+                                        const isCompleted = item.status === 'COMPLETED'
+                                        const transitions = STATUS_TRANSITIONS[item.status] || []
 
-                                    <h4 className={`font-bold text-sm leading-tight transition-colors ${task.completed ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white'}`}>
-                                        {task.title}
-                                    </h4>
+                                        return (
+                                            <Card key={item.id} className={`p-4 space-y-3 hover:ring-2 hover:ring-blue-500/50 transition-all ${isOverdue ? 'border-red-500' : ''}`}>
+                                                <div className="flex items-center justify-between">
+                                                    <Badge variant="neutral" className={`text-[9px] px-1.5 py-0 font-bold ${PRIORITY_COLORS[item.priority] || ''}`}>
+                                                        {item.priority}
+                                                    </Badge>
+                                                    {isCompleted && (
+                                                        <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white">
+                                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                                                        </div>
+                                                    )}
+                                                    {isOverdue && (
+                                                        <Badge variant="danger" size="sm" className="text-[9px] uppercase font-bold">Overdue</Badge>
+                                                    )}
+                                                </div>
 
-                                    {task.progress !== undefined && (
-                                        <div className="space-y-1">
-                                            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden transition-colors">
-                                                <div className="h-full bg-blue-600" style={{ width: `${task.progress}%` }}></div>
-                                            </div>
-                                            <div className="flex justify-between items-center text-[10px] text-slate-500">
-                                                <span>Progress</span>
-                                                <span>{task.progress}%</span>
-                                            </div>
-                                        </div>
-                                    )}
+                                                <h4 className={`font-bold text-sm leading-tight transition-colors ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white'}`}>
+                                                    {item.description}
+                                                </h4>
 
-                                    <div className="flex items-center justify-between pt-2">
-                                        <div className="flex items-center gap-2">
-                                            <Avatar size="sm" fallback={task.avatar} />
-                                        </div>
-                                        <div className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${task.overdue ? 'text-red-500' : 'text-slate-400'}`}>
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                            {task.date}
-                                        </div>
-                                    </div>
-                                </Card>
-                            ))}
-                            <button className="w-full py-3 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-slate-400 hover:border-blue-500 hover:text-blue-500 flex items-center justify-center transition-all">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 4v16m8-8H4" /></svg>
-                            </button>
-                        </div>
-                    </div>
-                ))}
-            </div>
+                                                {/* Status change buttons */}
+                                                {transitions.length > 0 && (
+                                                    <div className="flex gap-1.5 flex-wrap">
+                                                        {transitions.map((nextStatus) => (
+                                                            <button
+                                                                key={nextStatus}
+                                                                onClick={() => handleStatusChange(item.id, nextStatus)}
+                                                                disabled={updatingId === item.id}
+                                                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors disabled:opacity-50 ${
+                                                                    nextStatus === 'COMPLETED'
+                                                                        ? 'border-green-300 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30'
+                                                                        : nextStatus === 'IN_PROGRESS'
+                                                                        ? 'border-blue-300 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                                                                        : 'border-slate-300 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                                }`}
+                                                            >
+                                                                {updatingId === item.id ? '...' : nextStatus.replace('_', ' ')}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                <div className="flex items-center justify-between pt-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <Avatar size="sm" fallback={getInitials(item.owner?.full_name)} />
+                                                        <span className="text-[10px] text-slate-500 truncate max-w-[80px]">{item.owner?.full_name || 'Unassigned'}</span>
+                                                    </div>
+                                                    <div className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${isOverdue ? 'text-red-500' : 'text-slate-400'}`}>
+                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                        {formatDate(item.due_date)}
+                                                    </div>
+                                                </div>
+                                            </Card>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
         </div>
     )
 }

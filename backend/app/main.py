@@ -94,7 +94,26 @@ async def startup_event():
     # TODO: Run migrations manually with: alembic upgrade head
     logger.info("Skipping automatic migrations (run manually: alembic upgrade head)")
 
-    
+    # Auto-add missing columns (safe: IF NOT EXISTS)
+    try:
+        from sqlalchemy import text
+        from app.core.database import AsyncSessionLocal
+        async with AsyncSessionLocal() as session:
+            migrations = [
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS ingested_at TIMESTAMP",
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS scope JSONB DEFAULT '[\"twg_restricted\"]'::jsonb",
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'twg_specific'",
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS last_broadcast TIMESTAMP",
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS access_control VARCHAR(50) DEFAULT 'twg_restricted'",
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS parent_document_id UUID REFERENCES documents(id)",
+            ]
+            for stmt in migrations:
+                await session.execute(text(stmt))
+            await session.commit()
+            logger.info("Startup migrations: document columns verified")
+    except Exception as e:
+        logger.warning(f"Startup migration note: {e}")
+
     logger.info(f"API_V1_STR: {settings.API_V1_STR}")
     logger.info(f"CORS_ORIGINS: {cors_origins}")
     logger.info(f"GOOGLE_CLIENT_ID Loaded: {bool(settings.GOOGLE_CLIENT_ID)}")

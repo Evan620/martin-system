@@ -114,6 +114,17 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"Startup migration note: {e}")
 
+    # Auto-sync Leads Council membership from current TWG leads
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.api.routes.twgs import _sync_leads_council_membership
+        async with AsyncSessionLocal() as session:
+            result = await _sync_leads_council_membership(session)
+            await session.commit()
+            logger.info(f"Leads Council sync: +{result['added']} added, -{result['removed']} removed, {result['total_members']} total")
+    except Exception as e:
+        logger.warning(f"Leads Council startup sync note: {e}")
+
     logger.info(f"API_V1_STR: {settings.API_V1_STR}")
     logger.info(f"CORS_ORIGINS: {cors_origins}")
     logger.info(f"GOOGLE_CLIENT_ID Loaded: {bool(settings.GOOGLE_CLIENT_ID)}")

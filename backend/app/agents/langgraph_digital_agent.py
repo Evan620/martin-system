@@ -1,14 +1,14 @@
 """
-Digital Economy & Transformation TWG Agent - LangGraph Implementation
+Digital Transformation TWG Agent - LangGraph Implementation
 
-Proper LangGraph-based agent for Digital Economy & Transformation TWG.
+Proper LangGraph-based agent for Digital Transformation TWG.
 """
 
 from app.agents.langgraph_base_agent import LangGraphBaseAgent
 
 
 class LangGraphDigitalAgent(LangGraphBaseAgent):
-    """LangGraph-based Digital Economy & Transformation TWG Agent"""
+    """LangGraph-based Digital Transformation TWG Agent"""
 
     def __init__(self, keep_history: bool = True, session_id: str = None):
         """

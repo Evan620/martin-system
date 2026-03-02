@@ -13,7 +13,7 @@ async def seed_twgs():
 
     twgs_to_create = [
         {
-            "name": "Energy & Infrastructure TWG",
+            "name": "Energy Trade and Industrial Growth",
             "pillar": TWGPillar.energy_infrastructure,
             "status": "active",
             "group_type": "twg"
@@ -25,13 +25,13 @@ async def seed_twgs():
             "group_type": "twg"
         },
         {
-            "name": "Critical Minerals & Industrialization TWG",
+            "name": "Strategic Minerals and Natural Resource Development",
             "pillar": TWGPillar.critical_minerals_industrialization,
             "status": "active",
             "group_type": "twg"
         },
         {
-            "name": "Digital Economy & Transformation TWG",
+            "name": "Digital Transformation",
             "pillar": TWGPillar.digital_economy_transformation,
             "status": "active",
             "group_type": "twg"

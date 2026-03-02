@@ -1,14 +1,14 @@
 """
-Critical Minerals & Industrialization TWG Agent - LangGraph Implementation
+Strategic Minerals and Natural Resource Development TWG Agent - LangGraph Implementation
 
-Proper LangGraph-based agent for Critical Minerals & Industrialization TWG.
+Proper LangGraph-based agent for Strategic Minerals and Natural Resource Development TWG.
 """
 
 from app.agents.langgraph_base_agent import LangGraphBaseAgent
 
 
 class LangGraphMineralsAgent(LangGraphBaseAgent):
-    """LangGraph-based Critical Minerals & Industrialization TWG Agent"""
+    """LangGraph-based Strategic Minerals and Natural Resource Development TWG Agent"""
 
     def __init__(self, keep_history: bool = True, session_id: str = None):
         """

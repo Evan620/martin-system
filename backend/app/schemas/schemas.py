@@ -201,8 +201,9 @@ class TWGRead(TWGBase):
     political_lead: Optional["UserSimple"] = None
     technical_lead: Optional["UserSimple"] = None
     members: List["UserSimple"] = []
+    action_items: List["ActionItemRead"] = []
+    documents: List["DocumentRead"] = []
     stats: Optional[TWGStats] = None
-    # Removed action_items and documents to prevent MissingGreenlet errors
 
 # --- Document Schemas ---
 

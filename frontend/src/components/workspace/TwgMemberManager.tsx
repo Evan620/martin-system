@@ -16,6 +16,7 @@ interface TwgMemberManagerProps {
     twgId: string;
     twgName?: string;
     canEdit?: boolean;
+    isAutoManaged?: boolean;
 }
 
 /**
@@ -71,7 +72,7 @@ function parseBulkInput(text: string): { email: string; full_name: string }[] {
     return entries;
 }
 
-const TwgMemberManager = ({ twgId, twgName, canEdit = true }: TwgMemberManagerProps) => {
+const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = false }: TwgMemberManagerProps) => {
     const [members, setMembers] = useState<TwgMember[]>([]);
     const [loading, setLoading] = useState(true);
     const [addEmail, setAddEmail] = useState('');
@@ -181,8 +182,21 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true }: TwgMemberManagerPr
 
     return (
         <div className="space-y-6">
+            {/* Auto-Managed Banner */}
+            {isAutoManaged && (
+                <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 flex items-center gap-3">
+                    <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[20px]">sync</span>
+                    <div>
+                        <p className="text-sm font-bold text-blue-700 dark:text-blue-300">Auto-Managed Membership</p>
+                        <p className="text-xs text-blue-600/80 dark:text-blue-400/80 mt-0.5">
+                            This group's membership is automatically synced from TWG political and technical leads. To update membership, change lead assignments on individual TWGs.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Add Member Form - only for editors */}
-            {canEdit && (
+            {canEdit && !isAutoManaged && (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -401,8 +415,8 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true }: TwgMemberManagerPr
                                         </div>
                                     </div>
 
-                                    {/* Remove Button - hidden for leads and read-only viewers */}
-                                    {canEdit && !isLead && (
+                                    {/* Remove Button - hidden for leads, read-only viewers, and auto-managed groups */}
+                                    {canEdit && !isAutoManaged && !isLead && (
                                         <button
                                             onClick={() => handleRemoveMember(member.id, member.full_name)}
                                             disabled={removingId === member.id}
@@ -416,7 +430,7 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true }: TwgMemberManagerPr
                                             )}
                                         </button>
                                     )}
-                                    {canEdit && isLead && (
+                                    {canEdit && !isAutoManaged && isLead && (
                                         <span className="material-symbols-outlined text-[18px] text-slate-300 dark:text-slate-600" title="Leads cannot be removed here">
                                             lock
                                         </span>

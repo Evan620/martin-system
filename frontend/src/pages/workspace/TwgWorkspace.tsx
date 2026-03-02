@@ -445,7 +445,12 @@ export default function TwgWorkspace() {
                     )}
 
                     {activeTab === 'members' && (
-                        <TwgMemberManager twgId={twgId} twgName={twg?.name} canEdit={canManageMembers} />
+                        <TwgMemberManager
+                            twgId={twgId}
+                            twgName={twg?.name}
+                            canEdit={canManageMembers && twg?.group_type !== 'leads_council'}
+                            isAutoManaged={twg?.group_type === 'leads_council'}
+                        />
                     )}
                 </div>
 

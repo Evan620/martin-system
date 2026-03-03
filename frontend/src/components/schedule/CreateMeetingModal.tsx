@@ -148,7 +148,8 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                             : null
                     },
                     start_date: scheduledAtUTC,
-                    start_time: formData.time
+                    start_time: formData.time,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                 };
 
                 console.log('🔄 Creating recurring meeting:', recurringData);

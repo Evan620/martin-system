@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import { RootState } from '../../store'
 import { meetings, actionItems, twgs } from '../../services/api'
 import { Card, Badge } from '../../components/ui'
+import { toLocalInputValue } from '../../utils/dates'
 import MeetingSidebar from './components/MeetingSidebar'
 import MinutesVersionHistory from '../../components/schedule/MinutesVersionHistory'
 
@@ -55,7 +56,7 @@ export default function MeetingDetail() {
     const [showInvitePreviewModal, setShowInvitePreviewModal] = useState(false)
     const [isLoadingAction, setIsLoadingAction] = useState(false)
     const [showVersionHistory, setShowVersionHistory] = useState(false)
-    const [statusModal, setStatusModal] = useState<{ isOpen: boolean, type: 'success' | 'error' | 'info', title: string, message: string }>({
+    const [statusModal, setStatusModal] = useState<{ isOpen: boolean, type: 'success' | 'error' | 'info', title: string, message: string, actionText?: string, onAction?: () => void }>({
         isOpen: false,
         type: 'info',
         title: '',
@@ -643,22 +644,41 @@ export default function MeetingDetail() {
     const handleUpdateMeeting = async () => {
         if (!meetingId) return;
         try {
+            // Convert local datetime-local value to UTC ISO string (same as create form)
+            const scheduledAtUTC = editDate ? new Date(editDate).toISOString() : undefined;
             await meetings.update(meetingId, {
                 title: editTitle,
-                scheduled_at: editDate,
+                scheduled_at: scheduledAtUTC,
                 location: editLocation
             })
             setIsEditingMeeting(false)
             await loadMeetingDetails()
+            // Prompt user to notify participants about the changes
+            setStatusModal({
+                isOpen: true,
+                type: 'success',
+                title: 'Meeting Updated',
+                message: 'Changes saved. Would you like to notify participants? They will receive an updated calendar invite via email.',
+                actionText: 'Notify Participants',
+                onAction: () => {
+                    setStatusModal(prev => ({ ...prev, isOpen: false }))
+                    setShowUpdateModal(true)
+                }
+            })
         } catch (error) {
             console.error("Failed to update meeting", error)
-            alert("Failed to update meeting")
+            setStatusModal({
+                isOpen: true,
+                type: 'error',
+                title: 'Update Failed',
+                message: 'Failed to update meeting. Please try again.'
+            })
         }
     }
 
     const openEditModal = () => {
         setEditTitle(meeting?.title || '')
-        setEditDate(meeting?.scheduled_at ? new Date(meeting.scheduled_at).toISOString().slice(0, 16) : '')
+        setEditDate(meeting?.scheduled_at ? toLocalInputValue(meeting.scheduled_at) : '')
         setEditLocation(meeting?.location || '')
         setIsEditingMeeting(true)
     }
@@ -754,7 +774,9 @@ export default function MeetingDetail() {
                     type={statusModal.type}
                     title={statusModal.title}
                     message={statusModal.message}
-                    onClose={() => setStatusModal(prev => ({ ...prev, isOpen: false }))}
+                    onClose={() => setStatusModal(prev => ({ ...prev, isOpen: false, actionText: undefined, onAction: undefined }))}
+                    actionText={statusModal.actionText}
+                    onAction={statusModal.onAction}
                 />
                 {/* HITL Invite Preview Modal */}
                 <InvitePreviewModal

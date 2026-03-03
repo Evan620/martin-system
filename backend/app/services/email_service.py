@@ -63,8 +63,10 @@ class EmailService:
         event = Event()
         event.add('summary', title)
         event.add('description', description)
-        event.add('dtstart', start_time)
-        event.add('dtend', start_time + timedelta(minutes=duration_minutes))
+        utc_start = start_time.replace(tzinfo=pytz.utc) if start_time.tzinfo is None else start_time
+        utc_end = utc_start + timedelta(minutes=duration_minutes)
+        event.add('dtstart', utc_start)
+        event.add('dtend', utc_end)
         event.add('dtstamp', datetime.now(pytz.utc))
         
         if location:
@@ -343,8 +345,10 @@ class EmailService:
 
         event = Event()
         event.add('summary', f"CANCELLED: {title}")
-        event.add('dtstart', start_time)
-        event.add('dtend', start_time + timedelta(minutes=duration_minutes))
+        utc_start = start_time.replace(tzinfo=pytz.utc) if start_time.tzinfo is None else start_time
+        utc_end = utc_start + timedelta(minutes=duration_minutes)
+        event.add('dtstart', utc_start)
+        event.add('dtend', utc_end)
         event.add('dtstamp', datetime.now(pytz.utc))
         event.add('status', 'CANCELLED')
         

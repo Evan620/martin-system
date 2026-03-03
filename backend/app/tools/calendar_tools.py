@@ -4,14 +4,15 @@ import json
 from app.services.calendar_service import calendar_service
 
 
-async def get_schedule(days: int = 7, twg_id: Optional[str] = None) -> str:
+async def get_schedule(days: int = 7, twg_id: Optional[str] = None, user_timezone: Optional[str] = None) -> str:
     """
     Fetch the calendar schedule for the next N days from the internal database.
-    
+
     Args:
         days: Number of days to look ahead (default: 7)
         twg_id: Optional TWG ID to filter meetings by.
-        
+        user_timezone: Optional user timezone string (e.g. "Africa/Nairobi"). Auto-injected.
+
     Returns:
         JSON string of calendar events
     """
@@ -19,12 +20,16 @@ async def get_schedule(days: int = 7, twg_id: Optional[str] = None) -> str:
     from app.models.models import Meeting
     from sqlalchemy import select, and_
     import uuid
-    
+
     try:
         # Calculate time range
         # Use timezone-aware for accurate "today/tomorrow" labels
         from zoneinfo import ZoneInfo
-        user_tz = ZoneInfo("Africa/Nairobi")
+        tz_name = user_timezone or "Africa/Nairobi"
+        try:
+            user_tz = ZoneInfo(tz_name)
+        except Exception:
+            user_tz = ZoneInfo("Africa/Nairobi")
         now_tz = datetime.now(user_tz)
         
         # Convert to naive datetime for DB comparison (DB stores naive UTC datetimes)
@@ -94,12 +99,13 @@ async def get_schedule(days: int = 7, twg_id: Optional[str] = None) -> str:
                 else:
                     date_label = meeting_date.strftime("%A, %B %d")
                 
+                tz_abbr = now_tz.strftime("%Z")
                 formatted_events.append({
                     "id": str(meeting.id),
                     "summary": meeting.title,
                     "date_label": date_label,
-                    "start": meeting_local.strftime("%Y-%m-%d %I:%M %p EAT"),  # e.g. "2026-01-27 11:18 AM EAT"
-                    "end": (meeting_local + timedelta(minutes=meeting.duration_minutes)).strftime("%I:%M %p EAT"),
+                    "start": meeting_local.strftime(f"%Y-%m-%d %I:%M %p {tz_abbr}"),
+                    "end": (meeting_local + timedelta(minutes=meeting.duration_minutes)).strftime(f"%I:%M %p {tz_abbr}"),
                     "status": meeting.status.value if hasattr(meeting.status, 'value') else meeting.status,
                     "meet_link": meeting.video_link,
                     "location": meeting.location,
@@ -136,15 +142,16 @@ GET_SCHEDULE_TOOL_DEF = {
 }
 
 
-async def get_past_meetings(days: int = 30, limit: int = 10, twg_id: Optional[str] = None) -> str:
+async def get_past_meetings(days: int = 30, limit: int = 10, twg_id: Optional[str] = None, user_timezone: Optional[str] = None) -> str:
     """
     Fetch past meetings from the internal database.
-    
+
     Args:
         days: Number of days to look back (default: 30)
         limit: Maximum number of meetings to return (default: 10)
         twg_id: Optional TWG ID to filter meetings by.
-        
+        user_timezone: Optional user timezone string (e.g. "Africa/Nairobi"). Auto-injected.
+
     Returns:
         JSON string of past meeting events
     """
@@ -152,11 +159,15 @@ async def get_past_meetings(days: int = 30, limit: int = 10, twg_id: Optional[st
     from app.models.models import Meeting
     from sqlalchemy import select, and_
     import uuid
-    
+
     try:
         # Calculate time range
         from zoneinfo import ZoneInfo
-        user_tz = ZoneInfo("Africa/Nairobi")
+        tz_name = user_timezone or "Africa/Nairobi"
+        try:
+            user_tz = ZoneInfo(tz_name)
+        except Exception:
+            user_tz = ZoneInfo("Africa/Nairobi")
         now_tz = datetime.now(user_tz)
         
         # Convert to naive datetime for DB comparison
@@ -222,12 +233,13 @@ async def get_past_meetings(days: int = 30, limit: int = 10, twg_id: Optional[st
                 else:
                     date_label = f"{days_ago} days ago ({meeting_date.strftime('%A, %B %d')})"
                 
+                tz_abbr = now_tz.strftime("%Z")
                 formatted_events.append({
                     "id": str(meeting.id),
                     "summary": meeting.title,
                     "date_label": date_label,
-                    "start": meeting_local.strftime("%Y-%m-%d %I:%M %p EAT"),
-                    "end": (meeting_local + timedelta(minutes=meeting.duration_minutes)).strftime("%I:%M %p EAT"),
+                    "start": meeting_local.strftime(f"%Y-%m-%d %I:%M %p {tz_abbr}"),
+                    "end": (meeting_local + timedelta(minutes=meeting.duration_minutes)).strftime(f"%I:%M %p {tz_abbr}"),
                     "status": meeting.status.value if hasattr(meeting.status, 'value') else meeting.status,
                     "meet_link": meeting.video_link,
                     "location": meeting.location,

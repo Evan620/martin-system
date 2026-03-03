@@ -37,7 +37,7 @@ def set_supervisor_context(twg_agents: Dict[str, Any], session_id: Optional[str]
 # Tool Handlers (module-level async/sync functions)
 # =============================================================================
 
-def get_global_calendar_tool() -> str:
+def get_global_calendar_tool(user_timezone: str = "") -> str:
     """Get the unified schedule of all TWG meetings."""
     from app.core.database import get_sync_db_session
     from app.models.models import Meeting, MeetingStatus
@@ -45,7 +45,11 @@ def get_global_calendar_tool() -> str:
     from datetime import timezone as tz
     from zoneinfo import ZoneInfo
 
-    user_tz = ZoneInfo("Africa/Nairobi")
+    tz_name = user_timezone or "Africa/Nairobi"
+    try:
+        user_tz = ZoneInfo(tz_name)
+    except Exception:
+        user_tz = ZoneInfo("Africa/Nairobi")
 
     try:
         session = get_sync_db_session()
@@ -62,7 +66,8 @@ def get_global_calendar_tool() -> str:
             for m in meetings:
                 utc_time = m.scheduled_at.replace(tzinfo=tz.utc)
                 local_time = utc_time.astimezone(user_tz)
-                time_str = local_time.strftime('%Y-%m-%d %I:%M %p EAT')
+                tz_abbr = local_time.strftime('%Z')
+                time_str = local_time.strftime(f'%Y-%m-%d %I:%M %p {tz_abbr}')
 
                 loc = m.location or "TBD"
                 if m.video_link:

@@ -9,9 +9,10 @@ Handles the business logic for:
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone as dt_tz
 from typing import List, Optional, Tuple
 from calendar import monthrange
+from zoneinfo import ZoneInfo
 import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -130,9 +131,15 @@ class RecurringMeetingService:
                 current = self._get_next_occurrence(current, recurring_meeting)
                 continue
 
-            # Create occurrence datetime with the specified time
-            occurrence = current.replace(hour=hour, minute=minute)
-            occurrences.append(occurrence)
+            # Create occurrence datetime with the specified time in the meeting's timezone,
+            # then convert to naive UTC for DB storage
+            try:
+                meeting_tz = ZoneInfo(recurring_meeting.timezone or "UTC")
+            except Exception:
+                meeting_tz = ZoneInfo("UTC")
+            local_occurrence = current.replace(hour=hour, minute=minute, tzinfo=meeting_tz)
+            utc_occurrence = local_occurrence.astimezone(dt_tz.utc).replace(tzinfo=None)
+            occurrences.append(utc_occurrence)
             occurrence_count += 1
 
             # Move to next occurrence
@@ -326,7 +333,7 @@ class RecurringMeetingService:
             day_of_week=create_data.recurrence_rule.day_of_week,
             start_date=create_data.start_date,
             start_time=create_data.start_time,
-            timezone="UTC",
+            timezone=getattr(create_data, 'timezone', None) or "Africa/Nairobi",
             end_type=create_data.recurrence_end.end_type,
             end_date=create_data.recurrence_end.end_date,
             max_occurrences=create_data.recurrence_end.max_occurrences,
@@ -438,7 +445,7 @@ class RecurringMeetingService:
             day_of_week=create_data.recurrence_rule.day_of_week,
             start_date=create_data.start_date,
             start_time=create_data.start_time,
-            timezone="UTC",
+            timezone=getattr(create_data, 'timezone', None) or "Africa/Nairobi",
             end_type=create_data.recurrence_end.end_type,
             end_date=create_data.recurrence_end.end_date,
             max_occurrences=create_data.recurrence_end.max_occurrences,

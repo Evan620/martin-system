@@ -6,6 +6,8 @@ interface StatusModalProps {
     title: string
     message: string
     onClose: () => void
+    actionText?: string
+    onAction?: () => void
 }
 
 const StatusModal: React.FC<StatusModalProps> = ({
@@ -13,7 +15,9 @@ const StatusModal: React.FC<StatusModalProps> = ({
     type,
     title,
     message,
-    onClose
+    onClose,
+    actionText,
+    onAction
 }) => {
     if (!isOpen) return null
 
@@ -52,13 +56,21 @@ const StatusModal: React.FC<StatusModalProps> = ({
                         </div>
                     </div>
 
-                    <div className="mt-6 flex justify-end">
+                    <div className="mt-6 flex justify-end gap-3">
                         <button
                             onClick={onClose}
-                            className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-2 rounded font-medium hover:opacity-90 transition-opacity"
+                            className={`${onAction ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'} px-4 py-2 rounded font-medium hover:opacity-90 transition-opacity`}
                         >
-                            Close
+                            {onAction ? 'Dismiss' : 'Close'}
                         </button>
+                        {onAction && actionText && (
+                            <button
+                                onClick={onAction}
+                                className="bg-blue-600 text-white px-4 py-2 rounded font-medium hover:bg-blue-700 transition-colors"
+                            >
+                                {actionText}
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

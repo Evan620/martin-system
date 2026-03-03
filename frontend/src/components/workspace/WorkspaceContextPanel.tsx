@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { Card, Badge } from '../ui';
+import { parseUTCDate } from '../../utils/dates';
 
 interface WorkspaceContextPanelProps {
     twgName: string;
@@ -56,7 +57,7 @@ export default function WorkspaceContextPanel({ twgName, twgId, onInsertContext 
                     setMeetings(res.data.map((m: any) => ({
                         id: m.id,
                         title: m.title,
-                        date: new Date(m.scheduled_at).toLocaleString(),
+                        date: parseUTCDate(m.scheduled_at).toLocaleString(),
                         status: m.status === 'scheduled' ? 'upcoming' : 'completed',
                         hasAgenda: !!m.agenda,
                         hasMinutes: !!m.minutes

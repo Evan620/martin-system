@@ -38,6 +38,17 @@ from app.services.storage_service import get_storage_service
 
 router = APIRouter(prefix="/meetings", tags=["Meetings"])
 
+
+def format_meeting_time_for_email(scheduled_at: datetime) -> tuple:
+    """Returns (date_str, time_str) with EAT + UTC labels for batch emails."""
+    import pytz
+    display_tz = pytz.timezone("Africa/Nairobi")
+    utc_time = pytz.UTC.localize(scheduled_at) if scheduled_at.tzinfo is None else scheduled_at
+    local_display = utc_time.astimezone(display_tz)
+    date_str = local_display.strftime("%A, %B %d, %Y")
+    time_str = f"{local_display.strftime('%I:%M %p')} EAT ({scheduled_at.strftime('%H:%M')} UTC)"
+    return date_str, time_str
+
 @router.get("/active")
 async def get_active_meeting(
     db: AsyncSession = Depends(get_db),
@@ -241,23 +252,21 @@ async def create_meeting(
             twg_obj = twg_result.scalar_one_or_none()
             twg_display_name = twg_obj.name if twg_obj else "TWG"
 
-            # Format display time (default to EAT for display)
-            display_tz = pytz.timezone("Africa/Nairobi")
-            utc_time = pytz.UTC.localize(db_meeting.scheduled_at) if db_meeting.scheduled_at.tzinfo is None else db_meeting.scheduled_at
-            local_display = utc_time.astimezone(display_tz)
-
             if invite_emails:
+                meeting_date_str, meeting_time_str = format_meeting_time_for_email(db_meeting.scheduled_at)
                 await email_service.send_meeting_invite(
                     to_emails=invite_emails,
                     subject=f"Meeting Invitation: {db_meeting.title}",
                     template_name="meeting_invite.html",
                     template_context={
-                        "title": db_meeting.title,
-                        "scheduled_time": local_display.strftime('%A, %B %d, %Y at %I:%M %p %Z'),
-                        "duration_minutes": db_meeting.duration_minutes,
-                        "twg_name": twg_display_name,
+                        "user_name": "Valued Participant",
+                        "meeting_title": db_meeting.title,
+                        "meeting_date": meeting_date_str,
+                        "meeting_time": meeting_time_str,
                         "location": db_meeting.location or "Virtual",
                         "video_link": generated_video_link,
+                        "pillar_name": twg_display_name,
+                        "portal_url": settings.FRONTEND_URL + "/schedule",
                     },
                     meeting_details={
                         "title": db_meeting.title,
@@ -439,6 +448,13 @@ async def update_meeting(
         raise HTTPException(status_code=403, detail="Access denied")
         
     update_data = meeting_in.model_dump(exclude_unset=True)
+
+    # Normalize scheduled_at to naive UTC (same as create endpoint)
+    if "scheduled_at" in update_data and update_data["scheduled_at"] is not None:
+        dt = update_data["scheduled_at"]
+        if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+            update_data["scheduled_at"] = dt.astimezone(timezone.utc).replace(tzinfo=None)
+
     for key, value in update_data.items():
         setattr(db_meeting, key, value)
         
@@ -822,11 +838,15 @@ async def get_invite_preview(
     participant_emails = list(set(participant_emails))
 
     # Render email template for preview
+    if db_meeting.scheduled_at:
+        preview_date_str, preview_time_str = format_meeting_time_for_email(db_meeting.scheduled_at)
+    else:
+        preview_date_str, preview_time_str = "TBD", "TBD"
     template_context = {
         "user_name": "Valued Participant",
         "meeting_title": db_meeting.title,
-        "meeting_date": db_meeting.scheduled_at.strftime("%Y-%m-%d") if db_meeting.scheduled_at else "TBD",
-        "meeting_time": db_meeting.scheduled_at.strftime("%H:%M UTC") if db_meeting.scheduled_at else "TBD",
+        "meeting_date": preview_date_str,
+        "meeting_time": preview_time_str,
         "location": db_meeting.location or "Virtual",
         "video_link": db_meeting.video_link,
         "pillar_name": db_meeting.twg.pillar.value if db_meeting.twg else "TWG",
@@ -1073,6 +1093,7 @@ async def approve_and_send_invite(
             if db_meeting.twg and db_meeting.twg.pillar:
                 pillar_name = db_meeting.twg.pillar.value
             
+            invite_date_str, invite_time_str = format_meeting_time_for_email(db_meeting.scheduled_at)
             await email_service.send_meeting_invite(
                 to_emails=participant_emails,
                 subject=f"INVITATION: {db_meeting.title}",
@@ -1080,8 +1101,8 @@ async def approve_and_send_invite(
                 template_context={
                     "user_name": "Valued Participant",
                     "meeting_title": db_meeting.title,
-                    "meeting_date": db_meeting.scheduled_at.strftime("%Y-%m-%d"),
-                    "meeting_time": db_meeting.scheduled_at.strftime("%H:%M UTC"),
+                    "meeting_date": invite_date_str,
+                    "meeting_time": invite_time_str,
                     "location": db_meeting.location or "Virtual",
                     "video_link": db_meeting.video_link,
                     "pillar_name": pillar_name,
@@ -1174,13 +1195,14 @@ async def cancel_meeting(
         if participant_emails:
             from app.services.email_service import email_service
             try:
+                cancel_date_str, cancel_time_str = format_meeting_time_for_email(db_meeting.scheduled_at) if db_meeting.scheduled_at else ("TBD", "TBD")
                 await email_service.send_meeting_cancellation(
                     to_emails=participant_emails,
                     template_context={
                         "user_name": "Valued Participant",
                         "meeting_title": db_meeting.title,
-                        "meeting_date": db_meeting.scheduled_at.strftime("%Y-%m-%d") if db_meeting.scheduled_at else "TBD",
-                        "meeting_time": db_meeting.scheduled_at.strftime("%H:%M UTC") if db_meeting.scheduled_at else "TBD",
+                        "meeting_date": cancel_date_str,
+                        "meeting_time": cancel_time_str,
                         "location": db_meeting.location or "Virtual",
                         "pillar_name": db_meeting.twg.pillar.value if db_meeting.twg else "TWG",
                         "reason": cancel_data.reason,
@@ -1260,13 +1282,14 @@ async def notify_meeting_update(
         if participant_emails:
             from app.services.email_service import email_service
             try:
+                update_date_str, update_time_str = format_meeting_time_for_email(db_meeting.scheduled_at) if db_meeting.scheduled_at else ("TBD", "TBD")
                 await email_service.send_meeting_update(
                     to_emails=participant_emails,
                     template_context={
                         "user_name": "Valued Participant",
                         "meeting_title": db_meeting.title,
-                        "meeting_date": db_meeting.scheduled_at.strftime("%Y-%m-%d") if db_meeting.scheduled_at else "TBD",
-                        "meeting_time": db_meeting.scheduled_at.strftime("%H:%M UTC") if db_meeting.scheduled_at else "TBD",
+                        "meeting_date": update_date_str,
+                        "meeting_time": update_time_str,
                         "location": db_meeting.location or "Virtual",
                         "pillar_name": db_meeting.twg.pillar.value if db_meeting.twg else "TWG",
                         "changes": update_data.changes,

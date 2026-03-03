@@ -354,6 +354,7 @@ class RecurringMeetingCreate(RecurringMeetingBase):
     recurrence_end: RecurrenceEnd
     start_date: datetime
     start_time: str  # "14:00" format
+    timezone: str = "Africa/Nairobi"
 
 class RecurringMeetingUpdate(SchemaBase):
     title_template: Optional[str] = None

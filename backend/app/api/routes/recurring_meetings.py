@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
+from datetime import timezone
 import uuid
 import logging
 
@@ -60,6 +61,14 @@ async def preview_recurring_meeting(
             detail="You do not have access to this TWG"
         )
 
+    # Normalize tz-aware datetimes to naive UTC for PostgreSQL
+    if preview_data.start_date and hasattr(preview_data.start_date, 'tzinfo') and preview_data.start_date.tzinfo is not None:
+        preview_data.start_date = preview_data.start_date.astimezone(timezone.utc).replace(tzinfo=None)
+    if preview_data.recurrence_end and preview_data.recurrence_end.end_date:
+        end_dt = preview_data.recurrence_end.end_date
+        if hasattr(end_dt, 'tzinfo') and end_dt.tzinfo is not None:
+            preview_data.recurrence_end.end_date = end_dt.astimezone(timezone.utc).replace(tzinfo=None)
+
     service = RecurringMeetingService(db)
     occurrences, conflicts = await service.preview_occurrences(preview_data)
 
@@ -98,6 +107,14 @@ async def create_recurring_meeting(
             status_code=403,
             detail="You do not have access to manage meetings for this TWG"
         )
+
+    # Normalize tz-aware datetimes to naive UTC for PostgreSQL
+    if create_data.start_date and hasattr(create_data.start_date, 'tzinfo') and create_data.start_date.tzinfo is not None:
+        create_data.start_date = create_data.start_date.astimezone(timezone.utc).replace(tzinfo=None)
+    if create_data.recurrence_end and create_data.recurrence_end.end_date:
+        end_dt = create_data.recurrence_end.end_date
+        if hasattr(end_dt, 'tzinfo') and end_dt.tzinfo is not None:
+            create_data.recurrence_end.end_date = end_dt.astimezone(timezone.utc).replace(tzinfo=None)
 
     service = RecurringMeetingService(db)
 

@@ -424,7 +424,9 @@ class RecurringMeeting(Base):
     meeting_type: Mapped[str] = mapped_column(String(50), default="virtual")
 
     # Recurrence Configuration
-    frequency: Mapped[RecurrenceFrequency] = mapped_column(Enum(RecurrenceFrequency))
+    frequency: Mapped[RecurrenceFrequency] = mapped_column(
+        Enum(RecurrenceFrequency, values_callable=lambda x: [e.value for e in x])
+    )
     interval_weeks: Mapped[int] = mapped_column(Integer, default=1)
     day_of_week: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 0=Mon, 6=Sun
 
@@ -433,13 +435,16 @@ class RecurringMeeting(Base):
     start_time: Mapped[str] = mapped_column(String(10))  # "14:00" format
     timezone: Mapped[str] = mapped_column(String(50), default="UTC")
 
-    end_type: Mapped[RecurrenceEndType] = mapped_column(Enum(RecurrenceEndType))
+    end_type: Mapped[RecurrenceEndType] = mapped_column(
+        Enum(RecurrenceEndType, values_callable=lambda x: [e.value for e in x])
+    )
     end_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     max_occurrences: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # State
     status: Mapped[RecurringMeetingStatus] = mapped_column(
-        Enum(RecurringMeetingStatus), default=RecurringMeetingStatus.ACTIVE
+        Enum(RecurringMeetingStatus, values_callable=lambda x: [e.value for e in x]),
+        default=RecurringMeetingStatus.ACTIVE
     )
     occurrences_created: Mapped[int] = mapped_column(Integer, default=0)
 

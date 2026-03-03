@@ -459,7 +459,7 @@ class ActionItemBase(SchemaBase):
     meeting_id: Optional[uuid.UUID] = None
     description: str
     owner_id: uuid.UUID
-    due_date: datetime
+    due_date: Optional[datetime] = None
     status: ActionItemStatus = ActionItemStatus.PENDING
     priority: ActionItemPriority = ActionItemPriority.MEDIUM
 
@@ -475,7 +475,7 @@ class ActionItemUpdate(SchemaBase):
 
 class ActionItemRead(ActionItemBase):
     id: uuid.UUID
-    owner: Optional["UserRead"] = None
+    owner: Optional["UserSimple"] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None

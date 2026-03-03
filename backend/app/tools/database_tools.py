@@ -290,6 +290,7 @@ async def create_meeting_invite(
                     },
                     meeting_details={
                         "title": title,
+                        "meeting_id": str(new_meeting.id),
                         "start_time": utc_dt,
                         "duration": duration,
                         "location": video_link or cleaned_location,

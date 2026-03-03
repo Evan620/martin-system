@@ -205,6 +205,7 @@ class ResolutionNotifier:
                 
                 meeting_details = {
                     "title": meeting.title,
+                    "meeting_id": str(meeting.id),
                     "start_time": meeting.scheduled_at,
                     "duration": meeting.duration_minutes,
                     "location": meeting.location

@@ -234,10 +234,9 @@ async def create_meeting(
 
         await db.commit()
 
-        # Send invitation emails to all participants
+        # Sync auto-added participants to Google Calendar so they get calendar invites
         try:
-            from app.services.email_service import email_service
-            import pytz
+            from app.services.calendar_service import calendar_service
 
             # Get participant emails
             p_result = await db.execute(
@@ -246,6 +245,18 @@ async def create_meeting(
                 ).where(MeetingParticipant.meeting_id == db_meeting.id)
             )
             invite_emails = [row[0] for row in p_result.all() if row[0]]
+
+            if invite_emails:
+                # Add attendees to the GCal event (created earlier with empty attendees)
+                # sendUpdates='all' will send native Google Calendar invites
+                calendar_service.add_attendees_to_event(str(db_meeting.id), invite_emails)
+                logger.info(f"Synced {len(invite_emails)} attendees to GCal for meeting {db_meeting.id}")
+        except Exception as e:
+            logger.warning(f"Could not sync attendees to GCal: {e}")
+
+        # Send invitation emails to all participants
+        try:
+            from app.services.email_service import email_service
 
             # Get TWG name
             twg_result = await db.execute(select(TWG).where(TWG.id == db_meeting.twg_id))
@@ -270,6 +281,7 @@ async def create_meeting(
                     },
                     meeting_details={
                         "title": db_meeting.title,
+                        "meeting_id": str(db_meeting.id),
                         "start_time": db_meeting.scheduled_at,
                         "duration": db_meeting.duration_minutes,
                         "location": generated_video_link or db_meeting.location or "Virtual",
@@ -455,9 +467,14 @@ async def update_meeting(
         if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
             update_data["scheduled_at"] = dt.astimezone(timezone.utc).replace(tzinfo=None)
 
+    # Track what changed for Google Calendar sync
+    time_changed = "scheduled_at" in update_data and update_data["scheduled_at"] != db_meeting.scheduled_at
+    duration_changed = "duration_minutes" in update_data and update_data["duration_minutes"] != db_meeting.duration_minutes
+    location_changed = "location" in update_data and update_data["location"] != db_meeting.location
+
     for key, value in update_data.items():
         setattr(db_meeting, key, value)
-        
+
     try:
         await db.commit()
         await db.refresh(db_meeting)
@@ -467,7 +484,28 @@ async def update_meeting(
         print(traceback.format_exc())
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error during update: {str(e)}")
-        
+
+    # Sync changes to Google Calendar (update existing event, don't create new one)
+    if time_changed or duration_changed or location_changed:
+        try:
+            from app.services.calendar_service import calendar_service
+            import asyncio
+            loop = asyncio.get_running_loop()
+            # Always pass start_time + duration together so end time is recalculated
+            await loop.run_in_executor(
+                None,
+                lambda: calendar_service.update_meeting_event(
+                    meeting_id=str(db_meeting.id),
+                    new_start_time=db_meeting.scheduled_at if (time_changed or duration_changed) else None,
+                    new_duration_minutes=db_meeting.duration_minutes,
+                    new_location=db_meeting.location if location_changed else None,
+                )
+            )
+            logger.info(f"Google Calendar synced for meeting {db_meeting.id}")
+        except Exception as e:
+            # Don't fail the update if calendar sync fails
+            print(f"WARNING: Google Calendar sync failed for meeting {meeting_id}: {e}")
+
     return db_meeting
 
 @router.post("/{meeting_id}/minutes", response_model=MinutesRead)
@@ -1085,6 +1123,16 @@ async def approve_and_send_invite(
     
     # ---------------------------------------------------------
 
+    # Sync ALL participants to Google Calendar as attendees
+    # This ensures auto-added members (TWG + secretariat) are on the GCal event
+    try:
+        from app.services.calendar_service import calendar_service
+        if participant_emails:
+            calendar_service.add_attendees_to_event(str(meeting_id), participant_emails)
+            print(f"Synced {len(participant_emails)} attendees to GCal event for meeting {meeting_id}")
+    except Exception as e:
+        print(f"WARNING: Failed to sync attendees to GCal: {e}")
+
     # Send emails
     try:
         if participant_emails:
@@ -1110,6 +1158,7 @@ async def approve_and_send_invite(
                 },
                 meeting_details={
                     "title": db_meeting.title,
+                    "meeting_id": str(db_meeting.id),
                     "start_time": db_meeting.scheduled_at,
                     "duration": db_meeting.duration_minutes,
                     "location": db_meeting.location
@@ -1210,6 +1259,7 @@ async def cancel_meeting(
                     },
                     meeting_details={
                         "title": db_meeting.title,
+                        "meeting_id": str(db_meeting.id),
                         "start_time": db_meeting.scheduled_at or datetime.now(),
                         "duration": db_meeting.duration_minutes,
                         "location": db_meeting.location
@@ -1224,6 +1274,19 @@ async def cancel_meeting(
                 print(f"CRITICAL ERROR: Failed to send cancellation emails:\n{error_trace}")
                 # Don't fail the cancellation just because email failed
                 pass
+
+    # Remove from Google Calendar (notifies attendees natively)
+    try:
+        from app.services.calendar_service import calendar_service
+        import asyncio
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            lambda: calendar_service.cancel_meeting_event(str(db_meeting.id))
+        )
+        logger.info(f"Google Calendar event cancelled for meeting {db_meeting.id}")
+    except Exception as e:
+        print(f"WARNING: Google Calendar cancellation failed for meeting {meeting_id}: {e}")
 
     await audit_service.log_activity(
         db=db,

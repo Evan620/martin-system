@@ -141,12 +141,12 @@ class CalendarService:
 
         try:
             # conferenceDataVersion=1 is REQUIRED for creating Meet links
-            # sendUpdates='none' prevents Google from sending its own email invites
+            # sendUpdates='all' so Google natively adds event to attendees' calendars
             created_event = self.service.events().insert(
-                calendarId='primary', 
-                body=event, 
+                calendarId='primary',
+                body=event,
                 conferenceDataVersion=1,
-                sendUpdates='none' 
+                sendUpdates='all'
             ).execute()
             
             logger.info(f"Event created: {created_event.get('htmlLink')}")
@@ -155,6 +155,25 @@ class CalendarService:
         except Exception as e:
             logger.error(f"Error creating calendar event: {e}")
             return {}
+
+    def get_meeting_event(self, meeting_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Find an existing Google Calendar event by meeting_id extended property.
+        Returns the event dict if found, None otherwise.
+        """
+        if not self._initialize_service() or not self._credentials_valid:
+            return None
+        try:
+            events_result = self.service.events().list(
+                calendarId='primary',
+                privateExtendedProperty=f"meeting_id={meeting_id}",
+                singleEvents=True
+            ).execute()
+            events = events_result.get('items', [])
+            return events[0] if events else None
+        except Exception as e:
+            logger.debug(f"Error checking for existing event for meeting {meeting_id}: {e}")
+            return None
 
     def get_meeting_rsvps(self, meeting_id: str) -> Dict[str, str]:
         """
@@ -247,13 +266,12 @@ class CalendarService:
 
             event['attendees'] = existing_attendees
             
-            # 4. Patch the event
-            # Ensure we don't send updates (since we sent our own email)
+            # 4. Patch the event — sendUpdates='all' so new attendees get calendar invites
             self.service.events().patch(
                 calendarId='primary',
                 eventId=event_id,
                 body={'attendees': existing_attendees},
-                sendUpdates='none'
+                sendUpdates='all'
             ).execute()
             
             logger.info(f"Added {len(new_emails)} attendees to event {event_id}")

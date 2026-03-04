@@ -493,8 +493,9 @@ async def update_meeting(
             import asyncio
             loop = asyncio.get_running_loop()
             # Always pass start_time + duration together so end time is recalculated
+            from app.services.recurring_meeting_service import _gcal_executor
             await loop.run_in_executor(
-                None,
+                _gcal_executor,
                 lambda: calendar_service.update_meeting_event(
                     meeting_id=str(db_meeting.id),
                     new_start_time=db_meeting.scheduled_at if (time_changed or duration_changed) else None,
@@ -1282,8 +1283,9 @@ async def cancel_meeting(
         from app.services.calendar_service import calendar_service
         import asyncio
         loop = asyncio.get_running_loop()
+        from app.services.recurring_meeting_service import _gcal_executor
         await loop.run_in_executor(
-            None,
+            _gcal_executor,
             lambda: calendar_service.cancel_meeting_event(str(db_meeting.id))
         )
         logger.info(f"Google Calendar event cancelled for meeting {db_meeting.id}")

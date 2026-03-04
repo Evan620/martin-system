@@ -14,9 +14,12 @@ from typing import List, Optional, Tuple
 from calendar import monthrange
 from zoneinfo import ZoneInfo
 import logging
+import asyncio
+import pytz
+import concurrent.futures
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, update
 from sqlalchemy.orm import selectinload
 
 from app.models.models import (
@@ -26,9 +29,12 @@ from app.models.models import (
     RecurrenceEndType,
     Meeting,
     MeetingStatus,
+    MeetingParticipant,
+    RsvpStatus,
     TWG,
     User,
     UserRole,
+    twg_members,
 )
 from app.schemas.schemas import (
     RecurringMeetingCreate,
@@ -41,6 +47,169 @@ logger = logging.getLogger(__name__)
 
 # How many days ahead to generate instances
 GENERATION_HORIZON_DAYS = 30
+
+
+def _format_meeting_time_for_email(scheduled_at: datetime) -> tuple:
+    """Returns (date_str, time_str) with EAT + UTC labels."""
+    display_tz = pytz.timezone("Africa/Nairobi")
+    utc_time = pytz.UTC.localize(scheduled_at) if scheduled_at.tzinfo is None else scheduled_at
+    local_display = utc_time.astimezone(display_tz)
+    date_str = local_display.strftime("%A, %B %d, %Y")
+    time_str = f"{local_display.strftime('%I:%M %p')} EAT ({scheduled_at.strftime('%H:%M')} UTC)"
+    return date_str, time_str
+
+
+# Dedicated thread pool for GCal API calls — prevents starving the default executor
+_gcal_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="gcal")
+
+# Track background GCal/email tasks so Celery can drain them before exit
+_pending_gcal_tasks: list = []
+
+
+async def _sync_new_instances_gcal_email(
+    instance_data: list,
+    participant_emails: list,
+    twg_id,
+):
+    """Background task: create GCal events + send invite emails for new recurring instances."""
+    try:
+        from app.services.calendar_service import calendar_service
+        from app.services.email_service import email_service
+        from app.core.config import settings
+        from app.core.database import get_db_session_context
+
+        # Get TWG name using a fresh DB session
+        async with get_db_session_context() as db:
+            twg_result = await db.execute(select(TWG).where(TWG.id == twg_id))
+            twg_obj = twg_result.scalar_one_or_none()
+            twg_display_name = twg_obj.name if twg_obj else "TWG"
+
+        loop = asyncio.get_running_loop()
+        video_link_updates = {}
+
+        for inst in instance_data:
+            # 1. Create Google Calendar event with Meet link
+            try:
+                calendar_event = await loop.run_in_executor(
+                    _gcal_executor,
+                    lambda i=inst: calendar_service.create_meeting_event(
+                        title=i["title"],
+                        start_time=i["scheduled_at"],
+                        duration_minutes=i["duration_minutes"],
+                        description=f"Recurring meeting for {twg_display_name}",
+                        attendees=participant_emails,
+                        meeting_id=i["id"],
+                    )
+                )
+                if calendar_event.get("hangoutLink"):
+                    video_link_updates[inst["id"]] = calendar_event["hangoutLink"]
+                    inst["video_link"] = calendar_event["hangoutLink"]
+                    logger.info(f"GCal event created for recurring instance {inst['id']}")
+            except Exception as e:
+                logger.warning(f"Failed to create GCal event for instance {inst['id']}: {e}")
+
+            # 2. Send email invite
+            try:
+                if participant_emails:
+                    date_str, time_str = _format_meeting_time_for_email(inst["scheduled_at"])
+                    await email_service.send_meeting_invite(
+                        to_emails=participant_emails,
+                        subject=f"Meeting Invitation: {inst['title']}",
+                        template_name="meeting_invite.html",
+                        template_context={
+                            "user_name": "Valued Participant",
+                            "meeting_title": inst["title"],
+                            "meeting_date": date_str,
+                            "meeting_time": time_str,
+                            "location": inst.get("location") or "Virtual",
+                            "video_link": inst.get("video_link"),
+                            "pillar_name": twg_display_name,
+                            "portal_url": settings.FRONTEND_URL + "/schedule",
+                        },
+                        meeting_details={
+                            "title": inst["title"],
+                            "meeting_id": inst["id"],
+                            "start_time": inst["scheduled_at"],
+                            "duration": inst["duration_minutes"],
+                            "location": inst.get("video_link") or inst.get("location") or "Virtual",
+                        },
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to send invite email for instance {inst['id']}: {e}")
+
+            await asyncio.sleep(0.5)
+
+        # Persist video_link updates using a fresh DB session
+        if video_link_updates:
+            try:
+                async with get_db_session_context() as db:
+                    for mid, link in video_link_updates.items():
+                        await db.execute(
+                            update(Meeting)
+                            .where(Meeting.id == uuid.UUID(mid))
+                            .values(video_link=link)
+                        )
+            except Exception as e:
+                logger.warning(f"Failed to persist video_link updates: {e}")
+
+    except Exception as e:
+        logger.warning(f"Background GCal/email sync error: {e}")
+
+
+async def _cancel_instances_gcal_email(
+    instance_data: list,
+    participant_emails: list,
+    twg_display_name: str,
+):
+    """Background task: cancel GCal events + send cancellation emails."""
+    try:
+        from app.services.calendar_service import calendar_service
+        from app.services.email_service import email_service
+        from app.core.config import settings
+
+        loop = asyncio.get_running_loop()
+
+        for inst in instance_data:
+            try:
+                await loop.run_in_executor(
+                    _gcal_executor,
+                    lambda mid=inst["id"]: calendar_service.cancel_meeting_event(mid)
+                )
+                logger.info(f"GCal event cancelled for recurring instance {inst['id']}")
+            except Exception as e:
+                logger.warning(f"Failed to cancel GCal event for instance {inst['id']}: {e}")
+
+            try:
+                if participant_emails:
+                    date_str, time_str = _format_meeting_time_for_email(inst["scheduled_at"])
+                    await email_service.send_meeting_cancellation(
+                        to_emails=participant_emails,
+                        template_context={
+                            "user_name": "Valued Participant",
+                            "meeting_title": inst["title"],
+                            "meeting_date": date_str,
+                            "meeting_time": time_str,
+                            "location": inst.get("location") or "Virtual",
+                            "pillar_name": twg_display_name,
+                            "reason": "Recurring meeting series cancelled",
+                            "portal_url": f"{settings.FRONTEND_URL}/schedule",
+                        },
+                        meeting_details={
+                            "title": inst["title"],
+                            "meeting_id": inst["id"],
+                            "start_time": inst["scheduled_at"],
+                            "duration": inst["duration_minutes"],
+                            "location": inst.get("location"),
+                        },
+                        reason="Recurring meeting series cancelled",
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to send cancellation email for instance {inst['id']}: {e}")
+
+            await asyncio.sleep(0.5)
+
+    except Exception as e:
+        logger.warning(f"Background GCal/email cancellation error: {e}")
 
 
 class RecurringMeetingService:
@@ -265,9 +434,7 @@ class RecurringMeetingService:
             recurring_meeting.occurrences_created += len(new_instances)
             self.db.add(recurring_meeting)
 
-        # Auto-include all SECRETARIAT_LEAD users as participants for each new meeting
-        from app.models.models import MeetingParticipant, RsvpStatus
-
+        # Auto-include all SECRETARIAT_LEAD users as participants
         secretariat_result = await self.db.execute(
             select(User).where(User.role == UserRole.SECRETARIAT_LEAD).where(User.is_active == True)
         )
@@ -292,12 +459,66 @@ class RecurringMeetingService:
                     )
                     self.db.add(participant)
 
+        # Auto-include all TWG members as participants (same as normal meetings)
+        twg_member_result = await self.db.execute(
+            select(User).join(twg_members, twg_members.c.user_id == User.id).where(
+                and_(twg_members.c.twg_id == recurring_meeting.twg_id, User.is_active == True)
+            )
+        )
+        twg_member_users = twg_member_result.scalars().all()
+
+        for meeting in new_instances:
+            for member in twg_member_users:
+                existing_participant = await self.db.execute(
+                    select(MeetingParticipant).where(
+                        and_(
+                            MeetingParticipant.meeting_id == meeting.id,
+                            MeetingParticipant.user_id == member.id
+                        )
+                    )
+                )
+                if not existing_participant.scalar_one_or_none():
+                    participant = MeetingParticipant(
+                        id=uuid.uuid4(),
+                        meeting_id=meeting.id,
+                        user_id=member.id,
+                        rsvp_status=RsvpStatus.PENDING
+                    )
+                    self.db.add(participant)
+
         # Single atomic commit — instances + participants all or nothing
         await self.db.commit()
 
         logger.info(
             f"Generated {len(new_instances)} new instances for recurring meeting {recurring_meeting.id}"
         )
+
+        # --- Post-commit: Schedule background GCal + Email integration ---
+        if new_instances:
+            participant_emails = list(set(
+                [u.email for u in secretariat_users if u.email] +
+                [u.email for u in twg_member_users if u.email]
+            ))
+            instance_data = [
+                {
+                    "id": str(inst.id),
+                    "title": inst.title,
+                    "scheduled_at": inst.scheduled_at,
+                    "duration_minutes": inst.duration_minutes,
+                    "location": inst.location,
+                }
+                for inst in new_instances
+            ]
+            try:
+                task = asyncio.create_task(
+                    _sync_new_instances_gcal_email(
+                        instance_data, participant_emails, recurring_meeting.twg_id
+                    )
+                )
+                _pending_gcal_tasks[:] = [t for t in _pending_gcal_tasks if not t.done()]
+                _pending_gcal_tasks.append(task)
+            except RuntimeError:
+                logger.debug("No event loop for background GCal/email task")
 
         return new_instances
 
@@ -537,14 +758,54 @@ class RecurringMeetingService:
 
         recurring.status = RecurringMeetingStatus.CANCELLED
 
+        cancelled_future_instances = []
         if cancel_future_instances:
             now = datetime.utcnow()
             for instance in recurring.instances:
                 if instance.scheduled_at > now:
                     instance.status = MeetingStatus.CANCELLED
                     self.db.add(instance)
+                    cancelled_future_instances.append(instance)
+
+        # Prepare background task data BEFORE commit (keeps post-commit instant)
+        bg_task_data = None
+        if cancelled_future_instances:
+            try:
+                p_result = await self.db.execute(
+                    select(User.email).join(
+                        MeetingParticipant, MeetingParticipant.user_id == User.id
+                    ).where(MeetingParticipant.meeting_id == cancelled_future_instances[0].id)
+                )
+                participant_emails = [row[0] for row in p_result.all() if row[0]]
+
+                twg_result = await self.db.execute(
+                    select(TWG).where(TWG.id == recurring.twg_id)
+                )
+                twg_obj = twg_result.scalar_one_or_none()
+                twg_display_name = twg_obj.name if twg_obj else "TWG"
+
+                instance_data = [
+                    {
+                        "id": str(inst.id),
+                        "title": inst.title,
+                        "scheduled_at": inst.scheduled_at,
+                        "duration_minutes": inst.duration_minutes,
+                        "location": inst.location,
+                    }
+                    for inst in cancelled_future_instances
+                ]
+                bg_task_data = (instance_data, participant_emails, twg_display_name)
+            except Exception as e:
+                logger.warning(f"Failed to prepare GCal/email data for {recurring_meeting_id}: {e}")
 
         await self.db.commit()
+
+        # Fire-and-forget — no DB work after commit
+        if bg_task_data:
+            try:
+                asyncio.create_task(_cancel_instances_gcal_email(*bg_task_data))
+            except RuntimeError:
+                pass
 
         return recurring
 
@@ -586,5 +847,14 @@ async def generate_all_upcoming_recurring_instances(db: AsyncSession) -> int:
     logger.info(
         f"Generated {total_generated} instances across {len(active_recurring)} recurring meetings"
     )
+
+    # Drain pending background GCal/email tasks before returning
+    # (In Celery context, asyncio.run() would cancel pending tasks on exit)
+    if _pending_gcal_tasks:
+        pending = [t for t in _pending_gcal_tasks if not t.done()]
+        if pending:
+            logger.info(f"Waiting for {len(pending)} background GCal/email tasks...")
+            await asyncio.gather(*pending, return_exceptions=True)
+        _pending_gcal_tasks.clear()
 
     return total_generated

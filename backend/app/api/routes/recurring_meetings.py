@@ -19,11 +19,15 @@ from typing import List, Optional
 from datetime import timezone
 import uuid
 import logging
+import asyncio
 
 from app.core.database import get_db
 from app.models.models import (
     RecurringMeeting,
     RecurringMeetingStatus,
+    MeetingStatus,
+    Meeting,
+    MeetingParticipant,
     User,
     UserRole,
 )
@@ -39,6 +43,24 @@ from app.services.recurring_meeting_service import RecurringMeetingService
 
 router = APIRouter(prefix="/recurring-meetings", tags=["Recurring Meetings"])
 logger = logging.getLogger(__name__)
+
+
+def _meeting_to_read(m: Meeting) -> MeetingRead:
+    """Convert a Meeting ORM instance to MeetingRead without triggering lazy loads."""
+    return MeetingRead(
+        id=m.id,
+        twg_id=m.twg_id,
+        title=m.title,
+        scheduled_at=m.scheduled_at,
+        duration_minutes=m.duration_minutes,
+        location=m.location,
+        status=m.status,
+        meeting_type=m.meeting_type,
+        transcript=m.transcript,
+        video_link=m.video_link,
+        recurring_meeting_id=m.recurring_meeting_id,
+        is_recurring_exception=m.is_recurring_exception,
+    )
 
 
 @router.post("/preview", response_model=RecurringMeetingPreview)
@@ -126,7 +148,7 @@ async def create_recurring_meeting(
         # Convert instances to MeetingRead for response
         upcoming_instances = []
         for instance in recurring_meeting.instances:
-            upcoming_instances.append(MeetingRead.model_validate(instance))
+            upcoming_instances.append(_meeting_to_read(instance))
 
         return RecurringMeetingRead(
             id=recurring_meeting.id,
@@ -193,7 +215,7 @@ async def get_recurring_meeting(
     from datetime import datetime
     now = datetime.utcnow()
     upcoming = [
-        MeetingRead.model_validate(m)
+        _meeting_to_read(m)
         for m in recurring.instances
         if m.scheduled_at > now and m.status != "CANCELLED"
     ]
@@ -269,7 +291,7 @@ async def list_recurring_meetings(
 
     for rm in recurring_meetings:
         upcoming = [
-            MeetingRead.model_validate(m)
+            _meeting_to_read(m)
             for m in rm.instances
             if m.scheduled_at > now and m.status != "CANCELLED"
         ]
@@ -329,42 +351,247 @@ async def update_recurring_meeting(
     if not has_twg_access(current_user, recurring.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # Update recurring meeting fields
+    from datetime import datetime
+    now = datetime.utcnow()
+
     update_fields = update_data.model_dump(exclude_unset=True, exclude={"update_scope"})
+
+    # --- Decompose nested Pydantic objects into individual columns ---
+    recurrence_rule_changed = False
+    if "recurrence_rule" in update_fields and update_fields["recurrence_rule"] is not None:
+        rule = update_fields.pop("recurrence_rule")
+        old_freq, old_interval, old_day = recurring.frequency, recurring.interval_weeks, recurring.day_of_week
+        if "frequency" in rule and rule["frequency"] is not None:
+            recurring.frequency = rule["frequency"]
+        if "interval_weeks" in rule and rule["interval_weeks"] is not None:
+            recurring.interval_weeks = rule["interval_weeks"]
+        if "day_of_week" in rule:
+            recurring.day_of_week = rule["day_of_week"]
+        recurrence_rule_changed = (
+            recurring.frequency != old_freq
+            or recurring.interval_weeks != old_interval
+            or recurring.day_of_week != old_day
+        )
+    else:
+        update_fields.pop("recurrence_rule", None)
+
+    if "recurrence_end" in update_fields and update_fields["recurrence_end"] is not None:
+        end = update_fields.pop("recurrence_end")
+        if "end_type" in end and end["end_type"] is not None:
+            recurring.end_type = end["end_type"]
+        if "end_date" in end:
+            recurring.end_date = end["end_date"]
+        if "max_occurrences" in end:
+            recurring.max_occurrences = end["max_occurrences"]
+    else:
+        update_fields.pop("recurrence_end", None)
+
+    # Track start_time change before applying
+    old_start_time = recurring.start_time
+    start_time_changed = "start_time" in update_fields and update_fields["start_time"] != old_start_time
+
+    # --- Apply remaining simple fields ---
     for field, value in update_fields.items():
         if value is not None:
             setattr(recurring, field, value)
 
+    await db.flush()
+
+    # --- Propagate start_time change to future instance scheduled_at ---
+    if start_time_changed:
+        try:
+            new_hour, new_minute = map(int, recurring.start_time.split(":"))
+        except (ValueError, AttributeError):
+            new_hour, new_minute = 9, 0
+
+        from zoneinfo import ZoneInfo
+        from datetime import timezone as dt_tz
+        try:
+            meeting_tz = ZoneInfo(recurring.timezone or "UTC")
+        except Exception:
+            meeting_tz = ZoneInfo("UTC")
+
+        for instance in recurring.instances:
+            if instance.scheduled_at > now and instance.status != MeetingStatus.CANCELLED and not instance.is_recurring_exception:
+                # Reinterpret the date portion in the meeting timezone with the new time
+                utc_dt = instance.scheduled_at.replace(tzinfo=dt_tz.utc)
+                local_dt = utc_dt.astimezone(meeting_tz)
+                new_local = local_dt.replace(hour=new_hour, minute=new_minute, second=0, microsecond=0)
+                instance.scheduled_at = new_local.astimezone(dt_tz.utc).replace(tzinfo=None)
+                db.add(instance)
+
+    # --- Regenerate instances if recurrence rule changed ---
+    gcal_cancel_instance_ids = []
+    if recurrence_rule_changed:
+        # Cancel future non-exception instances
+        for instance in recurring.instances:
+            if instance.scheduled_at > now and instance.status != MeetingStatus.CANCELLED and not instance.is_recurring_exception:
+                instance.status = MeetingStatus.CANCELLED
+                recurring.occurrences_created = max(0, recurring.occurrences_created - 1)
+                db.add(instance)
+                gcal_cancel_instance_ids.append(str(instance.id))
+
+        await db.flush()
+
+        # Regenerate with new rules
+        service = RecurringMeetingService(db)
+        await service.generate_instances(recurring)
+
+    # --- Propagate template fields to instances ---
+    scope = update_data.update_scope or "future"
+    template_fields = ["title_template", "duration_minutes", "location", "meeting_type"]
+    should_update_instances = any(f in update_fields for f in template_fields)
+
+    if should_update_instances:
+        for instance in recurring.instances:
+            if instance.status == MeetingStatus.CANCELLED or instance.is_recurring_exception:
+                continue
+            if scope == "future" and instance.scheduled_at <= now:
+                continue
+            if "title_template" in update_fields:
+                instance.title = recurring.title_template
+            if "duration_minutes" in update_fields:
+                instance.duration_minutes = recurring.duration_minutes
+            if "location" in update_fields:
+                instance.location = recurring.location
+            if "meeting_type" in update_fields:
+                instance.meeting_type = recurring.meeting_type
+            db.add(instance)
+
     await db.commit()
-    await db.refresh(recurring)
 
-    # If template fields changed, optionally update future instances
-    if update_data.update_scope == "all":
-        from datetime import datetime
-        now = datetime.utcnow()
-        template_fields = ["title_template", "duration_minutes", "location", "meeting_type"]
+    # Reload with fresh instances for response
+    result = await db.execute(
+        select(RecurringMeeting)
+        .where(RecurringMeeting.id == recurring_meeting_id)
+        .options(
+            selectinload(RecurringMeeting.twg),
+            selectinload(RecurringMeeting.instances),
+        )
+    )
+    recurring = result.scalar_one()
 
-        should_update_instances = any(f in update_fields for f in template_fields)
+    # --- Post-commit: Schedule background GCal sync + email notifications ---
+    _needs_sync = (
+        gcal_cancel_instance_ids
+        or (not recurrence_rule_changed and (should_update_instances or start_time_changed))
+        or should_update_instances or start_time_changed or recurrence_rule_changed
+    )
+    if _needs_sync:
+        try:
+            # Extract plain data before background task (ORM objects may detach after response)
+            _bg_cancel_ids = list(gcal_cancel_instance_ids)
+            _bg_update_instances = []
+            if not recurrence_rule_changed and (should_update_instances or start_time_changed):
+                _bg_update_instances = [
+                    {
+                        "id": str(inst.id),
+                        "scheduled_at": inst.scheduled_at,
+                        "duration_minutes": inst.duration_minutes,
+                        "location": inst.location,
+                        "title": inst.title,
+                    }
+                    for inst in recurring.instances
+                    if inst.scheduled_at > now and inst.status != MeetingStatus.CANCELLED
+                    and not inst.is_recurring_exception
+                ]
 
-        if should_update_instances:
-            for instance in recurring.instances:
-                if instance.scheduled_at > now and not instance.is_recurring_exception:
-                    if "title_template" in update_fields:
-                        instance.title = recurring.title_template
-                    if "duration_minutes" in update_fields:
-                        instance.duration_minutes = recurring.duration_minutes
-                    if "location" in update_fields:
-                        instance.location = recurring.location
-                    if "meeting_type" in update_fields:
-                        instance.meeting_type = recurring.meeting_type
-                    db.add(instance)
-            await db.commit()
+            _bg_title = recurring.title_template
+            _bg_start_time_str = recurring.start_time
+            _bg_duration = recurring.duration_minutes
+            _bg_location = recurring.location
+            _bg_twg_name = recurring.twg.name if recurring.twg else "TWG"
+            _bg_rm_id = str(recurring_meeting_id)
+            _bg_start_time_changed = start_time_changed
+            _bg_update_fields = dict(update_fields)
+            _bg_recurrence_rule_changed = recurrence_rule_changed
 
-    # Build response
-    from datetime import datetime
-    now = datetime.utcnow()
+            # Build changes list
+            _bg_changes = []
+            if "title_template" in _bg_update_fields:
+                _bg_changes.append(f"Title changed to: {_bg_title}")
+            if _bg_start_time_changed:
+                _bg_changes.append(f"Time changed to: {_bg_start_time_str}")
+            if "duration_minutes" in _bg_update_fields:
+                _bg_changes.append(f"Duration changed to: {_bg_duration} minutes")
+            if "location" in _bg_update_fields:
+                _bg_changes.append(f"Location changed to: {_bg_location or 'Virtual'}")
+            if _bg_recurrence_rule_changed:
+                _bg_changes.append("Meeting schedule/recurrence pattern updated")
+
+            # Get participant emails (session still alive here)
+            _bg_participant_emails = []
+            active_instance = next(
+                (inst for inst in recurring.instances
+                 if inst.scheduled_at > now and inst.status != MeetingStatus.CANCELLED),
+                None
+            )
+            if active_instance:
+                p_result = await db.execute(
+                    select(User.email).join(
+                        MeetingParticipant, MeetingParticipant.user_id == User.id
+                    ).where(MeetingParticipant.meeting_id == active_instance.id)
+                )
+                _bg_participant_emails = list(set(row[0] for row in p_result.all() if row[0]))
+
+            async def _do_update_gcal_email():
+                try:
+                    from app.services.calendar_service import calendar_service
+                    from app.services.email_service import email_service
+                    from app.core.config import settings
+
+                    loop = asyncio.get_running_loop()
+
+                    # 1. Cancel GCal events for old instances
+                    for mid in _bg_cancel_ids:
+                        try:
+                            from app.services.recurring_meeting_service import _gcal_executor
+                            await loop.run_in_executor(
+                                _gcal_executor, lambda m=mid: calendar_service.cancel_meeting_event(m)
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to cancel GCal for old instance {mid}: {e}")
+                        await asyncio.sleep(0.5)
+
+                    # 2. Update GCal events for modified instances
+                    for inst in _bg_update_instances:
+                        try:
+                            await loop.run_in_executor(
+                                _gcal_executor,
+                                lambda i=inst: calendar_service.update_meeting_event(
+                                    meeting_id=i["id"],
+                                    new_start_time=i["scheduled_at"] if _bg_start_time_changed else None,
+                                    new_duration_minutes=i["duration_minutes"],
+                                    new_location=i["location"] if "location" in _bg_update_fields else None,
+                                    new_title=i["title"] if "title_template" in _bg_update_fields else None,
+                                )
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to update GCal for instance {inst['id']}: {e}")
+                        await asyncio.sleep(0.5)
+
+                    # 3. Send consolidated update email
+                    if _bg_participant_emails and _bg_changes:
+                        await email_service.send_meeting_update(
+                            to_emails=_bg_participant_emails,
+                            template_context={
+                                "user_name": "Valued Participant",
+                                "meeting_title": _bg_title,
+                                "pillar_name": _bg_twg_name,
+                                "portal_url": f"{settings.FRONTEND_URL}/schedule",
+                            },
+                            meeting_details={"title": _bg_title},
+                            changes=_bg_changes,
+                        )
+                except Exception as e:
+                    logger.warning(f"GCal/email sync error for recurring meeting {_bg_rm_id}: {e}")
+
+            asyncio.create_task(_do_update_gcal_email())
+        except Exception as e:
+            logger.warning(f"Failed to schedule GCal/email sync for recurring meeting {recurring_meeting_id}: {e}")
+
     upcoming = [
-        MeetingRead.model_validate(m)
+        _meeting_to_read(m)
         for m in recurring.instances
         if m.scheduled_at > now and m.status != "CANCELLED"
     ]
@@ -491,12 +718,14 @@ async def resume_recurring_meeting(
     result = await db.execute(
         select(RecurringMeeting)
         .where(RecurringMeeting.id == recurring.id)
-        .options(selectinload(RecurringMeeting.instances))
+        .options(
+            selectinload(RecurringMeeting.instances),
+        )
     )
     recurring = result.scalar_one()
 
     upcoming = [
-        MeetingRead.model_validate(m)
+        _meeting_to_read(m)
         for m in recurring.instances
         if m.scheduled_at > now and m.status != "CANCELLED"
     ]

@@ -379,15 +379,18 @@ class CalendarService:
                 logger.warning(f"No calendar event found for meeting_id {meeting_id} to cancel")
                 return False
 
-            event_id = events[0]['id']
-            
-            self.service.events().delete(
-                calendarId='primary',
-                eventId=event_id,
-                sendUpdates='all'  # Notify attendees of cancellation
-            ).execute()
-            
-            logger.info(f"Cancelled calendar event {event_id} for meeting {meeting_id}")
+            # Delete ALL matching events (handles duplicates)
+            for event in events:
+                event_id = event['id']
+                self.service.events().delete(
+                    calendarId='primary',
+                    eventId=event_id,
+                    sendUpdates='all'  # Notify attendees of cancellation
+                ).execute()
+                logger.info(f"Cancelled calendar event {event_id} for meeting {meeting_id}")
+
+            if len(events) > 1:
+                logger.warning(f"Deleted {len(events)} duplicate GCal events for meeting {meeting_id}")
             return True
 
         except Exception as e:

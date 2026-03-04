@@ -18,6 +18,10 @@ from loguru import logger
 from typing import List, Optional, Tuple
 import asyncio
 from uuid import UUID
+import concurrent.futures
+
+# Dedicated thread pool for GCal API calls — prevents starving the default executor
+_gcal_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="gcal-monitor")
 
 
 from sqlalchemy.orm import selectinload
@@ -168,6 +172,8 @@ class ContinuousMonitor:
                     and_(
                         Meeting.scheduled_at >= lookback,
                         Meeting.status != MeetingStatus.CANCELLED,
+                        # Skip recurring instances — handled by recurring_meeting_service background tasks
+                        Meeting.recurring_meeting_id.is_(None),
                         or_(
                             Meeting.location.ilike("%Virtual%"),
                             Meeting.location.ilike("%Online%"),
@@ -199,7 +205,7 @@ class ContinuousMonitor:
                     loop = asyncio.get_running_loop()
 
                     existing_event = await loop.run_in_executor(
-                        None,
+                        _gcal_executor,
                         lambda m=meeting: calendar_service.get_meeting_event(str(m.id))
                     )
 
@@ -222,7 +228,7 @@ class ContinuousMonitor:
                     attendee_emails = [row[0] for row in participant_result.all() if row[0]]
 
                     event = await loop.run_in_executor(
-                        None,
+                        _gcal_executor,
                         lambda m=meeting, emails=attendee_emails: calendar_service.create_meeting_event(
                             title=m.title,
                             start_time=m.scheduled_at,

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { RootState } from '../../store'
-import { meetings, actionItems, twgs } from '../../services/api'
+import { meetings, actionItems, twgs, recurringMeetings } from '../../services/api'
 import { Card, Badge } from '../../components/ui'
 import { toLocalInputValue } from '../../utils/dates'
 import MeetingSidebar from './components/MeetingSidebar'
@@ -80,6 +80,19 @@ export default function MeetingDetail() {
     const [editTitle, setEditTitle] = useState('')
     const [editDate, setEditDate] = useState('')
     const [editLocation, setEditLocation] = useState('')
+
+    // Manage Series State
+    const [showManageSeriesModal, setShowManageSeriesModal] = useState(false)
+    const [seriesData, setSeriesData] = useState<any>(null)
+    const [seriesLoading, setSeriesLoading] = useState(false)
+    const [seriesEditMode, setSeriesEditMode] = useState(false)
+    const [seriesTitle, setSeriesTitle] = useState('')
+    const [seriesTime, setSeriesTime] = useState('')
+    const [seriesDuration, setSeriesDuration] = useState(60)
+    const [seriesLocation, setSeriesLocation] = useState('')
+    const [seriesUpdateScope, setSeriesUpdateScope] = useState<'future' | 'all'>('future')
+    const [showCancelSeriesConfirm, setShowCancelSeriesConfirm] = useState(false)
+    const [seriesActionLoading, setSeriesActionLoading] = useState(false)
 
     // Transcript State
     const [transcript, setTranscript] = useState('')
@@ -683,6 +696,90 @@ export default function MeetingDetail() {
         setIsEditingMeeting(true)
     }
 
+    const openManageSeriesModal = async () => {
+        if (!meeting?.recurring_meeting_id) return
+        setShowManageSeriesModal(true)
+        setSeriesLoading(true)
+        setSeriesEditMode(false)
+        try {
+            const res = await recurringMeetings.get(meeting.recurring_meeting_id)
+            setSeriesData(res.data)
+            setSeriesTitle(res.data.title_template || '')
+            setSeriesTime(res.data.start_time || '')
+            setSeriesDuration(res.data.duration_minutes || 60)
+            setSeriesLocation(res.data.location || '')
+        } catch (error) {
+            console.error("Failed to load series data", error)
+            setStatusModal({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to load recurring series details.' })
+            setShowManageSeriesModal(false)
+        } finally {
+            setSeriesLoading(false)
+        }
+    }
+
+    const handleUpdateSeries = async () => {
+        if (!seriesData) return
+        setSeriesActionLoading(true)
+        try {
+            const payload: any = { update_scope: seriesUpdateScope }
+            if (seriesTitle !== seriesData.title_template) payload.title_template = seriesTitle
+            if (seriesTime !== seriesData.start_time) payload.start_time = seriesTime
+            if (seriesDuration !== seriesData.duration_minutes) payload.duration_minutes = seriesDuration
+            if (seriesLocation !== (seriesData.location || '')) payload.location = seriesLocation
+
+            const res = await recurringMeetings.update(seriesData.id, payload)
+            setSeriesData(res.data)
+            setSeriesEditMode(false)
+            setStatusModal({ isOpen: true, type: 'success', title: 'Series Updated', message: 'Recurring series has been updated.' })
+            await loadMeetingDetails()
+        } catch (error: any) {
+            console.error("Failed to update series", error)
+            setStatusModal({ isOpen: true, type: 'error', title: 'Update Failed', message: error?.response?.data?.detail || 'Failed to update series.' })
+        } finally {
+            setSeriesActionLoading(false)
+        }
+    }
+
+    const handleTogglePauseSeries = async () => {
+        if (!seriesData) return
+        setSeriesActionLoading(true)
+        try {
+            const isPaused = seriesData.status === 'paused'
+            const res = isPaused
+                ? await recurringMeetings.resume(seriesData.id)
+                : await recurringMeetings.pause(seriesData.id)
+            setSeriesData(res.data)
+            setStatusModal({
+                isOpen: true,
+                type: 'success',
+                title: isPaused ? 'Series Resumed' : 'Series Paused',
+                message: isPaused ? 'New instances will be generated again.' : 'No new instances will be generated until resumed.'
+            })
+        } catch (error: any) {
+            console.error("Failed to toggle pause", error)
+            setStatusModal({ isOpen: true, type: 'error', title: 'Error', message: error?.response?.data?.detail || 'Failed to update series status.' })
+        } finally {
+            setSeriesActionLoading(false)
+        }
+    }
+
+    const handleCancelSeries = async (_reason: string) => {
+        if (!seriesData) return
+        setSeriesActionLoading(true)
+        try {
+            await recurringMeetings.delete(seriesData.id, true)
+            setShowCancelSeriesConfirm(false)
+            setShowManageSeriesModal(false)
+            setStatusModal({ isOpen: true, type: 'success', title: 'Series Cancelled', message: 'The recurring series and all future instances have been cancelled.' })
+            await loadMeetingDetails()
+        } catch (error: any) {
+            console.error("Failed to cancel series", error)
+            setStatusModal({ isOpen: true, type: 'error', title: 'Error', message: error?.response?.data?.detail || 'Failed to cancel series.' })
+        } finally {
+            setSeriesActionLoading(false)
+        }
+    }
+
     const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!meetingId || !e.target.files || e.target.files.length === 0) return;
 
@@ -826,10 +923,10 @@ export default function MeetingDetail() {
                 )}
 
                 {/* Header */}
-                <div className="px-8 py-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                    <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
+                <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
                                 <button onClick={() => navigate(-1)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors">
                                     <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -895,9 +992,16 @@ export default function MeetingDetail() {
                                     </span>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-4">
-                                <h1 className="text-3xl font-display font-black text-slate-900 dark:text-white">{meeting?.title}</h1>
-                                <Badge variant="success" className="uppercase text-xs">{meeting?.status}</Badge>
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <h1 className="text-2xl sm:text-3xl font-display font-black text-slate-900 dark:text-white">{meeting?.title}</h1>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <Badge variant="success" className="uppercase text-xs">{meeting?.status}</Badge>
+                                    {meeting?.recurring_meeting_id && (
+                                        <Badge variant="info" className="text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                                            Recurring Series
+                                        </Badge>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex items-center gap-2 mt-2 text-sm text-slate-500">
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -911,14 +1015,14 @@ export default function MeetingDetail() {
                                 </span>
                             </div>
                         </div>
-                        <div className="flex gap-3">
+                        <div className="flex flex-wrap gap-2 sm:gap-3">
                             {['scheduled', 'SCHEDULED'].includes(meeting?.status) && (
                                 <>
                                     <button onClick={handleNotifyUpdate} className="btn-secondary text-sm flex items-center gap-2 border-yellow-500 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/30">
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                                         </svg>
-                                        Send Update
+                                        <span className="hidden sm:inline">Send Update</span>
                                     </button>
                                     <button onClick={handleCancelMeeting} className="btn-secondary text-sm flex items-center gap-2 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -932,8 +1036,16 @@ export default function MeetingDetail() {
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
-                                Edit Meeting
+                                <span className="hidden sm:inline">Edit Meeting</span>
                             </button>
+                            {meeting?.recurring_meeting_id && (
+                                <button onClick={openManageSeriesModal} className="btn-secondary text-sm flex items-center gap-2 border-indigo-400 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    <span className="hidden sm:inline">Manage Series</span>
+                                </button>
+                            )}
                             {meeting?.video_link && (
                                 <button
                                     onClick={() => window.open(
@@ -964,7 +1076,7 @@ export default function MeetingDetail() {
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
-                                    Approve & Send
+                                    <span className="hidden sm:inline">Approve & Send</span>
                                 </button>
                             )}
                         </div>
@@ -1973,6 +2085,244 @@ export default function MeetingDetail() {
                     </div>
                 )
             }
+            {/* Manage Series Modal */}
+            {showManageSeriesModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Manage Recurring Series</h2>
+                                {seriesData && (
+                                    <Badge
+                                        variant={seriesData.status === 'active' ? 'success' : seriesData.status === 'paused' ? 'warning' : 'neutral'}
+                                        className="mt-1 text-xs uppercase"
+                                    >
+                                        {seriesData.status}
+                                    </Badge>
+                                )}
+                            </div>
+                            <button onClick={() => setShowManageSeriesModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {seriesLoading ? (
+                            <div className="p-12 text-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                                <p className="mt-3 text-sm text-slate-500">Loading series details...</p>
+                            </div>
+                        ) : seriesData && !seriesEditMode ? (
+                            /* View Mode */
+                            <div className="p-4 sm:p-6 space-y-6">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Title</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.title_template}</p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Frequency</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1 capitalize">
+                                            {seriesData.frequency}{seriesData.interval_weeks > 1 ? ` (every ${seriesData.interval_weeks} weeks)` : ''}
+                                        </p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Time</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.start_time}</p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Duration</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.duration_minutes} min</p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Day</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">
+                                            {seriesData.day_of_week !== null && seriesData.day_of_week !== undefined
+                                                ? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][seriesData.day_of_week]
+                                                : 'N/A'}
+                                        </p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">End Type</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1 capitalize">
+                                            {seriesData.end_type === 'never' ? 'Never' :
+                                                seriesData.end_type === 'after_date' ? `Until ${new Date(seriesData.end_date).toLocaleDateString()}` :
+                                                    `After ${seriesData.max_occurrences} occurrences`}
+                                        </p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Instances Created</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.occurrences_created}</p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Location</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.location || 'Not set'}</p>
+                                    </div>
+                                </div>
+
+                                {/* Upcoming Instances */}
+                                {seriesData.upcoming_instances?.length > 0 && (
+                                    <div>
+                                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Upcoming Instances</h3>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                                            {seriesData.upcoming_instances.map((inst: any) => (
+                                                <div key={inst.id} className="flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm">
+                                                    <div>
+                                                        <span className="font-medium text-slate-900 dark:text-white">{inst.title}</span>
+                                                        <span className="text-slate-500 ml-2">
+                                                            {new Date(inst.scheduled_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                                                            {' '}
+                                                            {new Date(inst.scheduled_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                    </div>
+                                                    <Badge variant={inst.status === 'SCHEDULED' ? 'success' : 'neutral'} className="text-xs uppercase">{inst.status}</Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : seriesData && seriesEditMode ? (
+                            /* Edit Mode */
+                            <div className="p-4 sm:p-6 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Series Title</label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        value={seriesTitle}
+                                        onChange={e => setSeriesTitle(e.target.value)}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Start Time</label>
+                                        <input
+                                            type="time"
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            value={seriesTime}
+                                            onChange={e => setSeriesTime(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Duration (min)</label>
+                                        <input
+                                            type="number"
+                                            min={15}
+                                            step={15}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            value={seriesDuration}
+                                            onChange={e => setSeriesDuration(Number(e.target.value))}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Location</label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        value={seriesLocation}
+                                        onChange={e => setSeriesLocation(e.target.value)}
+                                        placeholder="Meeting location or video link"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Update Scope</label>
+                                    <div className="flex gap-4">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="seriesScope"
+                                                checked={seriesUpdateScope === 'future'}
+                                                onChange={() => setSeriesUpdateScope('future')}
+                                                className="text-indigo-600"
+                                            />
+                                            <span className="text-sm text-slate-700 dark:text-slate-300">Future instances only</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="seriesScope"
+                                                checked={seriesUpdateScope === 'all'}
+                                                onChange={() => setSeriesUpdateScope('all')}
+                                                className="text-indigo-600"
+                                            />
+                                            <span className="text-sm text-slate-700 dark:text-slate-300">All instances</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : null}
+
+                        {/* Footer */}
+                        {seriesData && !seriesLoading && (
+                            <div className="p-4 sm:p-6 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                                <div className="flex flex-wrap gap-2">
+                                    {seriesData.status !== 'cancelled' && (
+                                        <button
+                                            onClick={() => setShowCancelSeriesConfirm(true)}
+                                            disabled={seriesActionLoading}
+                                            className="px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                        >
+                                            Cancel Series
+                                        </button>
+                                    )}
+                                    {(seriesData.status === 'active' || seriesData.status === 'paused') && (
+                                        <button
+                                            onClick={handleTogglePauseSeries}
+                                            disabled={seriesActionLoading}
+                                            className="px-3 py-2 text-sm font-medium text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
+                                        >
+                                            {seriesActionLoading ? 'Processing...' : seriesData.status === 'paused' ? 'Resume Series' : 'Pause Series'}
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex flex-wrap gap-2 justify-end">
+                                    <button
+                                        onClick={() => { setShowManageSeriesModal(false); setSeriesEditMode(false) }}
+                                        className="btn-secondary"
+                                    >
+                                        Close
+                                    </button>
+                                    {seriesData.status !== 'cancelled' && (
+                                        seriesEditMode ? (
+                                            <button
+                                                onClick={handleUpdateSeries}
+                                                disabled={seriesActionLoading || !seriesTitle}
+                                                className="btn-primary bg-indigo-600 hover:bg-indigo-700"
+                                            >
+                                                {seriesActionLoading ? 'Saving...' : 'Save Changes'}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => setSeriesEditMode(true)}
+                                                className="btn-primary bg-indigo-600 hover:bg-indigo-700"
+                                            >
+                                                Edit Series
+                                            </button>
+                                        )
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Cancel Series Confirmation */}
+            <InputModal
+                isOpen={showCancelSeriesConfirm}
+                onCancel={() => setShowCancelSeriesConfirm(false)}
+                onConfirm={handleCancelSeries}
+                title="Cancel Recurring Series"
+                description="This will cancel the entire recurring series and all future meeting instances. This action cannot be undone."
+                placeholder="Enter reason for cancellation..."
+                confirmText="Cancel Series"
+                confirmVariant="danger"
+                isLoading={seriesActionLoading}
+            />
+
             {/* Action Item Detail Modal */}
             {
                 selectedAction && (

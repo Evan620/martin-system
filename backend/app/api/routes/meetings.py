@@ -154,13 +154,19 @@ async def create_meeting(
             logger.warning("CREATE_MEETING: Entering virtual meeting block")
             try:
                 from app.services.calendar_service import calendar_service
-                calendar_event = calendar_service.create_meeting_event(
-                    title=meeting_in.title,
-                    start_time=meeting_in.scheduled_at,
-                    duration_minutes=meeting_in.duration_minutes,
-                    description=f"Automated meeting for TWG: {meeting_in.twg_id}",
-                    attendees=[],
-                    meeting_id=str(meeting_id)
+                from app.services.recurring_meeting_service import _gcal_executor
+                import asyncio
+                loop = asyncio.get_running_loop()
+                calendar_event = await loop.run_in_executor(
+                    _gcal_executor,
+                    lambda: calendar_service.create_meeting_event(
+                        title=meeting_in.title,
+                        start_time=meeting_in.scheduled_at,
+                        duration_minutes=meeting_in.duration_minutes,
+                        description=f"Automated meeting for TWG: {meeting_in.twg_id}",
+                        attendees=[],
+                        meeting_id=str(meeting_id)
+                    )
                 )
                 if calendar_event.get('hangoutLink'):
                      logger.warning(f"CREATE_MEETING: Generated link: {calendar_event.get('hangoutLink')}")
@@ -170,8 +176,6 @@ async def create_meeting(
             except Exception as e:
                 # Log detailed error but DO NOT fail the meeting creation
                 logger.error(f"CREATE_MEETING: Failed to generate Meet link: {e}")
-                # If it's an HttpError, it might be the 'Invalid conference type value'
-                # causing issues with service accounts. We proceed without video link.
 
         # Create meeting with video_link
         meeting_data = meeting_in.model_dump()
@@ -249,7 +253,13 @@ async def create_meeting(
             if invite_emails:
                 # Add attendees to the GCal event (created earlier with empty attendees)
                 # sendUpdates='all' will send native Google Calendar invites
-                calendar_service.add_attendees_to_event(str(db_meeting.id), invite_emails)
+                from app.services.recurring_meeting_service import _gcal_executor
+                import asyncio
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(
+                    _gcal_executor,
+                    lambda: calendar_service.add_attendees_to_event(str(db_meeting.id), invite_emails)
+                )
                 logger.info(f"Synced {len(invite_emails)} attendees to GCal for meeting {db_meeting.id}")
         except Exception as e:
             logger.warning(f"Could not sync attendees to GCal: {e}")
@@ -1130,8 +1140,14 @@ async def approve_and_send_invite(
     # This ensures auto-added members (TWG + secretariat) are on the GCal event
     try:
         from app.services.calendar_service import calendar_service
+        from app.services.recurring_meeting_service import _gcal_executor
+        import asyncio
+        loop = asyncio.get_running_loop()
         if participant_emails:
-            calendar_service.add_attendees_to_event(str(meeting_id), participant_emails)
+            await loop.run_in_executor(
+                _gcal_executor,
+                lambda: calendar_service.add_attendees_to_event(str(meeting_id), participant_emails)
+            )
             print(f"Synced {len(participant_emails)} attendees to GCal event for meeting {meeting_id}")
     except Exception as e:
         print(f"WARNING: Failed to sync attendees to GCal: {e}")
@@ -1580,11 +1596,17 @@ async def add_participants(
     # Sync to Google Calendar
     try:
         from app.services.calendar_service import calendar_service
+        from app.services.recurring_meeting_service import _gcal_executor
+        import asyncio
+        loop = asyncio.get_running_loop()
         # Get DB meeting to check type
         if db_meeting.meeting_type == 'virtual' or db_meeting.meeting_type == 'hybrid': # Assume virtual/hybrid have links
              emails_to_add = [p.email for p in new_participants if p.email]
              if emails_to_add:
-                 calendar_service.add_attendees_to_event(str(meeting_id), emails_to_add)
+                 await loop.run_in_executor(
+                     _gcal_executor,
+                     lambda: calendar_service.add_attendees_to_event(str(meeting_id), emails_to_add)
+                 )
     except Exception as e:
         # Don't fail the request if sync fails
         import logging

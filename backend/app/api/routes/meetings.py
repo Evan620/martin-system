@@ -468,6 +468,7 @@ async def update_meeting(
             update_data["scheduled_at"] = dt.astimezone(timezone.utc).replace(tzinfo=None)
 
     # Track what changed for Google Calendar sync
+    title_changed = "title" in update_data and update_data["title"] != db_meeting.title
     time_changed = "scheduled_at" in update_data and update_data["scheduled_at"] != db_meeting.scheduled_at
     duration_changed = "duration_minutes" in update_data and update_data["duration_minutes"] != db_meeting.duration_minutes
     location_changed = "location" in update_data and update_data["location"] != db_meeting.location
@@ -486,7 +487,7 @@ async def update_meeting(
         raise HTTPException(status_code=500, detail=f"Database error during update: {str(e)}")
 
     # Sync changes to Google Calendar (update existing event, don't create new one)
-    if time_changed or duration_changed or location_changed:
+    if title_changed or time_changed or duration_changed or location_changed:
         try:
             from app.services.calendar_service import calendar_service
             import asyncio
@@ -499,6 +500,7 @@ async def update_meeting(
                     new_start_time=db_meeting.scheduled_at if (time_changed or duration_changed) else None,
                     new_duration_minutes=db_meeting.duration_minutes,
                     new_location=db_meeting.location if location_changed else None,
+                    new_title=db_meeting.title if title_changed else None,
                 )
             )
             logger.info(f"Google Calendar synced for meeting {db_meeting.id}")

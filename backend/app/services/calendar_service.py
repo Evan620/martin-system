@@ -281,10 +281,11 @@ class CalendarService:
             logger.error(f"Error adding attendees to meeting {meeting_id}: {e}")
             return False
 
-    def update_meeting_event(self, meeting_id: str, new_start_time: datetime.datetime = None, 
-                             new_duration_minutes: int = None, new_location: str = None) -> bool:
+    def update_meeting_event(self, meeting_id: str, new_start_time: datetime.datetime = None,
+                             new_duration_minutes: int = None, new_location: str = None,
+                             new_title: str = None) -> bool:
         """
-        Updates an existing Google Calendar event's time or location.
+        Updates an existing Google Calendar event's time, location, or title.
         Used when conflicts are resolved via auto-negotiation.
         """
         if not self._initialize_service():
@@ -330,7 +331,10 @@ class CalendarService:
                 
             if new_location:
                 patch_body['location'] = new_location
-            
+
+            if new_title:
+                patch_body['summary'] = new_title
+
             if not patch_body:
                 logger.info("No changes to apply to calendar event")
                 return True

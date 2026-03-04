@@ -354,7 +354,7 @@ async def list_meetings(
     List all meetings visible to the user.
     """
     # If admin, show all (unless filtered). If member, show only their TWG meetings.
-    query = select(Meeting).offset(skip).limit(limit)
+    query = select(Meeting).order_by(Meeting.scheduled_at.desc()).offset(skip).limit(limit)
     
     if twg_id:
         if not has_twg_access(current_user, twg_id):

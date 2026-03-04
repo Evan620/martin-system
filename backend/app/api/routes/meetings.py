@@ -150,32 +150,7 @@ async def create_meeting(
         meeting_id = uuid.uuid4()
         
         generated_video_link = None
-        if meeting_in.meeting_type == "virtual":
-            logger.warning("CREATE_MEETING: Entering virtual meeting block")
-            try:
-                from app.services.calendar_service import calendar_service
-                from app.services.recurring_meeting_service import _gcal_executor
-                import asyncio
-                loop = asyncio.get_running_loop()
-                calendar_event = await loop.run_in_executor(
-                    _gcal_executor,
-                    lambda: calendar_service.create_meeting_event(
-                        title=meeting_in.title,
-                        start_time=meeting_in.scheduled_at,
-                        duration_minutes=meeting_in.duration_minutes,
-                        description=f"Automated meeting for TWG: {meeting_in.twg_id}",
-                        attendees=[],
-                        meeting_id=str(meeting_id)
-                    )
-                )
-                if calendar_event.get('hangoutLink'):
-                     logger.warning(f"CREATE_MEETING: Generated link: {calendar_event.get('hangoutLink')}")
-                     generated_video_link = calendar_event.get('hangoutLink')
-                else:
-                     logger.warning(f"CREATE_MEETING: Event created but NO link found")
-            except Exception as e:
-                # Log detailed error but DO NOT fail the meeting creation
-                logger.error(f"CREATE_MEETING: Failed to generate Meet link: {e}")
+        # GCal event creation happens in background — continuous_monitor fills in the link
 
         # Create meeting with video_link
         meeting_data = meeting_in.model_dump()
@@ -238,68 +213,111 @@ async def create_meeting(
 
         await db.commit()
 
-        # Sync auto-added participants to Google Calendar so they get calendar invites
-        try:
-            from app.services.calendar_service import calendar_service
+        # Collect participant emails for background GCal sync + email
+        p_result = await db.execute(
+            select(User.email).join(
+                MeetingParticipant, MeetingParticipant.user_id == User.id
+            ).where(MeetingParticipant.meeting_id == db_meeting.id)
+        )
+        invite_emails = [row[0] for row in p_result.all() if row[0]]
 
-            # Get participant emails
-            p_result = await db.execute(
-                select(User.email).join(
-                    MeetingParticipant, MeetingParticipant.user_id == User.id
-                ).where(MeetingParticipant.meeting_id == db_meeting.id)
-            )
-            invite_emails = [row[0] for row in p_result.all() if row[0]]
+        # Get TWG name for email
+        twg_result = await db.execute(select(TWG).where(TWG.id == db_meeting.twg_id))
+        twg_obj = twg_result.scalar_one_or_none()
+        twg_display_name = twg_obj.name if twg_obj else "TWG"
 
-            if invite_emails:
-                # Add attendees to the GCal event (created earlier with empty attendees)
-                # sendUpdates='all' will send native Google Calendar invites
-                from app.services.recurring_meeting_service import _gcal_executor
-                import asyncio
-                loop = asyncio.get_running_loop()
-                await loop.run_in_executor(
-                    _gcal_executor,
-                    lambda: calendar_service.add_attendees_to_event(str(db_meeting.id), invite_emails)
-                )
-                logger.info(f"Synced {len(invite_emails)} attendees to GCal for meeting {db_meeting.id}")
-        except Exception as e:
-            logger.warning(f"Could not sync attendees to GCal: {e}")
+        # Fire-and-forget: GCal attendee sync + email invites (don't block response)
+        if invite_emails:
+            _bg_meeting_id = str(db_meeting.id)
+            _bg_title = db_meeting.title
+            _bg_scheduled_at = db_meeting.scheduled_at
+            _bg_duration = db_meeting.duration_minutes
+            _bg_location = db_meeting.location
+            _bg_video_link = generated_video_link
+            _bg_emails = invite_emails
+            _bg_twg_name = twg_display_name
 
-        # Send invitation emails to all participants
-        try:
-            from app.services.email_service import email_service
+            _bg_meeting_type = meeting_in.meeting_type
+            _bg_twg_id = str(meeting_in.twg_id)
 
-            # Get TWG name
-            twg_result = await db.execute(select(TWG).where(TWG.id == db_meeting.twg_id))
-            twg_obj = twg_result.scalar_one_or_none()
-            twg_display_name = twg_obj.name if twg_obj else "TWG"
+            async def _bg_sync_and_email():
+                try:
+                    from app.services.calendar_service import calendar_service
+                    from app.services.recurring_meeting_service import _gcal_executor
+                    from app.core.database import get_db_session_context
+                    loop = asyncio.get_running_loop()
 
-            if invite_emails:
-                meeting_date_str, meeting_time_str = format_meeting_time_for_email(db_meeting.scheduled_at)
-                await email_service.send_meeting_invite(
-                    to_emails=invite_emails,
-                    subject=f"Meeting Invitation: {db_meeting.title}",
-                    template_name="meeting_invite.html",
-                    template_context={
-                        "user_name": "Valued Participant",
-                        "meeting_title": db_meeting.title,
-                        "meeting_date": meeting_date_str,
-                        "meeting_time": meeting_time_str,
-                        "location": db_meeting.location or "Virtual",
-                        "video_link": generated_video_link,
-                        "pillar_name": twg_display_name,
-                        "portal_url": settings.FRONTEND_URL + "/schedule",
-                    },
-                    meeting_details={
-                        "title": db_meeting.title,
-                        "meeting_id": str(db_meeting.id),
-                        "start_time": db_meeting.scheduled_at,
-                        "duration": db_meeting.duration_minutes,
-                        "location": generated_video_link or db_meeting.location or "Virtual",
-                    }
-                )
-                logger.info(f"Sent meeting invites to {len(invite_emails)} participants for meeting {db_meeting.id}")
-        except Exception as e:
-            logger.warning(f"Could not send meeting invites: {e}")
+                    # 1. Create GCal event if virtual
+                    if _bg_meeting_type == "virtual":
+                        try:
+                            calendar_event = await loop.run_in_executor(
+                                _gcal_executor,
+                                lambda: calendar_service.create_meeting_event(
+                                    title=_bg_title,
+                                    start_time=_bg_scheduled_at,
+                                    duration_minutes=_bg_duration,
+                                    description=f"Automated meeting for TWG: {_bg_twg_id}",
+                                    attendees=_bg_emails,
+                                    meeting_id=_bg_meeting_id
+                                )
+                            )
+                            video_link = calendar_event.get('hangoutLink')
+                            if video_link:
+                                async with get_db_session_context() as bg_db:
+                                    from sqlalchemy import update as sql_update
+                                    await bg_db.execute(
+                                        sql_update(Meeting)
+                                        .where(Meeting.id == uuid.UUID(_bg_meeting_id))
+                                        .values(video_link=video_link)
+                                    )
+                                logger.info(f"GCal event created with link for meeting {_bg_meeting_id}")
+                        except Exception as e:
+                            logger.warning(f"Failed to create GCal event: {e}")
+
+                    # 2. Add attendees (if event was created by monitor or above)
+                    try:
+                        await loop.run_in_executor(
+                            _gcal_executor,
+                            lambda: calendar_service.add_attendees_to_event(_bg_meeting_id, _bg_emails)
+                        )
+                        logger.info(f"Synced {len(_bg_emails)} attendees to GCal for meeting {_bg_meeting_id}")
+                    except Exception as e:
+                        logger.warning(f"Could not sync attendees to GCal: {e}")
+
+                except Exception as e:
+                    logger.warning(f"Background GCal sync error: {e}")
+
+                # 3. Send email invites
+                try:
+                    from app.services.email_service import email_service
+                    meeting_date_str, meeting_time_str = format_meeting_time_for_email(_bg_scheduled_at)
+                    await email_service.send_meeting_invite(
+                        to_emails=_bg_emails,
+                        subject=f"Meeting Invitation: {_bg_title}",
+                        template_name="meeting_invite.html",
+                        template_context={
+                            "user_name": "Valued Participant",
+                            "meeting_title": _bg_title,
+                            "meeting_date": meeting_date_str,
+                            "meeting_time": meeting_time_str,
+                            "location": _bg_location or "Virtual",
+                            "video_link": _bg_video_link,
+                            "pillar_name": _bg_twg_name,
+                            "portal_url": settings.FRONTEND_URL + "/schedule",
+                        },
+                        meeting_details={
+                            "title": _bg_title,
+                            "meeting_id": _bg_meeting_id,
+                            "start_time": _bg_scheduled_at,
+                            "duration": _bg_duration,
+                            "location": _bg_video_link or _bg_location or "Virtual",
+                        }
+                    )
+                    logger.info(f"Sent meeting invites to {len(_bg_emails)} participants")
+                except Exception as e:
+                    logger.warning(f"Could not send meeting invites: {e}")
+
+            asyncio.create_task(_bg_sync_and_email())
 
         # Eagerly load relationships to avoid MissingGreenlet during serialization
         result = await db.execute(

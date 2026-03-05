@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import logging
 import asyncio
 import pytz
-import concurrent.futures
+from app.services.gcal_executor import gcal_executor as _gcal_executor
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, update
@@ -59,8 +59,6 @@ def _format_meeting_time_for_email(scheduled_at: datetime) -> tuple:
     return date_str, time_str
 
 
-# Dedicated thread pool for GCal API calls — prevents starving the default executor
-_gcal_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="gcal")
 
 # Track background GCal/email tasks so Celery can drain them before exit
 _pending_gcal_tasks: list = []
@@ -763,8 +761,6 @@ class RecurringMeetingService:
             now = datetime.utcnow()
             for instance in recurring.instances:
                 if instance.scheduled_at > now:
-                    instance.status = MeetingStatus.CANCELLED
-                    self.db.add(instance)
                     cancelled_future_instances.append(instance)
 
         # Prepare background task data BEFORE commit (keeps post-commit instant)
@@ -797,6 +793,11 @@ class RecurringMeetingService:
                 bg_task_data = (instance_data, participant_emails, twg_display_name)
             except Exception as e:
                 logger.warning(f"Failed to prepare GCal/email data for {recurring_meeting_id}: {e}")
+
+        # Soft-delete: mark cancelled so they're hidden but preserved for audit
+        for instance in cancelled_future_instances:
+            instance.status = MeetingStatus.CANCELLED
+            self.db.add(instance)
 
         await self.db.commit()
 

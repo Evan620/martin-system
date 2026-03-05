@@ -355,7 +355,10 @@ async def list_meetings(
     """
     # If admin, show all (unless filtered). If member, show only their TWG meetings.
     query = select(Meeting).order_by(Meeting.scheduled_at.desc()).offset(skip).limit(limit)
-    
+
+    # Exclude cancelled meetings from normal listing
+    query = query.where(Meeting.status != MeetingStatus.CANCELLED)
+
     if twg_id:
         if not has_twg_access(current_user, twg_id):
              raise HTTPException(status_code=403, detail="Access denied to this TWG")

@@ -12,7 +12,7 @@ from datetime import datetime
 from loguru import logger
 from uuid import UUID
 import asyncio
-import concurrent.futures
+from app.services.gcal_executor import gcal_executor as _gcal_executor
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -23,8 +23,6 @@ from app.services.calendar_service import calendar_service
 from app.services.email_service import email_service
 from app.services.notification_service import create_notification
 
-# Dedicated thread pool for blocking GCal API calls
-_gcal_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="gcal-notifier")
 
 
 class ResolutionNotifier:

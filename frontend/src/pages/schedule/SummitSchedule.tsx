@@ -27,7 +27,7 @@ export default function SummitSchedule() {
     const loadMeetings = async () => {
         try {
             const response = await meetings.list()
-            const meetingData: CalendarEvent[] = response.data.map((m: any) => ({
+            const meetingData: CalendarEvent[] = response.data.filter((m: any) => m.status !== 'CANCELLED').map((m: any) => ({
                 id: m.id,
                 title: m.title,
                 scheduled_at: parseUTCDate(m.scheduled_at),

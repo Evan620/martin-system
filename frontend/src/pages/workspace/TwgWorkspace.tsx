@@ -44,7 +44,7 @@ export default function TwgWorkspace() {
             setLoading(true);
             const response = await meetings.list();
             // Filter client-side for now
-            const twgMeetings = response.data.filter((m: any) => m.twg_id === twgId);
+            const twgMeetings = response.data.filter((m: any) => m.twg_id === twgId && m.status !== 'CANCELLED');
 
             // Intelligent Sort: Upcoming (ASC) then Past (DESC)
             const now = new Date();

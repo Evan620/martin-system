@@ -12,7 +12,7 @@ from enum import Enum
 from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
 import asyncio
-import concurrent.futures
+from app.services.gcal_executor import gcal_executor as _gcal_executor
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
@@ -27,8 +27,6 @@ from app.models.models import (
 )
 from app.services.calendar_service import calendar_service
 
-# Dedicated thread pool for blocking GCal API calls
-_gcal_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="gcal-scheduler")
 
 class EventPriority(str, Enum):
     """Event priority levels"""

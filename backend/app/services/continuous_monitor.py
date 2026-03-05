@@ -18,10 +18,7 @@ from loguru import logger
 from typing import List, Optional, Tuple
 import asyncio
 from uuid import UUID
-import concurrent.futures
-
-# Dedicated thread pool for GCal API calls — prevents starving the default executor
-_gcal_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="gcal-monitor")
+from app.services.gcal_executor import gcal_executor as _gcal_executor
 
 
 from sqlalchemy.orm import selectinload

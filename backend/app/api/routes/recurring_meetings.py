@@ -423,13 +423,13 @@ async def update_recurring_meeting(
     # --- Regenerate instances if recurrence rule changed ---
     gcal_cancel_instance_ids = []
     if recurrence_rule_changed:
-        # Cancel future non-exception instances
+        # Cancel future non-exception instances (they'll be regenerated)
         for instance in recurring.instances:
             if instance.scheduled_at > now and instance.status != MeetingStatus.CANCELLED and not instance.is_recurring_exception:
                 instance.status = MeetingStatus.CANCELLED
                 recurring.occurrences_created = max(0, recurring.occurrences_created - 1)
-                db.add(instance)
                 gcal_cancel_instance_ids.append(str(instance.id))
+                db.add(instance)
 
         await db.flush()
 

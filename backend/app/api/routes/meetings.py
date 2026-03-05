@@ -2809,14 +2809,13 @@ async def extract_action_items(
     synthesizer = DocumentSynthesizer(llm_client=llm_service)
     pillar_name = db_meeting.twg.pillar.value if db_meeting.twg else "energy_infrastructure"
     
-    import asyncio
     try:
-        extracted_items = await asyncio.to_thread(
-            synthesizer.extract_action_items,
+        extracted_items = await synthesizer.extract_action_items(
             minutes_content,
             pillar_name
         )
     except Exception as e:
+        logging.error(f"Action item extraction failed: {e}")
         return {"extracted_actions": [], "error": str(e), "message": "Failed to extract action items"}
     
     # Auto-create ActionItem records

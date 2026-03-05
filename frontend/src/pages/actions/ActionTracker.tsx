@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSelector } from 'react-redux'
 import { RootState } from '../../store'
 import { UserRole } from '../../types/auth'
-import { Card, Badge, Avatar } from '../../components/ui'
+import { Card, Avatar } from '../../components/ui'
 import { actionItems } from '../../services/api'
 
 interface ActionItemData {
@@ -35,12 +35,6 @@ const STATUS_COLUMNS = [
     { key: 'OVERDUE', label: 'Overdue', color: 'bg-red-500' },
     { key: 'COMPLETED', label: 'Completed', color: 'bg-green-500' },
 ] as const
-
-const PRIORITY_COLORS: Record<string, string> = {
-    high: 'text-red-600 bg-red-50 dark:bg-red-900/30',
-    medium: 'text-amber-600 bg-amber-50 dark:bg-amber-900/30',
-    low: 'text-green-600 bg-green-50 dark:bg-green-900/30',
-}
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
     PENDING: ['IN_PROGRESS', 'COMPLETED'],

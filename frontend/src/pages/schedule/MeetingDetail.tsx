@@ -1386,11 +1386,17 @@ export default function MeetingDetail() {
                                                                             try {
                                                                                 setExtractingActions(true)
                                                                                 const res = await meetings.extractActionItems(meetingId!)
-                                                                                const extracted = res.data?.action_items || res.data || []
-                                                                                const count = Array.isArray(extracted) ? extracted.length : 0
+                                                                                const data = res.data || {}
+                                                                                const created = data.created_items?.filter((i: any) => i.created) || []
+                                                                                const total = data.extracted_actions?.length || 0
                                                                                 const actionsRes = await meetings.getActionItems(meetingId!)
                                                                                 setMeetingActionItems(actionsRes.data || [])
-                                                                                setStatusModal({ isOpen: true, type: 'success', title: 'Actions Extracted', message: `Extracted ${count} action item${count !== 1 ? 's' : ''} from minutes.` })
+                                                                                const msg = created.length > 0
+                                                                                    ? `Created ${created.length} action item${created.length !== 1 ? 's' : ''}${total > created.length ? ` (${total - created.length} duplicates skipped)` : ''}.`
+                                                                                    : total > 0
+                                                                                        ? `All ${total} extracted items already exist for this meeting.`
+                                                                                        : 'No action items found in the minutes.'
+                                                                                setStatusModal({ isOpen: true, type: created.length > 0 ? 'success' : 'info', title: 'Actions Extracted', message: msg })
                                                                             } catch (error: any) {
                                                                                 console.error(error)
                                                                                 setStatusModal({ isOpen: true, type: 'error', title: 'Extraction Failed', message: error?.response?.data?.detail || 'Failed to extract action items.' })

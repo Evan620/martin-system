@@ -2819,57 +2819,90 @@ async def extract_action_items(
         return {"extracted_actions": [], "error": str(e), "message": "Failed to extract action items"}
     
     # Auto-create ActionItem records
+    logging.info(f"AI extracted {len(extracted_items)} raw action items for meeting {meeting_id}")
+
     # Deduplication: Fetch existing actions first
     try:
         existing_result = await db.execute(select(ActionItem).where(ActionItem.meeting_id == meeting_id))
         existing_actions = existing_result.scalars().all()
         existing_descriptions = {a.description.strip().lower() for a in existing_actions}
+        logging.info(f"Found {len(existing_descriptions)} existing action items for dedup")
     except Exception as e:
-        print(f"DEDUPE ERROR: {e}")
-        # Fallback to empty to allow proceed
+        logging.error(f"Dedup query failed: {e}")
         existing_descriptions = set()
 
+    # Resolve owner by name (same logic as auto-extraction in fireflies)
+    async def resolve_owner_by_name(owner_name: str):
+        if not owner_name or owner_name.upper() in ("TBD", "N/A", "ALL MEMBERS", ""):
+            return None
+        try:
+            result = await db.execute(
+                select(User.id)
+                .join(MeetingParticipant, MeetingParticipant.user_id == User.id)
+                .where(
+                    MeetingParticipant.meeting_id == meeting_id,
+                    User.full_name.ilike(f"%{owner_name.strip()}%")
+                )
+                .limit(1)
+            )
+            return result.scalar_one_or_none()
+        except Exception:
+            return None
+
     created_items = []
+    skipped_items = []
     for item in extracted_items:
-        # Check duplicate
         desc = item.get("description", "").strip()
-        if not desc or desc.lower() in existing_descriptions:
+        if not desc:
+            continue
+        if desc.lower() in existing_descriptions:
+            skipped_items.append(desc[:60])
             continue
 
         try:
             from datetime import datetime, timedelta
-            
+
             # Parse due date or default to 2 weeks from now
             due_date = None
             if item.get("due_date"):
                 try:
-                    due_date = datetime.fromisoformat(item["due_date"])
-                except:
+                    due_date = datetime.fromisoformat(str(item["due_date"]).replace("Z", "+00:00"))
+                except (ValueError, TypeError):
                     due_date = datetime.utcnow() + timedelta(days=14)
             else:
                 due_date = datetime.utcnow() + timedelta(days=14)
-            
+
+            # Resolve owner by name, fall back to current user
+            owner_name = item.get("owner", "")
+            owner_id = await resolve_owner_by_name(owner_name)
+            if not owner_id:
+                owner_id = current_user.id
+
             db_action = ActionItem(
                 twg_id=db_meeting.twg_id,
                 meeting_id=meeting_id,
-                description=item.get("description", ""),
-                owner_id=current_user.id,  # Default to current user, can be reassigned
+                description=desc,
+                owner_id=owner_id,
                 due_date=due_date,
-                status=ActionItemStatus.PENDING # Ensure using Enum
+                status=ActionItemStatus.PENDING
             )
             db.add(db_action)
             created_items.append({
-                "description": item.get("description"),
-                "owner": item.get("owner", "TBD"),
+                "description": desc,
+                "owner": owner_name or current_user.full_name,
                 "due_date": due_date.isoformat() if due_date else None,
                 "created": True
             })
         except Exception as e:
+            logging.error(f"Failed to create action item '{desc[:60]}': {e}")
             created_items.append({
-                "description": item.get("description"),
+                "description": desc,
                 "error": str(e),
                 "created": False
             })
+
+    if skipped_items:
+        logging.info(f"Skipped {len(skipped_items)} duplicate action items: {skipped_items[:3]}")
     
     await db.commit()
 

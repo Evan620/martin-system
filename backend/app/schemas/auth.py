@@ -102,6 +102,7 @@ class UserResponse(BaseModel):
     invite_accepted_at: Optional[datetime] = None
     password_reset_at: Optional[datetime] = None
     twg_ids: list[uuid.UUID] = []
+    twgs: list[dict] = []
 
     model_config = ConfigDict(from_attributes=True)
 

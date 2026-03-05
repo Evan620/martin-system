@@ -432,32 +432,7 @@ class RecurringMeetingService:
             recurring_meeting.occurrences_created += len(new_instances)
             self.db.add(recurring_meeting)
 
-        # Auto-include all SECRETARIAT_LEAD users as participants
-        secretariat_result = await self.db.execute(
-            select(User).where(User.role == UserRole.SECRETARIAT_LEAD).where(User.is_active == True)
-        )
-        secretariat_users = secretariat_result.scalars().all()
-
-        for meeting in new_instances:
-            for secretariat_user in secretariat_users:
-                existing_participant = await self.db.execute(
-                    select(MeetingParticipant).where(
-                        and_(
-                            MeetingParticipant.meeting_id == meeting.id,
-                            MeetingParticipant.user_id == secretariat_user.id
-                        )
-                    )
-                )
-                if not existing_participant.scalar_one_or_none():
-                    participant = MeetingParticipant(
-                        id=uuid.uuid4(),
-                        meeting_id=meeting.id,
-                        user_id=secretariat_user.id,
-                        rsvp_status=RsvpStatus.ACCEPTED
-                    )
-                    self.db.add(participant)
-
-        # Auto-include all TWG members as participants (same as normal meetings)
+        # Auto-include all TWG members as participants
         twg_member_result = await self.db.execute(
             select(User).join(twg_members, twg_members.c.user_id == User.id).where(
                 and_(twg_members.c.twg_id == recurring_meeting.twg_id, User.is_active == True)
@@ -494,7 +469,6 @@ class RecurringMeetingService:
         # --- Post-commit: Schedule background GCal + Email integration ---
         if new_instances:
             participant_emails = list(set(
-                [u.email for u in secretariat_users if u.email] +
                 [u.email for u in twg_member_users if u.email]
             ))
             instance_data = [

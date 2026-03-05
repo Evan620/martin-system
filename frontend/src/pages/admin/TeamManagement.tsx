@@ -536,6 +536,7 @@ export default function TeamManagement() {
                                     <tr className="bg-gray-50 dark:bg-[#2d3748]/30">
                                         <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">User Member</th>
                                         <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">Role</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">TWG(s)</th>
                                         <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">Status</th>
                                         <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider text-right">Actions</th>
                                     </tr>
@@ -569,6 +570,22 @@ export default function TeamManagement() {
                                                         </option>
                                                     ))}
                                                 </select>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {user.twgs && user.twgs.length > 0 ? (
+                                                        user.twgs.map((twg) => (
+                                                            <span
+                                                                key={twg.id}
+                                                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[#1152d4]/10 text-[#1152d4] dark:bg-[#1152d4]/20 dark:text-[#6b9aff]"
+                                                            >
+                                                                {twg.name.replace(/ TWG$/i, '')}
+                                                            </span>
+                                                        ))
+                                                    ) : (
+                                                        <span className="text-xs text-[#4c669a]/50 dark:text-[#a0aec0]/50 italic">None</span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col gap-1">

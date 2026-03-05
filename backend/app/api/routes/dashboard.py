@@ -343,7 +343,10 @@ async def get_global_timeline(
     is_universal_access = current_user.role in [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]
     user_twg_ids = [t.id for t in current_user.twgs] if not is_universal_access else []
     
-    q_meetings = select(Meeting).options(selectinload(Meeting.twg)).where(Meeting.scheduled_at >= datetime.datetime.utcnow())
+    q_meetings = select(Meeting).options(selectinload(Meeting.twg)).where(
+        Meeting.scheduled_at >= datetime.datetime.utcnow(),
+        Meeting.status != MeetingStatus.CANCELLED
+    )
     if not is_universal_access:
         q_meetings = q_meetings.where(Meeting.twg_id.in_(user_twg_ids))
         

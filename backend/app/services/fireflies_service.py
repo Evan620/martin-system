@@ -14,12 +14,12 @@ import aiofiles
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
-from app.models.models import Meeting, Minutes, MinutesStatus, ActionItem, ActionItemStatus, MeetingStatus
+from app.models.models import Meeting, Minutes, MinutesStatus, ActionItem, ActionItemStatus, ActionItemPriority, MeetingStatus, MeetingParticipant, User, UserRole
 from app.services.document_synthesizer import DocumentSynthesizer
 from app.services.llm_service import get_llm_service
 from sqlalchemy import select, and_, or_
-import datetime
-from datetime import datetime, timezone
+import datetime as _dt_module
+from datetime import datetime, timezone, timedelta
 UTC = timezone.utc
 
 logger = logging.getLogger(__name__)
@@ -343,16 +343,54 @@ class FirefliesService:
                      pillar_val
                  )
                  
+                 # Resolve default owner: TWG facilitator > first participant with user_id > first admin
+                 default_owner_id = await self._resolve_default_owner(meeting.id, db)
+
                  action_count = 0
                  for action in actions_list:
                      desc = action.get("description")
-                     if not desc: continue
-                     
-                     logger.debug(f"Skipping action item auto-creation: '{desc[:50]}...' (owner: {action.get('owner', 'TBD')})")
-                     # Logic for adding action items can be enabled here if needed
-                 
+                     if not desc:
+                         continue
+
+                     # Try to resolve owner by name
+                     owner_id = None
+                     owner_name = action.get("owner", "")
+                     if owner_name and owner_name.upper() not in ("TBD", "N/A", ""):
+                         owner_id = await self._resolve_owner_by_name(meeting.id, owner_name, db)
+
+                     if not owner_id:
+                         owner_id = default_owner_id
+
+                     if not owner_id:
+                         logger.warning(f"Skipping action item (no owner found): '{desc[:60]}'")
+                         continue
+
+                     # Parse due date or default to 14 days from now
+                     due_date = None
+                     raw_due = action.get("due_date") or action.get("deadline")
+                     if raw_due:
+                         try:
+                             due_date = datetime.fromisoformat(str(raw_due).replace("Z", "+00:00"))
+                         except (ValueError, TypeError):
+                             pass
+                     if not due_date:
+                         due_date = datetime.now(UTC) + timedelta(days=14)
+
+                     new_action = ActionItem(
+                         twg_id=meeting.twg_id,
+                         meeting_id=meeting.id,
+                         description=desc,
+                         owner_id=owner_id,
+                         due_date=due_date,
+                         status=ActionItemStatus.PENDING,
+                         priority=ActionItemPriority.MEDIUM,
+                     )
+                     db.add(new_action)
+                     action_count += 1
+                     logger.info(f"Created action item: '{desc[:60]}' (owner: {owner_name or 'default'})")
+
                  if action_count > 0:
-                     logger.info(f"✓ Automatically extracted {action_count} action items from minutes.")
+                     logger.info(f"Automatically extracted {action_count} action items from minutes.")
              except Exception as ae:
                  logger.error(f"Failed to auto-extract action items: {ae}")
                  import traceback
@@ -373,6 +411,65 @@ class FirefliesService:
             # Rollback to prevent transaction corruption
             await db.rollback()
             return False
+
+    async def _resolve_owner_by_name(self, meeting_id, owner_name: str, db: AsyncSession):
+        """Match an owner name string to a meeting participant's user_id via case-insensitive name search."""
+        try:
+            result = await db.execute(
+                select(User.id)
+                .join(MeetingParticipant, MeetingParticipant.user_id == User.id)
+                .where(
+                    MeetingParticipant.meeting_id == meeting_id,
+                    User.full_name.ilike(f"%{owner_name.strip()}%")
+                )
+                .limit(1)
+            )
+            row = result.scalar_one_or_none()
+            return row
+        except Exception as e:
+            logger.debug(f"Owner name lookup failed for '{owner_name}': {e}")
+            return None
+
+    async def _resolve_default_owner(self, meeting_id, db: AsyncSession):
+        """Find default owner: TWG facilitator participant > first participant with user_id > first admin."""
+        try:
+            # 1. TWG Facilitator among participants
+            result = await db.execute(
+                select(User.id)
+                .join(MeetingParticipant, MeetingParticipant.user_id == User.id)
+                .where(
+                    MeetingParticipant.meeting_id == meeting_id,
+                    User.role == UserRole.TWG_FACILITATOR
+                )
+                .limit(1)
+            )
+            facilitator_id = result.scalar_one_or_none()
+            if facilitator_id:
+                return facilitator_id
+
+            # 2. First participant with a user_id
+            result = await db.execute(
+                select(MeetingParticipant.user_id)
+                .where(
+                    MeetingParticipant.meeting_id == meeting_id,
+                    MeetingParticipant.user_id.isnot(None)
+                )
+                .limit(1)
+            )
+            participant_uid = result.scalar_one_or_none()
+            if participant_uid:
+                return participant_uid
+
+            # 3. First admin in the system
+            result = await db.execute(
+                select(User.id)
+                .where(User.role == UserRole.ADMIN)
+                .limit(1)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Failed to resolve default owner for meeting {meeting_id}: {e}")
+            return None
 
     async def finalize_and_distribute_minutes(self, meeting: Meeting, db: AsyncSession):
         """
@@ -419,16 +516,13 @@ class FirefliesService:
         except Exception as e:
             logger.error(f"PDF Generation Failed: {e}")
 
-        # 2b. Save PDF to disk and create Document record for the Document Library
+        # 2b. Save PDF to cloud storage (primary) with local fallback, and create Document record
         if pdf_bytes:
             try:
-                from app.models.models import Document, User
-                upload_dir = os.path.join(settings.UPLOAD_DIR, "minutes")
-                os.makedirs(upload_dir, exist_ok=True)
+                from app.models.models import Document, User, TWG
+                from app.services.storage_service import get_storage_service
+
                 pdf_filename = f"Minutes - {meeting.title}.pdf"
-                pdf_path = os.path.join(upload_dir, f"minutes_{meeting.id}.pdf")
-                with open(pdf_path, "wb") as f:
-                    f.write(pdf_bytes)
 
                 # Check if a minutes Document already exists
                 existing = await db.execute(
@@ -436,15 +530,63 @@ class FirefliesService:
                         and_(Document.meeting_id == meeting.id, Document.document_type == "minutes")
                     )
                 )
-                if not existing.scalar_one_or_none():
+                if existing.scalar_one_or_none():
+                    logger.info(f"Minutes Document already exists for '{meeting.title}', skipping")
+                else:
+                    # Resolve uploader
                     res_u = await db.execute(select(User.id).limit(1))
                     uploader_id = res_u.scalars().first()
-                    if uploader_id:
+                    if not uploader_id:
+                        logger.warning("No user found to set as uploader for minutes document")
+                    else:
+                        file_path = None
+                        metadata_extra = {}
+
+                        # --- Cloud storage (primary) ---
+                        try:
+                            storage = get_storage_service()
+                            twg_result = await db.execute(select(TWG).where(TWG.id == meeting.twg_id))
+                            twg_obj = twg_result.scalar_one_or_none()
+                            target_folder_id = None
+                            if twg_obj:
+                                target_folder_id = storage.get_or_create_twg_folder(twg_obj.name)
+
+                            timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+                            safe_filename = f"{timestamp}_minutes_{meeting.id}.pdf"
+                            cloud_file_id, cloud_view_link, cloud_download_url = storage.upload_bytes(
+                                file_bytes=pdf_bytes,
+                                file_name=safe_filename,
+                                mime_type="application/pdf",
+                                folder_id=target_folder_id
+                            )
+                            if cloud_file_id:
+                                file_path = cloud_file_id
+                                metadata_extra = {
+                                    "storage_mode": "cloud",
+                                    "cloud_file_id": cloud_file_id,
+                                    "cloud_view_link": cloud_view_link,
+                                    "cloud_download_url": cloud_download_url,
+                                }
+                                logger.info(f"Uploaded minutes PDF to cloud storage: {cloud_file_id}")
+                        except Exception as cloud_err:
+                            logger.warning(f"Cloud storage upload failed, falling back to local: {cloud_err}")
+
+                        # --- Local fallback ---
+                        if not file_path:
+                            upload_dir = os.path.join(settings.UPLOAD_DIR, "minutes")
+                            os.makedirs(upload_dir, exist_ok=True)
+                            local_path = os.path.join(upload_dir, f"minutes_{meeting.id}.pdf")
+                            with open(local_path, "wb") as f:
+                                f.write(pdf_bytes)
+                            file_path = local_path
+                            metadata_extra = {"storage_mode": "local"}
+                            logger.info(f"Saved minutes PDF to local disk: {local_path}")
+
                         minutes_doc = Document(
                             twg_id=meeting.twg_id,
                             meeting_id=meeting.id,
                             file_name=pdf_filename,
-                            file_path=pdf_path,
+                            file_path=file_path,
                             file_type="application/pdf",
                             document_type="minutes",
                             uploaded_by_id=uploader_id,
@@ -453,13 +595,16 @@ class FirefliesService:
                                 "meeting_title": meeting.title,
                                 "status": "approved",
                                 "file_size": len(pdf_bytes),
+                                **metadata_extra,
                             }
                         )
                         db.add(minutes_doc)
-                        await db.flush()
+                        await db.commit()
                         logger.info(f"Minutes Document record created for '{meeting.title}'")
             except Exception as e:
                 logger.error(f"Minutes Document creation failed: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
 
         # 3. Index to Knowledge Base
         try:

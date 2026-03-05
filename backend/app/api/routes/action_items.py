@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from datetime import datetime, timedelta
 import uuid
@@ -35,7 +36,11 @@ async def create_action_item(
     db_item = ActionItem(**item_in.model_dump())
     db.add(db_item)
     await db.commit()
-    await db.refresh(db_item)
+    # Re-fetch with owner eagerly loaded
+    result = await db.execute(
+        select(ActionItem).options(selectinload(ActionItem.owner)).where(ActionItem.id == db_item.id)
+    )
+    db_item = result.scalar_one()
 
     # Notify the assigned owner (if not self-assigning)
     if item_in.owner_id != current_user.id:
@@ -115,7 +120,7 @@ async def list_action_items(
     - twg_id: Filter by TWG (Access checked).
     - status: Filter by status (PENDING, IN_PROGRESS, COMPLETED, OVERDUE).
     """
-    query = select(ActionItem).offset(skip).limit(limit)
+    query = select(ActionItem).options(selectinload(ActionItem.owner)).offset(skip).limit(limit)
 
     if mine_only:
         query = query.where(ActionItem.owner_id == current_user.id)
@@ -154,7 +159,9 @@ async def update_action_item(
     Facilitator/Admin can update any item in their TWG.
     COMPLETED is a terminal state — cannot transition out of it.
     """
-    result = await db.execute(select(ActionItem).where(ActionItem.id == item_id))
+    result = await db.execute(
+        select(ActionItem).options(selectinload(ActionItem.owner)).where(ActionItem.id == item_id)
+    )
     db_item = result.scalar_one_or_none()
     if not db_item:
         raise HTTPException(status_code=404, detail="Action item not found")
@@ -186,7 +193,11 @@ async def update_action_item(
         db_item.completed_at = datetime.utcnow()
 
     await db.commit()
-    await db.refresh(db_item)
+    # Re-fetch with owner eagerly loaded
+    result = await db.execute(
+        select(ActionItem).options(selectinload(ActionItem.owner)).where(ActionItem.id == item_id)
+    )
+    db_item = result.scalar_one()
 
     # Notify owner on status change
     if item_in.status is not None and item_in.status != old_status:

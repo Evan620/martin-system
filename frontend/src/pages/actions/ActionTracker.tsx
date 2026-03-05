@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useSelector } from 'react-redux'
+import { RootState } from '../../store'
+import { UserRole } from '../../types/auth'
 import { Card, Badge, Avatar } from '../../components/ui'
 import { actionItems } from '../../services/api'
 
@@ -47,11 +50,14 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 }
 
 export default function ActionTracker() {
+    const user = useSelector((state: RootState) => state.auth.user)
+    const isFacilitator = user?.role === UserRole.ADMIN || user?.role === UserRole.SECRETARIAT_LEAD || user?.role === UserRole.FACILITATOR
+
     const [items, setItems] = useState<ActionItemData[]>([])
     const [summary, setSummary] = useState<SummaryData | null>(null)
     const [loading, setLoading] = useState(true)
     const [statusFilter, setStatusFilter] = useState<string>('')
-    const [mineOnly, setMineOnly] = useState(false)
+    const [mineOnly, setMineOnly] = useState(!isFacilitator)
     const [updatingId, setUpdatingId] = useState<string | null>(null)
 
     const fetchData = useCallback(async () => {
@@ -127,8 +133,14 @@ export default function ActionTracker() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white transition-colors">Action Items Tracker</h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Track and manage action items across your working groups</p>
+                    <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white transition-colors">
+                        {isFacilitator ? 'Action Items Tracker' : 'My Action Items'}
+                    </h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {isFacilitator
+                            ? 'Track and manage action items across your working groups'
+                            : 'View and update your assigned action items'}
+                    </p>
                 </div>
             </div>
 
@@ -190,90 +202,92 @@ export default function ActionTracker() {
                 </div>
             </div>
 
-            {/* Kanban Board */}
+            {/* Action Items List */}
             {items.length === 0 && !statusFilter ? (
                 <div className="text-center py-16 text-slate-400">
                     <p className="text-lg font-medium">No action items yet</p>
                     <p className="text-sm mt-1">Action items will appear here once created from meeting minutes</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {(statusFilter ? STATUS_COLUMNS.filter(c => c.key === statusFilter) : STATUS_COLUMNS).map((column) => {
-                        const columnItems = items.filter(i => i.status === column.key)
-                        return (
-                            <div key={column.key} className="space-y-4">
-                                <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full ${column.color}`}></div>
-                                    <h3 className="font-bold text-sm text-slate-900 dark:text-white transition-colors">{column.label}</h3>
-                                    <Badge size="sm" className="bg-slate-100 dark:bg-slate-800 text-slate-500 transition-colors">{columnItems.length}</Badge>
+                <Card className="overflow-hidden">
+                    {/* Table Header */}
+                    <div className="grid grid-cols-[1fr_140px_140px_120px_160px] gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        <span>Description</span>
+                        <span>Owner</span>
+                        <span>Due Date</span>
+                        <span>Status</span>
+                        <span>Actions</span>
+                    </div>
+
+                    {/* Rows */}
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {items.map((item) => {
+                            const isOverdue = item.status === 'OVERDUE'
+                            const isCompleted = item.status === 'COMPLETED'
+                            const transitions = STATUS_TRANSITIONS[item.status] || []
+                            const statusColor = STATUS_COLUMNS.find(c => c.key === item.status)
+
+                            return (
+                                <div
+                                    key={item.id}
+                                    className={`grid grid-cols-[1fr_140px_140px_120px_160px] gap-4 px-5 py-3.5 items-center transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/30 ${isOverdue ? 'bg-red-50/40 dark:bg-red-900/5' : ''}`}
+                                >
+                                    {/* Description */}
+                                    <div className="min-w-0">
+                                        <span className={`text-sm leading-snug ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white font-medium'}`}>
+                                            {item.description}
+                                        </span>
+                                    </div>
+
+                                    {/* Owner */}
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <Avatar size="sm" fallback={getInitials(item.owner?.full_name)} />
+                                        <span className="text-xs text-slate-600 dark:text-slate-400 truncate">{item.owner?.full_name || 'Unassigned'}</span>
+                                    </div>
+
+                                    {/* Due Date */}
+                                    <div className={`flex items-center gap-1.5 text-xs font-medium ${isOverdue ? 'text-red-500' : isCompleted ? 'text-slate-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                        {formatDate(item.due_date)}
+                                    </div>
+
+                                    {/* Status Badge */}
+                                    <div>
+                                        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full ${
+                                            isCompleted ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                            : isOverdue ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                            : item.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                        }`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${statusColor?.color || 'bg-slate-400'}`}></span>
+                                            {statusColor?.label || item.status}
+                                        </span>
+                                    </div>
+
+                                    {/* Status Transition Buttons */}
+                                    <div className="flex gap-1.5 flex-wrap">
+                                        {transitions.map((nextStatus) => (
+                                            <button
+                                                key={nextStatus}
+                                                onClick={() => handleStatusChange(item.id, nextStatus)}
+                                                disabled={updatingId === item.id}
+                                                className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition-colors disabled:opacity-50 ${
+                                                    nextStatus === 'COMPLETED'
+                                                        ? 'border-green-300 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30'
+                                                        : nextStatus === 'IN_PROGRESS'
+                                                        ? 'border-blue-300 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                                                        : 'border-slate-300 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                }`}
+                                            >
+                                                {updatingId === item.id ? '...' : nextStatus.replace('_', ' ')}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-
-                                <div className="space-y-4">
-                                    {columnItems.map((item) => {
-                                        const isOverdue = item.status === 'OVERDUE'
-                                        const isCompleted = item.status === 'COMPLETED'
-                                        const transitions = STATUS_TRANSITIONS[item.status] || []
-
-                                        return (
-                                            <Card key={item.id} className={`p-4 space-y-3 hover:ring-2 hover:ring-blue-500/50 transition-all ${isOverdue ? 'border-red-500' : ''}`}>
-                                                <div className="flex items-center justify-between">
-                                                    <Badge variant="neutral" className={`text-[9px] px-1.5 py-0 font-bold ${PRIORITY_COLORS[item.priority] || ''}`}>
-                                                        {item.priority}
-                                                    </Badge>
-                                                    {isCompleted && (
-                                                        <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white">
-                                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                                        </div>
-                                                    )}
-                                                    {isOverdue && (
-                                                        <Badge variant="danger" size="sm" className="text-[9px] uppercase font-bold">Overdue</Badge>
-                                                    )}
-                                                </div>
-
-                                                <h4 className={`font-bold text-sm leading-tight transition-colors ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white'}`}>
-                                                    {item.description}
-                                                </h4>
-
-                                                {/* Status change buttons */}
-                                                {transitions.length > 0 && (
-                                                    <div className="flex gap-1.5 flex-wrap">
-                                                        {transitions.map((nextStatus) => (
-                                                            <button
-                                                                key={nextStatus}
-                                                                onClick={() => handleStatusChange(item.id, nextStatus)}
-                                                                disabled={updatingId === item.id}
-                                                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors disabled:opacity-50 ${
-                                                                    nextStatus === 'COMPLETED'
-                                                                        ? 'border-green-300 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30'
-                                                                        : nextStatus === 'IN_PROGRESS'
-                                                                        ? 'border-blue-300 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30'
-                                                                        : 'border-slate-300 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
-                                                                }`}
-                                                            >
-                                                                {updatingId === item.id ? '...' : nextStatus.replace('_', ' ')}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                )}
-
-                                                <div className="flex items-center justify-between pt-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <Avatar size="sm" fallback={getInitials(item.owner?.full_name)} />
-                                                        <span className="text-[10px] text-slate-500 truncate max-w-[80px]">{item.owner?.full_name || 'Unassigned'}</span>
-                                                    </div>
-                                                    <div className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${isOverdue ? 'text-red-500' : 'text-slate-400'}`}>
-                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                        {formatDate(item.due_date)}
-                                                    </div>
-                                                </div>
-                                            </Card>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
+                            )
+                        })}
+                    </div>
+                </Card>
             )}
         </div>
     )

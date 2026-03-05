@@ -521,7 +521,7 @@ class ContinuousMonitor:
             try:
                 # 1. Fetch upcoming meetings with participants loaded
                 # Fix: Use naive UTC to match DB TIMESTAMP WITHOUT TIME ZONE
-                stmt = select(Meeting).where(Meeting.scheduled_at > datetime.utcnow()).options(
+                stmt = select(Meeting).where(Meeting.scheduled_at > datetime.utcnow(), Meeting.status != MeetingStatus.CANCELLED).options(
                     selectinload(Meeting.participants).selectinload(MeetingParticipant.user).selectinload(User.vip_profile)
                 )
                 result = await db.execute(stmt)

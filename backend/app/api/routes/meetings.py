@@ -69,7 +69,8 @@ async def get_active_meeting(
     # Actually, let's look for meetings that have a transcript placeholder active
     # as that's what Vexa is recording.
     stmt = select(Meeting).join(Document, Meeting.id == Document.meeting_id).where(
-        Document.document_type == "transcript_placeholder"
+        Document.document_type == "transcript_placeholder",
+        Meeting.status != MeetingStatus.CANCELLED
     ).options(
         selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
         selectinload(Meeting.agenda),
@@ -1475,6 +1476,7 @@ async def check_meeting_conflicts(
         selectinload(Meeting.twg)
     ).where(
         Meeting.id != meeting_id,
+        Meeting.status != MeetingStatus.CANCELLED,
         Meeting.scheduled_at < meeting_end,
         (Meeting.scheduled_at + timedelta(minutes=60)) > meeting_start  # Approximate end time
     )
@@ -2345,65 +2347,83 @@ async def approve_minutes(
             template_context=pdf_context
         )
     except Exception as e:
-        print(f"PDF Gen Failure: {e}")
+        logging.error(f"PDF Gen Failure: {e}")
         # Log warning but don't crash, the status is already updated
 
-    # 1b. Save PDF to cloud storage and create Document record for the Document Library
+    # 1b. Save PDF to cloud storage (primary) with local fallback, and create Document record
     if pdf_bytes:
         try:
-            storage = get_storage_service()
-
-            # Get TWG name for folder organization
-            twg_result = await db.execute(select(TWG).where(TWG.id == db_meeting.twg_id))
-            twg = twg_result.scalar_one_or_none()
-            target_folder_id = None
-            if twg:
-                target_folder_id = storage.get_or_create_twg_folder(twg.name)
-
             pdf_filename = f"Minutes - {db_meeting.title}.pdf"
-            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            safe_filename = f"{timestamp}_minutes_{db_meeting.id}.pdf"
 
-            # Upload to cloud storage
-            cloud_file_id, cloud_view_link, cloud_download_url = storage.upload_bytes(
-                file_bytes=pdf_bytes,
-                file_name=safe_filename,
-                mime_type="application/pdf",
-                folder_id=target_folder_id
-            )
-
-            if cloud_file_id:
-                # Check if a minutes Document already exists for this meeting
-                existing = await db.execute(
-                    select(Document).where(
-                        and_(Document.meeting_id == db_meeting.id, Document.document_type == "minutes")
-                    )
+            # Check if a minutes Document already exists for this meeting
+            existing = await db.execute(
+                select(Document).where(
+                    and_(Document.meeting_id == db_meeting.id, Document.document_type == "minutes")
                 )
-                if not existing.scalar_one_or_none():
-                    minutes_doc = Document(
-                        twg_id=db_meeting.twg_id,
-                        meeting_id=db_meeting.id,
-                        file_name=pdf_filename,
-                        file_path=cloud_file_id,
-                        file_type="application/pdf",
-                        document_type="minutes",
-                        uploaded_by_id=current_user.id,
-                        metadata_json={
-                            "meeting_id": str(db_meeting.id),
-                            "meeting_title": db_meeting.title,
-                            "status": "approved",
-                            "file_size": len(pdf_bytes),
+            )
+            if not existing.scalar_one_or_none():
+                file_path = None
+                metadata_extra = {}
+
+                # --- Cloud storage (primary) ---
+                try:
+                    storage = get_storage_service()
+                    twg_result = await db.execute(select(TWG).where(TWG.id == db_meeting.twg_id))
+                    twg = twg_result.scalar_one_or_none()
+                    target_folder_id = None
+                    if twg:
+                        target_folder_id = storage.get_or_create_twg_folder(twg.name)
+
+                    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                    safe_filename = f"{timestamp}_minutes_{db_meeting.id}.pdf"
+                    cloud_file_id, cloud_view_link, cloud_download_url = storage.upload_bytes(
+                        file_bytes=pdf_bytes,
+                        file_name=safe_filename,
+                        mime_type="application/pdf",
+                        folder_id=target_folder_id
+                    )
+                    if cloud_file_id:
+                        file_path = cloud_file_id
+                        metadata_extra = {
                             "storage_mode": "cloud",
                             "cloud_file_id": cloud_file_id,
                             "cloud_view_link": cloud_view_link,
-                            "cloud_download_url": cloud_download_url
+                            "cloud_download_url": cloud_download_url,
                         }
-                    )
-                    db.add(minutes_doc)
-                    await db.commit()
-                    logging.info(f"Saved minutes PDF to cloud storage: {cloud_file_id}")
-            else:
-                logging.warning(f"Failed to upload minutes PDF to cloud storage for meeting {db_meeting.id}")
+                        logging.info(f"Uploaded minutes PDF to cloud storage: {cloud_file_id}")
+                except Exception as cloud_err:
+                    logging.warning(f"Cloud storage upload failed, falling back to local: {cloud_err}")
+
+                # --- Local fallback ---
+                if not file_path:
+                    import os
+                    upload_dir = os.path.join(settings.UPLOAD_DIR, "minutes")
+                    os.makedirs(upload_dir, exist_ok=True)
+                    local_path = os.path.join(upload_dir, f"minutes_{db_meeting.id}.pdf")
+                    with open(local_path, "wb") as f:
+                        f.write(pdf_bytes)
+                    file_path = local_path
+                    metadata_extra = {"storage_mode": "local"}
+                    logging.info(f"Saved minutes PDF to local disk: {local_path}")
+
+                minutes_doc = Document(
+                    twg_id=db_meeting.twg_id,
+                    meeting_id=db_meeting.id,
+                    file_name=pdf_filename,
+                    file_path=file_path,
+                    file_type="application/pdf",
+                    document_type="minutes",
+                    uploaded_by_id=current_user.id,
+                    metadata_json={
+                        "meeting_id": str(db_meeting.id),
+                        "meeting_title": db_meeting.title,
+                        "status": "approved",
+                        "file_size": len(pdf_bytes),
+                        **metadata_extra,
+                    }
+                )
+                db.add(minutes_doc)
+                await db.commit()
 
         except Exception as e:
             logging.error(f"Minutes Document creation failed: {e}")
@@ -2425,7 +2445,7 @@ async def approve_minutes(
             namespace=f"twg-{db_meeting.twg_id}" if db_meeting.twg_id else "global"
         )
     except Exception as e:
-        print(f"KB Indexing Failed: {e}")
+        logging.error(f"KB Indexing Failed: {e}")
 
     # 3. Send Emails to Participants
     recipients = set()
@@ -2456,7 +2476,7 @@ async def approve_minutes(
                  pdf_filename="minutes.pdf"
              )
         except Exception as e:
-            print(f"Email Sending Failed: {e}")
+            logging.error(f"Email Sending Failed: {e}")
             # Non-blocking
 
     # --- Audit Log ---

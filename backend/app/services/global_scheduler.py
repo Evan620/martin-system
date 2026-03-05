@@ -393,15 +393,18 @@ class GlobalScheduler:
     ) -> List[Meeting]:
         """Get schedule for a specific TWG from DB"""
         async with self._get_session(db) as session:
-            stmt = select(Meeting).where(Meeting.twg_id == twg_id)
-            
+            stmt = select(Meeting).where(
+                Meeting.twg_id == twg_id,
+                Meeting.status != MeetingStatus.CANCELLED
+            )
+
             if start_date:
                 stmt = stmt.where(Meeting.scheduled_at >= start_date)
             if end_date:
                 stmt = stmt.where(Meeting.scheduled_at <= end_date)
-            
+
             stmt = stmt.order_by(Meeting.scheduled_at)
-            
+
             result = await session.execute(stmt)
             return result.scalars().all()
 
@@ -413,13 +416,13 @@ class GlobalScheduler:
     ) -> List[Meeting]:
         """Get global schedule across all TWGs from DB"""
         async with self._get_session(db) as session:
-            stmt = select(Meeting)
-            
+            stmt = select(Meeting).where(Meeting.status != MeetingStatus.CANCELLED)
+
             if start_date:
                 stmt = stmt.where(Meeting.scheduled_at >= start_date)
             if end_date:
                 stmt = stmt.where(Meeting.scheduled_at <= end_date)
-                
+
             stmt = stmt.order_by(Meeting.scheduled_at)
             
             result = await session.execute(stmt)

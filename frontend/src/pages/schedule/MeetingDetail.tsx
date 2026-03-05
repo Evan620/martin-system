@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { RootState } from '../../store'
 import { meetings, actionItems, twgs, recurringMeetings } from '../../services/api'
+import { UserRole } from '../../types/auth'
 import { Card, Badge } from '../../components/ui'
 import { toLocalInputValue } from '../../utils/dates'
 import MeetingSidebar from './components/MeetingSidebar'
@@ -22,6 +23,7 @@ export default function MeetingDetail() {
     const navigate = useNavigate()
     const location = useLocation()
     const user = useSelector((state: RootState) => state.auth.user)
+    const isFacilitator = user?.role === UserRole.ADMIN || user?.role === UserRole.SECRETARIAT_LEAD || user?.role === UserRole.FACILITATOR
     const [meeting, setMeeting] = useState<any>(null)
     const [activeTab, setActiveTab] = useState<TabType>('minutes')
     const [loading, setLoading] = useState(true)
@@ -66,6 +68,7 @@ export default function MeetingDetail() {
     // Modal States
     const [isEditingMeeting, setIsEditingMeeting] = useState(false)
     const [isAddingAction, setIsAddingAction] = useState(false)
+    const [extractingActions, setExtractingActions] = useState(false)
 
     const [newActionDescription, setNewActionDescription] = useState('')
     const [newActionOwner, setNewActionOwner] = useState('')
@@ -1374,8 +1377,43 @@ export default function MeetingDetail() {
                                                     <div>
                                                         <div className="flex items-center justify-between mb-4">
                                                             <h2 className="text-xl font-bold text-slate-900 dark:text-white">Action Items</h2>
+                                                            {isFacilitator && (
                                                             <div className="flex gap-2">
 
+                                                                {minutesContent && (
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            try {
+                                                                                setExtractingActions(true)
+                                                                                const res = await meetings.extractActionItems(meetingId!)
+                                                                                const extracted = res.data?.action_items || res.data || []
+                                                                                const count = Array.isArray(extracted) ? extracted.length : 0
+                                                                                const actionsRes = await meetings.getActionItems(meetingId!)
+                                                                                setMeetingActionItems(actionsRes.data || [])
+                                                                                setStatusModal({ isOpen: true, type: 'success', title: 'Actions Extracted', message: `Extracted ${count} action item${count !== 1 ? 's' : ''} from minutes.` })
+                                                                            } catch (error: any) {
+                                                                                console.error(error)
+                                                                                setStatusModal({ isOpen: true, type: 'error', title: 'Extraction Failed', message: error?.response?.data?.detail || 'Failed to extract action items.' })
+                                                                            } finally {
+                                                                                setExtractingActions(false)
+                                                                            }
+                                                                        }}
+                                                                        disabled={extractingActions}
+                                                                        className="btn-secondary text-sm flex items-center gap-2"
+                                                                    >
+                                                                        {extractingActions ? (
+                                                                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                                            </svg>
+                                                                        ) : (
+                                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                                            </svg>
+                                                                        )}
+                                                                        {extractingActions ? 'Extracting...' : 'Extract Actions'}
+                                                                    </button>
+                                                                )}
                                                                 <button onClick={() => setIsAddingAction(true)} className="btn-secondary text-sm flex items-center gap-2">
                                                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1383,6 +1421,7 @@ export default function MeetingDetail() {
                                                                     Add Action
                                                                 </button>
                                                             </div>
+                                                            )}
                                                         </div>
 
                                                         {/* Add Action Form */}

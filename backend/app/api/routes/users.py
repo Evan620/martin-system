@@ -225,10 +225,19 @@ async def invite_user(
     from app.services.auth_service import AuthService
     from app.schemas.auth import UserRegister
     
-    # Generate secure temporary password
+    # Generate secure temporary password (guarantee one from each required category)
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    temp_password = ''.join(secrets.choice(alphabet) for _ in range(16))
-    
+    required = [
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.digits),
+        secrets.choice("!@#$%^&*"),
+    ]
+    rest = [secrets.choice(alphabet) for _ in range(12)]
+    combined = required + rest
+    secrets.SystemRandom().shuffle(combined)
+    temp_password = ''.join(combined)
+
     # Check if user already exists
     existing = await db.execute(select(User).where(User.email == invite_data.email))
     if existing.scalar_one_or_none():
@@ -325,9 +334,18 @@ async def resend_invite(
             detail="User not found"
         )
 
-    # Generate new temporary password
+    # Generate new temporary password (guarantee one from each required category)
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    temp_password = ''.join(secrets.choice(alphabet) for _ in range(16))
+    required = [
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.digits),
+        secrets.choice("!@#$%^&*"),
+    ]
+    rest = [secrets.choice(alphabet) for _ in range(12)]
+    combined = required + rest
+    secrets.SystemRandom().shuffle(combined)
+    temp_password = ''.join(combined)
 
     # Update user's password
     user.hashed_password = hash_password(temp_password)
@@ -398,9 +416,18 @@ async def bulk_invite_users(
                 })
                 continue
 
-            # Generate secure temporary password
+            # Generate secure temporary password (guarantee one from each required category)
             alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-            temp_password = ''.join(secrets.choice(alphabet) for _ in range(16))
+            required = [
+                secrets.choice(string.ascii_uppercase),
+                secrets.choice(string.ascii_lowercase),
+                secrets.choice(string.digits),
+                secrets.choice("!@#$%^&*"),
+            ]
+            rest = [secrets.choice(alphabet) for _ in range(12)]
+            combined = required + rest
+            secrets.SystemRandom().shuffle(combined)
+            temp_password = ''.join(combined)
 
             # Create user via auth service
             auth_service = AuthService(db)

@@ -49,6 +49,7 @@ export default function MeetingDetail() {
     const [isAddingMember, setIsAddingMember] = useState(false)
     const [twgMembers, setTwgMembers] = useState<any[]>([])
     const [selectedMembers, setSelectedMembers] = useState<string[]>([])
+    const [applyToSeries, setApplyToSeries] = useState(false)
     const [isSendingInvites, setIsSendingInvites] = useState(false)
     const [isCheckingConflicts, setIsCheckingConflicts] = useState(false)
     const [showConflictModal, setShowConflictModal] = useState(false)
@@ -330,10 +331,11 @@ export default function MeetingDetail() {
             await meetings.addParticipants(meetingId, [{
                 name: guestName,
                 email: guestEmail
-            }])
+            }], applyToSeries)
             setGuestName('')
             setGuestEmail('')
             setIsAddingGuest(false)
+            setApplyToSeries(false)
             await loadMeetingDetails()
         } catch (error) {
             console.error("Failed to add guest", error)
@@ -368,11 +370,13 @@ export default function MeetingDetail() {
         try {
             await meetings.addParticipants(
                 meetingId,
-                selectedMembers.map(uid => ({ user_id: uid }))
+                selectedMembers.map(uid => ({ user_id: uid })),
+                applyToSeries
             )
             setIsAddingMember(false)
             setSelectedMembers([])
             setTwgMembers([])
+            setApplyToSeries(false)
             await loadMeetingDetails()
         } catch (error) {
             console.error("Failed to add members", error)
@@ -384,8 +388,12 @@ export default function MeetingDetail() {
 
     const handleRemoveParticipant = async (participantId: string) => {
         if (!meetingId) return
+        let removeFromSeries = false
+        if (meeting?.recurring_meeting_id) {
+            removeFromSeries = window.confirm('Remove this participant from all future meetings in this series?')
+        }
         try {
-            await meetings.removeParticipant(meetingId, participantId)
+            await meetings.removeParticipant(meetingId, participantId, removeFromSeries)
             await loadMeetingDetails()
         } catch (error) {
             console.error("Failed to remove participant", error)
@@ -436,10 +444,11 @@ export default function MeetingDetail() {
 
         setIsLoadingAction(true)
         try {
-            await meetings.addParticipants(meetingId, guests)
+            await meetings.addParticipants(meetingId, guests, applyToSeries)
             setBulkGuestsText('')
             setIsAddingGuest(false)
             setIsBulkMode(false)
+            setApplyToSeries(false)
             await loadMeetingDetails()
             setStatusModal({
                 isOpen: true,
@@ -1607,6 +1616,17 @@ export default function MeetingDetail() {
                                                                     </label>
                                                                 ))}
                                                             </div>
+                                                            {meeting?.recurring_meeting_id && (
+                                                                <label className="flex items-center gap-2 mb-2 cursor-pointer">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={applyToSeries}
+                                                                        onChange={e => setApplyToSeries(e.target.checked)}
+                                                                        className="rounded border-slate-300"
+                                                                    />
+                                                                    <span className="text-xs text-slate-600 dark:text-slate-400">Add to all future meetings in this series</span>
+                                                                </label>
+                                                            )}
                                                             <div className="flex justify-end gap-2">
                                                                 <button
                                                                     onClick={() => setIsAddingMember(false)}
@@ -1647,6 +1667,18 @@ export default function MeetingDetail() {
                                                             </button>
                                                         </div>
                                                     </div>
+
+                                                    {meeting?.recurring_meeting_id && (
+                                                        <label className="flex items-center gap-2 mb-3 cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={applyToSeries}
+                                                                onChange={e => setApplyToSeries(e.target.checked)}
+                                                                className="rounded border-slate-300"
+                                                            />
+                                                            <span className="text-xs text-slate-600 dark:text-slate-400">Add to all future meetings in this series</span>
+                                                        </label>
+                                                    )}
 
                                                     {isBulkMode ? (
                                                         // Bulk Add Mode

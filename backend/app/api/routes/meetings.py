@@ -1526,6 +1526,7 @@ async def check_meeting_conflicts(
 async def add_participants(
     meeting_id: uuid.UUID,
     participants: List[MeetingParticipantCreate],
+    apply_to_series: bool = Query(False),
     current_user: User = Depends(require_facilitator),
     db: AsyncSession = Depends(get_db)
 ):
@@ -1590,7 +1591,50 @@ async def add_participants(
          new_participants.append(db_p)
          
     await db.commit()
-    
+
+    # Apply to all future meetings in the series
+    if apply_to_series and db_meeting.recurring_meeting_id:
+        sibling_result = await db.execute(
+            select(Meeting).where(
+                and_(
+                    Meeting.recurring_meeting_id == db_meeting.recurring_meeting_id,
+                    Meeting.id != meeting_id,
+                    Meeting.scheduled_at >= datetime.now(timezone.utc),
+                    Meeting.status != MeetingStatus.CANCELLED
+                )
+            )
+        )
+        sibling_meetings = sibling_result.scalars().all()
+
+        for sibling in sibling_meetings:
+            # Get existing participants for this sibling
+            existing_res = await db.execute(
+                select(MeetingParticipant).where(MeetingParticipant.meeting_id == sibling.id)
+            )
+            existing = existing_res.scalars().all()
+            sib_user_ids = {p.user_id for p in existing if p.user_id}
+            sib_emails = {p.email.lower() for p in existing if p.email}
+
+            for p_in in participants:
+                final_user_id = p_in.user_id
+                if not final_user_id and p_in.email:
+                    final_user_id = email_to_userid_map.get(p_in.email.lower())
+
+                if final_user_id and final_user_id in sib_user_ids:
+                    continue
+                if p_in.email and p_in.email.lower() in sib_emails:
+                    continue
+
+                db.add(MeetingParticipant(
+                    meeting_id=sibling.id,
+                    user_id=final_user_id,
+                    email=p_in.email,
+                    name=p_in.name,
+                    rsvp_status=RsvpStatus.PENDING
+                ))
+
+        await db.commit()
+
     # Sync to Google Calendar
     try:
         from app.services.calendar_service import calendar_service
@@ -1621,6 +1665,7 @@ async def add_participants(
 async def remove_participant(
     meeting_id: uuid.UUID,
     participant_id: uuid.UUID,
+    apply_to_series: bool = Query(False),
     current_user: User = Depends(require_facilitator),
     db: AsyncSession = Depends(get_db)
 ):
@@ -1641,8 +1686,45 @@ async def remove_participant(
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
 
+    # Capture identifiers before deleting
+    removed_user_id = participant.user_id
+    removed_email = participant.email.lower() if participant.email else None
+
     await db.delete(participant)
     await db.commit()
+
+    # Apply to all future meetings in the series
+    if apply_to_series and db_meeting.recurring_meeting_id:
+        sibling_result = await db.execute(
+            select(Meeting).where(
+                and_(
+                    Meeting.recurring_meeting_id == db_meeting.recurring_meeting_id,
+                    Meeting.id != meeting_id,
+                    Meeting.scheduled_at >= datetime.now(timezone.utc),
+                    Meeting.status != MeetingStatus.CANCELLED
+                )
+            )
+        )
+        sibling_meetings = sibling_result.scalars().all()
+
+        for sibling in sibling_meetings:
+            # Match by user_id first, then by email
+            conditions = [MeetingParticipant.meeting_id == sibling.id]
+            if removed_user_id:
+                conditions.append(MeetingParticipant.user_id == removed_user_id)
+            elif removed_email:
+                conditions.append(MeetingParticipant.email.ilike(removed_email))
+            else:
+                continue
+
+            match_result = await db.execute(
+                select(MeetingParticipant).where(and_(*conditions))
+            )
+            match = match_result.scalar_one_or_none()
+            if match:
+                await db.delete(match)
+
+        await db.commit()
 
 @router.post("/{meeting_id}/agenda", response_model=AgendaRead)
 async def upsert_agenda(

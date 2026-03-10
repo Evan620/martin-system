@@ -55,6 +55,7 @@ export default function TeamManagement() {
     const [parsedUsers, setParsedUsers] = useState<any[]>([])
     const [isParsing, setIsParsing] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
+    const [parseError, setParseError] = useState<string | null>(null)
     const [bulkUploadResults, setBulkUploadResults] = useState<{
         successful: any[]
         failed: any[]
@@ -369,14 +370,20 @@ export default function TeamManagement() {
 
         setCsvFile(file)
         setIsParsing(true)
+        setParsedUsers([])
+        setParseError(null)
         setBulkUploadResults(null)
 
         try {
             const users = await parseCSV(file)
-            setParsedUsers(users)
-            toast.success(`Parsed ${users.length} user(s) from CSV`)
+            if (users.length === 0) {
+                setParseError('No valid users found. Each row needs at least an email and full name.')
+            } else {
+                setParsedUsers(users)
+                toast.success(`Parsed ${users.length} user(s) from CSV`)
+            }
         } catch (error) {
-            toast.error('Failed to parse CSV file')
+            setParseError('Failed to parse CSV file. Please check the format and try again.')
             console.error(error)
         } finally {
             setIsParsing(false)
@@ -435,6 +442,7 @@ export default function TeamManagement() {
     const resetBulkUpload = () => {
         setCsvFile(null)
         setParsedUsers([])
+        setParseError(null)
         setBulkUploadResults(null)
         setIsBulkUploadModalOpen(false)
     }
@@ -1021,10 +1029,23 @@ export default function TeamManagement() {
                                                 <p className="text-sm font-bold text-[#0d121b] dark:text-white">
                                                     {isParsing ? 'Parsing...' : csvFile ? csvFile.name : 'Click to upload CSV file'}
                                                 </p>
-                                                <p className="text-xs text-[#4c669a] dark:text-[#a0aec0]">or drag and drop</p>
+                                                <p className="text-xs text-[#4c669a] dark:text-[#a0aec0]">CSV files only</p>
                                             </label>
                                         </div>
                                     </div>
+
+                                    {/* Parse Error Banner */}
+                                    {parseError && parsedUsers.length === 0 && (
+                                        <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
+                                            <div className="flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-lg">error</span>
+                                                <p className="text-sm font-medium text-red-700 dark:text-red-400">{parseError}</p>
+                                            </div>
+                                            <p className="text-xs text-red-600 dark:text-red-500 mt-1 ml-7">
+                                                Required columns: <strong>email</strong>, <strong>full name</strong> (or full_name). Optional: role, organization, twg names.
+                                            </p>
+                                        </div>
+                                    )}
 
                                     {/* Step 3: Preview */}
                                     {parsedUsers.length > 0 && (

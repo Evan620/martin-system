@@ -100,14 +100,14 @@ export const meetings = {
     updateAgenda: (id: string, data: { content: string }) => api.post(`/meetings/${id}/agenda`, data),
     generateAgenda: (id: string) => api.post(`/meetings/${id}/agenda/generate`),
 
-    addParticipants: (id: string, participants: Array<{ user_id?: string, email?: string, name?: string }>) =>
-        api.post(`/meetings/${id}/participants`, participants),
+    addParticipants: (id: string, participants: Array<{ user_id?: string, email?: string, name?: string }>, applyToSeries: boolean = false) =>
+        api.post(`/meetings/${id}/participants${applyToSeries ? '?apply_to_series=true' : ''}`, participants),
 
     updateRsvp: (meetingId: string, participantId: string, status: string) =>
         api.put(`/meetings/${meetingId}/participants/${participantId}/rsvp`, { rsvp_status: status }),
 
-    removeParticipant: (meetingId: string, participantId: string) =>
-        api.delete(`/meetings/${meetingId}/participants/${participantId}`),
+    removeParticipant: (meetingId: string, participantId: string, applyToSeries: boolean = false) =>
+        api.delete(`/meetings/${meetingId}/participants/${participantId}${applyToSeries ? '?apply_to_series=true' : ''}`),
 
     getMinutes: (id: string) => api.get(`/meetings/${id}/minutes`),
     updateMinutes: (id: string, data: { content: string, status?: string }) => api.post(`/meetings/${id}/minutes`, data),

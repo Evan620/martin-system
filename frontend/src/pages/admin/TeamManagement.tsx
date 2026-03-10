@@ -410,7 +410,16 @@ export default function TeamManagement() {
                         .filter((t: string) => t)
 
                     twgIds = twgs
-                        .filter(twg => twgNames.some((name: string) => twg.name.toLowerCase().includes(name) || twg.pillar?.toLowerCase().includes(name)))
+                        .filter(twg => twgNames.some((name: string) => {
+                            const twgLower = twg.name.toLowerCase()
+                            const pillarLower = twg.pillar?.toLowerCase() || ''
+                            // Match if TWG name contains the search term OR search term contains the TWG name
+                            // Also match on first word (e.g. "energy" matches "Energy Trade and Industrial Growth")
+                            const nameWords = name.replace(/\btwg\b/gi, '').trim().split(/\s+/).filter(Boolean)
+                            return twgLower.includes(name) || name.includes(twgLower) ||
+                                   pillarLower.includes(name) || name.includes(pillarLower) ||
+                                   nameWords.some(w => twgLower.startsWith(w) || pillarLower.startsWith(w))
+                        }))
                         .map(twg => twg.id)
                 }
 
@@ -476,8 +485,8 @@ export default function TeamManagement() {
                         Refresh
                     </button>
                     <button
-                        onClick={() => {
-                            if (twgs.length === 0) loadTwgs();
+                        onClick={async () => {
+                            if (twgs.length === 0) await loadTwgs();
                             setIsBulkUploadModalOpen(true);
                         }}
                         className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold transition-all shadow-md shadow-emerald-500/20 flex items-center gap-2"

@@ -1599,7 +1599,7 @@ async def add_participants(
                 and_(
                     Meeting.recurring_meeting_id == db_meeting.recurring_meeting_id,
                     Meeting.id != meeting_id,
-                    Meeting.scheduled_at >= datetime.now(timezone.utc),
+                    Meeting.scheduled_at >= datetime.utcnow(),
                     Meeting.status != MeetingStatus.CANCELLED
                 )
             )
@@ -1700,7 +1700,7 @@ async def remove_participant(
                 and_(
                     Meeting.recurring_meeting_id == db_meeting.recurring_meeting_id,
                     Meeting.id != meeting_id,
-                    Meeting.scheduled_at >= datetime.now(timezone.utc),
+                    Meeting.scheduled_at >= datetime.utcnow(),
                     Meeting.status != MeetingStatus.CANCELLED
                 )
             )

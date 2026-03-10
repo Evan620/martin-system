@@ -24,6 +24,7 @@ const CoreWorkspace = () => {
     const [error, setError] = useState<string | null>(null);
     const [showUpload, setShowUpload] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [selectedTwgFilter, setSelectedTwgFilter] = useState<string>('');
     const [allTwgs, setAllTwgs] = useState<any[]>([]);
     const [userLedTwgIds, setUserLedTwgIds] = useState<string[]>([]);
 
@@ -136,6 +137,19 @@ const CoreWorkspace = () => {
         return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
     };
 
+    const HIDDEN_PILLARS = ['protocol_logistics', 'resource_mobilization'];
+    const filterableTwgs = allTwgs.filter((t: any) => !HIDDEN_PILLARS.includes(t.pillar));
+
+    const filteredFiles = selectedTwgFilter
+        ? files.filter(file => {
+            if (file.access_control === 'specific_twgs' && file.scope) {
+                return file.scope.includes(selectedTwgFilter);
+            }
+            // "all_twgs" docs are visible regardless of filter
+            return file.access_control === 'all_twgs';
+        })
+        : files;
+
     return (
         <div className="rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] bg-white dark:bg-[#1a202c] overflow-hidden">
             <div className="px-6 py-4 border-b border-[#e7ebf3] dark:border-[#2d3748] flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/30">
@@ -149,6 +163,18 @@ const CoreWorkspace = () => {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    {filterableTwgs.length > 0 && (
+                        <select
+                            value={selectedTwgFilter}
+                            onChange={e => setSelectedTwgFilter(e.target.value)}
+                            className="text-xs font-bold border border-[#cfd7e7] dark:border-[#4a5568] rounded-lg px-3 py-2 bg-white dark:bg-[#2d3748] text-[#4c669a] dark:text-[#a0aec0] focus:ring-[#1152d4] focus:border-[#1152d4]"
+                        >
+                            <option value="">All TWGs</option>
+                            {filterableTwgs.map((t: any) => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                        </select>
+                    )}
                     {canUpload && (
                         <button
                             onClick={() => setShowUpload(!showUpload)}
@@ -195,11 +221,11 @@ const CoreWorkspace = () => {
                     </div>
                 )}
 
-                {loading && files.length === 0 ? (
+                {loading && filteredFiles.length === 0 ? (
                     <div className="flex justify-center py-12">
                         <span className="material-symbols-outlined text-4xl text-[#1152d4] animate-spin">progress_activity</span>
                     </div>
-                ) : files.length === 0 ? (
+                ) : filteredFiles.length === 0 ? (
                     <div className="text-center py-12 border-2 border-dashed border-[#cfd7e7] rounded-xl bg-gray-50/50">
                         <span className="material-symbols-outlined text-4xl text-[#8a9dbd] mb-2">folder_off</span>
                         <p className="text-[#8a9dbd] font-bold">No core documents found.</p>
@@ -213,7 +239,7 @@ const CoreWorkspace = () => {
                     <div className="max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                         {viewMode === 'grid' ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                {files.map((file) => (
+                                {filteredFiles.map((file) => (
                                     <div
                                         key={file.id}
                                         className={`group relative flex flex-col p-4 rounded-xl border transition-all duration-200 ${getFileColor(file.mimeType)}`}
@@ -288,7 +314,7 @@ const CoreWorkspace = () => {
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                {files.map((file) => (
+                                {filteredFiles.map((file) => (
                                     <div
                                         key={file.id}
                                         className="flex items-center p-3 rounded-xl border border-[#e7ebf3] hover:border-[#1152d4] bg-white hover:shadow-md transition-all group"

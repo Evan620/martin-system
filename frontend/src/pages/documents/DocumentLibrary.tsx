@@ -21,6 +21,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
     const [activeLibraryTab, setActiveLibraryTab] = useState('all')
     const [selectedDocTypes, setSelectedDocTypes] = useState<string[]>([])
     const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+    const [selectedTwgFilter, setSelectedTwgFilter] = useState<string[]>([])
     const [sortBy, setSortBy] = useState<'date' | 'name'>('date')
 
     // Upload Modal State
@@ -240,7 +241,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
     // Reset pagination on filter change
     useEffect(() => {
         setCurrentPage(1);
-    }, [activeLibraryTab, selectedDocTypes, selectedLabels, searchQuery]);
+    }, [activeLibraryTab, selectedDocTypes, selectedLabels, selectedTwgFilter, searchQuery]);
 
     // Helper function to get document type (from stored metadata or auto-detect)
     const getDocumentType = (doc: Document): string => {
@@ -277,7 +278,12 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
             (selectedLabels.includes('Internal') && !doc.is_confidential)
         );
 
-        return typeMatch && labelMatch;
+        // TWG filter
+        const twgMatch = selectedTwgFilter.length === 0 || (
+            doc.twg_id ? selectedTwgFilter.includes(doc.twg_id) : false
+        );
+
+        return typeMatch && labelMatch && twgMatch;
     }).sort((a, b) => {
         if (sortBy === 'date') {
             const dateA = new Date(a.created_at).getTime();
@@ -380,6 +386,27 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                 ))}
                             </div>
                         </section>
+
+                        {availableTwgs.length > 0 && (
+                            <section>
+                                <p className="text-[11px] font-black text-[#8a9dbd] uppercase tracking-[0.2em] mb-4">TWG Filter</p>
+                                <div className="space-y-2">
+                                    {availableTwgs.map((t: any) => (
+                                        <label key={t.id} className="flex items-center gap-3 cursor-pointer group">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedTwgFilter.includes(t.id)}
+                                                onChange={() => setSelectedTwgFilter(prev =>
+                                                    prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
+                                                )}
+                                                className="size-4 rounded border-[#cfd7e7] text-[#1152d4] focus:ring-[#1152d4]"
+                                            />
+                                            <span className="text-sm font-bold text-[#4c669a] group-hover:text-[#1152d4] transition-colors truncate">{t.name}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
                     </div>
                 </aside>
 

@@ -347,7 +347,7 @@ export default function TeamManagement() {
                             user[header] = values[index] || ''
                         })
                         return user
-                    }).filter(user => user.email && user.full_name)
+                    }).filter(user => user.email && (user.full_name || user['full name']))
 
                     resolve(users)
                 } catch (error) {

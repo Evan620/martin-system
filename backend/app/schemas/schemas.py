@@ -458,7 +458,7 @@ class ActionItemBase(SchemaBase):
     twg_id: uuid.UUID
     meeting_id: Optional[uuid.UUID] = None
     description: str
-    owner_id: uuid.UUID
+    owner_id: Optional[uuid.UUID] = None
     due_date: Optional[datetime] = None
     status: ActionItemStatus = ActionItemStatus.PENDING
     priority: ActionItemPriority = ActionItemPriority.MEDIUM

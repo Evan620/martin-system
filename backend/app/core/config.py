@@ -70,9 +70,9 @@ class Settings(BaseSettings):
     
     # LLM Provider Configuration
     LLM_PROVIDER: str = "gemini"
-    LLM_MODEL: str = "gemini-2.5-flash"
-    LLM_MODEL_FAST: str = "gemini-2.5-flash"
-    LLM_MODEL_POWERFUL: str = "gemini-2.5-pro"
+    LLM_MODEL: str = "gemini-3.1-pro-preview"
+    LLM_MODEL_FAST: str = "gemini-3.1-pro-preview"
+    LLM_MODEL_POWERFUL: str = "gemini-3.1-pro-preview"
     LLM_MAX_TOKENS: int = 4000
 
     # Groq
@@ -85,7 +85,7 @@ class Settings(BaseSettings):
 
     # Gemini
     GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.1-pro-preview"
 
     # Anthropic (Claude)
     ANTHROPIC_API_KEY: Optional[str] = None

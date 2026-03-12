@@ -73,7 +73,6 @@ async def upload_document(
             except ValueError:
                 # Not a UUID, try to resolve as pillar key
                 if twg_id in pillar_map:
-                    from app.models.models import TWG
                     pillar_value = pillar_map[twg_id]
                     result = await db.execute(
                         select(TWG).where(TWG.pillar == pillar_value)

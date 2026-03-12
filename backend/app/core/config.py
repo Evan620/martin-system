@@ -69,10 +69,10 @@ class Settings(BaseSettings):
     )
     
     # LLM Provider Configuration
-    LLM_PROVIDER: str = "anthropic"
-    LLM_MODEL: str = "claude-sonnet-4-20250514"
-    LLM_MODEL_FAST: str = "claude-sonnet-4-20250514"
-    LLM_MODEL_POWERFUL: str = "claude-sonnet-4-20250514"
+    LLM_PROVIDER: str = "gemini"
+    LLM_MODEL: str = "gemini-2.5-flash"
+    LLM_MODEL_FAST: str = "gemini-2.5-flash"
+    LLM_MODEL_POWERFUL: str = "gemini-2.5-pro"
     LLM_MAX_TOKENS: int = 4000
 
     # Groq

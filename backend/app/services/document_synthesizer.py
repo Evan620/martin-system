@@ -307,7 +307,7 @@ The meeting bot joined successfully but did not record any speech. This could be
             logger.error(f"Failed to synthesize minutes: {e}")
             raise e
 
-    async def extract_action_items(self, minutes_text: str, pillar: str = "energy") -> List[Dict[str, Any]]:
+    async def extract_action_items(self, minutes_text: str, pillar: str = "energy", participants: List[str] = None) -> List[Dict[str, Any]]:
         """
         Extract action items from meeting minutes using the appropriate specialist agent.
         """
@@ -350,20 +350,34 @@ The meeting bot joined successfully but did not record any speech. This could be
         try:
             agent = create_langgraph_agent(agent_id=normalized_pillar, session_id=session_id)
             
-            prompt = f"""Extract action items from the following meeting minutes.
+            # Build participant context for the prompt
+            participant_block = ""
+            if participants:
+                names_list = ", ".join(participants)
+                participant_block = f"""
+Known participants: {names_list}
 
+Rules:
+- "owner" MUST be one of the known participants listed above, or "UNASSIGNED"
+- For group assignments (e.g. "All Members", "Technical Working Group", "TWG", "Committee", "Secretariat"), use "UNASSIGNED"
+- Match names as closely as possible to the known participants list
+- If a name is mentioned but does not match any known participant, use the name as-is
+"""
+
+            prompt = f"""Extract action items from the following meeting minutes.
+{participant_block}
 Minutes:
 {minutes_text}
 
 Return ONLY a JSON array of action items, each with:
 - "description": the action item text
-- "owner": suggested owner name (or "TBD" if unclear)
+- "owner": suggested owner name (or "UNASSIGNED" if unclear or a group)
 - "due_date": suggested due date in YYYY-MM-DD format (or null if unclear)
 
 Example format:
 [
-  {{"description": "Draft energy policy framework", "owner": "TBD", "due_date": "2026-02-01"}},
-  {{"description": "Review ECOWAS Vision 2050 alignment", "owner": "TBD", "due_date": null}}
+  {{"description": "Draft energy policy framework", "owner": "Patrick Kormawa", "due_date": "2026-02-01"}},
+  {{"description": "Review ECOWAS Vision 2050 alignment", "owner": "UNASSIGNED", "due_date": null}}
 ]
 """
             # Use the agent to chat

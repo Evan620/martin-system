@@ -519,7 +519,7 @@ class ActionItem(Base):
     twg_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("twgs.id"))
     meeting_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("meetings.id"), nullable=True)
     description: Mapped[str] = mapped_column(Text)
-    owner_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"))
+    owner_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     due_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     status: Mapped[ActionItemStatus] = mapped_column(Enum(ActionItemStatus), default=ActionItemStatus.PENDING)
     priority: Mapped[ActionItemPriority] = mapped_column(Enum(ActionItemPriority), default=ActionItemPriority.MEDIUM)
@@ -530,7 +530,7 @@ class ActionItem(Base):
     # Relationships
     twg: Mapped["TWG"] = relationship(back_populates="action_items")
     meeting: Mapped[Optional["Meeting"]] = relationship(back_populates="action_items")
-    owner: Mapped["User"] = relationship(back_populates="owned_action_items")
+    owner: Mapped[Optional["User"]] = relationship(back_populates="owned_action_items")
 
 class Project(Base):
     __tablename__ = "projects"

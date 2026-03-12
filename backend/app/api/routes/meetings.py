@@ -36,7 +36,48 @@ from app.core.ws_manager import ws_manager
 from app.core.database import get_db, get_db_session_context
 from app.services.storage_service import get_storage_service
 
+from difflib import SequenceMatcher
+
 router = APIRouter(prefix="/meetings", tags=["Meetings"])
+
+GROUP_ASSIGNEES = {
+    "TBD", "N/A", "ALL MEMBERS", "UNASSIGNED", "ALL TWG MEMBERS",
+    "TECHNICAL WORKING GROUP", "TWG", "COMMITTEE", "SECRETARIAT",
+}
+
+
+async def resolve_owner_fuzzy(owner_name: str, meeting_id, db) -> Optional[uuid.UUID]:
+    """Fuzzy-match an owner name against meeting participants. Returns None if no match."""
+    if not owner_name or owner_name.strip().upper() in GROUP_ASSIGNEES:
+        return None
+
+    result = await db.execute(
+        select(User.id, User.full_name)
+        .join(MeetingParticipant, MeetingParticipant.user_id == User.id)
+        .where(MeetingParticipant.meeting_id == meeting_id)
+    )
+    participants = result.all()
+
+    best_match_id = None
+    best_score = 0.0
+    clean_name = owner_name.strip().lower()
+
+    for user_id, full_name in participants:
+        if not full_name:
+            continue
+        score = SequenceMatcher(None, clean_name, full_name.lower()).ratio()
+        # Also try matching against individual name parts (first/last name)
+        for part in full_name.lower().split():
+            part_score = SequenceMatcher(None, clean_name, part).ratio()
+            score = max(score, part_score)
+        # Substring containment boost
+        if clean_name in full_name.lower() or full_name.lower() in clean_name:
+            score = max(score, 0.85)
+        if score > best_score:
+            best_score = score
+            best_match_id = user_id
+
+    return best_match_id if best_score >= 0.6 else None
 
 
 def format_meeting_time_for_email(scheduled_at: datetime) -> tuple:
@@ -761,34 +802,24 @@ async def generate_minutes(
             )
             db.add(db_minutes)
             
-        # --- NEW: Extract Action Items Automatically ---
+        # --- Extract Action Items Automatically ---
         try:
-            import asyncio
-            # Run extraction (blocking) in thread to avoid blocking loop
-            # Or just call sync if we accept blocking (current synthesize_minutes is blocking)
-            # Let's use thread for safety as it involves another LLM call
-            
+            participant_names = [
+                p.user.full_name for p in db_meeting.participants
+                if p.user and p.user.full_name
+            ]
+
             actions_list = await synthesizer.extract_action_items(
                 generated_content,
-                pillar_name
+                pillar_name,
+                participants=participant_names
             )
-            
-            # Create participant mapping for owner resolution
-            user_map = {}
-            for p in db_meeting.participants:
-                if p.user:
-                    if p.user.full_name:
-                        user_map[p.user.full_name.lower()] = p.user.id
-                        # Also map just first name
-                        parts = p.user.full_name.split()
-                        if len(parts) > 0:
-                            user_map[parts[0].lower()] = p.user.id
-            
+
             action_count = 0
             for action in actions_list:
                 desc = action.get("description")
                 if not desc: continue
-                
+
                 # Parse Due Date
                 due_date = None
                 if action.get("due_date"):
@@ -796,20 +827,11 @@ async def generate_minutes(
                         due_date = datetime.strptime(action["due_date"], "%Y-%m-%d").date()
                     except:
                         pass
-                
-                # Resolve Owner
+
+                # Fuzzy-match owner against participants
                 owner_name = action.get("owner", "").strip()
-                owner_id = current_user.id # Default to facilitator
-                
-                if owner_name:
-                    if owner_name.lower() in user_map:
-                        owner_id = user_map[owner_name.lower()]
-                    else:
-                        # Try first name matching
-                        parts = owner_name.split()
-                        if len(parts) > 0 and parts[0].lower() in user_map:
-                            owner_id = user_map[parts[0].lower()]
-                
+                owner_id = await resolve_owner_fuzzy(owner_name, meeting_id, db)
+
                 new_action = ActionItem(
                     meeting_id=meeting_id,
                     twg_id=db_meeting.twg_id,
@@ -820,7 +842,7 @@ async def generate_minutes(
                 )
                 db.add(new_action)
                 action_count += 1
-                
+
             if action_count > 0:
                 print(f"✓ Automatically extracted {action_count} action items.")
         except Exception as ae:
@@ -2842,39 +2864,49 @@ async def extract_action_items(
     # Get meeting with minutes
     result = await db.execute(
         select(Meeting)
-        .options(selectinload(Meeting.twg), selectinload(Meeting.minutes))
+        .options(
+            selectinload(Meeting.twg),
+            selectinload(Meeting.minutes),
+            selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
+        )
         .where(Meeting.id == meeting_id)
     )
     db_meeting = result.scalar_one_or_none()
-    
+
     if not db_meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
-    
+
     if not has_twg_access(current_user, db_meeting.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
-    
+
     minutes_content = ""
     if db_meeting.minutes:
         minutes_content = db_meeting.minutes.content
     elif db_meeting.transcript:
         minutes_content = db_meeting.transcript
-    
+
     if not minutes_content:
         raise HTTPException(status_code=400, detail="No minutes or transcript available to extract actions from")
-    
+
     # Use DocumentSynthesizer to extract action items
     synthesizer = DocumentSynthesizer(llm_client=llm_service)
     pillar_name = db_meeting.twg.pillar.value if db_meeting.twg else "energy_infrastructure"
-    
+
+    participant_names = [
+        p.user.full_name for p in db_meeting.participants
+        if p.user and p.user.full_name
+    ]
+
     try:
         extracted_items = await synthesizer.extract_action_items(
             minutes_content,
-            pillar_name
+            pillar_name,
+            participants=participant_names
         )
     except Exception as e:
         logging.error(f"Action item extraction failed: {e}")
         return {"extracted_actions": [], "error": str(e), "message": "Failed to extract action items"}
-    
+
     # Auto-create ActionItem records
     logging.info(f"AI extracted {len(extracted_items)} raw action items for meeting {meeting_id}")
 
@@ -2888,24 +2920,6 @@ async def extract_action_items(
         logging.error(f"Dedup query failed: {e}")
         existing_descriptions = set()
 
-    # Resolve owner by name (same logic as auto-extraction in fireflies)
-    async def resolve_owner_by_name(owner_name: str):
-        if not owner_name or owner_name.upper() in ("TBD", "N/A", "ALL MEMBERS", ""):
-            return None
-        try:
-            result = await db.execute(
-                select(User.id)
-                .join(MeetingParticipant, MeetingParticipant.user_id == User.id)
-                .where(
-                    MeetingParticipant.meeting_id == meeting_id,
-                    User.full_name.ilike(f"%{owner_name.strip()}%")
-                )
-                .limit(1)
-            )
-            return result.scalar_one_or_none()
-        except Exception:
-            return None
-
     created_items = []
     skipped_items = []
     for item in extracted_items:
@@ -2917,8 +2931,6 @@ async def extract_action_items(
             continue
 
         try:
-            from datetime import datetime, timedelta
-
             # Parse due date or default to 2 weeks from now
             due_date = None
             if item.get("due_date"):
@@ -2929,11 +2941,9 @@ async def extract_action_items(
             else:
                 due_date = datetime.utcnow() + timedelta(days=14)
 
-            # Resolve owner by name, fall back to current user
+            # Fuzzy-match owner against participants
             owner_name = item.get("owner", "")
-            owner_id = await resolve_owner_by_name(owner_name)
-            if not owner_id:
-                owner_id = current_user.id
+            owner_id = await resolve_owner_fuzzy(owner_name, meeting_id, db)
 
             db_action = ActionItem(
                 twg_id=db_meeting.twg_id,
@@ -2946,7 +2956,7 @@ async def extract_action_items(
             db.add(db_action)
             created_items.append({
                 "description": desc,
-                "owner": owner_name or current_user.full_name,
+                "owner": owner_name or "Unassigned",
                 "due_date": due_date.isoformat() if due_date else None,
                 "created": True
             })

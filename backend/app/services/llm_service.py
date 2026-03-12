@@ -608,7 +608,7 @@ def get_llm_service() -> LLMService:
         elif provider == "gemini" and getattr(settings, "GEMINI_API_KEY", None):
              _llm_service = OpenAILLMService(
                 api_key=settings.GEMINI_API_KEY,
-                model=getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash"),
+                model=getattr(settings, "GEMINI_MODEL", "gemini-2.5-pro"),
                 temperature=settings.LLM_TEMPERATURE,
                 base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
             )

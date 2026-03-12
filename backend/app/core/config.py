@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "gemini-3.1-pro-preview"
     LLM_MODEL_FAST: str = "gemini-3.1-pro-preview"
     LLM_MODEL_POWERFUL: str = "gemini-3.1-pro-preview"
-    LLM_MAX_TOKENS: int = 4000
+    LLM_MAX_TOKENS: int = 16000
 
     # Groq
     GROQ_API_KEY: Optional[str] = None

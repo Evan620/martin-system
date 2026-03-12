@@ -284,7 +284,7 @@ The meeting bot joined successfully but did not record any speech. This could be
         # 2. Call LLM
         try:
             # We use the raw chat interface of the LLM service
-            generated_content = self.llm.chat(prompt)
+            generated_content = self.llm.chat(prompt, max_tokens=65536)
             
             # 3. Log Result
             result = {

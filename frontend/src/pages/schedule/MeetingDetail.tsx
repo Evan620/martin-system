@@ -587,7 +587,7 @@ export default function MeetingDetail() {
     const handleActionClick = (action: any) => {
         setSelectedAction(action)
         setSelectedDescription(action.description)
-        setSelectedOwner(action.owner || '')
+        setSelectedOwner(action.owner?.name || action.owner || '')
         setSelectedDueDate(action.due_date ? action.due_date.split('T')[0] : '')
         setIsEditingSelected(false)
     }
@@ -1514,9 +1514,9 @@ export default function MeetingDetail() {
                                                                         <div className="flex items-center gap-3">
                                                                             <div className="flex items-center gap-2">
                                                                                 <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
-                                                                                    {item.owner.avatar}
+                                                                                    {item.owner?.avatar || 'U'}
                                                                                 </div>
-                                                                                <span className="text-sm text-slate-600 dark:text-slate-400">{item.owner.name}</span>
+                                                                                <span className="text-sm text-slate-600 dark:text-slate-400">{item.owner?.name || 'Unassigned'}</span>
                                                                             </div>
                                                                             <span className="text-sm text-slate-500">{item.dueDate}</span>
                                                                             <Badge variant={item.status === 'pending' ? 'warning' : 'info'} className="text-xs">
@@ -2460,9 +2460,9 @@ export default function MeetingDetail() {
                                             <span className="text-slate-500 block text-xs uppercase tracking-wider font-bold mb-1">Owner</span>
                                             <div className="flex items-center gap-2">
                                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${selectedAction.owner ? 'bg-indigo-500' : 'bg-slate-400'}`}>
-                                                    {selectedAction.owner ? selectedAction.owner.charAt(0).toUpperCase() : '?'}
+                                                    {selectedAction.owner?.avatar || (typeof selectedAction.owner === 'string' && selectedAction.owner ? selectedAction.owner.charAt(0).toUpperCase() : '?')}
                                                 </div>
-                                                <span className="font-medium text-slate-700 dark:text-slate-300">{selectedAction.owner || 'Unassigned'}</span>
+                                                <span className="font-medium text-slate-700 dark:text-slate-300">{selectedAction.owner?.name || selectedAction.owner || 'Unassigned'}</span>
                                             </div>
                                         </div>
                                         <div>

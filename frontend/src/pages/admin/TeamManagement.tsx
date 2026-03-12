@@ -81,7 +81,7 @@ export default function TeamManagement() {
     const loadTwgs = async () => {
         setLoadingTwgs(true)
         try {
-            const response = await twgService.list()
+            const response = await twgService.dropdown()
             setTwgs(response.data)
         } catch (error) {
             console.error('Failed to load TWGs', error)

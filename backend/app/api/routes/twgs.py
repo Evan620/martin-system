@@ -29,6 +29,33 @@ async def create_twg(
     await db.refresh(db_twg)
     return db_twg
 
+@router.get("/dropdown")
+async def list_twgs_dropdown(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Lightweight TWG list for dropdown selectors. Returns only id, name, pillar, group_type.
+    """
+    from app.models.models import TWGPillar
+    HIDDEN_PILLARS = {TWGPillar.protocol_logistics, TWGPillar.resource_mobilization}
+
+    result = await db.execute(
+        select(TWG.id, TWG.name, TWG.pillar, TWG.group_type)
+        .where(
+            or_(
+                (TWG.pillar.notin_(HIDDEN_PILLARS)) & (TWG.group_type == "twg"),
+                TWG.group_type == "leads_council"
+            )
+        )
+    )
+    rows = result.all()
+    return [
+        {"id": str(r.id), "name": r.name, "pillar": r.pillar.value if r.pillar else None, "group_type": r.group_type}
+        for r in rows
+    ]
+
+
 @router.get("/", response_model=List[TWGRead])
 async def list_twgs(
     skip: int = 0,

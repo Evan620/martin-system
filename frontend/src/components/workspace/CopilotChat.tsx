@@ -99,7 +99,7 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
         const canMention = user?.role === UserRole.ADMIN || user?.role === UserRole.SECRETARIAT_LEAD;
         if (canMention && twgs.length === 0) {
             import('../../services/twgService').then(mod => {
-                mod.default.listTWGs().then(data => setTwgs(data)).catch(console.error);
+                mod.default.listDropdown().then(data => setTwgs(data)).catch(console.error);
             });
         }
     }, [user?.role]);

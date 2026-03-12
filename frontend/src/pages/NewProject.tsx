@@ -95,7 +95,7 @@ const NewProject: React.FC = () => {
       let twgId = null;
 
       try {
-        const twgsResponse = await api.get('/twgs/');
+        const twgsResponse = await api.get('/twgs/dropdown');
 
         console.log('Available TWGs:', twgsResponse.data);
 

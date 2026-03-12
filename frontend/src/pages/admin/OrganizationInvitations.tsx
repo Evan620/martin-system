@@ -77,7 +77,7 @@ export default function OrganizationInvitations() {
 
     const loadTwgs = async () => {
         try {
-            const response = await twgService.list()
+            const response = await twgService.dropdown()
             setTwgs(response.data)
         } catch (error) {
             console.error('Failed to load TWGs', error)

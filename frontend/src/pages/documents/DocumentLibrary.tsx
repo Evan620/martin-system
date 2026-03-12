@@ -53,7 +53,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
     useEffect(() => {
         const fetchTwgs = async () => {
             try {
-                const response = await twgService.list()
+                const response = await twgService.dropdown()
                 setAllTwgs(response.data)
             } catch (error) {
                 console.error('Failed to fetch TWGs:', error)

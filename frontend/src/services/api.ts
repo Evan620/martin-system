@@ -152,6 +152,7 @@ export const actionItems = {
 
 export const twgs = {
     list: (skip = 0, limit = 100) => api.get(`/twgs/?skip=${skip}&limit=${limit}`),
+    dropdown: () => api.get(`/twgs/dropdown`),
     get: (id: string) => api.get(`/twgs/${id}`),
     update: (id: string, data: any) => api.patch(`/twgs/${id}`, data),
     listMembers: (twgId: string) => api.get(`/twgs/${twgId}/members`),

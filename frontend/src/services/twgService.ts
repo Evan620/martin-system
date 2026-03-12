@@ -15,6 +15,11 @@ export const twgService = {
         return response.data;
     },
 
+    listDropdown: async (): Promise<TWG[]> => {
+        const response = await api.get<TWG[]>('/twgs/dropdown');
+        return response.data;
+    },
+
     getTWG: async (id: string): Promise<TWG> => {
         const response = await api.get<TWG>(`/twgs/${id}`);
         return response.data;

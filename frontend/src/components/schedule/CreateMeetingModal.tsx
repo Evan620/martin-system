@@ -78,7 +78,7 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
 
     const loadTwgs = async () => {
         try {
-            const response = await twgs.list();
+            const response = await twgs.dropdown();
             setTwgList(response.data);
         } catch (error) {
             console.error('Failed to load TWGs', error);

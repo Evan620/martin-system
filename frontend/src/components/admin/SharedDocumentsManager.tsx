@@ -33,7 +33,7 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
     useEffect(() => {
         const fetchTwgs = async () => {
             try {
-                const response = await twgService.list();
+                const response = await twgService.dropdown();
                 const twgs = response.data.filter((t: any) => !HIDDEN_PILLARS.includes(t.pillar));
                 setAllTwgs(twgs);
 

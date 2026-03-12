@@ -66,7 +66,7 @@ weasyprint>=60.0.0
 
 # HTTP Client
 httpx==0.26.0
-aiohttp==3.9.3
+aiohttp>=3.9.3
 aiofiles>=23.2.1
 
 # Date/Time Handling
@@ -74,7 +74,7 @@ python-dateutil==2.8.2
 pytz==2024.1
 
 # Utilities
-pyyaml==6.0.1
+pyyaml>=6.0.1
 python-slugify==8.0.1
 
 # Testing
@@ -90,7 +90,7 @@ sentry-sdk[fastapi]==1.40.0
 
 # Data Processing
 pandas>=2.2.2
-numpy<2.0.0
+numpy>=1.26.4
 
 # Document Ingestion
 tiktoken>=0.7.0
@@ -106,6 +106,6 @@ redis==5.0.1
 flower==2.0.1
 
 # Text Extraction & OCR
-PyMuPDF==1.23.8        # PDF text extraction
+PyMuPDF>=1.24.0        # PDF text extraction (1.24+ supports Python 3.13)
 pytesseract==0.3.10    # OCR wrapper for scanned PDFs
-Pillow==10.1.0         # Image processing for OCR
+Pillow>=10.1.0         # Image processing for OCR

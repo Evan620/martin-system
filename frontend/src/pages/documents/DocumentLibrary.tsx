@@ -118,9 +118,9 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
         try {
             setUploading(true)
             const response = await documentService.uploadDocument(selectedFile, selectedTwgId || undefined, isConfidential, finalDocType || undefined)
-            // Transition to ingestion steps
+            // Auto-ingest immediately after upload
             setUploadedDocId(response.id)
-            setUploadStep('ready_to_ingest')
+            setUploadStep('ingesting')
 
             // Clear form but keep modal open
             setSelectedFile(null)
@@ -129,6 +129,16 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
             setSelectedDocType('')
             setCustomDocType('')
             fetchData() // Refresh list background
+
+            // Trigger ingestion automatically
+            try {
+                await documentService.ingestDocument(response.id)
+                setUploadStep('complete')
+                fetchData() // Refresh to show synced status
+            } catch (ingestError) {
+                console.error('Auto-ingestion failed:', ingestError)
+                setUploadStep('ready_to_ingest') // Allow manual retry
+            }
         } catch (error) {
             console.error('Upload failed:', error)
             alert('Upload failed. Please try again.')

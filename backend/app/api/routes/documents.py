@@ -382,7 +382,7 @@ async def ingest_document(
     if not db_doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    if not has_twg_access(current_user, db_doc.twg_id):
+    if db_doc.twg_id and not has_twg_access(current_user, db_doc.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
 
     processor = get_document_processor()

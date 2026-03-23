@@ -141,7 +141,7 @@ export default function LiveMeeting() {
     return (
         <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900">
             {/* Header */}
-            <div className="px-8 py-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+            <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
                 <div className="flex items-center justify-between">
                     <div>
                         <button onClick={() => navigate(`/meetings/${meetingId}`)} className="text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-2 flex items-center gap-1">
@@ -169,7 +169,7 @@ export default function LiveMeeting() {
             {/* Main Content */}
             <div className="flex-1 overflow-hidden flex">
                 {/* Transcript Area */}
-                <div className="flex-1 p-8 overflow-y-auto">
+                <div className="flex-1 p-4 sm:p-8 overflow-y-auto">
                     <div className="max-w-3xl mx-auto">
 
                         {error && (

@@ -122,7 +122,7 @@ export default function WorkspaceContextPanel({ twgName, twgId, onInsertContext 
     }
 
     return (
-        <div className="w-80 bg-white dark:bg-[#1a202c] border-l border-[#e7ebf3] dark:border-[#2d3748] flex flex-col animate-in slide-in-from-right duration-300">
+        <div className="hidden md:flex w-80 bg-white dark:bg-[#1a202c] border-l border-[#e7ebf3] dark:border-[#2d3748] flex-col animate-in slide-in-from-right duration-300">
             {/* Header */}
             <div className="p-4 border-b border-[#e7ebf3] dark:border-[#2d3748] flex items-center justify-between">
                 <div>

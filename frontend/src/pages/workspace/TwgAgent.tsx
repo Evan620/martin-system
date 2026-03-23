@@ -946,17 +946,17 @@ export default function TwgAgent() {
                                 onChange={handleInputChange}
                                 onKeyDown={handleKeyPress}
                                 disabled={isLoading}
-                                className="w-full bg-transparent border-none focus:ring-0 text-sm p-4 pr-36 min-h-[60px] max-h-32 resize-none text-[#0d121b] dark:text-white placeholder:text-[#9ca3af] disabled:opacity-50"
+                                className="w-full bg-transparent border-none focus:ring-0 text-sm p-4 pr-14 sm:pr-36 min-h-[60px] max-h-32 resize-none text-[#0d121b] dark:text-white placeholder:text-[#9ca3af] disabled:opacity-50"
                                 placeholder="Ask me anything... Use / for commands or @ for agents"
                             />
                             <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
-                                <button className="p-2 text-[#6b7280] dark:text-[#9ca3af] hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all" title="Attach file">
+                                <button className="hidden sm:block p-2 text-[#6b7280] dark:text-[#9ca3af] hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all" title="Attach file">
                                     <span className="material-symbols-outlined text-[20px]">attach_file</span>
                                 </button>
-                                <button className="p-2 text-[#6b7280] dark:text-[#9ca3af] hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all" title="Voice input">
+                                <button className="hidden sm:block p-2 text-[#6b7280] dark:text-[#9ca3af] hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all" title="Voice input">
                                     <span className="material-symbols-outlined text-[20px]">mic</span>
                                 </button>
-                                <div className="w-px h-6 bg-[#e7ebf3] dark:bg-[#2d3748] mx-1"></div>
+                                <div className="hidden sm:block w-px h-6 bg-[#e7ebf3] dark:bg-[#2d3748] mx-1"></div>
                                 <button
                                     onClick={handleSendMessage}
                                     disabled={!inputMessage.trim() || isLoading}

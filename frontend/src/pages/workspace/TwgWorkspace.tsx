@@ -91,7 +91,7 @@ export default function TwgWorkspace() {
 
     return (
         <>
-            <div className="flex h-[calc(100vh-140px)] gap-4">
+            <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-140px)] gap-4">
                 <div className="flex-1 min-w-0 space-y-4 overflow-y-auto">
                     {/* Banner Section */}
                     <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-blue-900 via-blue-950 to-slate-950 border border-slate-800 shadow-2xl">
@@ -184,7 +184,7 @@ export default function TwgWorkspace() {
                     </div>
 
                     {/* Quick Stats Grid */}
-                    <div className={`grid ${isCopilotExpanded ? 'grid-cols-2' : 'grid-cols-4'} gap-3 transition-all`}>
+                    <div className={`grid grid-cols-2 ${isCopilotExpanded ? 'md:grid-cols-2' : 'md:grid-cols-4'} gap-3 transition-all`}>
                         <Card className="p-3 flex items-center gap-3 group hover:border-blue-500/50 transition-all">
                             <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -368,7 +368,7 @@ export default function TwgWorkspace() {
                                 </div>
 
                                 {/* Action Items List */}
-                                <div className="col-span-7 space-y-4">
+                                <div className="col-span-12 md:col-span-7 space-y-4">
                                     <div className="flex items-center justify-between">
                                         <h2 className="text-lg font-bold text-slate-900 dark:text-white transition-colors">Critical Action Items</h2>
                                         <button className="text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors uppercase">View All</button>
@@ -402,7 +402,7 @@ export default function TwgWorkspace() {
                                 </div>
 
                                 {/* Document Repository */}
-                                <div className="col-span-5 space-y-4">
+                                <div className="col-span-12 md:col-span-5 space-y-4">
                                     <div className="flex items-center justify-between">
                                         <h2 className="text-lg font-bold text-slate-900 dark:text-white transition-colors">Document Library</h2>
                                     </div>
@@ -458,7 +458,7 @@ export default function TwgWorkspace() {
                 {/* AI Copilot Sidebar */}
 
                 {/* AI Copilot Sidebar */}
-                <div className={`${isCopilotExpanded ? 'w-[45%]' : 'w-80'} flex flex-col gap-6 transition-all duration-300 ease-in-out shrink-0`}>
+                <div className={`hidden lg:flex ${isCopilotExpanded ? 'w-[45%]' : 'w-80'} flex-col gap-6 transition-all duration-300 ease-in-out shrink-0`}>
                     <Card className="flex-1 flex flex-col p-0 overflow-hidden bg-white dark:bg-dark-card border-slate-100 dark:border-dark-border transition-colors h-[calc(100vh-140px)] shadow-xl shadow-blue-900/5">
                         <CopilotChat
                             twgId={twgId}

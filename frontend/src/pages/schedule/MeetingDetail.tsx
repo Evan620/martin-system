@@ -1113,18 +1113,18 @@ export default function MeetingDetail() {
                 />
 
                 {/* Tabs */}
-                <div className="flex border-b border-slate-200 dark:border-slate-800 px-8 bg-white dark:bg-slate-900">
+                <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 sm:px-8 bg-white dark:bg-slate-900 overflow-x-auto">
                     {[
                         { id: 'agenda', label: 'Agenda' },
-                        { id: 'minutes', label: 'Minutes & Decisions' },
+                        { id: 'minutes', label: 'Minutes' },
                         { id: 'participants', label: 'Participants' },
                         { id: 'documents', label: 'Documents' },
-                        { id: 'schedule', label: 'Schedule Integrity' }
+                        { id: 'schedule', label: 'Schedule' }
                     ].map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as TabType)}
-                            className={`py-4 px-6 text-sm font-bold border-b-2 transition-colors ${activeTab === tab.id
+                            className={`py-4 px-3 sm:px-6 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id
                                 ? 'border-blue-600 text-blue-600'
                                 : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                                 }`}
@@ -1137,7 +1137,7 @@ export default function MeetingDetail() {
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto">
                     <div className="flex">
-                        <div className="flex-1 p-8">
+                        <div className="flex-1 p-4 sm:p-8">
                             {loading ? (
                                 <div className="flex justify-center py-20">
                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

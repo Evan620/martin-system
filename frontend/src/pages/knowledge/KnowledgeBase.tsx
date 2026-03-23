@@ -70,7 +70,7 @@ export default function KnowledgeBase() {
                     </div>
                 </div>
 
-                <div className="flex justify-center gap-2">
+                <div className="flex justify-center gap-2 flex-wrap">
                     {tabs.map(tab => (
                         <button
                             key={tab}
@@ -82,9 +82,9 @@ export default function KnowledgeBase() {
                 </div>
             </div>
 
-            <div className="flex gap-8">
+            <div className="flex flex-col lg:flex-row gap-8">
                 {/* Filters Sidebar */}
-                <aside className="w-56 space-y-8 flex-shrink-0">
+                <aside className="hidden lg:block w-56 space-y-8 flex-shrink-0">
                     <div className="bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border rounded-2xl p-5 space-y-6 transition-colors shadow-sm">
                         <div className="flex items-center justify-between">
                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -161,7 +161,7 @@ export default function KnowledgeBase() {
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M9 5l7 7-7 7" /></svg>
                             </button>
                         </div>
-                        <div className="grid grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                             {documents.map((doc, i) => (
                                 <Card key={i} className="group hover:ring-2 hover:ring-blue-500/50 transition-all cursor-pointer">
                                     <div className="space-y-4">

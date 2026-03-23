@@ -19,6 +19,12 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
     const token = useAppSelector((state) => state.auth.token);
     const socketRef = useRef<WebSocket | null>(null);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    // Close mobile menu on route change
+    useEffect(() => {
+        setIsMobileMenuOpen(false);
+    }, [location.pathname]);
 
     useEffect(() => {
         if (token) {
@@ -92,7 +98,17 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
             {/* Top Navbar */}
             <header className="sticky top-0 z-50 w-full bg-white dark:bg-[#1a202c] border-b border-[#e7ebf3] dark:border-[#2d3748]">
                 <div className="px-6 lg:px-10 py-3 flex items-center justify-between gap-6">
-                    <div className="flex items-center gap-8">
+                    <div className="flex items-center gap-4 lg:gap-8">
+                        {/* Mobile Hamburger */}
+                        <button
+                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                            className="lg:hidden p-2 -ml-2 text-[#4c669a] hover:text-[#0d121b] dark:hover:text-white transition-colors"
+                            aria-label="Toggle navigation menu"
+                        >
+                            <span className="material-symbols-outlined text-[24px]">
+                                {isMobileMenuOpen ? 'close' : 'menu'}
+                            </span>
+                        </button>
                         {/* Brand */}
                         <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/dashboard')}>
                             <div className="size-8 rounded-full bg-[#1152d4]/10 flex items-center justify-center text-[#1152d4]">
@@ -170,6 +186,110 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                     </div>
                 </div>
             </header>
+
+            {/* Mobile Menu Overlay */}
+            {isMobileMenuOpen && (
+                <div className="fixed inset-0 z-40 lg:hidden">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => setIsMobileMenuOpen(false)} />
+                    <div className="absolute left-0 top-0 bottom-0 w-72 bg-white dark:bg-[#1a202c] shadow-2xl flex flex-col animate-slide-in-left">
+                        <div className="p-4 border-b border-[#e7ebf3] dark:border-[#2d3748] flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="size-8 rounded-full bg-[#1152d4]/10 flex items-center justify-center text-[#1152d4]">
+                                    <span className="material-symbols-outlined">shield_person</span>
+                                </div>
+                                <span className="text-sm font-bold">ECOWAS Summit</span>
+                            </div>
+                            <button onClick={() => setIsMobileMenuOpen(false)} className="p-1 text-[#4c669a]">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        {/* Mobile Search */}
+                        <div className="p-4 md:hidden">
+                            <div className="flex items-center bg-[#f0f2f5] dark:bg-[#2d3748] rounded-lg h-10 px-3 gap-2">
+                                <span className="material-symbols-outlined text-[#4c669a] dark:text-[#a0aec0]">search</span>
+                                <input
+                                    className="bg-transparent border-none outline-none text-sm w-full placeholder:text-[#4c669a] dark:placeholder:text-[#a0aec0] text-[#0d121b] dark:text-white focus:ring-0 p-0"
+                                    placeholder="Search..."
+                                    type="text"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                            <div>
+                                <div className="text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider mb-3 px-3">Navigation</div>
+                                <div className="space-y-1">
+                                    {[
+                                        { path: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
+                                        { path: '/schedule', icon: 'calendar_month', label: 'Meetings (Schedule)' },
+                                        { path: '/documents', icon: 'folder', label: 'Documents' },
+                                        { path: '/twgs', icon: 'smart_toy', label: 'TWG Agents' },
+                                        { path: '/actions', icon: 'task_alt', label: 'Actions' },
+                                    ].map(item => (
+                                        <button
+                                            key={item.path}
+                                            onClick={() => navigate(item.path)}
+                                            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg font-medium text-sm transition-colors ${isActive(item.path)
+                                                ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
+                                                : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
+                                            }`}
+                                        >
+                                            <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                                            <span>{item.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {isAdmin && (
+                                <div>
+                                    <div className="text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider mb-3 px-3">Management</div>
+                                    <div className="space-y-1">
+                                        {[
+                                            { path: '/admin/team', icon: 'badge', label: 'Team' },
+                                            { path: '/admin/invitations', icon: 'mail', label: 'Org Invitations' },
+                                            { path: '/admin/logs', icon: 'history', label: 'Audit Logs' },
+                                        ].map(item => (
+                                            <button
+                                                key={item.path}
+                                                onClick={() => navigate(item.path)}
+                                                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg font-medium text-sm transition-colors ${isActive(item.path)
+                                                    ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
+                                                    : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
+                                                }`}
+                                            >
+                                                <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                                                <span>{item.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-4 border-t border-[#e7ebf3] dark:border-[#2d3748] space-y-1">
+                            <button
+                                onClick={() => { navigate('/profile'); }}
+                                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg font-medium text-sm text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748] transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">person</span>
+                                <span>Profile</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    dispatch(logout());
+                                    navigate('/login');
+                                }}
+                                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg font-bold text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">logout</span>
+                                <span>Sign Out</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Main Content with Sidebar */}
             <div className="flex-1 flex overflow-hidden">

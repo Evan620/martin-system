@@ -86,7 +86,7 @@ export default function CalendarGrid({
                 </div>
 
                 {/* Legend */}
-                <div className="flex items-center gap-3 text-xs text-slate-500">
+                <div className="hidden sm:flex items-center gap-3 text-xs text-slate-500">
                     <div className="flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                         <span>In-Person</span>
@@ -102,17 +102,20 @@ export default function CalendarGrid({
                 </div>
             </div>
 
-            {/* Weekday Headers */}
-            <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                {weekDays.map(day => (
-                    <div key={day} className="py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        {day}
-                    </div>
-                ))}
-            </div>
+            {/* Scrollable calendar area for mobile */}
+            <div className="flex-1 overflow-x-auto">
+              <div className="min-w-[500px]">
+                {/* Weekday Headers */}
+                <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                    {weekDays.map(day => (
+                        <div key={day} className="py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            {day}
+                        </div>
+                    ))}
+                </div>
 
-            {/* Days Grid */}
-            <div className="grid grid-cols-7 flex-1 auto-rows-[1fr]">
+                {/* Days Grid */}
+                <div className="grid grid-cols-7 auto-rows-[minmax(80px,1fr)]">
                 {calendarDays.map((day) => {
                     const dayEvents = getEventsForDay(day);
                     const isCurrentMonth = isSameMonth(day, monthStart);
@@ -171,6 +174,8 @@ export default function CalendarGrid({
                         </div>
                     );
                 })}
+            </div>
+              </div>
             </div>
         </div>
     );

@@ -8,7 +8,7 @@ export default function MeetingSidebar({ meeting }: MeetingSidebarProps) {
     // Early return if meeting data hasn't loaded yet
     if (!meeting) {
         return (
-            <div className="w-80 bg-slate-50 dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 p-6">
+            <div className="hidden lg:block w-80 bg-slate-50 dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 p-6">
                 <div className="flex justify-center py-10">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 </div>
@@ -36,7 +36,7 @@ export default function MeetingSidebar({ meeting }: MeetingSidebarProps) {
     }
 
     return (
-        <div className="w-80 bg-slate-50 dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 p-6 space-y-6 overflow-y-auto">
+        <div className="hidden lg:block w-80 bg-slate-50 dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 p-6 space-y-6 overflow-y-auto">
             {/* Meeting Details */}
             <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">Meeting Details</h3>

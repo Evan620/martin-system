@@ -204,28 +204,28 @@ export default function ActionTracker() {
                 </div>
             ) : (
                 <Card className="overflow-hidden">
-                    {/* Table Header */}
-                    <div className="grid grid-cols-[1fr_140px_140px_120px_160px] gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        <span>Description</span>
-                        <span>Owner</span>
-                        <span>Due Date</span>
-                        <span>Status</span>
-                        <span>Actions</span>
-                    </div>
+                    {/* Table - Desktop */}
+                    <div className="hidden md:block overflow-x-auto">
+                        <div className="grid grid-cols-[1fr_140px_140px_120px_160px] gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider min-w-[700px]">
+                            <span>Description</span>
+                            <span>Owner</span>
+                            <span>Due Date</span>
+                            <span>Status</span>
+                            <span>Actions</span>
+                        </div>
 
-                    {/* Rows */}
-                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {items.map((item) => {
-                            const isOverdue = item.status === 'OVERDUE'
-                            const isCompleted = item.status === 'COMPLETED'
-                            const transitions = STATUS_TRANSITIONS[item.status] || []
-                            const statusColor = STATUS_COLUMNS.find(c => c.key === item.status)
+                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {items.map((item) => {
+                                const isOverdue = item.status === 'OVERDUE'
+                                const isCompleted = item.status === 'COMPLETED'
+                                const transitions = STATUS_TRANSITIONS[item.status] || []
+                                const statusColor = STATUS_COLUMNS.find(c => c.key === item.status)
 
-                            return (
-                                <div
-                                    key={item.id}
-                                    className={`grid grid-cols-[1fr_140px_140px_120px_160px] gap-4 px-5 py-3.5 items-center transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/30 ${isOverdue ? 'bg-red-50/40 dark:bg-red-900/5' : ''}`}
-                                >
+                                return (
+                                    <div
+                                        key={item.id}
+                                        className={`grid grid-cols-[1fr_140px_140px_120px_160px] gap-4 px-5 py-3.5 items-center transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/30 min-w-[700px] ${isOverdue ? 'bg-red-50/40 dark:bg-red-900/5' : ''}`}
+                                    >
                                     {/* Description */}
                                     <div className="min-w-0">
                                         <span className={`text-sm leading-snug ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white font-medium'}`}>
@@ -277,6 +277,67 @@ export default function ActionTracker() {
                                             </button>
                                         ))}
                                     </div>
+                                </div>
+                            )
+                        })}
+                        </div>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+                        {items.map((item) => {
+                            const isOverdue = item.status === 'OVERDUE'
+                            const isCompleted = item.status === 'COMPLETED'
+                            const transitions = STATUS_TRANSITIONS[item.status] || []
+                            const statusColor = STATUS_COLUMNS.find(c => c.key === item.status)
+
+                            return (
+                                <div
+                                    key={item.id}
+                                    className={`p-4 space-y-3 ${isOverdue ? 'bg-red-50/40 dark:bg-red-900/5' : ''}`}
+                                >
+                                    <div className="flex items-start justify-between gap-2">
+                                        <span className={`text-sm leading-snug flex-1 ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white font-medium'}`}>
+                                            {item.description}
+                                        </span>
+                                        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${
+                                            isCompleted ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                            : isOverdue ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                            : item.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                        }`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${statusColor?.color || 'bg-slate-400'}`}></span>
+                                            {statusColor?.label || item.status}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                                        <div className="flex items-center gap-1.5">
+                                            <Avatar size="xs" fallback={getInitials(item.owner?.full_name)} />
+                                            <span className="truncate">{item.owner?.full_name || 'Unassigned'}</span>
+                                        </div>
+                                        <span>|</span>
+                                        <span className={isOverdue ? 'text-red-500 font-medium' : ''}>{formatDate(item.due_date)}</span>
+                                    </div>
+                                    {transitions.length > 0 && (
+                                        <div className="flex gap-2 flex-wrap">
+                                            {transitions.map((nextStatus) => (
+                                                <button
+                                                    key={nextStatus}
+                                                    onClick={() => handleStatusChange(item.id, nextStatus)}
+                                                    disabled={updatingId === item.id}
+                                                    className={`text-[10px] font-bold px-3 py-1.5 rounded-full border transition-colors disabled:opacity-50 ${
+                                                        nextStatus === 'COMPLETED'
+                                                            ? 'border-green-300 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30'
+                                                            : nextStatus === 'IN_PROGRESS'
+                                                            ? 'border-blue-300 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                                                            : 'border-slate-300 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                    }`}
+                                                >
+                                                    {updatingId === item.id ? '...' : nextStatus.replace('_', ' ')}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )
                         })}

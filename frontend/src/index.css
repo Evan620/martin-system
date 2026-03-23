@@ -28,6 +28,15 @@
   }
 }
 
+/* Mobile menu slide-in animation */
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+.animate-slide-in-left {
+  animation: slide-in-left 0.2s ease-out;
+}
+
 /* Custom Scrollbar for better aesthetics */
 ::-webkit-scrollbar {
   width: 8px;

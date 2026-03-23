@@ -105,10 +105,10 @@ export default function NotificationCenter() {
 
     return (
         <>
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-[#0d121b] dark:text-white tracking-tight">Notification Center</h1>
-                    <p className="text-[#4c669a] dark:text-[#a0aec0] font-medium mt-1">Stay updated on TWG progress, mentions, and system alerts.</p>
+                    <h1 className="text-2xl sm:text-3xl font-black text-[#0d121b] dark:text-white tracking-tight">Notification Center</h1>
+                    <p className="text-[#4c669a] dark:text-[#a0aec0] font-medium mt-1 text-sm sm:text-base">Stay updated on TWG progress, mentions, and system alerts.</p>
                 </div>
                 <div className="flex gap-3">
                     <button
@@ -127,9 +127,9 @@ export default function NotificationCenter() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-280px)]">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8 h-auto lg:h-[calc(100vh-280px)]">
                 {/* Notification List Sidebar */}
-                <div className="lg:col-span-1 bg-white dark:bg-[#1a202c] rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm overflow-hidden flex flex-col">
+                <div className="lg:col-span-1 bg-white dark:bg-[#1a202c] rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm overflow-hidden flex flex-col max-h-[50vh] lg:max-h-none">
                     <div className="p-4 border-b border-[#e7ebf3] dark:border-[#2d3748] bg-gray-50/50 dark:bg-[#1a202c]/50">
                         <div className="flex items-center justify-between">
                             <h3 className="font-bold text-[#0d121b] dark:text-white">Notifications</h3>

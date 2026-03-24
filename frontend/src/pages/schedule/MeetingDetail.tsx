@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { RootState } from '../../store'
 import { meetings, actionItems, twgs, recurringMeetings } from '../../services/api'
@@ -22,6 +22,7 @@ export default function MeetingDetail() {
     const { id: meetingId } = useParams<{ id: string }>()
     const navigate = useNavigate()
     const location = useLocation()
+    const [searchParams, setSearchParams] = useSearchParams()
     const user = useSelector((state: RootState) => state.auth.user)
     const isFacilitator = user?.role === UserRole.ADMIN || user?.role === UserRole.SECRETARIAT_LEAD || user?.role === UserRole.FACILITATOR
     const [meeting, setMeeting] = useState<any>(null)
@@ -59,6 +60,12 @@ export default function MeetingDetail() {
     const [showInvitePreviewModal, setShowInvitePreviewModal] = useState(false)
     const [isLoadingAction, setIsLoadingAction] = useState(false)
     const [showVersionHistory, setShowVersionHistory] = useState(false)
+
+    // Translation State
+    const [isTranslating, setIsTranslating] = useState(false)
+    const [translatedContent, setTranslatedContent] = useState<string | null>(null)
+    const [translationLanguage, setTranslationLanguage] = useState<string | null>(null)
+    const [showTranslateMenu, setShowTranslateMenu] = useState(false)
     const [statusModal, setStatusModal] = useState<{ isOpen: boolean, type: 'success' | 'error' | 'info', title: string, message: string, actionText?: string, onAction?: () => void }>({
         isOpen: false,
         type: 'info',
@@ -133,6 +140,14 @@ export default function MeetingDetail() {
         window.addEventListener('meeting-update', handleUpdate);
         return () => window.removeEventListener('meeting-update', handleUpdate);
     }, [meetingId])
+
+    // Auto-translate when ?lang= param is present and minutes are loaded
+    useEffect(() => {
+        const lang = searchParams.get('lang')
+        if (lang && ['fr', 'pt', 'en'].includes(lang) && minutesContent && !translatedContent && !isTranslating) {
+            handleTranslate(lang)
+        }
+    }, [minutesContent, searchParams])
 
     const loadMeetingDetails = async () => {
         if (!meetingId) return;
@@ -209,6 +224,8 @@ export default function MeetingDetail() {
         try {
             const res = await meetings.generateMinutes(meetingId)
             setMinutesContent(res.data.content)
+            setTranslatedContent(null)
+            setTranslationLanguage(null)
             setMinutesStatus('DRAFT')
             setIsTranscriptExpanded(false)
             setMinutesStatus('DRAFT')  // Generated content starts as draft
@@ -278,7 +295,7 @@ export default function MeetingDetail() {
     const handleDownloadPdf = async () => {
         if (!meetingId) return
         try {
-            const response = await meetings.downloadMinutesPdf(meetingId)
+            const response = await meetings.downloadMinutesPdf(meetingId, translationLanguage || undefined)
             // Create blob URL and trigger download
             const blob = new Blob([response.data], { type: 'application/pdf' })
             const url = window.URL.createObjectURL(blob)
@@ -300,6 +317,29 @@ export default function MeetingDetail() {
             console.error("Failed to download PDF", error)
             alert(error?.response?.data?.detail || "Failed to download PDF")
         }
+    }
+
+    const handleTranslate = async (lang: string) => {
+        if (!meetingId || isTranslating) return
+        setShowTranslateMenu(false)
+        setIsTranslating(true)
+        try {
+            const res = await meetings.translateMinutes(meetingId, lang)
+            setTranslatedContent(res.data.translated_content)
+            setTranslationLanguage(lang)
+            setSearchParams(prev => { prev.set('lang', lang); return prev }, { replace: true })
+        } catch (error: any) {
+            console.error("Failed to translate minutes", error)
+            alert(error?.response?.data?.detail || "Failed to translate minutes")
+        } finally {
+            setIsTranslating(false)
+        }
+    }
+
+    const handleClearTranslation = () => {
+        setTranslatedContent(null)
+        setTranslationLanguage(null)
+        setSearchParams(prev => { prev.delete('lang'); return prev }, { replace: true })
     }
 
     const [showRejectModal, setShowRejectModal] = useState(false)
@@ -1356,8 +1396,74 @@ export default function MeetingDetail() {
                                                                         </svg>
                                                                     </button>
                                                                 )}
+                                                                {/* Translate button */}
+                                                                {minutesContent && (
+                                                                    <div className="relative">
+                                                                        <button
+                                                                            onClick={() => setShowTranslateMenu(!showTranslateMenu)}
+                                                                            disabled={isTranslating}
+                                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
+                                                                            title="Translate Minutes"
+                                                                        >
+                                                                            {isTranslating ? (
+                                                                                <svg className="w-5 h-5 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                                                </svg>
+                                                                            ) : (
+                                                                                <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                                                                                </svg>
+                                                                            )}
+                                                                        </button>
+                                                                        {showTranslateMenu && (
+                                                                            <>
+                                                                                <div className="fixed inset-0 z-10" onClick={() => setShowTranslateMenu(false)} />
+                                                                                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-20 py-1 min-w-[160px]">
+                                                                                    {[
+                                                                                        { code: 'fr', label: 'Français (French)' },
+                                                                                        { code: 'pt', label: 'Português (Portuguese)' },
+                                                                                        { code: 'en', label: 'English' },
+                                                                                    ].map((lang) => (
+                                                                                        <button
+                                                                                            key={lang.code}
+                                                                                            onClick={() => handleTranslate(lang.code)}
+                                                                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 ${translationLanguage === lang.code ? 'text-blue-600 font-medium' : 'text-slate-700 dark:text-slate-300'}`}
+                                                                                        >
+                                                                                            {lang.label}
+                                                                                        </button>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
+                                                        {/* Translation banner */}
+                                                        {translatedContent && (
+                                                            <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-2 mb-4">
+                                                                <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                                                                    Viewing translation ({translationLanguage === 'fr' ? 'French' : translationLanguage === 'pt' ? 'Portuguese' : 'English'})
+                                                                </span>
+                                                                <button
+                                                                    onClick={handleClearTranslation}
+                                                                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 font-medium underline"
+                                                                >
+                                                                    Back to Original
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        {/* Translating indicator */}
+                                                        {isTranslating && (
+                                                            <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-2 mb-4">
+                                                                <svg className="w-4 h-4 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                                </svg>
+                                                                <span className="text-sm text-blue-700 dark:text-blue-300">Translating minutes...</span>
+                                                            </div>
+                                                        )}
                                                         <Card className="p-8">
                                                             <div className="prose prose-slate dark:prose-invert max-w-none">
                                                                 <ReactMarkdown
@@ -1376,7 +1482,7 @@ export default function MeetingDetail() {
                                                                         td: ({ node, ...props }) => <td className="border border-slate-200 dark:border-slate-700 px-4 py-2" {...props} />,
                                                                     }}
                                                                 >
-                                                                    {minutesContent}
+                                                                    {translatedContent || minutesContent}
                                                                 </ReactMarkdown>
                                                             </div>
                                                         </Card>

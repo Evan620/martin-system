@@ -13,6 +13,8 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
     const [uploading, setUploading] = useState(false)
     const [ingesting, setIngesting] = useState<string | null>(null)
     const [downloading, setDownloading] = useState<string | null>(null)
+    const [translatingDoc, setTranslatingDoc] = useState<string | null>(null)
+    const [translateMenuDoc, setTranslateMenuDoc] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [searchResults, setSearchResults] = useState<SearchResult[]>([])
     const [isSearching, setIsSearching] = useState(false)
@@ -233,6 +235,19 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
             console.error('Download failed:', error)
         } finally {
             setDownloading(null)
+        }
+    }
+
+    const handleTranslateDownload = async (docId: string, language: string) => {
+        setTranslateMenuDoc(null)
+        setTranslatingDoc(docId)
+        try {
+            await documentService.translateDownload(docId, language)
+        } catch (error: any) {
+            console.error('Translate download failed:', error)
+            alert(error?.response?.data?.detail || 'Failed to translate document')
+        } finally {
+            setTranslatingDoc(null)
         }
     }
 
@@ -644,6 +659,40 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                             <span className="material-symbols-outlined text-[18px]">download</span>
                                                         )}
                                                     </button>
+                                                    {/* Translate & Download */}
+                                                    <div className="relative">
+                                                        <button
+                                                            onClick={() => setTranslateMenuDoc(translateMenuDoc === doc.id ? null : doc.id)}
+                                                            disabled={translatingDoc === doc.id}
+                                                            className={`p-2 transition-colors ${translatingDoc === doc.id ? 'text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#1152d4]'}`}
+                                                            title="Translate & Download"
+                                                        >
+                                                            {translatingDoc === doc.id ? (
+                                                                <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
+                                                            ) : (
+                                                                <span className="material-symbols-outlined text-[18px]">translate</span>
+                                                            )}
+                                                        </button>
+                                                        {translateMenuDoc === doc.id && (
+                                                            <>
+                                                                <div className="fixed inset-0 z-10" onClick={() => setTranslateMenuDoc(null)} />
+                                                                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-20 py-1 min-w-[160px]">
+                                                                    {[
+                                                                        { code: 'fr', label: 'Français (French)' },
+                                                                        { code: 'pt', label: 'Português (Portuguese)' },
+                                                                    ].map((lang) => (
+                                                                        <button
+                                                                            key={lang.code}
+                                                                            onClick={() => handleTranslateDownload(doc.id, lang.code)}
+                                                                            className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                                                                        >
+                                                                            {lang.label}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                     <button
                                                         onClick={() => handleDelete(doc.id)}
                                                         className="p-2 text-[#8a9dbd] hover:text-red-600 transition-colors"

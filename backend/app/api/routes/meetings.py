@@ -39,6 +39,7 @@ from app.services.storage_service import get_storage_service
 from difflib import SequenceMatcher
 
 router = APIRouter(prefix="/meetings", tags=["Meetings"])
+logger = logging.getLogger(__name__)
 
 GROUP_ASSIGNEES = {
     "TBD", "N/A", "ALL MEMBERS", "UNASSIGNED", "ALL TWG MEMBERS",
@@ -1657,30 +1658,94 @@ async def add_participants(
 
         await db.commit()
 
-    # Sync to Google Calendar
-    try:
-        from app.services.calendar_service import calendar_service
-        from app.services.recurring_meeting_service import _gcal_executor
-        import asyncio
-        loop = asyncio.get_running_loop()
-        # Get DB meeting to check type
-        if db_meeting.meeting_type == 'virtual' or db_meeting.meeting_type == 'hybrid': # Assume virtual/hybrid have links
-             emails_to_add = [p.email for p in new_participants if p.email]
-             if emails_to_add:
-                 await loop.run_in_executor(
-                     _gcal_executor,
-                     lambda: calendar_service.add_attendees_to_event(str(meeting_id), emails_to_add)
-                 )
-    except Exception as e:
-        # Don't fail the request if sync fails
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Failed to sync participants to GCal: {e}")
-    
+    # Sync new participants to Google Calendar + send email invites
+    emails_to_add = list(set(
+        p.email for p in new_participants if p.email
+    ))
+
+    # Determine all meeting IDs that were updated (current + siblings if apply_to_series)
+    meeting_ids_to_sync = [str(meeting_id)]
+    if apply_to_series and db_meeting.recurring_meeting_id:
+        sibling_result2 = await db.execute(
+            select(Meeting.id).where(
+                and_(
+                    Meeting.recurring_meeting_id == db_meeting.recurring_meeting_id,
+                    Meeting.id != meeting_id,
+                    Meeting.scheduled_at >= datetime.utcnow(),
+                    Meeting.status != MeetingStatus.CANCELLED
+                )
+            )
+        )
+        meeting_ids_to_sync.extend(str(r[0]) for r in sibling_result2.all())
+
+    if emails_to_add:
+        # GCal: add attendees to ALL affected calendar events
+        try:
+            from app.services.calendar_service import calendar_service
+            from app.services.recurring_meeting_service import _gcal_executor
+            loop = asyncio.get_running_loop()
+            for mid in meeting_ids_to_sync:
+                try:
+                    await loop.run_in_executor(
+                        _gcal_executor,
+                        lambda m=mid: calendar_service.add_attendees_to_event(m, emails_to_add)
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to sync participants to GCal for meeting {mid}: {e}")
+                await asyncio.sleep(1)  # Rate limit
+        except Exception as e:
+            logger.error(f"Failed to sync participants to GCal: {e}")
+
+        # Email: send invite for each affected meeting
+        try:
+            from app.services.email_service import email_service
+            for mid in meeting_ids_to_sync:
+                m_result = await db.execute(
+                    select(Meeting).options(selectinload(Meeting.twg)).where(Meeting.id == uuid.UUID(mid))
+                )
+                m_obj = m_result.scalar_one_or_none()
+                if not m_obj:
+                    continue
+                twg_name = m_obj.twg.name if m_obj.twg else "TWG"
+                import pytz
+                display_tz = pytz.timezone("Africa/Nairobi")
+                utc_time = pytz.UTC.localize(m_obj.scheduled_at) if m_obj.scheduled_at.tzinfo is None else m_obj.scheduled_at
+                local_display = utc_time.astimezone(display_tz)
+                date_str = local_display.strftime("%A, %B %d, %Y")
+                time_str = f"{local_display.strftime('%I:%M %p')} EAT ({m_obj.scheduled_at.strftime('%H:%M')} UTC)"
+                try:
+                    await email_service.send_meeting_invite(
+                        to_emails=emails_to_add,
+                        subject=f"Meeting Invitation: {m_obj.title}",
+                        template_name="meeting_invite.html",
+                        template_context={
+                            "user_name": "Valued Participant",
+                            "meeting_title": m_obj.title,
+                            "meeting_date": date_str,
+                            "meeting_time": time_str,
+                            "location": m_obj.location or "Virtual",
+                            "video_link": m_obj.video_link,
+                            "pillar_name": twg_name,
+                            "portal_url": settings.FRONTEND_URL + "/schedule",
+                        },
+                        meeting_details={
+                            "title": m_obj.title,
+                            "meeting_id": mid,
+                            "start_time": m_obj.scheduled_at,
+                            "duration": m_obj.duration_minutes,
+                            "location": m_obj.video_link or m_obj.location or "Virtual",
+                        },
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send invite email for meeting {mid}: {e}")
+                await asyncio.sleep(0.5)
+        except Exception as e:
+            logger.error(f"Failed to send participant invite emails: {e}")
+
     # Refresh to return
     for p in new_participants:
         await db.refresh(p)
-        
+
     return new_participants
 
 @router.delete("/{meeting_id}/participants/{participant_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -2585,16 +2650,18 @@ async def approve_minutes(
 @router.get("/{meeting_id}/minutes/pdf")
 async def download_minutes_pdf(
     meeting_id: uuid.UUID,
+    language: Optional[str] = Query(None, regex="^(fr|pt|en)$"),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Download meeting minutes as PDF.
     Available for APPROVED or FINAL status only.
+    Pass ?language=fr|pt|en to download a translated version.
     """
     from fastapi.responses import Response
     from app.services.pdf_service import pdf_service
-    
+
     # Get meeting with minutes and TWG
     result = await db.execute(
         select(Meeting)
@@ -2602,25 +2669,48 @@ async def download_minutes_pdf(
         .where(Meeting.id == meeting_id)
     )
     db_meeting = result.scalar_one_or_none()
-    
+
     if not db_meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
-    
+
     if not has_twg_access(current_user, db_meeting.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
-    
+
     if not db_meeting.minutes:
         raise HTTPException(status_code=404, detail="No minutes found for this meeting")
-    
+
     # Allow download for APPROVED and FINAL status (also DRAFT for preview)
     allowed_status_values = [MinutesStatus.APPROVED.value, MinutesStatus.FINAL.value, MinutesStatus.DRAFT.value, MinutesStatus.PENDING_APPROVAL.value]
     current_pdf_status = db_meeting.minutes.status.value if hasattr(db_meeting.minutes.status, 'value') else str(db_meeting.minutes.status)
     if current_pdf_status not in allowed_status_values:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail=f"Minutes must be in APPROVED, FINAL, DRAFT, or PENDING_APPROVAL status. Current: {current_pdf_status}"
         )
-    
+
+    # Translate content if language param provided
+    minutes_markdown = db_meeting.minutes.content
+    lang_label = ""
+    if language and language != "en":
+        lang_map = {"fr": "French", "pt": "Portuguese"}
+        lang_name = lang_map.get(language, "English")
+        system_prompt = (
+            f"You are a professional translator. Translate the following meeting minutes into {lang_name}. "
+            "Preserve all Markdown formatting, headings, bullet points, tables, and structure exactly. "
+            "Do not add commentary or notes — output ONLY the translated Markdown."
+        )
+        try:
+            minutes_markdown = llm_service.chat(
+                prompt=db_meeting.minutes.content,
+                system_prompt=system_prompt,
+                temperature=0.1,
+                max_tokens=8000,
+            )
+            lang_label = f"_{language.upper()}"
+        except Exception as e:
+            logger.error(f"PDF translation failed for meeting {meeting_id}: {e}")
+            raise HTTPException(status_code=500, detail="Translation for PDF failed. Please try again.")
+
     # Generate PDF
     pillar_display = db_meeting.twg.pillar.value.replace("_", " ").title() if db_meeting.twg else "General"
     pdf_context = {
@@ -2630,19 +2720,19 @@ async def download_minutes_pdf(
         "meeting_time": db_meeting.scheduled_at.strftime('%H:%M') if db_meeting.scheduled_at else "",
         "location": db_meeting.location or "Virtual",
     }
-    
+
     try:
         pdf_bytes = pdf_service.generate_minutes_pdf(
-            minutes_markdown=db_meeting.minutes.content,
+            minutes_markdown=minutes_markdown,
             template_context=pdf_context
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
-    
+
     # Create safe filename
     safe_title = "".join(c if c.isalnum() or c in " -_" else "_" for c in db_meeting.title)[:50]
-    filename = f"Minutes_{safe_title}.pdf"
-    
+    filename = f"Minutes_{safe_title}{lang_label}.pdf"
+
     # Add watermark for non-approved minutes
     status_label = ""
     pdf_status_check = db_meeting.minutes.status.value if hasattr(db_meeting.minutes.status, 'value') else str(db_meeting.minutes.status)
@@ -2650,7 +2740,7 @@ async def download_minutes_pdf(
         status_label = "DRAFT_"
     elif pdf_status_check == MinutesStatus.PENDING_APPROVAL.value:
         status_label = "PENDING_"
-    
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -2658,6 +2748,61 @@ async def download_minutes_pdf(
             "Content-Disposition": f"attachment; filename={status_label}{filename}"
         }
     )
+
+
+@router.post("/{meeting_id}/minutes/translate")
+async def translate_minutes(
+    meeting_id: uuid.UUID,
+    body: dict,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Translate meeting minutes to French, Portuguese, or English."""
+    target_language = body.get("target_language")
+    lang_map = {
+        "fr": "French",
+        "pt": "Portuguese",
+        "en": "English",
+    }
+    if target_language not in lang_map:
+        raise HTTPException(status_code=400, detail="target_language must be 'fr', 'pt', or 'en'")
+
+    result = await db.execute(
+        select(Meeting)
+        .options(selectinload(Meeting.minutes))
+        .where(Meeting.id == meeting_id)
+    )
+    db_meeting = result.scalar_one_or_none()
+
+    if not db_meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    if not has_twg_access(current_user, db_meeting.twg_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not db_meeting.minutes or not db_meeting.minutes.content:
+        raise HTTPException(status_code=404, detail="No minutes found for this meeting")
+
+    lang_name = lang_map[target_language]
+    system_prompt = (
+        f"You are a professional translator. Translate the following meeting minutes into {lang_name}. "
+        "Preserve all Markdown formatting, headings, bullet points, tables, and structure exactly. "
+        "Do not add commentary or notes — output ONLY the translated Markdown."
+    )
+
+    try:
+        translated = llm_service.chat(
+            prompt=db_meeting.minutes.content,
+            system_prompt=system_prompt,
+            temperature=0.1,
+            max_tokens=8000,
+        )
+    except Exception as e:
+        logger.error(f"Translation failed for meeting {meeting_id}: {e}")
+        raise HTTPException(status_code=500, detail="Translation failed. Please try again.")
+
+    return {
+        "translated_content": translated,
+        "target_language": target_language,
+    }
 
 
 @router.post("/{meeting_id}/minutes/reject")

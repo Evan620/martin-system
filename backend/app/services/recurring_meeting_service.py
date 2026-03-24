@@ -84,58 +84,93 @@ async def _sync_new_instances_gcal_email(
 
         loop = asyncio.get_running_loop()
         video_link_updates = {}
+        gcal_failures = []
+        email_failures = []
 
-        for inst in instance_data:
-            # 1. Create Google Calendar event with Meet link
-            try:
-                calendar_event = await loop.run_in_executor(
-                    _gcal_executor,
-                    lambda i=inst: calendar_service.create_meeting_event(
-                        title=i["title"],
-                        start_time=i["scheduled_at"],
-                        duration_minutes=i["duration_minutes"],
-                        description=f"Recurring meeting for {twg_display_name}",
-                        attendees=participant_emails,
-                        meeting_id=i["id"],
+        for idx, inst in enumerate(instance_data):
+            # 1. Create Google Calendar event with Meet link (with retry)
+            gcal_success = False
+            for attempt in range(3):
+                try:
+                    calendar_event = await loop.run_in_executor(
+                        _gcal_executor,
+                        lambda i=inst: calendar_service.create_meeting_event(
+                            title=i["title"],
+                            start_time=i["scheduled_at"],
+                            duration_minutes=i["duration_minutes"],
+                            description=f"Recurring meeting for {twg_display_name}",
+                            attendees=participant_emails,
+                            meeting_id=i["id"],
+                        )
                     )
-                )
-                if calendar_event.get("hangoutLink"):
-                    video_link_updates[inst["id"]] = calendar_event["hangoutLink"]
-                    inst["video_link"] = calendar_event["hangoutLink"]
+                    if calendar_event.get("hangoutLink"):
+                        video_link_updates[inst["id"]] = calendar_event["hangoutLink"]
+                        inst["video_link"] = calendar_event["hangoutLink"]
+                    gcal_success = True
                     logger.info(f"GCal event created for recurring instance {inst['id']}")
-            except Exception as e:
-                logger.warning(f"Failed to create GCal event for instance {inst['id']}: {e}")
+                    break
+                except Exception as e:
+                    if attempt < 2:
+                        wait = 2 ** (attempt + 1)  # 2s, 4s
+                        logger.warning(f"GCal attempt {attempt+1}/3 failed for {inst['id']}: {e}. Retrying in {wait}s...")
+                        await asyncio.sleep(wait)
+                    else:
+                        logger.error(f"GCal FAILED after 3 attempts for instance {inst['id']}: {e}")
+                        gcal_failures.append(inst["id"])
 
-            # 2. Send email invite
-            try:
-                if participant_emails:
-                    date_str, time_str = _format_meeting_time_for_email(inst["scheduled_at"])
-                    await email_service.send_meeting_invite(
-                        to_emails=participant_emails,
-                        subject=f"Meeting Invitation: {inst['title']}",
-                        template_name="meeting_invite.html",
-                        template_context={
-                            "user_name": "Valued Participant",
-                            "meeting_title": inst["title"],
-                            "meeting_date": date_str,
-                            "meeting_time": time_str,
-                            "location": inst.get("location") or "Virtual",
-                            "video_link": inst.get("video_link"),
-                            "pillar_name": twg_display_name,
-                            "portal_url": settings.FRONTEND_URL + "/schedule",
-                        },
-                        meeting_details={
-                            "title": inst["title"],
-                            "meeting_id": inst["id"],
-                            "start_time": inst["scheduled_at"],
-                            "duration": inst["duration_minutes"],
-                            "location": inst.get("video_link") or inst.get("location") or "Virtual",
-                        },
-                    )
-            except Exception as e:
-                logger.warning(f"Failed to send invite email for instance {inst['id']}: {e}")
+            # 2. Send email invite (with retry)
+            email_success = False
+            if participant_emails:
+                for attempt in range(3):
+                    try:
+                        date_str, time_str = _format_meeting_time_for_email(inst["scheduled_at"])
+                        await email_service.send_meeting_invite(
+                            to_emails=participant_emails,
+                            subject=f"Meeting Invitation: {inst['title']}",
+                            template_name="meeting_invite.html",
+                            template_context={
+                                "user_name": "Valued Participant",
+                                "meeting_title": inst["title"],
+                                "meeting_date": date_str,
+                                "meeting_time": time_str,
+                                "location": inst.get("location") or "Virtual",
+                                "video_link": inst.get("video_link"),
+                                "pillar_name": twg_display_name,
+                                "portal_url": settings.FRONTEND_URL + "/schedule",
+                            },
+                            meeting_details={
+                                "title": inst["title"],
+                                "meeting_id": inst["id"],
+                                "start_time": inst["scheduled_at"],
+                                "duration": inst["duration_minutes"],
+                                "location": inst.get("video_link") or inst.get("location") or "Virtual",
+                            },
+                        )
+                        email_success = True
+                        break
+                    except Exception as e:
+                        if attempt < 2:
+                            wait = 2 ** (attempt + 1)
+                            logger.warning(f"Email attempt {attempt+1}/3 failed for {inst['id']}: {e}. Retrying in {wait}s...")
+                            await asyncio.sleep(wait)
+                        else:
+                            logger.error(f"Email FAILED after 3 attempts for instance {inst['id']}: {e}")
+                            email_failures.append(inst["id"])
 
-            await asyncio.sleep(0.5)
+            # Rate-limit pause between instances — longer for GCal API
+            if idx < len(instance_data) - 1:
+                await asyncio.sleep(2)
+
+        # Log summary so failures are visible
+        total = len(instance_data)
+        if gcal_failures:
+            logger.error(f"GCal sync: {len(gcal_failures)}/{total} instances FAILED: {gcal_failures}")
+        else:
+            logger.info(f"GCal sync: all {total} instances created successfully")
+        if email_failures:
+            logger.error(f"Email sync: {len(email_failures)}/{total} instances FAILED: {email_failures}")
+        else:
+            logger.info(f"Email sync: all {total} invites sent successfully")
 
         # Persist video_link updates using a fresh DB session
         if video_link_updates:
@@ -148,10 +183,10 @@ async def _sync_new_instances_gcal_email(
                             .values(video_link=link)
                         )
             except Exception as e:
-                logger.warning(f"Failed to persist video_link updates: {e}")
+                logger.error(f"Failed to persist video_link updates: {e}")
 
     except Exception as e:
-        logger.warning(f"Background GCal/email sync error: {e}")
+        logger.error(f"Background GCal/email sync error: {e}")
 
 
 async def _cancel_instances_gcal_email(
@@ -468,9 +503,36 @@ class RecurringMeetingService:
 
         # --- Post-commit: Schedule background GCal + Email integration ---
         if new_instances:
-            participant_emails = list(set(
-                [u.email for u in twg_member_users if u.email]
-            ))
+            # Collect ALL participant emails: TWG members, creator, AND external guests.
+            # Query the actual meeting_participants table (covers everyone added above).
+            all_emails = set()
+            first_meeting = new_instances[0]
+            participant_result = await self.db.execute(
+                select(MeetingParticipant)
+                .where(MeetingParticipant.meeting_id == first_meeting.id)
+            )
+            for mp in participant_result.scalars().all():
+                if mp.user_id:
+                    user_result = await self.db.execute(
+                        select(User.email).where(User.id == mp.user_id)
+                    )
+                    email = user_result.scalar_one_or_none()
+                    if email:
+                        all_emails.add(email)
+                elif mp.email:
+                    # External guest participant
+                    all_emails.add(mp.email)
+
+            # Always include the creator
+            creator_result = await self.db.execute(
+                select(User.email).where(User.id == recurring_meeting.created_by_id)
+            )
+            creator_email = creator_result.scalar_one_or_none()
+            if creator_email:
+                all_emails.add(creator_email)
+
+            participant_emails = list(all_emails)
+            logger.info(f"Recurring series emails → {len(participant_emails)} recipients: {participant_emails}")
             instance_data = [
                 {
                     "id": str(inst.id),
@@ -487,6 +549,10 @@ class RecurringMeetingService:
                         instance_data, participant_emails, recurring_meeting.twg_id
                     )
                 )
+                def _on_done(t):
+                    if t.exception():
+                        logger.error(f"Background GCal/email task failed: {t.exception()}")
+                task.add_done_callback(_on_done)
                 _pending_gcal_tasks[:] = [t for t in _pending_gcal_tasks if not t.done()]
                 _pending_gcal_tasks.append(task)
             except RuntimeError:
@@ -647,8 +713,27 @@ class RecurringMeetingService:
         self.db.add(recurring_meeting)
         await self.db.flush()  # Get the ID
 
-        # Generate initial instances
-        await self.generate_instances(recurring_meeting)
+        # Calculate horizon large enough to cover the full requested series.
+        # The default 30-day horizon is fine for the daily cron job, but on
+        # initial creation we must generate ALL requested instances so the user
+        # sees them immediately (e.g. 6 weekly meetings = 42 days).
+        if recurring_meeting.end_type == RecurrenceEndType.AFTER_OCCURRENCES and recurring_meeting.max_occurrences:
+            weeks_per_occurrence = recurring_meeting.interval_weeks or 1
+            if recurring_meeting.frequency == RecurrenceFrequency.MONTHLY:
+                initial_horizon = recurring_meeting.max_occurrences * weeks_per_occurrence * 35
+            elif recurring_meeting.frequency == RecurrenceFrequency.BIWEEKLY:
+                initial_horizon = recurring_meeting.max_occurrences * weeks_per_occurrence * 15
+            else:  # WEEKLY
+                initial_horizon = recurring_meeting.max_occurrences * weeks_per_occurrence * 8
+            initial_horizon = max(initial_horizon, GENERATION_HORIZON_DAYS)
+        elif recurring_meeting.end_type == RecurrenceEndType.AFTER_DATE and recurring_meeting.end_date:
+            initial_horizon = (recurring_meeting.end_date - datetime.utcnow()).days + 2
+            initial_horizon = max(initial_horizon, GENERATION_HORIZON_DAYS)
+        else:
+            initial_horizon = GENERATION_HORIZON_DAYS
+
+        # Generate initial instances with full horizon
+        await self.generate_instances(recurring_meeting, days_ahead=initial_horizon)
 
         # Load relationships
         result = await self.db.execute(

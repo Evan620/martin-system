@@ -91,6 +91,29 @@ export const documentService = {
         window.URL.revokeObjectURL(url);
     },
 
+    translateDownload: async (docId: string, language: string): Promise<void> => {
+        const response = await api.get(`/documents/${docId}/translate-download`, {
+            params: { language },
+            responseType: 'blob',
+        });
+
+        const contentDisposition = response.headers['content-disposition'];
+        let filename = `document_${language.toUpperCase()}.pdf`;
+        if (contentDisposition) {
+            const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i);
+            if (match && match[1]) filename = match[1].replace(/['"]/g, '');
+        }
+
+        const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    },
+
     ingestDocument: async (docId: string): Promise<IngestionResponse> => {
         const response = await api.post<IngestionResponse>(`/documents/${docId}/ingest`);
         return response.data;

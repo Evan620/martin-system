@@ -366,6 +366,130 @@ async def download_document(
         logger.error(f"Failed to download file from cloud storage: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to download file: {str(e)}")
 
+@router.get("/{doc_id}/translate-download")
+async def translate_and_download_document(
+    doc_id: uuid.UUID,
+    language: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download a translated version of a document as PDF.
+    Translates on-the-fly — the stored document is never modified.
+    """
+    from app.services.llm_service import llm_service
+    from app.services.pdf_service import pdf_service
+    from app.models.models import Meeting, Minutes
+
+    lang_map = {"fr": "French", "pt": "Portuguese", "en": "English"}
+    if language not in lang_map:
+        raise HTTPException(status_code=400, detail="language must be 'fr', 'pt', or 'en'")
+
+    result = await db.execute(
+        select(Document).options(selectinload(Document.twg)).where(Document.id == doc_id)
+    )
+    db_doc = result.scalar_one_or_none()
+    if not db_doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if db_doc.twg_id and not has_twg_access(current_user, db_doc.twg_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Strategy 1: If document is linked to a meeting, use the minutes markdown directly
+    source_text = None
+    pdf_context = {}
+    if db_doc.meeting_id:
+        meeting_result = await db.execute(
+            select(Meeting)
+            .options(selectinload(Meeting.minutes), selectinload(Meeting.twg))
+            .where(Meeting.id == db_doc.meeting_id)
+        )
+        meeting = meeting_result.scalar_one_or_none()
+        if meeting and meeting.minutes and meeting.minutes.content:
+            source_text = meeting.minutes.content
+            pillar_display = meeting.twg.pillar.value.replace("_", " ").title() if meeting.twg else "General"
+            pdf_context = {
+                "pillar_name": pillar_display,
+                "meeting_title": meeting.title,
+                "meeting_date": meeting.scheduled_at.strftime('%Y-%m-%d') if meeting.scheduled_at else "TBD",
+                "meeting_time": meeting.scheduled_at.strftime('%H:%M') if meeting.scheduled_at else "",
+                "location": meeting.location or "Virtual",
+            }
+
+    # Strategy 2: Extract text from the stored file
+    if not source_text:
+        try:
+            from app.services.document_intelligence import DocumentIntelligence
+            import tempfile
+            storage = get_storage_service()
+            metadata = db_doc.metadata_json or {}
+            cloud_file_id = metadata.get("cloud_file_id") or db_doc.file_path
+            file_bytes = storage.download_file(cloud_file_id)
+            if not file_bytes:
+                raise HTTPException(status_code=404, detail="File not found in storage")
+            with tempfile.NamedTemporaryFile(suffix=os.path.splitext(db_doc.file_name)[1], delete=False) as tmp:
+                tmp.write(file_bytes)
+                tmp_path = tmp.name
+            try:
+                di = DocumentIntelligence()
+                source_text = await di.extract_text_from_document(tmp_path, db_doc.file_type or "")
+            finally:
+                os.unlink(tmp_path)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to extract text from document {doc_id}: {e}")
+            raise HTTPException(status_code=500, detail="Could not extract text from this document for translation.")
+
+    if not source_text or not source_text.strip():
+        raise HTTPException(status_code=400, detail="No translatable text content found in this document.")
+
+    # Translate
+    lang_name = lang_map[language]
+    system_prompt = (
+        f"You are a professional translator. Translate the following document into {lang_name}. "
+        "Preserve all formatting, headings, bullet points, tables, and structure exactly. "
+        "Do not add commentary — output ONLY the translated text."
+    )
+    try:
+        translated = llm_service.chat(
+            prompt=source_text,
+            system_prompt=system_prompt,
+            temperature=0.1,
+            max_tokens=8000,
+        )
+    except Exception as e:
+        logger.error(f"Translation failed for document {doc_id}: {e}")
+        raise HTTPException(status_code=500, detail="Translation failed. Please try again.")
+
+    # Generate PDF from translated text
+    if not pdf_context:
+        twg_name = db_doc.twg.name if db_doc.twg else "General"
+        pdf_context = {
+            "pillar_name": twg_name,
+            "meeting_title": db_doc.file_name,
+            "meeting_date": db_doc.created_at.strftime('%Y-%m-%d') if db_doc.created_at else "",
+            "meeting_time": "",
+            "location": "",
+        }
+    try:
+        pdf_bytes = pdf_service.generate_minutes_pdf(
+            minutes_markdown=translated,
+            template_context=pdf_context,
+        )
+    except Exception as e:
+        logger.error(f"PDF generation failed for translated doc {doc_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate translated PDF.")
+
+    safe_name = os.path.splitext(db_doc.file_name)[0]
+    filename = f"{safe_name}_{language.upper()}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
 @router.post("/{doc_id}/ingest", status_code=status.HTTP_200_OK)
 async def ingest_document(
     doc_id: uuid.UUID,

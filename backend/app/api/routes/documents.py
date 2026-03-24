@@ -418,7 +418,7 @@ async def translate_and_download_document(
     # Strategy 2: Extract text from the stored file
     if not source_text:
         try:
-            from app.services.document_intelligence import DocumentIntelligence
+            from app.services.document_intelligence import DocumentIntelligenceService
             import tempfile
             storage = get_storage_service()
             metadata = db_doc.metadata_json or {}
@@ -430,7 +430,7 @@ async def translate_and_download_document(
                 tmp.write(file_bytes)
                 tmp_path = tmp.name
             try:
-                di = DocumentIntelligence()
+                di = DocumentIntelligenceService()
                 source_text = await di.extract_text_from_document(tmp_path, db_doc.file_type or "")
             finally:
                 os.unlink(tmp_path)

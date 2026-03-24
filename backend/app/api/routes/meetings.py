@@ -4002,10 +4002,18 @@ async def sync_meeting_to_calendar(
     )
 
     if existing:
-        # Just update attendees — no duplicate
+        # Event exists — force-patch with full attendee list + sendUpdates='all'
+        # This re-invites anyone who deleted the event from their calendar
+        event_id = existing['id']
+        attendees = [{'email': e} for e in participant_emails]
         await loop.run_in_executor(
             _gcal_executor,
-            lambda: calendar_service.add_attendees_to_event(str(meeting_id), participant_emails)
+            lambda: calendar_service.service.events().patch(
+                calendarId='primary',
+                eventId=event_id,
+                body={'attendees': attendees},
+                sendUpdates='all'
+            ).execute()
         )
         return {"status": "updated", "meeting_id": str(meeting_id), "attendees": len(participant_emails)}
 

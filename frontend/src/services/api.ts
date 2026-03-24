@@ -91,6 +91,7 @@ export const meetings = {
     schedule: (id: string) => api.post(`/meetings/${id}/schedule`),
     getInvitePreview: (id: string) => api.get(`/meetings/${id}/invite-preview`),
     approveInvite: (id: string) => api.post(`/meetings/${id}/approve-invite`),
+    syncCalendar: (id: string) => api.post(`/meetings/${id}/sync-calendar`),
     conflictCheck: (id: string) => api.post(`/meetings/${id}/conflict-check`),
     cancel: (id: string, reason?: string) => api.post(`/meetings/${id}/cancel`, { reason, notify_participants: true }),
     notifyUpdate: (id: string, changes: string[]) => api.post(`/meetings/${id}/notify-update`, { changes, notify_participants: true }),

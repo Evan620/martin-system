@@ -1156,50 +1156,21 @@ async def approve_and_send_invite(
     
     # ---------------------------------------------------------
 
-    # Sync to Google Calendar — create event if missing, otherwise update attendees
-    # This handles both normal flow AND retroactive fix for meetings that never got GCal events
+    # Sync ALL participants to Google Calendar as attendees
+    # This ensures auto-added members (TWG + secretariat) are on the GCal event
     try:
         from app.services.calendar_service import calendar_service
         from app.services.recurring_meeting_service import _gcal_executor
         import asyncio
         loop = asyncio.get_running_loop()
         if participant_emails:
-            # Check if GCal event already exists for this meeting
-            existing_event = await loop.run_in_executor(
+            await loop.run_in_executor(
                 _gcal_executor,
-                lambda: calendar_service.get_meeting_event(str(meeting_id))
+                lambda: calendar_service.add_attendees_to_event(str(meeting_id), participant_emails)
             )
-            if existing_event:
-                # Event exists — just update attendees (no duplicates)
-                await loop.run_in_executor(
-                    _gcal_executor,
-                    lambda: calendar_service.add_attendees_to_event(str(meeting_id), participant_emails)
-                )
-                logger.info(f"Updated attendees on existing GCal event for meeting {meeting_id}")
-            else:
-                # No GCal event — create one (retroactive fix)
-                created = await loop.run_in_executor(
-                    _gcal_executor,
-                    lambda: calendar_service.create_meeting_event(
-                        title=db_meeting.title,
-                        start_time=db_meeting.scheduled_at,
-                        duration_minutes=db_meeting.duration_minutes,
-                        description=f"Meeting: {db_meeting.title}\nLocation: {db_meeting.location or 'Virtual'}",
-                        attendees=participant_emails,
-                        meeting_id=str(meeting_id),
-                    )
-                )
-                if created:
-                    # Store video link if one was generated
-                    meet_link = created.get("hangoutLink")
-                    if meet_link and not db_meeting.video_link:
-                        db_meeting.video_link = meet_link
-                        await db.commit()
-                    logger.info(f"Created new GCal event for meeting {meeting_id} (retroactive)")
-                else:
-                    logger.warning(f"Failed to create GCal event for meeting {meeting_id}")
+            logger.info(f"Synced {len(participant_emails)} attendees to GCal event for meeting {meeting_id}")
     except Exception as e:
-        logger.warning(f"GCal sync failed for meeting {meeting_id}: {e}")
+        logger.warning(f"WARNING: Failed to sync attendees to GCal: {e}")
 
     # Send emails
     try:
@@ -3984,3 +3955,80 @@ async def detach_meeting_from_series(
     )
 
     return db_meeting
+
+
+@router.post("/{meeting_id}/sync-calendar", status_code=status.HTTP_200_OK)
+async def sync_meeting_to_calendar(
+    meeting_id: uuid.UUID,
+    current_user: User = Depends(require_facilitator),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Sync a single meeting to Google Calendar WITHOUT sending emails.
+    Creates the GCal event if missing, or updates attendees if it exists.
+    Use this to fix meetings that never got calendar events.
+    """
+    from app.services.calendar_service import calendar_service
+    from app.services.recurring_meeting_service import _gcal_executor
+    from sqlalchemy.orm import selectinload
+
+    query = select(Meeting).where(Meeting.id == meeting_id).options(
+        selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
+        selectinload(Meeting.twg)
+    )
+    result = await db.execute(query)
+    db_meeting = result.scalar_one_or_none()
+    if not db_meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    # Collect participant emails
+    participant_emails = []
+    for p in db_meeting.participants:
+        if p.user and p.user.email:
+            participant_emails.append(p.user.email)
+        elif p.email:
+            participant_emails.append(p.email)
+    participant_emails = list(set(participant_emails))
+
+    if not participant_emails:
+        raise HTTPException(status_code=400, detail="No participants with emails found")
+
+    loop = asyncio.get_running_loop()
+
+    # Check if GCal event already exists
+    existing = await loop.run_in_executor(
+        _gcal_executor,
+        lambda: calendar_service.get_meeting_event(str(meeting_id))
+    )
+
+    if existing:
+        # Just update attendees — no duplicate
+        await loop.run_in_executor(
+            _gcal_executor,
+            lambda: calendar_service.add_attendees_to_event(str(meeting_id), participant_emails)
+        )
+        return {"status": "updated", "meeting_id": str(meeting_id), "attendees": len(participant_emails)}
+
+    # Create new GCal event
+    created = await loop.run_in_executor(
+        _gcal_executor,
+        lambda: calendar_service.create_meeting_event(
+            title=db_meeting.title,
+            start_time=db_meeting.scheduled_at,
+            duration_minutes=db_meeting.duration_minutes,
+            description=f"Meeting: {db_meeting.title}\nLocation: {db_meeting.location or 'Virtual'}",
+            attendees=participant_emails,
+            meeting_id=str(meeting_id),
+        )
+    )
+
+    if not created:
+        raise HTTPException(status_code=500, detail="Failed to create calendar event")
+
+    # Save video link if generated
+    meet_link = created.get("hangoutLink")
+    if meet_link and not db_meeting.video_link:
+        db_meeting.video_link = meet_link
+        await db.commit()
+
+    return {"status": "created", "meeting_id": str(meeting_id), "attendees": len(participant_emails), "video_link": meet_link}

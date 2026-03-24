@@ -52,6 +52,7 @@ export default function MeetingDetail() {
     const [selectedMembers, setSelectedMembers] = useState<string[]>([])
     const [applyToSeries, setApplyToSeries] = useState(false)
     const [isSendingInvites, setIsSendingInvites] = useState(false)
+    const [isSyncingCalendar, setIsSyncingCalendar] = useState(false)
     const [isCheckingConflicts, setIsCheckingConflicts] = useState(false)
     const [showConflictModal, setShowConflictModal] = useState(false)
     const [detectedConflicts, setDetectedConflicts] = useState<any[]>([])
@@ -560,6 +561,30 @@ export default function MeetingDetail() {
             })
         } finally {
             setIsSendingInvites(false)
+        }
+    }
+
+    const handleSyncCalendar = async () => {
+        if (!meetingId) return
+        setIsSyncingCalendar(true)
+        try {
+            const res = await meetings.syncCalendar(meetingId)
+            setStatusModal({
+                isOpen: true,
+                type: 'success',
+                title: 'Calendar Synced',
+                message: `Meeting ${res.data.status === 'created' ? 'added to' : 'updated on'} Google Calendar for ${res.data.attendees} participants.`
+            })
+            await loadMeetingDetails()
+        } catch (error: any) {
+            setStatusModal({
+                isOpen: true,
+                type: 'error',
+                title: 'Calendar Sync Failed',
+                message: error?.response?.data?.detail || 'Failed to sync to calendar.'
+            })
+        } finally {
+            setIsSyncingCalendar(false)
         }
     }
 
@@ -1661,6 +1686,18 @@ export default function MeetingDetail() {
                                                             </>
                                                         ) : (
                                                             <>📧 Send Invites</>
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        onClick={handleSyncCalendar}
+                                                        disabled={!meeting?.participants?.length || isSyncingCalendar}
+                                                        className="btn-secondary text-sm flex items-center gap-1 disabled:opacity-50"
+                                                        title="Add this meeting to participants' Google Calendar (no email sent)"
+                                                    >
+                                                        {isSyncingCalendar ? (
+                                                            <><span className="animate-spin">⏳</span> Syncing...</>
+                                                        ) : (
+                                                            <>📅 Sync Calendar</>
                                                         )}
                                                     </button>
                                                     <button

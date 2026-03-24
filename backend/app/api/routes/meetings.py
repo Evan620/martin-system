@@ -1156,21 +1156,50 @@ async def approve_and_send_invite(
     
     # ---------------------------------------------------------
 
-    # Sync ALL participants to Google Calendar as attendees
-    # This ensures auto-added members (TWG + secretariat) are on the GCal event
+    # Sync to Google Calendar — create event if missing, otherwise update attendees
+    # This handles both normal flow AND retroactive fix for meetings that never got GCal events
     try:
         from app.services.calendar_service import calendar_service
         from app.services.recurring_meeting_service import _gcal_executor
         import asyncio
         loop = asyncio.get_running_loop()
         if participant_emails:
-            await loop.run_in_executor(
+            # Check if GCal event already exists for this meeting
+            existing_event = await loop.run_in_executor(
                 _gcal_executor,
-                lambda: calendar_service.add_attendees_to_event(str(meeting_id), participant_emails)
+                lambda: calendar_service.get_meeting_event(str(meeting_id))
             )
-            print(f"Synced {len(participant_emails)} attendees to GCal event for meeting {meeting_id}")
+            if existing_event:
+                # Event exists — just update attendees (no duplicates)
+                await loop.run_in_executor(
+                    _gcal_executor,
+                    lambda: calendar_service.add_attendees_to_event(str(meeting_id), participant_emails)
+                )
+                logger.info(f"Updated attendees on existing GCal event for meeting {meeting_id}")
+            else:
+                # No GCal event — create one (retroactive fix)
+                created = await loop.run_in_executor(
+                    _gcal_executor,
+                    lambda: calendar_service.create_meeting_event(
+                        title=db_meeting.title,
+                        start_time=db_meeting.scheduled_at,
+                        duration_minutes=db_meeting.duration_minutes,
+                        description=f"Meeting: {db_meeting.title}\nLocation: {db_meeting.location or 'Virtual'}",
+                        attendees=participant_emails,
+                        meeting_id=str(meeting_id),
+                    )
+                )
+                if created:
+                    # Store video link if one was generated
+                    meet_link = created.get("hangoutLink")
+                    if meet_link and not db_meeting.video_link:
+                        db_meeting.video_link = meet_link
+                        await db.commit()
+                    logger.info(f"Created new GCal event for meeting {meeting_id} (retroactive)")
+                else:
+                    logger.warning(f"Failed to create GCal event for meeting {meeting_id}")
     except Exception as e:
-        print(f"WARNING: Failed to sync attendees to GCal: {e}")
+        logger.warning(f"GCal sync failed for meeting {meeting_id}: {e}")
 
     # Send emails
     try:

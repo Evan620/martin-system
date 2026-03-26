@@ -141,12 +141,12 @@ class CalendarService:
 
         try:
             # conferenceDataVersion=1 is REQUIRED for creating Meet links
-            # sendUpdates='none' prevents Google from sending its own email invites
+            # sendUpdates='all' so Google natively adds event to attendees' calendars
             created_event = self.service.events().insert(
-                calendarId='primary', 
-                body=event, 
+                calendarId='primary',
+                body=event,
                 conferenceDataVersion=1,
-                sendUpdates='none' 
+                sendUpdates='all'
             ).execute()
             
             logger.info(f"Event created: {created_event.get('htmlLink')}")
@@ -155,6 +155,25 @@ class CalendarService:
         except Exception as e:
             logger.error(f"Error creating calendar event: {e}")
             return {}
+
+    def get_meeting_event(self, meeting_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Find an existing Google Calendar event by meeting_id extended property.
+        Returns the event dict if found, None otherwise.
+        """
+        if not self._initialize_service() or not self._credentials_valid:
+            return None
+        try:
+            events_result = self.service.events().list(
+                calendarId='primary',
+                privateExtendedProperty=f"meeting_id={meeting_id}",
+                singleEvents=True
+            ).execute()
+            events = events_result.get('items', [])
+            return events[0] if events else None
+        except Exception as e:
+            logger.debug(f"Error checking for existing event for meeting {meeting_id}: {e}")
+            return None
 
     def get_meeting_rsvps(self, meeting_id: str) -> Dict[str, str]:
         """
@@ -247,13 +266,12 @@ class CalendarService:
 
             event['attendees'] = existing_attendees
             
-            # 4. Patch the event
-            # Ensure we don't send updates (since we sent our own email)
+            # 4. Patch the event — sendUpdates='all' so new attendees get calendar invites
             self.service.events().patch(
                 calendarId='primary',
                 eventId=event_id,
                 body={'attendees': existing_attendees},
-                sendUpdates='none'
+                sendUpdates='all'
             ).execute()
             
             logger.info(f"Added {len(new_emails)} attendees to event {event_id}")
@@ -263,10 +281,11 @@ class CalendarService:
             logger.error(f"Error adding attendees to meeting {meeting_id}: {e}")
             return False
 
-    def update_meeting_event(self, meeting_id: str, new_start_time: datetime.datetime = None, 
-                             new_duration_minutes: int = None, new_location: str = None) -> bool:
+    def update_meeting_event(self, meeting_id: str, new_start_time: datetime.datetime = None,
+                             new_duration_minutes: int = None, new_location: str = None,
+                             new_title: str = None) -> bool:
         """
-        Updates an existing Google Calendar event's time or location.
+        Updates an existing Google Calendar event's time, location, or title.
         Used when conflicts are resolved via auto-negotiation.
         """
         if not self._initialize_service():
@@ -312,7 +331,10 @@ class CalendarService:
                 
             if new_location:
                 patch_body['location'] = new_location
-            
+
+            if new_title:
+                patch_body['summary'] = new_title
+
             if not patch_body:
                 logger.info("No changes to apply to calendar event")
                 return True
@@ -357,15 +379,18 @@ class CalendarService:
                 logger.warning(f"No calendar event found for meeting_id {meeting_id} to cancel")
                 return False
 
-            event_id = events[0]['id']
-            
-            self.service.events().delete(
-                calendarId='primary',
-                eventId=event_id,
-                sendUpdates='all'  # Notify attendees of cancellation
-            ).execute()
-            
-            logger.info(f"Cancelled calendar event {event_id} for meeting {meeting_id}")
+            # Delete ALL matching events (handles duplicates)
+            for event in events:
+                event_id = event['id']
+                self.service.events().delete(
+                    calendarId='primary',
+                    eventId=event_id,
+                    sendUpdates='all'  # Notify attendees of cancellation
+                ).execute()
+                logger.info(f"Cancelled calendar event {event_id} for meeting {meeting_id}")
+
+            if len(events) > 1:
+                logger.warning(f"Deleted {len(events)} duplicate GCal events for meeting {meeting_id}")
             return True
 
         except Exception as e:

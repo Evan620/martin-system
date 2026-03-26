@@ -2,7 +2,8 @@ import api from './api';
 import {
     EnhancedChatRequest,
     EnhancedChatResponse,
-    AgentSuggestion
+    AgentSuggestion,
+    ChatMessageType
 } from '../types/agent';
 
 export interface AgentChatRequest {
@@ -127,7 +128,7 @@ export const agentService = {
                                     else if (data.status.includes('Supervisor')) icon = 'admin_panel_settings';
                                 }
 
-                                if (data.type !== 'response' && data.type !== 'done' && data.type !== 'error' && data.type !== 'interrupt') {
+                                if (data.type !== 'response' && data.type !== 'final_response' && data.type !== 'done' && data.type !== 'error' && data.type !== 'interrupt') {
                                     callbacks.onStep({
                                         type: stepType,
                                         label: label,
@@ -143,6 +144,16 @@ export const agentService = {
                                 callbacks.onThinking?.(data.status);
                             } else if (data.type === 'response') {
                                 callbacks.onResponse?.(data.message);
+                            } else if (data.type === 'final_response') {
+                                // Handle final_response from streaming agent
+                                callbacks.onResponse?.({
+                                    content: data.content,
+                                    sender: 'agent',
+                                    message_type: ChatMessageType.AGENT_TEXT,
+                                    timestamp: new Date().toISOString(),
+                                    message_id: Date.now().toString(),
+                                    conversation_id: data.conversation_id,
+                                });
                             } else if (data.type === 'interrupt') {
                                 callbacks.onInterrupt?.(data.payload);
                             } else if (data.type === 'done') {

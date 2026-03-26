@@ -116,12 +116,12 @@ export default function InvitePreviewModal({
                                 />
                             </div>
 
-                            {/* ICS Attachment Note */}
+                            {/* Calendar Note */}
                             <div className="flex items-center gap-2 text-sm text-slate-500">
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                 </svg>
-                                <span>Calendar invite (.ics) will be attached</span>
+                                <span>Google Calendar invite will be sent to all participants</span>
                             </div>
                         </div>
                     ) : null}

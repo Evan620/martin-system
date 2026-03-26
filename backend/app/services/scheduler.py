@@ -1,7 +1,7 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
-from app.jobs.reminder_jobs import send_upcoming_meeting_reminders, check_missing_minutes
+from app.jobs.reminder_jobs import send_upcoming_meeting_reminders, check_missing_minutes, check_overdue_action_items
 from app.jobs.scheduled_tasks import (
     weekly_declaration_update,
     weekly_progress_report,
@@ -28,6 +28,13 @@ class SchedulerService:
             check_missing_minutes,
             trigger=IntervalTrigger(hours=24), # Run daily
             id="check_missing_minutes",
+            replace_existing=True
+        )
+
+        self.scheduler.add_job(
+            check_overdue_action_items,
+            trigger=IntervalTrigger(hours=6),
+            id="check_overdue_action_items",
             replace_existing=True
         )
 

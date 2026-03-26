@@ -471,6 +471,95 @@ class VexaService:
         except Exception as e:
             logger.error(f"PDF Generation Failed: {e}")
 
+        # 2b. Save PDF to cloud storage (primary) with local fallback, and create Document record
+        if pdf_bytes:
+            try:
+                from app.models.models import Document, User, TWG
+                from app.services.storage_service import get_storage_service
+
+                pdf_filename = f"Minutes - {meeting.title}.pdf"
+
+                # Check if a minutes Document already exists
+                existing = await db.execute(
+                    select(Document).where(
+                        and_(Document.meeting_id == meeting.id, Document.document_type == "minutes")
+                    )
+                )
+                if existing.scalar_one_or_none():
+                    logger.info(f"Minutes Document already exists for '{meeting.title}', skipping")
+                else:
+                    res_u = await db.execute(select(User.id).limit(1))
+                    uploader_id = res_u.scalars().first()
+                    if not uploader_id:
+                        logger.warning("No user found to set as uploader for minutes document")
+                    else:
+                        file_path = None
+                        metadata_extra = {}
+
+                        # --- Cloud storage (primary) ---
+                        try:
+                            storage = get_storage_service()
+                            twg_result = await db.execute(select(TWG).where(TWG.id == meeting.twg_id))
+                            twg_obj = twg_result.scalar_one_or_none()
+                            target_folder_id = None
+                            if twg_obj:
+                                target_folder_id = storage.get_or_create_twg_folder(twg_obj.name)
+
+                            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                            safe_filename = f"{timestamp}_minutes_{meeting.id}.pdf"
+                            cloud_file_id, cloud_view_link, cloud_download_url = storage.upload_bytes(
+                                file_bytes=pdf_bytes,
+                                file_name=safe_filename,
+                                mime_type="application/pdf",
+                                folder_id=target_folder_id
+                            )
+                            if cloud_file_id:
+                                file_path = cloud_file_id
+                                metadata_extra = {
+                                    "storage_mode": "cloud",
+                                    "cloud_file_id": cloud_file_id,
+                                    "cloud_view_link": cloud_view_link,
+                                    "cloud_download_url": cloud_download_url,
+                                }
+                                logger.info(f"Uploaded minutes PDF to cloud storage: {cloud_file_id}")
+                        except Exception as cloud_err:
+                            logger.warning(f"Cloud storage upload failed, falling back to local: {cloud_err}")
+
+                        # --- Local fallback ---
+                        if not file_path:
+                            upload_dir = os.path.join(settings.UPLOAD_DIR, "minutes")
+                            os.makedirs(upload_dir, exist_ok=True)
+                            local_path = os.path.join(upload_dir, f"minutes_{meeting.id}.pdf")
+                            with open(local_path, "wb") as f:
+                                f.write(pdf_bytes)
+                            file_path = local_path
+                            metadata_extra = {"storage_mode": "local"}
+                            logger.info(f"Saved minutes PDF to local disk: {local_path}")
+
+                        minutes_doc = Document(
+                            twg_id=meeting.twg_id,
+                            meeting_id=meeting.id,
+                            file_name=pdf_filename,
+                            file_path=file_path,
+                            file_type="application/pdf",
+                            document_type="minutes",
+                            uploaded_by_id=uploader_id,
+                            metadata_json={
+                                "meeting_id": str(meeting.id),
+                                "meeting_title": meeting.title,
+                                "status": "approved",
+                                "file_size": len(pdf_bytes),
+                                **metadata_extra,
+                            }
+                        )
+                        db.add(minutes_doc)
+                        await db.commit()
+                        logger.info(f"Minutes Document record created for '{meeting.title}'")
+            except Exception as e:
+                logger.error(f"Minutes Document creation failed: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+
         # 3. Index to Knowledge Base
         try:
             if meeting.minutes and meeting.minutes.content:

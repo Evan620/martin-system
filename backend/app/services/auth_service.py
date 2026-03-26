@@ -153,15 +153,20 @@ class AuthService:
         
         # Update last login
         user.last_login = datetime.utcnow()
+
+        # Track first login (invite acceptance)
+        if user.invite_accepted_at is None:
+            user.invite_accepted_at = datetime.utcnow()
+
         await self.db.commit()
-        
+
         # Generate tokens
         access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
         refresh_token_str = create_refresh_token(data={"sub": str(user.id)})
-        
+
         # Store refresh token
         await self._store_refresh_token(user.id, refresh_token_str)
-        
+
         return user, access_token, refresh_token_str
 
     async def authenticate_google_user(self, google_id_token: str) -> Tuple[User, str, str]:
@@ -213,17 +218,22 @@ class AuthService:
                 
             # Update last login
             user.last_login = datetime.utcnow()
+
+            # Track first login (invite acceptance)
+            if user.invite_accepted_at is None:
+                user.invite_accepted_at = datetime.utcnow()
+
             await self.db.commit()
-            
+
             # Generate tokens
             access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
             refresh_token_str = create_refresh_token(data={"sub": str(user.id)})
-            
+
             # Store refresh token
             await self._store_refresh_token(user.id, refresh_token_str)
-            
+
             return user, access_token, refresh_token_str
-            
+
         except ValueError as e:
             # Invalid token
             print(f"Google Auth ValueError: {str(e)}")
@@ -492,13 +502,14 @@ class AuthService:
         
         # Update password
         user.hashed_password = hash_password(new_password)
-        
+        user.password_reset_at = datetime.utcnow()
+
         # Mark token as used
         reset_token.is_used = True
-        
+
         await self.db.commit()
-        
+
         # Revoke all existing refresh tokens for security
         await self._revoke_all_user_tokens(user.id)
-        
+
         return True

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, AsyncGenerator
@@ -460,6 +460,9 @@ async def stream_chat(
             # Send initial event
             yield f"data: {json.dumps({'type': 'start', 'conversation_id': conv_id})}\n\n"
 
+            # Track if we've sent a final_response event (to avoid duplicates)
+            final_response_sent = False
+
             # Use singleton supervisor to ensure memory persistence (MemorySaver)
             supervisor = get_supervisor()
 
@@ -578,25 +581,36 @@ async def stream_chat(
                             response_text = raw_content.get("response", "")
                         else:
                             response_text = str(raw_content)
+
+                        # Send the final response immediately as a 'final_response' event
+                        # The frontend will convert this to a proper message
+                        yield f"data: {json.dumps({'type': 'final_response', 'content': response_text, 'conversation_id': conv_id})}\n\n"
+                        final_response_sent = True
+
+                    # Pass through new granular events for Generative UI
+                    elif event["type"] in ["tool_start", "tool_result", "token"]:
+                        yield f"data: {json.dumps(event)}\n\n"
                         
                 message_type = ChatMessageType.AGENT_TEXT
 
             # Send completion event
             yield f"data: {json.dumps({'type': 'tool_complete', 'status': 'Completed', 'step_id': str(uuid.uuid4())})}\n\n"
 
-            # Create the final message
-            agent_message = ChatMessage(
-                message_id=uuid.uuid4(),
-                conversation_id=conv_id,
-                message_type=message_type,
-                content=response_text,
-                sender="agent",
-                timestamp=datetime.utcnow(),
-                metadata={"parsed": parsed, "citations": citations} if citations else ({"parsed": parsed} if parsed["type"] != MessageParseType.NATURAL else None)
-            )
+            # Only send fallback response if we haven't already sent a final_response event
+            if not final_response_sent:
+                # Create the final message
+                agent_message = ChatMessage(
+                    message_id=uuid.uuid4(),
+                    conversation_id=conv_id,
+                    message_type=message_type,
+                    content=response_text,
+                    sender="agent",
+                    timestamp=datetime.utcnow(),
+                    metadata={"parsed": parsed, "citations": citations} if citations else ({"parsed": parsed} if parsed["type"] != MessageParseType.NATURAL else None)
+                )
 
-            # Send final response - use model_dump with mode='json' to handle UUID serialization
-            yield f"data: {json.dumps({'type': 'response', 'message': agent_message.model_dump(mode='json')})}\n\n"
+                # Send final response - use model_dump with mode='json' to handle UUID serialization
+                yield f"data: {json.dumps({'type': 'response', 'message': agent_message.model_dump(mode='json')})}\n\n"
 
             # Send done event
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
@@ -657,22 +671,52 @@ async def stream_chat(
     )
 
 
+async def run_background_task(task_id: str, prompt: str, twg_id: str, user_timezone: str):
+    try:
+        logger.info(f"[{task_id}] Starting background task logic...")
+        supervisor = get_supervisor()
+        # Execute the heavy lifting using the supervisor
+        await supervisor.chat_with_tools(
+            prompt, 
+            twg_id=twg_id, 
+            thread_id=task_id, 
+            user_timezone=user_timezone
+        )
+        logger.info(f"[{task_id}] Background task finished successfully.")
+    except Exception as e:
+        logger.error(f"[{task_id}] Background task failed: {str(e)}")
+
 @router.post("/task", status_code=status.HTTP_202_ACCEPTED)
 async def assign_agent_task(
     task_in: AgentTaskRequest,
+    background_tasks: BackgroundTasks,
+    request: Request,
     current_user: User = Depends(get_current_active_user)
 ):
     """
     Assign a high-level task to the agent swarm (e.g., draft Communiqué).
     
-    Returns a task ID for polling. (Currently Mocked)
+    Returns a task ID for polling and executes the request in the background.
     """
-    task_id = uuid.uuid4()
-    # In production, this would trigger a Celery task or a background agent flow
+    task_id = str(uuid.uuid4())
+    user_timezone = request.headers.get("X-User-Timezone", "UTC")
+    
+    # We pass the user's role/twg context so the background agent retains proper scoping.
+    twg_context = str(task_in.twg_id) if hasattr(task_in, 'twg_id') and task_in.twg_id else "global"
+    
+    # Dispatch it to the background
+    background_tasks.add_task(
+        run_background_task,
+        task_id=task_id,
+        prompt=task_in.title,  # Basic mapping, in reality we'd have a full prompt field
+        twg_id=twg_context,
+        user_timezone=user_timezone
+    )
+    
     return {
-        "task_id": str(task_id),
+        "task_id": task_id,
         "status": "queued",
-        "message": f"Task '{task_in.title}' has been dispatched to the agent swarm."
+        "message": f"Task '{task_in.title}' has been dispatched to the agent swarm and is processing in the background."
     }
 
 @router.get("/status", response_model=AgentStatus)

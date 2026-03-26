@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request, WebSocket, WebSocketDisconnect, Query
+from fastapi.responses import StreamingResponse
 from app.services.audit_service import audit_service
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, and_, or_
@@ -10,9 +11,10 @@ import json
 import redis
 import logging
 import traceback
+import io
 
 from app.core.database import get_db
-from app.models.models import Meeting, Agenda, Minutes, User, UserRole, MinutesStatus, MeetingParticipant, RsvpStatus, ActionItem, ActionItemStatus, TWG, Document, MeetingStatus, MeetingDependency, DependencyType
+from app.models.models import Meeting, Agenda, Minutes, User, UserRole, MinutesStatus, MeetingParticipant, RsvpStatus, ActionItem, ActionItemStatus, TWG, Document, MeetingStatus, MeetingDependency, DependencyType, twg_members
 from app.schemas.schemas import (
     MeetingCreate, MeetingRead, MeetingUpdate, MeetingCancel, MeetingUpdateNotification,
     AgendaCreate, AgendaRead, MinutesCreate, MinutesRead, MinutesUpdate, MinutesRejectionRequest,
@@ -27,11 +29,25 @@ from app.core.config import settings
 from sqlalchemy.orm import selectinload
 from app.services.document_synthesizer import DocumentSynthesizer
 from app.services.llm_service import llm_service
+from app.services.notification_service import create_notification
+from app.models.models import NotificationType
 from app.utils.security import verify_token
 from app.core.ws_manager import ws_manager
 from app.core.database import get_db, get_db_session_context
+from app.services.storage_service import get_storage_service
 
 router = APIRouter(prefix="/meetings", tags=["Meetings"])
+
+
+def format_meeting_time_for_email(scheduled_at: datetime) -> tuple:
+    """Returns (date_str, time_str) with EAT + UTC labels for batch emails."""
+    import pytz
+    display_tz = pytz.timezone("Africa/Nairobi")
+    utc_time = pytz.UTC.localize(scheduled_at) if scheduled_at.tzinfo is None else scheduled_at
+    local_display = utc_time.astimezone(display_tz)
+    date_str = local_display.strftime("%A, %B %d, %Y")
+    time_str = f"{local_display.strftime('%I:%M %p')} EAT ({scheduled_at.strftime('%H:%M')} UTC)"
+    return date_str, time_str
 
 @router.get("/active")
 async def get_active_meeting(
@@ -53,7 +69,8 @@ async def get_active_meeting(
     # Actually, let's look for meetings that have a transcript placeholder active
     # as that's what Vexa is recording.
     stmt = select(Meeting).join(Document, Meeting.id == Document.meeting_id).where(
-        Document.document_type == "transcript_placeholder"
+        Document.document_type == "transcript_placeholder",
+        Meeting.status != MeetingStatus.CANCELLED
     ).options(
         selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
         selectinload(Meeting.agenda),
@@ -134,28 +151,7 @@ async def create_meeting(
         meeting_id = uuid.uuid4()
         
         generated_video_link = None
-        if meeting_in.meeting_type == "virtual":
-            logger.warning("CREATE_MEETING: Entering virtual meeting block")
-            try:
-                from app.services.calendar_service import calendar_service
-                calendar_event = calendar_service.create_meeting_event(
-                    title=meeting_in.title,
-                    start_time=meeting_in.scheduled_at,
-                    duration_minutes=meeting_in.duration_minutes,
-                    description=f"Automated meeting for TWG: {meeting_in.twg_id}",
-                    attendees=[],
-                    meeting_id=str(meeting_id)
-                )
-                if calendar_event.get('hangoutLink'):
-                     logger.warning(f"CREATE_MEETING: Generated link: {calendar_event.get('hangoutLink')}")
-                     generated_video_link = calendar_event.get('hangoutLink')
-                else:
-                     logger.warning(f"CREATE_MEETING: Event created but NO link found")
-            except Exception as e:
-                # Log detailed error but DO NOT fail the meeting creation
-                logger.error(f"CREATE_MEETING: Failed to generate Meet link: {e}")
-                # If it's an HttpError, it might be the 'Invalid conference type value'
-                # causing issues with service accounts. We proceed without video link.
+        # GCal event creation happens in background — continuous_monitor fills in the link
 
         # Create meeting with video_link
         meeting_data = meeting_in.model_dump()
@@ -164,7 +160,166 @@ async def create_meeting(
         db_meeting = Meeting(**meeting_data)
         db.add(db_meeting)
         await db.commit()
-        
+
+        # Auto-include all SECRETARIAT_LEAD users as participants
+        secretariat_result = await db.execute(
+            select(User).where(User.role == UserRole.SECRETARIAT_LEAD).where(User.is_active == True)
+        )
+        secretariat_users = secretariat_result.scalars().all()
+
+        for secretariat_user in secretariat_users:
+            # Check if already a participant to avoid duplicates
+            existing_participant = await db.execute(
+                select(MeetingParticipant).where(
+                    and_(
+                        MeetingParticipant.meeting_id == db_meeting.id,
+                        MeetingParticipant.user_id == secretariat_user.id
+                    )
+                )
+            )
+            if not existing_participant.scalar_one_or_none():
+                participant = MeetingParticipant(
+                    id=uuid.uuid4(),
+                    meeting_id=db_meeting.id,
+                    user_id=secretariat_user.id,
+                    rsvp_status=RsvpStatus.ACCEPTED
+                )
+                db.add(participant)
+
+        # Auto-include all TWG members as participants
+        twg_member_result = await db.execute(
+            select(User).join(twg_members, twg_members.c.user_id == User.id).where(
+                and_(twg_members.c.twg_id == db_meeting.twg_id, User.is_active == True)
+            )
+        )
+        twg_member_users = twg_member_result.scalars().all()
+
+        for member in twg_member_users:
+            existing_participant = await db.execute(
+                select(MeetingParticipant).where(
+                    and_(
+                        MeetingParticipant.meeting_id == db_meeting.id,
+                        MeetingParticipant.user_id == member.id
+                    )
+                )
+            )
+            if not existing_participant.scalar_one_or_none():
+                participant = MeetingParticipant(
+                    id=uuid.uuid4(),
+                    meeting_id=db_meeting.id,
+                    user_id=member.id,
+                    rsvp_status=RsvpStatus.PENDING
+                )
+                db.add(participant)
+
+        await db.commit()
+
+        # Collect participant emails for background GCal sync + email
+        p_result = await db.execute(
+            select(User.email).join(
+                MeetingParticipant, MeetingParticipant.user_id == User.id
+            ).where(MeetingParticipant.meeting_id == db_meeting.id)
+        )
+        invite_emails = [row[0] for row in p_result.all() if row[0]]
+
+        # Get TWG name for email
+        twg_result = await db.execute(select(TWG).where(TWG.id == db_meeting.twg_id))
+        twg_obj = twg_result.scalar_one_or_none()
+        twg_display_name = twg_obj.name if twg_obj else "TWG"
+
+        # Fire-and-forget: GCal attendee sync + email invites (don't block response)
+        if invite_emails:
+            _bg_meeting_id = str(db_meeting.id)
+            _bg_title = db_meeting.title
+            _bg_scheduled_at = db_meeting.scheduled_at
+            _bg_duration = db_meeting.duration_minutes
+            _bg_location = db_meeting.location
+            _bg_video_link = generated_video_link
+            _bg_emails = invite_emails
+            _bg_twg_name = twg_display_name
+
+            _bg_meeting_type = meeting_in.meeting_type
+            _bg_twg_id = str(meeting_in.twg_id)
+
+            async def _bg_sync_and_email():
+                try:
+                    from app.services.calendar_service import calendar_service
+                    from app.services.recurring_meeting_service import _gcal_executor
+                    from app.core.database import get_db_session_context
+                    loop = asyncio.get_running_loop()
+
+                    # 1. Create GCal event if virtual
+                    if _bg_meeting_type == "virtual":
+                        try:
+                            calendar_event = await loop.run_in_executor(
+                                _gcal_executor,
+                                lambda: calendar_service.create_meeting_event(
+                                    title=_bg_title,
+                                    start_time=_bg_scheduled_at,
+                                    duration_minutes=_bg_duration,
+                                    description=f"Automated meeting for TWG: {_bg_twg_id}",
+                                    attendees=_bg_emails,
+                                    meeting_id=_bg_meeting_id
+                                )
+                            )
+                            video_link = calendar_event.get('hangoutLink')
+                            if video_link:
+                                async with get_db_session_context() as bg_db:
+                                    from sqlalchemy import update as sql_update
+                                    await bg_db.execute(
+                                        sql_update(Meeting)
+                                        .where(Meeting.id == uuid.UUID(_bg_meeting_id))
+                                        .values(video_link=video_link)
+                                    )
+                                logger.info(f"GCal event created with link for meeting {_bg_meeting_id}")
+                        except Exception as e:
+                            logger.warning(f"Failed to create GCal event: {e}")
+
+                    # 2. Add attendees (if event was created by monitor or above)
+                    try:
+                        await loop.run_in_executor(
+                            _gcal_executor,
+                            lambda: calendar_service.add_attendees_to_event(_bg_meeting_id, _bg_emails)
+                        )
+                        logger.info(f"Synced {len(_bg_emails)} attendees to GCal for meeting {_bg_meeting_id}")
+                    except Exception as e:
+                        logger.warning(f"Could not sync attendees to GCal: {e}")
+
+                except Exception as e:
+                    logger.warning(f"Background GCal sync error: {e}")
+
+                # 3. Send email invites
+                try:
+                    from app.services.email_service import email_service
+                    meeting_date_str, meeting_time_str = format_meeting_time_for_email(_bg_scheduled_at)
+                    await email_service.send_meeting_invite(
+                        to_emails=_bg_emails,
+                        subject=f"Meeting Invitation: {_bg_title}",
+                        template_name="meeting_invite.html",
+                        template_context={
+                            "user_name": "Valued Participant",
+                            "meeting_title": _bg_title,
+                            "meeting_date": meeting_date_str,
+                            "meeting_time": meeting_time_str,
+                            "location": _bg_location or "Virtual",
+                            "video_link": _bg_video_link,
+                            "pillar_name": _bg_twg_name,
+                            "portal_url": settings.FRONTEND_URL + "/schedule",
+                        },
+                        meeting_details={
+                            "title": _bg_title,
+                            "meeting_id": _bg_meeting_id,
+                            "start_time": _bg_scheduled_at,
+                            "duration": _bg_duration,
+                            "location": _bg_video_link or _bg_location or "Virtual",
+                        }
+                    )
+                    logger.info(f"Sent meeting invites to {len(_bg_emails)} participants")
+                except Exception as e:
+                    logger.warning(f"Could not send meeting invites: {e}")
+
+            asyncio.create_task(_bg_sync_and_email())
+
         # Eagerly load relationships to avoid MissingGreenlet during serialization
         result = await db.execute(
             select(Meeting)
@@ -180,7 +335,7 @@ async def create_meeting(
             .where(Meeting.id == db_meeting.id)
         )
         db_meeting = result.scalar_one()
-            
+
         return db_meeting
     except Exception as e:
         logger.error(f"CREATE_MEETING FAILED: {str(e)}") # Improved logging
@@ -200,8 +355,11 @@ async def list_meetings(
     List all meetings visible to the user.
     """
     # If admin, show all (unless filtered). If member, show only their TWG meetings.
-    query = select(Meeting).offset(skip).limit(limit)
-    
+    query = select(Meeting).order_by(Meeting.scheduled_at.desc()).offset(skip).limit(limit)
+
+    # Exclude cancelled meetings from normal listing
+    query = query.where(Meeting.status != MeetingStatus.CANCELLED)
+
     if twg_id:
         if not has_twg_access(current_user, twg_id):
              raise HTTPException(status_code=403, detail="Access denied to this TWG")
@@ -334,9 +492,22 @@ async def update_meeting(
         raise HTTPException(status_code=403, detail="Access denied")
         
     update_data = meeting_in.model_dump(exclude_unset=True)
+
+    # Normalize scheduled_at to naive UTC (same as create endpoint)
+    if "scheduled_at" in update_data and update_data["scheduled_at"] is not None:
+        dt = update_data["scheduled_at"]
+        if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+            update_data["scheduled_at"] = dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+    # Track what changed for Google Calendar sync
+    title_changed = "title" in update_data and update_data["title"] != db_meeting.title
+    time_changed = "scheduled_at" in update_data and update_data["scheduled_at"] != db_meeting.scheduled_at
+    duration_changed = "duration_minutes" in update_data and update_data["duration_minutes"] != db_meeting.duration_minutes
+    location_changed = "location" in update_data and update_data["location"] != db_meeting.location
+
     for key, value in update_data.items():
         setattr(db_meeting, key, value)
-        
+
     try:
         await db.commit()
         await db.refresh(db_meeting)
@@ -346,7 +517,30 @@ async def update_meeting(
         print(traceback.format_exc())
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error during update: {str(e)}")
-        
+
+    # Sync changes to Google Calendar (update existing event, don't create new one)
+    if title_changed or time_changed or duration_changed or location_changed:
+        try:
+            from app.services.calendar_service import calendar_service
+            import asyncio
+            loop = asyncio.get_running_loop()
+            # Always pass start_time + duration together so end time is recalculated
+            from app.services.recurring_meeting_service import _gcal_executor
+            await loop.run_in_executor(
+                _gcal_executor,
+                lambda: calendar_service.update_meeting_event(
+                    meeting_id=str(db_meeting.id),
+                    new_start_time=db_meeting.scheduled_at if (time_changed or duration_changed) else None,
+                    new_duration_minutes=db_meeting.duration_minutes,
+                    new_location=db_meeting.location if location_changed else None,
+                    new_title=db_meeting.title if title_changed else None,
+                )
+            )
+            logger.info(f"Google Calendar synced for meeting {db_meeting.id}")
+        except Exception as e:
+            # Don't fail the update if calendar sync fails
+            print(f"WARNING: Google Calendar sync failed for meeting {meeting_id}: {e}")
+
     return db_meeting
 
 @router.post("/{meeting_id}/minutes", response_model=MinutesRead)
@@ -717,11 +911,15 @@ async def get_invite_preview(
     participant_emails = list(set(participant_emails))
 
     # Render email template for preview
+    if db_meeting.scheduled_at:
+        preview_date_str, preview_time_str = format_meeting_time_for_email(db_meeting.scheduled_at)
+    else:
+        preview_date_str, preview_time_str = "TBD", "TBD"
     template_context = {
         "user_name": "Valued Participant",
         "meeting_title": db_meeting.title,
-        "meeting_date": db_meeting.scheduled_at.strftime("%Y-%m-%d") if db_meeting.scheduled_at else "TBD",
-        "meeting_time": db_meeting.scheduled_at.strftime("%H:%M UTC") if db_meeting.scheduled_at else "TBD",
+        "meeting_date": preview_date_str,
+        "meeting_time": preview_time_str,
         "location": db_meeting.location or "Virtual",
         "video_link": db_meeting.video_link,
         "pillar_name": db_meeting.twg.pillar.value if db_meeting.twg else "TWG",
@@ -960,6 +1158,22 @@ async def approve_and_send_invite(
     
     # ---------------------------------------------------------
 
+    # Sync ALL participants to Google Calendar as attendees
+    # This ensures auto-added members (TWG + secretariat) are on the GCal event
+    try:
+        from app.services.calendar_service import calendar_service
+        from app.services.recurring_meeting_service import _gcal_executor
+        import asyncio
+        loop = asyncio.get_running_loop()
+        if participant_emails:
+            await loop.run_in_executor(
+                _gcal_executor,
+                lambda: calendar_service.add_attendees_to_event(str(meeting_id), participant_emails)
+            )
+            print(f"Synced {len(participant_emails)} attendees to GCal event for meeting {meeting_id}")
+    except Exception as e:
+        print(f"WARNING: Failed to sync attendees to GCal: {e}")
+
     # Send emails
     try:
         if participant_emails:
@@ -968,6 +1182,7 @@ async def approve_and_send_invite(
             if db_meeting.twg and db_meeting.twg.pillar:
                 pillar_name = db_meeting.twg.pillar.value
             
+            invite_date_str, invite_time_str = format_meeting_time_for_email(db_meeting.scheduled_at)
             await email_service.send_meeting_invite(
                 to_emails=participant_emails,
                 subject=f"INVITATION: {db_meeting.title}",
@@ -975,8 +1190,8 @@ async def approve_and_send_invite(
                 template_context={
                     "user_name": "Valued Participant",
                     "meeting_title": db_meeting.title,
-                    "meeting_date": db_meeting.scheduled_at.strftime("%Y-%m-%d"),
-                    "meeting_time": db_meeting.scheduled_at.strftime("%H:%M UTC"),
+                    "meeting_date": invite_date_str,
+                    "meeting_time": invite_time_str,
                     "location": db_meeting.location or "Virtual",
                     "video_link": db_meeting.video_link,
                     "pillar_name": pillar_name,
@@ -984,6 +1199,7 @@ async def approve_and_send_invite(
                 },
                 meeting_details={
                     "title": db_meeting.title,
+                    "meeting_id": str(db_meeting.id),
                     "start_time": db_meeting.scheduled_at,
                     "duration": db_meeting.duration_minutes,
                     "location": db_meeting.location
@@ -1069,13 +1285,14 @@ async def cancel_meeting(
         if participant_emails:
             from app.services.email_service import email_service
             try:
+                cancel_date_str, cancel_time_str = format_meeting_time_for_email(db_meeting.scheduled_at) if db_meeting.scheduled_at else ("TBD", "TBD")
                 await email_service.send_meeting_cancellation(
                     to_emails=participant_emails,
                     template_context={
                         "user_name": "Valued Participant",
                         "meeting_title": db_meeting.title,
-                        "meeting_date": db_meeting.scheduled_at.strftime("%Y-%m-%d") if db_meeting.scheduled_at else "TBD",
-                        "meeting_time": db_meeting.scheduled_at.strftime("%H:%M UTC") if db_meeting.scheduled_at else "TBD",
+                        "meeting_date": cancel_date_str,
+                        "meeting_time": cancel_time_str,
                         "location": db_meeting.location or "Virtual",
                         "pillar_name": db_meeting.twg.pillar.value if db_meeting.twg else "TWG",
                         "reason": cancel_data.reason,
@@ -1083,6 +1300,7 @@ async def cancel_meeting(
                     },
                     meeting_details={
                         "title": db_meeting.title,
+                        "meeting_id": str(db_meeting.id),
                         "start_time": db_meeting.scheduled_at or datetime.now(),
                         "duration": db_meeting.duration_minutes,
                         "location": db_meeting.location
@@ -1097,6 +1315,20 @@ async def cancel_meeting(
                 print(f"CRITICAL ERROR: Failed to send cancellation emails:\n{error_trace}")
                 # Don't fail the cancellation just because email failed
                 pass
+
+    # Remove from Google Calendar (notifies attendees natively)
+    try:
+        from app.services.calendar_service import calendar_service
+        import asyncio
+        loop = asyncio.get_running_loop()
+        from app.services.recurring_meeting_service import _gcal_executor
+        await loop.run_in_executor(
+            _gcal_executor,
+            lambda: calendar_service.cancel_meeting_event(str(db_meeting.id))
+        )
+        logger.info(f"Google Calendar event cancelled for meeting {db_meeting.id}")
+    except Exception as e:
+        print(f"WARNING: Google Calendar cancellation failed for meeting {meeting_id}: {e}")
 
     await audit_service.log_activity(
         db=db,
@@ -1155,13 +1387,14 @@ async def notify_meeting_update(
         if participant_emails:
             from app.services.email_service import email_service
             try:
+                update_date_str, update_time_str = format_meeting_time_for_email(db_meeting.scheduled_at) if db_meeting.scheduled_at else ("TBD", "TBD")
                 await email_service.send_meeting_update(
                     to_emails=participant_emails,
                     template_context={
                         "user_name": "Valued Participant",
                         "meeting_title": db_meeting.title,
-                        "meeting_date": db_meeting.scheduled_at.strftime("%Y-%m-%d") if db_meeting.scheduled_at else "TBD",
-                        "meeting_time": db_meeting.scheduled_at.strftime("%H:%M UTC") if db_meeting.scheduled_at else "TBD",
+                        "meeting_date": update_date_str,
+                        "meeting_time": update_time_str,
                         "location": db_meeting.location or "Virtual",
                         "pillar_name": db_meeting.twg.pillar.value if db_meeting.twg else "TWG",
                         "changes": update_data.changes,
@@ -1243,6 +1476,7 @@ async def check_meeting_conflicts(
         selectinload(Meeting.twg)
     ).where(
         Meeting.id != meeting_id,
+        Meeting.status != MeetingStatus.CANCELLED,
         Meeting.scheduled_at < meeting_end,
         (Meeting.scheduled_at + timedelta(minutes=60)) > meeting_start  # Approximate end time
     )
@@ -1385,11 +1619,17 @@ async def add_participants(
     # Sync to Google Calendar
     try:
         from app.services.calendar_service import calendar_service
+        from app.services.recurring_meeting_service import _gcal_executor
+        import asyncio
+        loop = asyncio.get_running_loop()
         # Get DB meeting to check type
         if db_meeting.meeting_type == 'virtual' or db_meeting.meeting_type == 'hybrid': # Assume virtual/hybrid have links
              emails_to_add = [p.email for p in new_participants if p.email]
              if emails_to_add:
-                 calendar_service.add_attendees_to_event(str(meeting_id), emails_to_add)
+                 await loop.run_in_executor(
+                     _gcal_executor,
+                     lambda: calendar_service.add_attendees_to_event(str(meeting_id), emails_to_add)
+                 )
     except Exception as e:
         # Don't fail the request if sync fails
         import logging
@@ -1401,6 +1641,33 @@ async def add_participants(
         await db.refresh(p)
         
     return new_participants
+
+@router.delete("/{meeting_id}/participants/{participant_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_participant(
+    meeting_id: uuid.UUID,
+    participant_id: uuid.UUID,
+    current_user: User = Depends(require_facilitator),
+    db: AsyncSession = Depends(get_db)
+):
+    """Remove a participant from a meeting."""
+    result = await db.execute(select(Meeting).where(Meeting.id == meeting_id))
+    db_meeting = result.scalar_one_or_none()
+    if not db_meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    if not has_twg_access(current_user, db_meeting.twg_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    result = await db.execute(
+        select(MeetingParticipant).where(
+            and_(MeetingParticipant.id == participant_id, MeetingParticipant.meeting_id == meeting_id)
+        )
+    )
+    participant = result.scalar_one_or_none()
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+
+    await db.delete(participant)
+    await db.commit()
 
 @router.post("/{meeting_id}/agenda", response_model=AgendaRead)
 async def upsert_agenda(
@@ -2080,19 +2347,13 @@ async def approve_minutes(
             template_context=pdf_context
         )
     except Exception as e:
-        print(f"PDF Gen Failure: {e}")
+        logging.error(f"PDF Gen Failure: {e}")
         # Log warning but don't crash, the status is already updated
-    
-    # 1b. Save PDF to disk and create Document record for the Document Library
+
+    # 1b. Save PDF to cloud storage (primary) with local fallback, and create Document record
     if pdf_bytes:
         try:
-            import os
-            upload_dir = os.path.join(settings.UPLOAD_DIR, "minutes")
-            os.makedirs(upload_dir, exist_ok=True)
             pdf_filename = f"Minutes - {db_meeting.title}.pdf"
-            pdf_path = os.path.join(upload_dir, f"minutes_{db_meeting.id}.pdf")
-            with open(pdf_path, "wb") as f:
-                f.write(pdf_bytes)
 
             # Check if a minutes Document already exists for this meeting
             existing = await db.execute(
@@ -2101,11 +2362,55 @@ async def approve_minutes(
                 )
             )
             if not existing.scalar_one_or_none():
+                file_path = None
+                metadata_extra = {}
+
+                # --- Cloud storage (primary) ---
+                try:
+                    storage = get_storage_service()
+                    twg_result = await db.execute(select(TWG).where(TWG.id == db_meeting.twg_id))
+                    twg = twg_result.scalar_one_or_none()
+                    target_folder_id = None
+                    if twg:
+                        target_folder_id = storage.get_or_create_twg_folder(twg.name)
+
+                    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                    safe_filename = f"{timestamp}_minutes_{db_meeting.id}.pdf"
+                    cloud_file_id, cloud_view_link, cloud_download_url = storage.upload_bytes(
+                        file_bytes=pdf_bytes,
+                        file_name=safe_filename,
+                        mime_type="application/pdf",
+                        folder_id=target_folder_id
+                    )
+                    if cloud_file_id:
+                        file_path = cloud_file_id
+                        metadata_extra = {
+                            "storage_mode": "cloud",
+                            "cloud_file_id": cloud_file_id,
+                            "cloud_view_link": cloud_view_link,
+                            "cloud_download_url": cloud_download_url,
+                        }
+                        logging.info(f"Uploaded minutes PDF to cloud storage: {cloud_file_id}")
+                except Exception as cloud_err:
+                    logging.warning(f"Cloud storage upload failed, falling back to local: {cloud_err}")
+
+                # --- Local fallback ---
+                if not file_path:
+                    import os
+                    upload_dir = os.path.join(settings.UPLOAD_DIR, "minutes")
+                    os.makedirs(upload_dir, exist_ok=True)
+                    local_path = os.path.join(upload_dir, f"minutes_{db_meeting.id}.pdf")
+                    with open(local_path, "wb") as f:
+                        f.write(pdf_bytes)
+                    file_path = local_path
+                    metadata_extra = {"storage_mode": "local"}
+                    logging.info(f"Saved minutes PDF to local disk: {local_path}")
+
                 minutes_doc = Document(
                     twg_id=db_meeting.twg_id,
                     meeting_id=db_meeting.id,
                     file_name=pdf_filename,
-                    file_path=pdf_path,
+                    file_path=file_path,
                     file_type="application/pdf",
                     document_type="minutes",
                     uploaded_by_id=current_user.id,
@@ -2114,12 +2419,14 @@ async def approve_minutes(
                         "meeting_title": db_meeting.title,
                         "status": "approved",
                         "file_size": len(pdf_bytes),
+                        **metadata_extra,
                     }
                 )
                 db.add(minutes_doc)
                 await db.commit()
+
         except Exception as e:
-            print(f"Minutes Document creation failed: {e}")
+            logging.error(f"Minutes Document creation failed: {e}")
 
     # 2. Index to Knowledge Base (RAG)
     try:
@@ -2138,7 +2445,7 @@ async def approve_minutes(
             namespace=f"twg-{db_meeting.twg_id}" if db_meeting.twg_id else "global"
         )
     except Exception as e:
-        print(f"KB Indexing Failed: {e}")
+        logging.error(f"KB Indexing Failed: {e}")
 
     # 3. Send Emails to Participants
     recipients = set()
@@ -2169,7 +2476,7 @@ async def approve_minutes(
                  pdf_filename="minutes.pdf"
              )
         except Exception as e:
-            print(f"Email Sending Failed: {e}")
+            logging.error(f"Email Sending Failed: {e}")
             # Non-blocking
 
     # --- Audit Log ---
@@ -2566,12 +2873,26 @@ async def extract_action_items(
             })
     
     await db.commit()
-    
+
+    created_count = len([i for i in created_items if i.get('created')])
+    if created_count > 0:
+        try:
+            await create_notification(
+                db=db,
+                user_id=current_user.id,
+                type=NotificationType.TASK,
+                title="Action Items Extracted",
+                content=f"{created_count} action items extracted from meeting minutes",
+                link="/actions"
+            )
+        except Exception:
+            pass  # Non-critical
+
     return {
         "extracted_actions": extracted_items,
         "created_items": created_items,
         "meeting_id": str(meeting_id),
-        "message": f"Created {len([i for i in created_items if i.get('created')])} action items"
+        "message": f"Created {created_count} action items"
     }
 
 
@@ -2633,54 +2954,75 @@ async def upload_meeting_document(
     current_user: User = Depends(require_facilitator),
     db: AsyncSession = Depends(get_db)
 ):
-    """Upload a document for a meeting."""
-    import os
-    import shutil
-    
+    """Upload a document for a meeting to cloud storage."""
     result = await db.execute(select(Meeting).where(Meeting.id == meeting_id))
     db_meeting = result.scalar_one_or_none()
-    
+
     if not db_meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
-        
+
     if not has_twg_access(current_user, db_meeting.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
-    
-    upload_dir = "uploads/meetings"
+
+    # Read file content
+    file_content = await file.read()
+    file_size = len(file_content)
+
+    # Upload to cloud storage
     try:
-        os.makedirs(upload_dir, exist_ok=True)
-        
+        storage = get_storage_service()
+
+        # Get TWG name for folder organization
+        twg_result = await db.execute(select(TWG).where(TWG.id == db_meeting.twg_id))
+        twg = twg_result.scalar_one_or_none()
+        target_folder_id = None
+        if twg:
+            target_folder_id = storage.get_or_create_twg_folder(twg.name)
+
+        # Generate unique filename
+        import os
         file_extension = os.path.splitext(file.filename)[1]
-        unique_filename = f"{uuid.uuid4()}{file_extension}"
-        file_path = os.path.join(upload_dir, unique_filename)
-        
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        file_size = os.path.getsize(file_path)
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        safe_filename = f"{timestamp}_{uuid.uuid4()}{file_extension}"
+
+        # Upload to cloud
+        cloud_file_id, cloud_view_link, cloud_download_url = storage.upload_bytes(
+            file_bytes=file_content,
+            file_name=safe_filename,
+            mime_type=file.content_type or "application/octet-stream",
+            folder_id=target_folder_id
+        )
+
+        if not cloud_file_id:
+            raise HTTPException(status_code=500, detail="Failed to upload file to cloud storage")
+
+    except HTTPException:
+        raise
     except Exception as e:
-        import traceback
-        print(f"File Upload Error: {e}")
-        print(traceback.format_exc())
+        logging.error(f"File Upload Error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
-    
+
     db_document = Document(
         twg_id=db_meeting.twg_id,
-        meeting_id=meeting_id, # Link to meeting!
+        meeting_id=meeting_id,
         file_name=file.filename,
-        file_path=file_path,
+        file_path=cloud_file_id,
         file_type=file.content_type or "application/octet-stream",
         uploaded_by_id=current_user.id,
         metadata_json={
             "meeting_id": str(meeting_id),
-            "file_size": file_size
+            "file_size": file_size,
+            "storage_mode": "cloud",
+            "cloud_file_id": cloud_file_id,
+            "cloud_view_link": cloud_view_link,
+            "cloud_download_url": cloud_download_url
         }
     )
-    
+
     db.add(db_document)
     await db.commit()
     await db.refresh(db_document)
-    
+
     return {
         "id": str(db_document.id),
         "file_name": db_document.file_name,
@@ -2696,29 +3038,45 @@ async def download_document(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Download a document."""
-    from fastapi.responses import FileResponse
-    import os
-    
+    """Download a document from cloud storage."""
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
-    
+
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    
+
     # Check TWG access
     if document.twg_id and not has_twg_access(current_user, document.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
-    
-    # Check if file exists
-    if not os.path.exists(document.file_path):
-        raise HTTPException(status_code=404, detail="File not found on server")
-    
-    return FileResponse(
-        path=document.file_path,
-        filename=document.file_name,
-        media_type=document.file_type
-    )
+
+    # Get cloud file ID from metadata or file_path
+    metadata = document.metadata_json or {}
+    cloud_file_id = metadata.get("cloud_file_id") or document.file_path
+
+    if not cloud_file_id:
+        raise HTTPException(status_code=404, detail="No cloud file ID found for document")
+
+    try:
+        storage = get_storage_service()
+        file_bytes = storage.download_file(cloud_file_id)
+
+        if not file_bytes:
+            raise HTTPException(status_code=404, detail="File not found in cloud storage")
+
+        # Return file as streaming response
+        return StreamingResponse(
+            io.BytesIO(file_bytes),
+            media_type=document.file_type or "application/octet-stream",
+            headers={
+                "Content-Disposition": f"attachment; filename={document.file_name}"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Failed to download file from cloud storage: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to download file: {str(e)}")
 
 
 @router.delete("/documents/{document_id}")
@@ -2727,27 +3085,35 @@ async def delete_document(
     current_user: User = Depends(require_facilitator),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a document."""
-    import os
-    
+    """Delete a document from cloud storage and database."""
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
-    
+
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    
+
     # Check TWG access
     if document.twg_id and not has_twg_access(current_user, document.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
-    
-    # Delete file from filesystem
-    if os.path.exists(document.file_path):
-        os.remove(document.file_path)
-    
+
+    # Get cloud file ID and delete from cloud storage
+    metadata = document.metadata_json or {}
+    cloud_file_id = metadata.get("cloud_file_id") or document.file_path
+
+    if cloud_file_id:
+        try:
+            storage = get_storage_service()
+            if storage.delete_file(cloud_file_id):
+                logging.info(f"Deleted cloud file {cloud_file_id} for document {document_id}")
+            else:
+                logging.warning(f"Failed to delete cloud file {cloud_file_id} for document {document_id}")
+        except Exception as e:
+            logging.warning(f"Error deleting cloud file for document {document_id}: {e}")
+
     # Delete from database
     await db.delete(document)
     await db.commit()
-    
+
     return {"message": "Document deleted successfully"}
 
 
@@ -3271,8 +3637,77 @@ async def restore_minutes_version(
     db_minutes.current_version += 1
     db_minutes.last_edited_by = current_user.id
     db_minutes.last_edited_at = datetime.utcnow()
-    
+
     await db.commit()
     await db.refresh(db_minutes)
-    
+
     return db_minutes
+
+
+# ==================== RECURRING MEETING ENDPOINTS ====================
+
+@router.patch("/{meeting_id}/detach-from-series", response_model=MeetingRead)
+async def detach_meeting_from_series(
+    meeting_id: uuid.UUID,
+    current_user: User = Depends(require_facilitator),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Detach a meeting instance from its recurring meeting series.
+
+    This makes the meeting standalone - future updates to the series
+    will not affect this instance. The meeting becomes an exception.
+
+    This is useful when:
+    - A specific instance needs a different time/location
+    - One meeting in a series needs different participants
+    - You want to edit a single occurrence without affecting others
+    """
+    # Get the meeting
+    result = await db.execute(
+        select(Meeting)
+        .options(
+            selectinload(Meeting.twg),
+            selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
+            selectinload(Meeting.agenda),
+            selectinload(Meeting.minutes),
+            selectinload(Meeting.documents),
+        )
+        .where(Meeting.id == meeting_id)
+    )
+    db_meeting = result.scalar_one_or_none()
+
+    if not db_meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    if not has_twg_access(current_user, db_meeting.twg_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not db_meeting.recurring_meeting_id:
+        raise HTTPException(
+            status_code=400,
+            detail="This meeting is not part of a recurring series"
+        )
+
+    # Mark as exception and detach
+    db_meeting.is_recurring_exception = True
+    db_meeting.recurring_meeting_id = None
+
+    await db.commit()
+    await db.refresh(db_meeting)
+
+    # Log the activity
+    await audit_service.log_activity(
+        db=db,
+        user_id=current_user.id,
+        action="MEETING_DETACHED_FROM_SERIES",
+        resource_type="meeting",
+        resource_id=meeting_id,
+        details={
+            "meeting_title": db_meeting.title,
+            "original_scheduled_at": db_meeting.original_scheduled_at.isoformat() if db_meeting.original_scheduled_at else None,
+        },
+        ip_address=None
+    )
+
+    return db_meeting

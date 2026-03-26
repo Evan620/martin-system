@@ -8,7 +8,8 @@ Event-driven updates ensure state is always current.
 """
 
 from typing import Dict, List, Optional
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 from uuid import UUID
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession

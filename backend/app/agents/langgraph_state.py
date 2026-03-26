@@ -50,5 +50,8 @@ class AgentState(TypedDict):
     # Structured Intent from LLM Parser
     directive_intent: Optional[Dict[str, any]]
     
+    # User's timezone (e.g. "Africa/Lagos")
+    user_timezone: Optional[str]
+
     # Structured Citations for frontend
     citations: Annotated[List[Dict], add]

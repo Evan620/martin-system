@@ -16,7 +16,8 @@ Status Flow: PENDING → DELIVERED → PROCESSING → COMPLETED/FAILED
 
 from enum import Enum
 from typing import Optional, Dict, Any, List
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 from uuid import UUID, uuid4
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 

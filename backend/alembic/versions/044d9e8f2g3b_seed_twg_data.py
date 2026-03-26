@@ -24,7 +24,7 @@ def upgrade() -> None:
     
     twgs = [
         {
-            "name": "Energy & Infrastructure",
+            "name": "Energy Trade and Industrial Growth",
             "pillar": "energy_infrastructure"
         },
         {
@@ -32,11 +32,11 @@ def upgrade() -> None:
             "pillar": "agriculture_food_systems"
         },
         {
-            "name": "Critical Minerals & Industrialization", 
+            "name": "Strategic Minerals and Natural Resource Development",
             "pillar": "critical_minerals_industrialization"
         },
         {
-            "name": "Digital Economy & Transformation",
+            "name": "Digital Transformation",
             "pillar": "digital_economy_transformation"
         },
         {

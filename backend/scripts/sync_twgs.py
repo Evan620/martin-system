@@ -11,7 +11,7 @@ from app.models.models import TWG, TWGPillar, Project, Meeting, ActionItem, Docu
 
 OFFICIAL_TWGS = [
     {
-        "name": "Energy & Infrastructure",
+        "name": "Energy Trade and Industrial Growth",
         "pillar": TWGPillar.energy_infrastructure,
         "status": "active"
     },
@@ -21,12 +21,12 @@ OFFICIAL_TWGS = [
         "status": "active"
     },
     {
-        "name": "Critical Minerals & Industrialization",
+        "name": "Strategic Minerals and Natural Resource Development",
         "pillar": TWGPillar.critical_minerals_industrialization,
         "status": "active"
     },
     {
-        "name": "Digital Economy & Transformation",
+        "name": "Digital Transformation",
         "pillar": TWGPillar.digital_economy_transformation,
         "status": "active"
     },

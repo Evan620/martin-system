@@ -50,23 +50,42 @@ class EmailService:
         start_time: datetime,
         duration_minutes: int,
         location: Optional[str] = None,
-        attendees: List[str] = None
+        attendees: List[str] = None,
+        meeting_id: Optional[str] = None,
+        sequence: int = 0,
+        method: str = 'REQUEST',
+        status: str = 'CONFIRMED',
     ) -> bytes:
         """
-        Creates an iCalendar (.ics) invite.
+        Creates an iCalendar (.ics) invite with proper UID/ORGANIZER/SEQUENCE
+        so email clients treat updates as updates (not new meetings).
         """
         cal = Calendar()
         cal.add('prodid', '-//ECOWAS Summit TWG//martin-system//EN')
         cal.add('version', '2.0')
-        cal.add('method', 'REQUEST')
+        cal.add('method', method)
 
         event = Event()
         event.add('summary', title)
         event.add('description', description)
-        event.add('dtstart', start_time)
-        event.add('dtend', start_time + timedelta(minutes=duration_minutes))
+        utc_start = start_time.replace(tzinfo=pytz.utc) if start_time.tzinfo is None else start_time
+        utc_end = utc_start + timedelta(minutes=duration_minutes)
+        event.add('dtstart', utc_start)
+        event.add('dtend', utc_end)
         event.add('dtstamp', datetime.now(pytz.utc))
-        
+        event.add('status', status)
+        event.add('sequence', sequence)
+
+        # Stable UID so email clients link updates to the original invite
+        uid = f"{meeting_id}@martin-system.ecowas" if meeting_id else f"{id(event)}@martin-system.ecowas"
+        event.add('uid', uid)
+
+        # Organizer so it doesn't show "unknownorganizer@calendar.google.com"
+        from icalendar import vCalAddress, vText
+        organizer = vCalAddress(f'MAILTO:{self.from_email}')
+        organizer.params['cn'] = vText(self.from_name)
+        event.add('organizer', organizer)
+
         if location:
             event.add('location', location)
 
@@ -87,20 +106,12 @@ class EmailService:
         attachments: List[Dict[str, Any]] = None
     ):
         """
-        Sends a meeting invitation with an ICS attachment.
+        Sends a branded meeting invitation email (HTML only).
+        Google Calendar API handles the actual calendar event and attendee
+        management via sendUpdates='all'.
         """
         template = self.jinja_env.get_template(template_name)
         html_content = template.render(**template_context)
-        
-        # Create ICS
-        ics_content = self._create_calendar_invite(
-            title=meeting_details['title'],
-            description=meeting_details.get('description', ''),
-            start_time=meeting_details['start_time'],
-            duration_minutes=meeting_details.get('duration', 60),
-            location=meeting_details.get('location'),
-            attendees=to_emails
-        )
 
         if not settings.EMAILS_ENABLED:
             print(f"[EmailService] Emails disabled. Would send to: {to_emails}")
@@ -111,8 +122,6 @@ class EmailService:
                 to_emails=to_emails,
                 subject=subject,
                 html_content=html_content,
-                ics_content=ics_content,
-                ics_filename="invite.ics",
                 extra_attachments=attachments
             )
         else:
@@ -120,8 +129,6 @@ class EmailService:
                 to_emails=to_emails,
                 subject=subject,
                 html_content=html_content,
-                ics_content=ics_content,
-                ics_filename="invite.ics",
                 extra_attachments=attachments
             )
 
@@ -133,20 +140,13 @@ class EmailService:
         changes: List[str] = None
     ):
         """
-        Sends a meeting update notification with an updated ICS attachment.
+        Sends a meeting update notification as HTML email.
+        Google Calendar API handles updating the event via
+        update_meeting_event() with sendUpdates='all'.
         """
         template = self.jinja_env.get_template("meeting_update.html")
         template_context["changes"] = changes or []
         html_content = template.render(**template_context)
-        
-        ics_content = self._create_calendar_invite(
-            title=meeting_details['title'],
-            description=meeting_details.get('description', ''),
-            start_time=meeting_details['start_time'],
-            duration_minutes=meeting_details.get('duration', 60),
-            location=meeting_details.get('location'),
-            attendees=to_emails
-        )
 
         subject = f"UPDATED: {meeting_details['title']}"
 
@@ -159,16 +159,12 @@ class EmailService:
                 to_emails=to_emails,
                 subject=subject,
                 html_content=html_content,
-                ics_content=ics_content,
-                ics_filename="meeting_update.ics"
             )
         else:
             return await self._send_via_smtp(
                 to_emails=to_emails,
                 subject=subject,
                 html_content=html_content,
-                ics_content=ics_content,
-                ics_filename="meeting_update.ics"
             )
 
     async def send_meeting_reminder(
@@ -178,19 +174,11 @@ class EmailService:
         meeting_details: Dict[str, Any]
     ):
         """
-        Sends a meeting reminder email.
+        Sends a meeting reminder email (HTML only, no ICS).
+        Google Calendar handles native reminders for attendees.
         """
         template = self.jinja_env.get_template("meeting_reminder.html")
         html_content = template.render(**template_context)
-        
-        ics_content = self._create_calendar_invite(
-            title=meeting_details['title'],
-            description=meeting_details.get('description', ''),
-            start_time=meeting_details['start_time'],
-            duration_minutes=meeting_details.get('duration', 60),
-            location=meeting_details.get('location'),
-            attendees=to_emails
-        )
 
         subject = f"REMINDER: {meeting_details['title']}"
 
@@ -203,16 +191,12 @@ class EmailService:
                 to_emails=to_emails,
                 subject=subject,
                 html_content=html_content,
-                ics_content=ics_content,
-                ics_filename="reminder.ics"
             )
         else:
             return await self._send_via_smtp(
                 to_emails=to_emails,
                 subject=subject,
                 html_content=html_content,
-                ics_content=ics_content,
-                ics_filename="reminder.ics"
             )
 
     async def send_minutes_nudge(
@@ -331,28 +315,23 @@ class EmailService:
         title: str,
         start_time: datetime,
         duration_minutes: int,
-        location: Optional[str] = None
+        location: Optional[str] = None,
+        meeting_id: Optional[str] = None,
     ) -> bytes:
         """
         Creates an iCalendar (.ics) cancellation notice.
+        Uses same UID as the original invite so email clients remove it.
         """
-        cal = Calendar()
-        cal.add('prodid', '-//ECOWAS Summit TWG//martin-system//EN')
-        cal.add('version', '2.0')
-        cal.add('method', 'CANCEL')
-
-        event = Event()
-        event.add('summary', f"CANCELLED: {title}")
-        event.add('dtstart', start_time)
-        event.add('dtend', start_time + timedelta(minutes=duration_minutes))
-        event.add('dtstamp', datetime.now(pytz.utc))
-        event.add('status', 'CANCELLED')
-        
-        if location:
-            event.add('location', location)
-
-        cal.add_component(event)
-        return cal.to_ical()
+        return self._create_calendar_invite(
+            title=f"CANCELLED: {title}",
+            description="This meeting has been cancelled.",
+            start_time=start_time,
+            duration_minutes=duration_minutes,
+            location=location,
+            meeting_id=meeting_id,
+            method='CANCEL',
+            status='CANCELLED',
+        )
 
     async def send_meeting_cancellation(
         self,
@@ -362,18 +341,13 @@ class EmailService:
         reason: str = None
     ):
         """
-        Sends a meeting cancellation notification with a CANCEL ICS attachment.
+        Sends a meeting cancellation email (HTML only).
+        Google Calendar API handles removing the event from attendees'
+        calendars via cancel_meeting_event() with sendUpdates='all'.
         """
         template = self.jinja_env.get_template("meeting_cancellation.html")
         template_context["reason"] = reason
         html_content = template.render(**template_context)
-        
-        ics_content = self._create_cancel_invite(
-            title=meeting_details['title'],
-            start_time=meeting_details['start_time'],
-            duration_minutes=meeting_details.get('duration', 60),
-            location=meeting_details.get('location')
-        )
 
         subject = f"CANCELLED: {meeting_details['title']}"
 
@@ -386,16 +360,12 @@ class EmailService:
                 to_emails=to_emails,
                 subject=subject,
                 html_content=html_content,
-                ics_content=ics_content,
-                ics_filename="cancellation.ics"
             )
         else:
             return await self._send_via_smtp(
                 to_emails=to_emails,
                 subject=subject,
                 html_content=html_content,
-                ics_content=ics_content,
-                ics_filename="cancellation.ics"
             )
 
     async def _send_via_resend(
@@ -411,18 +381,19 @@ class EmailService:
         Send email using Resend API (works on Railway).
         """
         import base64
-        
+
         attachments = []
+
+        # Single ICS attachment with method=REQUEST (was previously added twice)
         if ics_content:
             attachments.append({
                 "filename": ics_filename,
                 "content": base64.b64encode(ics_content).decode('utf-8'),
-                "content_type": "text/calendar"
+                "content_type": "text/calendar; method=REQUEST"
             })
-            
+
         if extra_attachments:
             for attachment in extra_attachments:
-                # Expects: filename, content (bytes), content_type
                 attachments.append({
                     "filename": attachment["filename"],
                     "content": base64.b64encode(attachment["content"]).decode('utf-8'),
@@ -435,25 +406,12 @@ class EmailService:
             "subject": subject,
             "html": html_content,
         }
-        
+
         if attachments:
             params["attachments"] = attachments
-            
-        print(f"[Resend Debug] ICS Content: {bool(ics_content)}")
-        if ics_content:
-            # Add ICS as a specially formatted attachment
-            # Resend might not support 'content_type' with parameters perfectly in all SDK versions,
-            # but usually passing the full string works or is handled by the provider.
-            # Key modification: Explicitly set method=REQUEST
-            params["attachments"] = params.get("attachments", []) + [{
-                "filename": ics_filename,
-                "content": base64.b64encode(ics_content).decode('utf-8'),
-                "content_type": "text/calendar; method=REQUEST"
-            }]
-            
-        # Debug logging
+
         print(f"[Resend] Sending email to {len(to_emails)} recipients. Subject: {subject}")
-        print(f"[Resend] Has attachments: {bool(attachments)} Count: {len(attachments) if attachments else 0}")
+        print(f"[Resend] Has ICS: {bool(ics_content)}, Attachments: {len(attachments)}")
 
         try:
             result = resend.Emails.send(params)
@@ -543,6 +501,107 @@ class EmailService:
         if not settings.EMAILS_ENABLED:
             print(f"[EmailService] Emails disabled. Would send password reset to: {to_email}")
             print(f"[EmailService] Reset URL: {reset_url}")
+            return True
+
+        if self.use_resend:
+            return await self._send_via_resend(
+                to_emails=[to_email],
+                subject=subject,
+                html_content=html_content
+            )
+        else:
+            return await self._send_via_smtp(
+                to_emails=[to_email],
+                subject=subject,
+                html_content=html_content
+            )
+
+    async def send_organization_invitation(
+        self,
+        to_email: str,
+        organization_name: str,
+        twg_name: str,
+        inviter_name: str,
+        invitation_id: str,
+        expires_at: datetime,
+        custom_message: Optional[str] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None
+    ):
+        """
+        Sends an organization invitation email with accept/decline buttons and optional attachments.
+        """
+        template = self.jinja_env.get_template("organization_invitation.html")
+
+        # Build response URLs
+        base_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+        accept_url = f"{base_url}/invitations/{invitation_id}/respond?action=accept"
+        decline_url = f"{base_url}/invitations/{invitation_id}/respond?action=decline"
+
+        context = {
+            "organization_name": organization_name,
+            "twg_name": twg_name,
+            "inviter_name": inviter_name,
+            "custom_message": custom_message,
+            "accept_url": accept_url,
+            "decline_url": decline_url,
+            "expires_at": expires_at.strftime("%B %d, %Y"),
+            "has_attachments": bool(attachments)
+        }
+        html_content = template.render(**context)
+        subject = f"Invitation to Join {twg_name} - ECOWAS Summit TWG"
+
+        if not settings.EMAILS_ENABLED:
+            print(f"[EmailService] Emails disabled. Would send org invitation to: {to_email}")
+            print(f"[EmailService] Accept URL: {accept_url}")
+            if attachments:
+                print(f"[EmailService] Attachments: {[a['filename'] for a in attachments]}")
+            return True
+
+        if self.use_resend:
+            return await self._send_via_resend(
+                to_emails=[to_email],
+                subject=subject,
+                html_content=html_content,
+                extra_attachments=attachments
+            )
+        else:
+            return await self._send_via_smtp(
+                to_emails=[to_email],
+                subject=subject,
+                html_content=html_content,
+                extra_attachments=attachments
+            )
+
+    async def send_invitation_message_notification(
+        self,
+        to_email: str,
+        organization_name: str,
+        twg_name: str,
+        sender_name: str,
+        message_preview: str,
+        invitation_id: str
+    ):
+        """
+        Sends notification to invitee when admin sends a message.
+        """
+        template = self.jinja_env.get_template("invitation_message_notification.html")
+
+        # Build conversation URL
+        base_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+        conversation_url = f"{base_url}/invitations/{invitation_id}/respond"
+
+        context = {
+            "organization_name": organization_name,
+            "twg_name": twg_name,
+            "sender_name": sender_name,
+            "message_preview": message_preview,
+            "conversation_url": conversation_url
+        }
+        html_content = template.render(**context)
+        subject = f"New Message from {twg_name} - ECOWAS Summit TWG"
+
+        if not settings.EMAILS_ENABLED:
+            print(f"[EmailService] Emails disabled. Would send message notification to: {to_email}")
             return True
 
         if self.use_resend:

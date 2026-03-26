@@ -1,0 +1,5 @@
+[build]
+  # The backend service uses the backend directory as root
+  [build.backend]
+    dockerfile = "backend/Dockerfile"
+    context = "backend"

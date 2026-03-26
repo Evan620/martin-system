@@ -1,14 +1,14 @@
 """
-Energy & Infrastructure TWG Agent - LangGraph Implementation
+Energy Trade and Industrial Growth TWG Agent - LangGraph Implementation
 
-Proper LangGraph-based agent for Energy & Infrastructure TWG.
+Proper LangGraph-based agent for Energy Trade and Industrial Growth TWG.
 """
 
 from app.agents.langgraph_base_agent import LangGraphBaseAgent
 
 
 class LangGraphEnergyAgent(LangGraphBaseAgent):
-    """LangGraph-based Energy & Infrastructure TWG Agent"""
+    """LangGraph-based Energy Trade and Industrial Growth TWG Agent"""
 
     def __init__(self, keep_history: bool = True, session_id: str = None):
         """

@@ -50,10 +50,12 @@ export default function TwgAgent() {
     const [isLoading, setIsLoading] = useState(false);
     const [conversationId, setConversationId] = useState<string | undefined>();
     const [activeTwg, setActiveTwg] = useState<{ id: string; name: string } | null>(null);
+    const [showTwgSwitcher, setShowTwgSwitcher] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
+    const twgSwitcherRef = useRef<HTMLDivElement>(null);
 
     const { id } = useParams<{ id: string }>();
 
@@ -237,6 +239,54 @@ export default function TwgAgent() {
     };
 
     const currentAgentName = getAgentIdentity(activeTwg?.name);
+
+    const getTwgIcon = (twgName?: string): string => {
+        if (!twgName) return 'smart_toy';
+        const name = twgName.toLowerCase();
+        if (name.includes('energy')) return 'bolt';
+        if (name.includes('agriculture') || name.includes('agribusiness')) return 'agriculture';
+        if (name.includes('minerals')) return 'diamond';
+        if (name.includes('digital')) return 'devices';
+        if (name.includes('protocol')) return 'local_shipping';
+        if (name.includes('resource') || name.includes('mobilization')) return 'payments';
+        if (name.includes('secretariat')) return 'shield_person';
+        if (name.includes('council')) return 'groups';
+        return 'smart_toy';
+    };
+
+    const getTwgColor = (twgName?: string): string => {
+        if (!twgName) return 'from-blue-600 to-purple-600';
+        const name = twgName.toLowerCase();
+        if (name.includes('energy')) return 'from-amber-500 to-orange-600';
+        if (name.includes('agriculture') || name.includes('agribusiness')) return 'from-green-500 to-emerald-600';
+        if (name.includes('minerals')) return 'from-cyan-500 to-blue-600';
+        if (name.includes('digital')) return 'from-violet-500 to-purple-600';
+        if (name.includes('protocol')) return 'from-rose-500 to-pink-600';
+        if (name.includes('resource') || name.includes('mobilization')) return 'from-teal-500 to-cyan-600';
+        if (name.includes('secretariat')) return 'from-blue-600 to-indigo-600';
+        if (name.includes('council')) return 'from-slate-600 to-gray-700';
+        return 'from-blue-600 to-purple-600';
+    };
+
+    // Click-outside handler to close TWG switcher dropdown
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (twgSwitcherRef.current && !twgSwitcherRef.current.contains(event.target as Node)) {
+                setShowTwgSwitcher(false);
+            }
+        };
+        if (showTwgSwitcher) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showTwgSwitcher]);
+
+    const handleTwgSwitch = (twg: { id: string; name: string }) => {
+        setActiveTwg({ id: twg.id, name: twg.name });
+        setShowTwgSwitcher(false);
+        setConversationId(undefined);
+        setMessages([]);
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -668,22 +718,76 @@ export default function TwgAgent() {
                 <div className="flex-1 flex flex-col bg-[#f6f6f8] dark:bg-[#0d121b]">
                     {/* Agent Header */}
                     <div className="bg-white dark:bg-[#1a202c] border-b border-[#e7ebf3] dark:border-[#2d3748] px-6 py-4 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                        <div className="relative flex items-center gap-3" ref={twgSwitcherRef}>
                             <div className="relative">
-                                <div className="size-10 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white">
-                                    <span className="material-symbols-outlined">smart_toy</span>
+                                <div className={`size-10 rounded-full bg-gradient-to-br ${getTwgColor(activeTwg?.name)} flex items-center justify-center text-white`}>
+                                    <span className="material-symbols-outlined">{getTwgIcon(activeTwg?.name)}</span>
                                 </div>
                                 <span className="absolute bottom-0 right-0 size-3 border-2 border-white dark:border-[#1a202c] bg-green-500 rounded-full"></span>
                             </div>
                             <div>
-                                <h3 className="font-bold text-[#0d121b] dark:text-white">
-                                    {currentAgentName}
-                                </h3>
+                                {user?.twgs && user.twgs.length > 1 ? (
+                                    <button
+                                        onClick={() => setShowTwgSwitcher(!showTwgSwitcher)}
+                                        className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                                    >
+                                        <h3 className="font-bold text-[#0d121b] dark:text-white">
+                                            {currentAgentName}
+                                        </h3>
+                                        <span className={`material-symbols-outlined text-[18px] text-[#4c669a] transition-transform ${showTwgSwitcher ? 'rotate-180' : ''}`}>
+                                            expand_more
+                                        </span>
+                                    </button>
+                                ) : (
+                                    <h3 className="font-bold text-[#0d121b] dark:text-white">
+                                        {currentAgentName}
+                                    </h3>
+                                )}
                                 <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
                                     <span className="size-1.5 bg-green-500 rounded-full"></span>
                                     Online
                                 </p>
                             </div>
+
+                            {/* TWG Switcher Dropdown */}
+                            {showTwgSwitcher && user?.twgs && user.twgs.length > 1 && (
+                                <div className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-xl shadow-xl z-50 overflow-hidden">
+                                    <div className="px-4 py-2.5 border-b border-[#e7ebf3] dark:border-[#2d3748]">
+                                        <p className="text-xs font-semibold text-[#4c669a] dark:text-[#9ca3af] uppercase tracking-wider">Switch Agent</p>
+                                    </div>
+                                    <div className="py-1 max-h-80 overflow-y-auto">
+                                        {user.twgs.map((twg) => {
+                                            const isActive = activeTwg?.id === twg.id;
+                                            return (
+                                                <button
+                                                    key={twg.id}
+                                                    onClick={() => handleTwgSwitch(twg)}
+                                                    className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${
+                                                        isActive
+                                                            ? 'bg-blue-50 dark:bg-blue-900/20'
+                                                            : 'hover:bg-gray-50 dark:hover:bg-[#2d3748]'
+                                                    }`}
+                                                >
+                                                    <div className={`size-9 rounded-full bg-gradient-to-br ${getTwgColor(twg.name)} flex items-center justify-center text-white flex-shrink-0`}>
+                                                        <span className="material-symbols-outlined text-[18px]">{getTwgIcon(twg.name)}</span>
+                                                    </div>
+                                                    <div className="flex-1 text-left min-w-0">
+                                                        <p className={`text-sm font-semibold truncate ${isActive ? 'text-blue-700 dark:text-blue-300' : 'text-[#0d121b] dark:text-white'}`}>
+                                                            {getAgentIdentity(twg.name)}
+                                                        </p>
+                                                        <p className="text-xs text-[#4c669a] dark:text-[#9ca3af] truncate">
+                                                            {twg.name}
+                                                        </p>
+                                                    </div>
+                                                    {isActive && (
+                                                        <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[20px] flex-shrink-0">check_circle</span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         <div className="flex items-center gap-2">
                             <button
@@ -731,7 +835,7 @@ export default function TwgAgent() {
                     </div>
 
                     {/* Messages */}
-                    <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-gradient-to-b from-gray-50/50 to-transparent dark:from-[#0d121b]/30 dark:to-transparent">
+                    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gradient-to-b from-gray-50/50 to-transparent dark:from-[#0d121b]/30 dark:to-transparent">
                         {messages.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center px-4">
                                 <div className="max-w-3xl w-full text-center mb-8">

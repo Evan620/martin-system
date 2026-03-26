@@ -48,11 +48,12 @@ class Base(DeclarativeBase):
 # For LangGraph tools that run in separate event loops
 # These cannot use async database connections
 SYNC_DATABASE_URL = settings.DATABASE_URL
-# PostgreSQL: use psycopg2 driver for sync (replace asyncpg if present)
 if "postgresql" in SYNC_DATABASE_URL:
     # Replace any async driver with psycopg2
     SYNC_DATABASE_URL = SYNC_DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
     SYNC_DATABASE_URL = SYNC_DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://")
+elif "sqlite+aiosqlite" in SYNC_DATABASE_URL:
+    SYNC_DATABASE_URL = SYNC_DATABASE_URL.replace("sqlite+aiosqlite", "sqlite")
 
 sync_engine_kwargs = {"echo": False, "future": True}
 if SYNC_DATABASE_URL.startswith("sqlite"):

@@ -6,6 +6,7 @@ import { UserRole } from '../../types/auth';
 import { useStreamingChat, StreamEvent } from '../../hooks/useStreamingChat';
 import ThinkingTimeline from '../../components/agent/ThinkingTimeline'; // Import ThinkingTimeline
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onToggleExpand }: { twgId?: string, twgName?: string, isExpanded?: boolean, onToggleExpand?: () => void }) {
     // Determine TWG Context: Use prop if available, otherwise fallback to user's primary TWG
@@ -212,13 +213,27 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                         `}>
                             <div className="prose prose-xs dark:prose-invert max-w-none">
                                 <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
                                     components={{
-                                        p: ({ node, ...props }: any) => <p className="mb-2 last:mb-0" {...props} />,
-                                        ul: ({ node, ...props }: any) => <ul className="list-disc pl-4 mb-2 space-y-1" {...props} />,
-                                        ol: ({ node, ...props }: any) => <ol className="list-decimal pl-4 mb-2 space-y-1" {...props} />,
-                                        li: ({ node, ...props }: any) => <li className="pl-1" {...props} />,
-                                        strong: ({ node, ...props }: any) => <strong className="font-bold text-slate-900 dark:text-white" {...props} />,
-                                        a: ({ node, ...props }: any) => <a className="text-blue-500 hover:underline" {...props} />
+                                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                        ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
+                                        ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
+                                        li: ({ children }) => <li className="pl-1">{children}</li>,
+                                        strong: ({ children }) => <strong className="font-bold text-slate-900 dark:text-white">{children}</strong>,
+                                        em: ({ children }) => <em className="italic">{children}</em>,
+                                        a: ({ href, children }) => <a href={href} className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                                        code: ({ className, children }) => {
+                                            const isBlock = className?.includes('language-');
+                                            if (isBlock) {
+                                                return (
+                                                    <pre className="bg-slate-900 text-slate-50 rounded-lg p-3 my-2 overflow-x-auto text-xs">
+                                                        <code className="font-mono">{children}</code>
+                                                    </pre>
+                                                );
+                                            }
+                                            return <code className="bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded text-xs font-mono">{children}</code>;
+                                        },
+                                        pre: ({ children }) => <>{children}</>,
                                     }}
                                 >
                                     {msg.content}

@@ -157,7 +157,10 @@ def sync_rsvps():
             # Fetch RSVPs from Calendar Service (this calls Google API)
             # Synchronous call (wrapper needed if it was async, but calendar_service methods are sync for GCal)
             # Check calendar_service.py: create_meeting_event is sync. get_meeting_rsvps is sync.
-            rsvps = calendar_service.get_meeting_rsvps(str(meeting.id))
+            from app.services.gcal_executor import gcal_executor
+            rsvps = gcal_executor.submit(
+                calendar_service.get_meeting_rsvps, str(meeting.id)
+            ).result()
             
             if not rsvps:
                 continue

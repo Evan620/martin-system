@@ -1,10 +1,27 @@
 import faulthandler
 faulthandler.enable()
 
+import os
+import sys
+from loguru import logger
+
+# Configure file logging
+_log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+os.makedirs(_log_dir, exist_ok=True)
+logger.add(
+    os.path.join(_log_dir, "app.log"),
+    rotation="10 MB",
+    retention="7 days",
+    level="INFO",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} | {message}",
+    backtrace=True,
+    diagnose=False,
+)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users, notifications, supervisor, debug, pipeline, conflicts, settings as settings_router, shared_documents
+from app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users, notifications, supervisor, debug, pipeline, conflicts, settings as settings_router, shared_documents, organization_invitations, public_invitations, recurring_meetings
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -77,7 +94,37 @@ async def startup_event():
     # TODO: Run migrations manually with: alembic upgrade head
     logger.info("Skipping automatic migrations (run manually: alembic upgrade head)")
 
-    
+    # Auto-add missing columns (safe: IF NOT EXISTS)
+    try:
+        from sqlalchemy import text
+        from app.core.database import AsyncSessionLocal
+        async with AsyncSessionLocal() as session:
+            migrations = [
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS ingested_at TIMESTAMP",
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS scope JSONB DEFAULT '[\"twg_restricted\"]'::jsonb",
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'twg_specific'",
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS last_broadcast TIMESTAMP",
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS access_control VARCHAR(50) DEFAULT 'twg_restricted'",
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS parent_document_id UUID REFERENCES documents(id)",
+            ]
+            for stmt in migrations:
+                await session.execute(text(stmt))
+            await session.commit()
+            logger.info("Startup migrations: document columns verified")
+    except Exception as e:
+        logger.warning(f"Startup migration note: {e}")
+
+    # Auto-sync Leads Council membership from current TWG leads
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.api.routes.twgs import _sync_leads_council_membership
+        async with AsyncSessionLocal() as session:
+            result = await _sync_leads_council_membership(session)
+            await session.commit()
+            logger.info(f"Leads Council sync: +{result['added']} added, -{result['removed']} removed, {result['total_members']} total")
+    except Exception as e:
+        logger.warning(f"Leads Council startup sync note: {e}")
+
     logger.info(f"API_V1_STR: {settings.API_V1_STR}")
     logger.info(f"CORS_ORIGINS: {cors_origins}")
     logger.info(f"GOOGLE_CLIENT_ID Loaded: {bool(settings.GOOGLE_CLIENT_ID)}")
@@ -184,8 +231,11 @@ app.include_router(pipeline.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(conflicts.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(settings_router.router, prefix=f"{settings.API_V1_STR}/settings", tags=["Settings"])
 app.include_router(shared_documents.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(organization_invitations.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(public_invitations.router, prefix=f"{settings.API_V1_STR}")
 from app.api.routes import webhooks
 app.include_router(webhooks.router, prefix=f"{settings.API_V1_STR}/webhooks", tags=["Webhooks"])
+app.include_router(recurring_meetings.router, prefix=f"{settings.API_V1_STR}")
 
 @app.get("/")
 async def root():

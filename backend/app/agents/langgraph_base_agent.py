@@ -5,7 +5,7 @@ All agents (TWG agents and Supervisor) should inherit from this.
 Uses LangGraph StateGraph for proper agent orchestration.
 """
 
-from typing import Annotated, TypedDict, List, Dict, Optional, Sequence
+from typing import Annotated, TypedDict, List, Dict, Optional, Sequence, cast, Any
 from loguru import logger
 from operator import add
 import json
@@ -53,6 +53,9 @@ class AgentConversationState(TypedDict):
 
     # Context (optional)
     context: Optional[Dict]
+    
+    # State tracking for Tiered Memory summarization
+    summarized_index: int
     
     # Store structured citations for frontend
     citations: Annotated[List[Dict], add]
@@ -117,116 +120,19 @@ class LangGraphBaseAgent:
         # Get LLM service
         self.llm = get_llm_service()
         
-        # Tools Configuration
-        from app.tools.calendar_tools import (
-            GET_SCHEDULE_TOOL_DEF, get_schedule, 
-            GET_PAST_MEETINGS_TOOL_DEF, get_past_meetings,
-            UPDATE_MEETING_TOOL_DEF, update_meeting
-        )
-        from app.tools.email_tools import EMAIL_TOOLS, send_email, create_email_draft
-        from app.tools.document_tools import REQUEST_DOCUMENT_APPROVAL_TOOL_DEF, request_document_approval_tool
-        from app.tools.database_tools import (
-            SEARCH_DOCUMENTS_TOOL_DEF, search_documents,
-            GET_MEETING_MINUTES_TOOL_DEF, get_meeting_minutes
-        )
+        # Tools Configuration — Zero-Trust Tool Registry
+        from app.tools.tool_registry import get_tool_registry
         import json
         
-        # Register default tools available to all agents (or specific ones)
+        self._tool_registry = get_tool_registry()
+        self.tools_def, self.tool_map = self._tool_registry.get_tools_for_agent(
+            agent_id=agent_id,
+            twg_id=get_twg_id_by_agent_id(agent_id),
+        )
         
-        # 1. Start with standard tools (including update_meeting so agents can actually persist changes)
-        self.tools_def = [
-            GET_SCHEDULE_TOOL_DEF, 
-            GET_PAST_MEETINGS_TOOL_DEF,
-            UPDATE_MEETING_TOOL_DEF, 
-            REQUEST_DOCUMENT_APPROVAL_TOOL_DEF,
-            SEARCH_DOCUMENTS_TOOL_DEF,
-            GET_MEETING_MINUTES_TOOL_DEF
-        ]
-        
-        # 2. Convert and add EMAIL_TOOLS
-        for tool in EMAIL_TOOLS:
-            # Create standard OpenAI tool definition
-            tool_def = {
-                "type": "function",
-                "function": {
-                    "name": tool["name"],
-                    "description": tool["description"],
-                    "parameters": {
-                        "type": "object",
-                        "properties": tool["parameters"],
-                        # Assuming all params optional for now or need strict parsing
-                        # Simple schema adjustment:
-                        "required": [] 
-                    }
-                }
-            }
-            # Adjust properties format if needed. 
-            # EMAIL_TOOLS params are simple key-value descriptions. 
-            # We need to construct a valid JSON schema for parameters.
-            
-            new_props = {}
-            for param_name, param_desc in tool["parameters"].items():
-                # Default generic schema
-                prop_schema = {
-                    "type": "string",
-                    "description": param_desc
-                }
-                
-                # Specific Type Overrides
-                if param_name in ["max_results", "days"]:
-                    prop_schema["type"] = "integer"
-                elif param_name in ["include_body"]:
-                    prop_schema["type"] = "boolean"
-                elif param_name in ["variables", "exclude_files"]:
-                    prop_schema["type"] = "object"
-                
-                # Handle 'to': String or List of strings
-                elif param_name == "to":
-                    prop_schema = {
-                        "anyOf": [
-                            {"type": "string"},
-                            {"type": "array", "items": {"type": "string"}}
-                        ],
-                        "description": param_desc
-                    }
-                
-                # Handle 'attachments': List of strings (or null/string fallback)
-                elif param_name == "attachments":
-                     prop_schema = {
-                        "anyOf": [
-                            {"type": "array", "items": {"type": "string"}},
-                            {"type": "string"},
-                            {"type": "null"}
-                        ],
-                        "description": param_desc
-                    }
-
-                # Handle Nullable Strings (cc, bcc, html_body, pillar_name, context)
-                elif param_name in ["cc", "bcc", "html_body", "pillar_name", "context"]:
-                    prop_schema = {
-                        "anyOf": [
-                            {"type": "string"},
-                            {"type": "null"}
-                        ],
-                        "description": param_desc
-                    }
-
-                new_props[param_name] = prop_schema
-            
-            tool_def["function"]["parameters"]["properties"] = new_props
-            self.tools_def.append(tool_def)
-
-        # 3. Build Tool Map (only include available tools)
-        self.tool_map = {
-            "get_schedule": get_schedule,
-            "get_past_meetings": get_past_meetings,
-            "update_meeting": update_meeting,
-            "send_email": send_email,
-            "create_email_draft": create_email_draft,
-            "request_document_approval_tool": request_document_approval_tool,
-            "search_documents": search_documents,
-            "get_meeting_minutes": get_meeting_minutes
-        }
+        # Initialize Tiered Memory Manager
+        from app.services.memory_manager import get_memory_manager
+        self.memory_manager = get_memory_manager()
         
         # Get Knowledge Base (RAG)
         try:
@@ -327,6 +233,10 @@ CRITICAL TOOL USAGE RULES:
         workflow.add_node("process_query", self._process_query_node)
         workflow.add_node("generate_response", self._generate_response_node)
         workflow.add_node("execute_tools", self._execute_tools_node)
+        
+        # Add Critic node
+        from app.agents.critic_node import critic_retry_node
+        workflow.add_node("critic_retry", critic_retry_node)
 
         # Set entry point
         workflow.set_entry_point("process_query")
@@ -344,13 +254,39 @@ CRITICAL TOOL USAGE RULES:
             }
         )
         
-        workflow.add_edge("execute_tools", "generate_response")
+        # Conditional edge from execute_tools
+        workflow.add_conditional_edges(
+            "execute_tools",
+            self._check_for_errors,
+            {
+                "critic": "critic_retry",
+                "generate": "generate_response"
+            }
+        )
+        
+        # Always return directly to generation after critic feedback
+        workflow.add_edge("critic_retry", "generate_response")
 
         # Compile with checkpointing
         self.graph = workflow
         self.compiled_graph = workflow.compile(checkpointer=self.memory)
 
-        logger.info(f"[{self.agent_id}] StateGraph compiled with Tools loop")
+        logger.info(f"[{self.agent_id}] StateGraph compiled with Tools loop and Critic recovery")
+
+    def _check_for_errors(self, state: AgentConversationState) -> str:
+        """
+        Check if the last tool execution resulted in an error requiring critic intervention.
+        """
+        # If tool rounds maxed out, give up and force generation to finish
+        if int(state.get("tool_rounds", 0) or 0) >= 5: # pyre-ignore[6]
+            return "generate"
+            
+        from app.agents.critic_node import extract_latest_tool_error
+        if extract_latest_tool_error(state["messages"]):
+            logger.info(f"[{self.agent_id}] Tool error detected. Routing to Critic for analysis.")
+            return "critic"
+            
+        return "generate"
 
     def _should_continue(self, state: AgentConversationState) -> str:
         """
@@ -363,7 +299,7 @@ CRITICAL TOOL USAGE RULES:
         
         # SAFETY: Limit tool rounds to prevent infinite loops burning LLM tokens
         MAX_TOOL_ROUNDS = 5
-        tool_rounds = state.get("tool_rounds", 0)
+        tool_rounds = int(state.get("tool_rounds", 0) or 0) # pyre-ignore[6]
         if tool_rounds >= MAX_TOOL_ROUNDS:
             logger.warning(f"[{self.agent_id}] Max tool rounds ({MAX_TOOL_ROUNDS}) reached. Forcing text response.")
             return "end"
@@ -386,31 +322,36 @@ CRITICAL TOOL USAGE RULES:
         if state.get("citations") is None:
             state["citations"] = []
 
-        # RAG Retrieval
-        if self.twg_id and self.kb:
+        # RAG Retrieval — works for TWG agents (scoped) and supervisor (general)
+        if self.kb:
             try:
-                # Search KB restricted to TWG namespace
-                namespace = f"twg-{self.twg_id}"
-                # Use asyncio.to_thread if kb.search is blocking and slow
-                # Assuming kb.search is synchronous for now
                 import asyncio
-                twg_results = await asyncio.to_thread(self.kb.search, 
-                    query=query,
-                    namespace=namespace,
-                    top_k=3
-                )
-                
-                # Search Global Broadcast namespace
-                global_results = await asyncio.to_thread(self.kb.search,
-                    query=query,
-                    namespace="global",
-                    top_k=2
-                )
-                
-                # Merge and Sort by Score
-                results = twg_results + global_results
+
+                if self.twg_id:
+                    # TWG agent: search own namespace + global
+                    namespace = f"twg-{self.twg_id}"
+                    twg_results = await asyncio.to_thread(self.kb.search,
+                        query=query,
+                        namespace=namespace,
+                        top_k=3
+                    )
+                    global_results = await asyncio.to_thread(self.kb.search,
+                        query=query,
+                        namespace="twg-general",
+                        top_k=2
+                    )
+                    results = twg_results + global_results
+                else:
+                    # Supervisor: search twg-general (secretariat docs)
+                    results = await asyncio.to_thread(self.kb.search,
+                        query=query,
+                        namespace="twg-general",
+                        top_k=5
+                    )
+
+                # Sort by score and keep top 3
                 results.sort(key=lambda x: x['score'], reverse=True)
-                results = results[:3] # Keep top 3 most relevant context pieces
+                results = results[:3]
                 
                 # Format context
                 if results:
@@ -427,7 +368,7 @@ CRITICAL TOOL USAGE RULES:
                     context_text = "\n".join(context_parts)
 
                     # Store in state
-                    state['context'] = {"retrieved_docs": context_text, "source": namespace}
+                    state['context'] = {"retrieved_docs": context_text, "source": namespace} # pyre-ignore[16]
                     
                     # Also populate structured citations
                     citations = []
@@ -437,7 +378,7 @@ CRITICAL TOOL USAGE RULES:
                              "page": r['metadata'].get('page', 1),
                              "relevance": r['score']
                          })
-                    state['citations'] = citations
+                    state['citations'] = citations # pyre-ignore[16]
                     
                     logger.info(f"[{self.agent_id}] Retrieved {len(results)} docs from {namespace}")
                 else:
@@ -453,20 +394,48 @@ CRITICAL TOOL USAGE RULES:
         Generate response using LLM, supporting Tool Calls.
         """
         query = state["query"]
-        messages = state.get("messages", [])
+        messages = cast(List[BaseMessage], state.get("messages", []))
         
-        # Enforce History Limit to prevent 413 errors (token overflow)
-        if len(messages) > self.max_history:
-             messages = messages[-self.max_history:]
+        # 1. Tiered Memory: Track and trigger background summarization of old messages
+        summarized_index = int(state.get("summarized_index", 0) or 0) # pyre-ignore[6]
         
-        logger.info(f"[{self.agent_id}] Generating response...")
+        # If we have at least 5 messages that have fallen out of the sliding window, archive them
+        if len(messages) - summarized_index > self.max_history + 5:
+            messages_to_summarize = messages[summarized_index : len(messages) - self.max_history]
+            
+            # Fire and forget background summarization
+            import asyncio
+            asyncio.create_task(
+                self.memory_manager.summarize_and_archive(
+                    session_id=self.session_id,
+                    agent_id=self.agent_id,
+                    messages_to_summarize=messages_to_summarize
+                )
+            )
+            # Advance the pointer
+            state["summarized_index"] = len(messages) - self.max_history # pyre-ignore[16]
+
+        # 2. Tiered Memory: Get sliding window + long term semantic context
+        current_query = state.get("query", "")
+        if not current_query and messages:
+            current_query = str(messages[-1].content)
+            
+        history, long_term_summary = self.memory_manager.get_context(
+            session_id=self.session_id,
+            agent_id=self.agent_id,
+            messages=messages,
+            current_query=current_query,
+            max_history=self.max_history
+        )
+        
+        logger.info(f"[{self.agent_id}] Generating response using dynamic tiered memory window of {len(history)} messages...")
 
         try:
-            # Prepare messages for LLM service (dict format)
-            history = []
-            for msg in messages:
+            # Prepare windowed messages for LLM service (dict format)
+            formatted_history: List[Dict[str, Any]] = []
+            for msg in history:
                 if isinstance(msg, HumanMessage):
-                    history.append({"role": "user", "content": msg.content})
+                    formatted_history.append({"role": "user", "content": msg.content})
                 elif isinstance(msg, AIMessage):
                     msg_dict = {"role": "assistant", "content": msg.content}
                     if hasattr(msg, "tool_calls") and msg.tool_calls:
@@ -481,9 +450,9 @@ CRITICAL TOOL USAGE RULES:
                                  }
                              })
                          msg_dict["tool_calls"] = api_tool_calls
-                    history.append(msg_dict)
+                    formatted_history.append(msg_dict)
                 elif msg.type == "tool":
-                    history.append({
+                    formatted_history.append({
                         "role": "tool",
                         "tool_call_id": msg.tool_call_id,
                         "content": msg.content
@@ -494,27 +463,27 @@ CRITICAL TOOL USAGE RULES:
             # Rule 2: Tool messages MUST be preceded by an assistant message with matching tool_calls
             sanitized_history = []
             skip_indices = set()
-            
-            for i in range(len(history)):
-                msg = history[i]
-                
+
+            for i in range(len(formatted_history)):
+                msg = formatted_history[i]
+
                 # Check for dangling tool calls (assistant with tool_calls but no tool responses)
                 if msg.get("role") == "assistant" and "tool_calls" in msg:
                     # Look ahead for matching tool outputs
-                    tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
+                    tool_call_ids = {tc.get("id") for tc in msg.get("tool_calls", []) if isinstance(tc, dict)} # pyre-ignore[16, 29]
                     found_responses = set()
-                    
+
                     # Scan subsequent messages for tool responses
                     j = i + 1
-                    while j < len(history) and history[j].get("role") == "tool":
-                        if history[j].get("tool_call_id") in tool_call_ids:
-                             found_responses.add(history[j].get("tool_call_id"))
+                    while j < len(formatted_history) and formatted_history[j].get("role") == "tool":
+                        if formatted_history[j].get("tool_call_id") in tool_call_ids:
+                             found_responses.add(formatted_history[j].get("tool_call_id"))
                         j += 1
                         
                     # If any tool call is missing a response, strip the tool_calls
                     if len(found_responses) < len(tool_call_ids):
                          logger.warning(f"[{self.agent_id}] Sanitizing history: Msg {i} has dangling tool calls. Stripping tools.")
-                         del msg["tool_calls"]
+                         msg.pop("tool_calls", None)
                          if not msg.get("content"):
                              msg["content"] = "[System: Previous tool call interrupted]"
                 
@@ -522,13 +491,13 @@ CRITICAL TOOL USAGE RULES:
             
             # PASS 2: Remove orphaned tool messages (tool messages without preceding assistant with tool_calls)
             # This happens after history truncation cuts off the assistant message but leaves tool responses
-            final_history = []
+            final_history: List[Dict[str, Any]] = []
             active_tool_call_ids = set()
             
             for msg in sanitized_history:
                 if msg.get("role") == "assistant" and "tool_calls" in msg:
                     # Track which tool_call_ids are active
-                    active_tool_call_ids = {tc["id"] for tc in msg["tool_calls"]}
+                    active_tool_call_ids = {tc.get("id") for tc in msg.get("tool_calls", []) if isinstance(tc, dict)} # pyre-ignore[16, 29]
                     final_history.append(msg)
                 elif msg.get("role") == "tool":
                     # Only include tool messages that have a matching preceding assistant tool_call
@@ -546,9 +515,11 @@ CRITICAL TOOL USAGE RULES:
             # RAG Context injection (simplified)
             from datetime import datetime, timezone as tz
             from zoneinfo import ZoneInfo
+            from typing import Any
             
             # Use user's timezone if provided, otherwise default to Nairobi
-            tz_name = state.get("user_timezone") or "Africa/Nairobi"
+            tz_var = state.get("user_timezone")
+            tz_name = str(tz_var) if tz_var else "Africa/Nairobi"
             try:
                 user_tz = ZoneInfo(tz_name)
             except Exception:
@@ -561,8 +532,11 @@ CRITICAL TOOL USAGE RULES:
             
             sys_prompt = f"{self.system_prompt}\n\nCurrent Date & Time: {current_time_str} ({tz_name})\nToday's date is: {today_date}"
             
+            if long_term_summary:
+                sys_prompt = f"{sys_prompt}\n\n{long_term_summary}"
+                
             context = state.get("context")
-            if context and "retrieved_docs" in context:
+            if isinstance(context, dict) and "retrieved_docs" in context:
                 sys_prompt = f"{sys_prompt}\n\nRelevant Context:\n{context['retrieved_docs']}"
 
             # Call LLM with tools
@@ -586,10 +560,8 @@ CRITICAL TOOL USAGE RULES:
                 
                 tool_calls_data = []
                 for tc in response_obj.tool_calls:
-                    try:
-                        args_parsed = json.loads(tc.function.arguments)
-                    except (json.JSONDecodeError, TypeError):
-                        args_parsed = {}
+                    # Trusting structured output guarantees from the LLM service
+                    args_parsed = json.loads(tc.function.arguments)
                     
                     if not isinstance(args_parsed, dict):
                         args_parsed = {}
@@ -604,8 +576,8 @@ CRITICAL TOOL USAGE RULES:
                     content=str(response_obj.content or ""), 
                     tool_calls=tool_calls_data
                 )
-                state["response"] = "[Calling Tool...]" # Intermediate state
-                state["messages"].append(ai_msg)
+                state["response"] = "[Calling Tool...]" # pyre-ignore[16]
+                cast(List[BaseMessage], state["messages"]).append(ai_msg) # pyre-ignore[16]
                 
             else:
                 # Standard text response
@@ -613,21 +585,27 @@ CRITICAL TOOL USAGE RULES:
                 
                 # FALLBACK parsing removed for brevity/stability - relying on standard tool usage
                 logger.info(f"[{self.agent_id}] Text Response generated")
-                state["response"] = content
-                state["messages"].append(AIMessage(content=content))
+                state["response"] = content # pyre-ignore[16]
+                cast(List[BaseMessage], state["messages"]).append(AIMessage(content=content)) # pyre-ignore[16]
 
         except Exception as e:
             logger.error(f"[{self.agent_id}] Error in generation: {e}")
-            state["response"] = f"Error: {str(e)}"
-            state["messages"].append(AIMessage(content=state["response"]))
+            state["response"] = f"Error: {str(e)}" # pyre-ignore[16]
+            cast(List[BaseMessage], state["messages"]).append(AIMessage(content=state["response"])) # pyre-ignore[16]
 
         return state
 
     async def _execute_tools_node(self, state: AgentConversationState) -> AgentConversationState:
         """
-        Execute tool calls request by the LLM (Async).
+        Execute tool calls requested by the LLM.
+        
+        Uses the Zero-Trust ToolRegistry for validated execution with
+        automatic twg_id and user_timezone injection.
         """
-        messages = state["messages"]
+        messages = cast(List[BaseMessage], state.get("messages", []))
+        if not messages:
+            return state
+            
         last_message = messages[-1]
         
         if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
@@ -635,9 +613,11 @@ CRITICAL TOOL USAGE RULES:
             
         from langchain_core.messages import ToolMessage
         from langgraph.errors import GraphInterrupt
+        from app.tools.tool_registry import ToolAccessDenied
         import json
         
         new_messages = []
+        user_timezone = state.get("user_timezone")
         
         for tool_call in last_message.tool_calls:
             tool_name = tool_call["name"]
@@ -647,42 +627,41 @@ CRITICAL TOOL USAGE RULES:
             logger.info(f"[{self.agent_id}] Executing tool: {tool_name}")
             
             try:
-                if tool_name in self.tool_map:
-                    # Execute function
+                # Try Zero-Trust ToolRegistry first, fall back to local tool_map
+                # (Supervisor state tools added via add_tool() live in tool_map only)
+                if self._tool_registry and tool_name in self._tool_registry._tools:
+                    output_str = await self._tool_registry.execute_tool(
+                        tool_name=tool_name,
+                        tool_args=tool_args,
+                        agent_id=self.agent_id,
+                        twg_id=self.twg_id,
+                        user_timezone=user_timezone,
+                    )
+                elif tool_name in self.tool_map:
+                    import asyncio, inspect
                     func = self.tool_map[tool_name]
-                    
-                    import inspect
-                    import asyncio
-                    
-                    # AUTO-INJECTION: Inject twg_id if tool accepts it and agent is scoped
+                    # Auto-inject twg_id/user_timezone if the function accepts them
                     sig = inspect.signature(func)
-                    if "twg_id" in sig.parameters:
-                        if self.twg_id and "twg_id" not in tool_args:
-                            logger.info(f"[{self.agent_id}] Auto-injecting twg_id={self.twg_id} into {tool_name}")
-                            tool_args["twg_id"] = self.twg_id
-                            
-                    # AUTO-INJECTION: Inject user_timezone for calendar tools if available
-                    if "user_timezone" in sig.parameters:
-                        tz_context = state.get("user_timezone")
-                        if tz_context and "user_timezone" not in tool_args:
-                             tool_args["user_timezone"] = tz_context
-                    
-                    if inspect.iscoroutinefunction(func):
-                        # Async function - await directly
-                        result = await func(**tool_args)
+                    if "twg_id" in sig.parameters and self.twg_id and "twg_id" not in tool_args:
+                        tool_args["twg_id"] = self.twg_id
+                    if "user_timezone" in sig.parameters and user_timezone and "user_timezone" not in tool_args:
+                        tool_args["user_timezone"] = user_timezone
+                    if asyncio.iscoroutinefunction(func):
+                        raw_result = await func(**tool_args)
                     else:
-                        # Sync function - run in thread to avoid blocking loop
-                        result = await asyncio.to_thread(func, **tool_args)
-                        
+                        raw_result = await asyncio.to_thread(func, **tool_args)
+                    # Use json.dumps for dict/list so downstream json.loads() works
+                    if isinstance(raw_result, (dict, list)):
+                        output_str = json.dumps(raw_result, default=str)
+                    else:
+                        output_str = str(raw_result)
                 else:
-                    result = json.dumps({"error": f"Tool {tool_name} not found"})
-                
-                output_str = str(result)
+                    output_str = json.dumps({"error": f"Tool '{tool_name}' not found"})
                 
                 # SPECIAL HANDLING FOR APPROVAL REQUESTS
-                if "approval_request_id" in output_str:
+                if isinstance(output_str, str) and "approval_request_id" in output_str:
                     try:
-                        res_json = json.loads(result) if isinstance(result, str) else result
+                        res_json = json.loads(output_str) if isinstance(output_str, str) else output_str
                         if isinstance(res_json, dict) and "approval_request_id" in res_json:
                             logger.info(f"[{self.agent_id}] INTERRUPT: Approval required for {res_json['approval_request_id']}")
                             
@@ -717,7 +696,6 @@ CRITICAL TOOL USAGE RULES:
                              
                              if human_response and human_response.get("approved"):
                                  logger.info(f"[{self.agent_id}] Document Approval GRANTED - Saved.")
-                                 # Ideally we return the Doc ID here if the Approval Action saved it.
                                  saved_doc_id = human_response.get("result", {}).get("document_id", "unknown")
                                  output_str = json.dumps({"status": "approved", "message": f"Document approved and saved. ID: {saved_doc_id}"})
                              else:
@@ -732,26 +710,35 @@ CRITICAL TOOL USAGE RULES:
                         logger.error(f"[{self.agent_id}] Interrupt error: {e}")
 
                 new_messages.append(ToolMessage(tool_call_id=tool_id, content=output_str))
-                
+            
+            except ToolAccessDenied as tad:
+                logger.warning(f"[{self.agent_id}] Access denied for tool '{tool_name}': {tad}")
+                error_msg = json.dumps({"error": f"Access denied: {str(tad)}"})
+                new_messages.append(ToolMessage(
+                    tool_call_id=tool_id,
+                    content=error_msg
+                ))
             except GraphInterrupt:
                 raise
             except Exception as e:
-                logger.error(f"[{self.agent_id}] Tool execution failed: {e}")
-                new_messages.append(ToolMessage(tool_call_id=tool_id, content=f"Error: {str(e)}"))
+                logger.error(f"[{self.agent_id}] Tool execution failed for '{tool_name}': {e}", exc_info=True)
+                error_msg = f"Error executing {tool_name}: {str(e)}. Please inform the user about this failure and suggest an alternative approach."
+                new_messages.append(ToolMessage(tool_call_id=tool_id, content=error_msg))
 
         # Update state with all tool results
-        state["messages"].extend(new_messages)
+        cast(List[BaseMessage], state["messages"]).extend(new_messages) # pyre-ignore[16]
         
         # Increment tool-round counter
-        state["tool_rounds"] = state.get("tool_rounds", 0) + 1
+        state["tool_rounds"] = int(state.get("tool_rounds", 0) or 0) + 1 # pyre-ignore[6, 16]
         
         return state
 
-    async def chat(self, message: str, thread_id: Optional[str] = None, user_timezone: Optional[str] = None) -> Dict[str, any]:
+    async def chat(self, message: str, thread_id: Optional[str] = None, user_timezone: Optional[str] = None) -> Dict[str, Any]:
         """
         Chat interface using LangGraph execution (Async).
         """
-        if not self.compiled_graph:
+        graph = self.compiled_graph
+        if not graph:
             raise ValueError(f"[{self.agent_id}] Graph not compiled")
             
         # ------------------------------------------------------------------
@@ -805,10 +792,14 @@ CRITICAL TOOL USAGE RULES:
         # Initial state: user query
         initial_state: AgentConversationState = {
             "query": message,
-            "messages": [HumanMessage(content=message)],
+            "messages": [HumanMessage(content=message)],  # pyre-ignore[16]
+            "response": "",
             "agent_id": self.agent_id,
             "session_id": thread_id,
+            "context": None,
+            "summarized_index": 0,
             "citations": [],
+            "approval_pending": False,
             "user_timezone": user_timezone,
             "tool_rounds": 0
         }
@@ -816,17 +807,18 @@ CRITICAL TOOL USAGE RULES:
         try:
             # Run the graph asynchronously
             # Use ainvoke for compatibility with async nodes
-            result = await self.compiled_graph.ainvoke(initial_state, config)
+            result = await graph.ainvoke(initial_state, config)
 
             # CHECK FOR INTERRUPTS (async state retrieval)
-            snapshot = await self.compiled_graph.aget_state(config)
+            # Re-raise as GraphInterrupt so it propagates through the outer graph
+            snapshot = await graph.aget_state(config)
             if snapshot.tasks:
                 for task in snapshot.tasks:
-                    if hasattr(task, 'interrupts') and task.interrupts:
-                        for inter in task.interrupts:
-                            interrupt_value = inter.value if hasattr(inter, 'value') else inter
-                            logger.info(f"[{self.agent_id}] Detected interrupt in state: {interrupt_value}")
-                            raise GraphInterrupt(interrupt_value)
+                    interrupts = getattr(task, 'interrupts', [])
+                    if interrupts:
+                        interrupt_val = getattr(interrupts[0], 'value', {})
+                        logger.info(f"[{self.agent_id}] Interrupt detected in snapshot — re-raising GraphInterrupt")
+                        raise GraphInterrupt(interrupt_val)
 
             response_text = result.get("response", "No response generated.")
             citations = result.get("citations", [])
@@ -857,7 +849,8 @@ CRITICAL TOOL USAGE RULES:
         """
         Resume a paused agent conversation (Async).
         """
-        if not self.compiled_graph:
+        graph = self.compiled_graph
+        if not graph:
             raise ValueError(f"[{self.agent_id}] Graph not compiled")
             
         logger.info(f"[{self.agent_id}:{thread_id}] Resuming with value: {resume_value}")
@@ -866,12 +859,12 @@ CRITICAL TOOL USAGE RULES:
         
         try:
             # Resume asynchronously
-            result = await self.compiled_graph.ainvoke(
-                Command(resume=resume_value),
+            result = await graph.ainvoke(
+                Command(resume=resume_value),  # pyre-ignore[16]
                 config
             )
             
-            snapshot = await self.compiled_graph.aget_state(config)
+            snapshot = await graph.aget_state(config)
             if snapshot.tasks:
                 for task in snapshot.tasks:
                     if hasattr(task, 'interrupts') and task.interrupts:

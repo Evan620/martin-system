@@ -8,6 +8,7 @@ export interface DashboardStats {
         next_plenary: {
             date: string | null;
             title: string;
+            twg?: string;
         };
     };
     pipeline: {

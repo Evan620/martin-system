@@ -11,6 +11,8 @@ from typing import List, Optional
 from datetime import datetime
 from loguru import logger
 from uuid import UUID
+import asyncio
+from app.services.gcal_executor import gcal_executor as _gcal_executor
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -20,6 +22,7 @@ from app.models.models import Meeting, MeetingParticipant, NotificationType
 from app.services.calendar_service import calendar_service
 from app.services.email_service import email_service
 from app.services.notification_service import create_notification
+
 
 
 class ResolutionNotifier:
@@ -45,19 +48,26 @@ class ResolutionNotifier:
             "notifications_created": 0
         }
         
-        # 1. Update Google Calendar
+        # 1. Update Google Calendar (in thread pool to avoid blocking event loop)
         try:
-            results["calendar_updated"] = calendar_service.update_meeting_event(
-                meeting_id=str(meeting.id),
-                new_start_time=new_time,
-                new_duration_minutes=meeting.duration_minutes
+            loop = asyncio.get_running_loop()
+            _mid = str(meeting.id)
+            _new_time = new_time
+            _dur = meeting.duration_minutes
+            results["calendar_updated"] = await loop.run_in_executor(
+                _gcal_executor,
+                lambda: calendar_service.update_meeting_event(
+                    meeting_id=_mid,
+                    new_start_time=_new_time,
+                    new_duration_minutes=_dur
+                )
             )
         except Exception as e:
             logger.error(f"Calendar update failed for meeting {meeting.id}: {e}")
 
         # 2. Get participant emails
         participant_emails = await self._get_participant_emails(meeting.id)
-        
+
         if participant_emails:
             # 3. Send email notifications
             try:
@@ -68,7 +78,7 @@ class ResolutionNotifier:
                     "location": meeting.location or "Virtual",
                     "video_link": meeting.video_link
                 }
-                
+
                 meeting_details = {
                     "title": meeting.title,
                     "description": f"Rescheduled from {old_time} to {new_time}",
@@ -76,9 +86,9 @@ class ResolutionNotifier:
                     "duration": meeting.duration_minutes,
                     "location": meeting.location
                 }
-                
+
                 changes = [f"Time changed from {old_time.strftime('%I:%M %p')} to {new_time.strftime('%I:%M %p')}"]
-                
+
                 await email_service.send_meeting_update(
                     to_emails=participant_emails,
                     template_context=template_context,
@@ -116,11 +126,17 @@ class ResolutionNotifier:
             "notifications_created": 0
         }
         
-        # 1. Update Google Calendar
+        # 1. Update Google Calendar (in thread pool to avoid blocking event loop)
         try:
-            results["calendar_updated"] = calendar_service.update_meeting_event(
-                meeting_id=str(meeting.id),
-                new_location=new_venue
+            loop = asyncio.get_running_loop()
+            _mid = str(meeting.id)
+            _venue = new_venue
+            results["calendar_updated"] = await loop.run_in_executor(
+                _gcal_executor,
+                lambda: calendar_service.update_meeting_event(
+                    meeting_id=_mid,
+                    new_location=_venue
+                )
             )
         except Exception as e:
             logger.error(f"Calendar update failed for meeting {meeting.id}: {e}")
@@ -183,10 +199,13 @@ class ResolutionNotifier:
             "notifications_created": 0
         }
         
-        # 1. Cancel in Google Calendar
+        # 1. Cancel in Google Calendar (in thread pool to avoid blocking event loop)
         try:
-            results["calendar_updated"] = calendar_service.cancel_meeting_event(
-                meeting_id=str(meeting.id)
+            loop = asyncio.get_running_loop()
+            _mid = str(meeting.id)
+            results["calendar_updated"] = await loop.run_in_executor(
+                _gcal_executor,
+                lambda: calendar_service.cancel_meeting_event(meeting_id=_mid)
             )
         except Exception as e:
             logger.error(f"Calendar cancellation failed for meeting {meeting.id}: {e}")
@@ -205,6 +224,7 @@ class ResolutionNotifier:
                 
                 meeting_details = {
                     "title": meeting.title,
+                    "meeting_id": str(meeting.id),
                     "start_time": meeting.scheduled_at,
                     "duration": meeting.duration_minutes,
                     "location": meeting.location

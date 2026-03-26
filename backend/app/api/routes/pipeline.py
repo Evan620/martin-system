@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Path as PathParam
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 import uuid
 
 from app.core.database import get_db

@@ -33,16 +33,15 @@ async def get_project_details(project_id: str) -> str:
         JSON string containing project details, scores, and status.
     """
     try:
+        import uuid as _uuid
+        _project_uuid = _uuid.UUID(project_id)
         async with get_db_session_context() as db:
             service = ProjectPipelineService(db)
-            
-            # Use service method if available, or manual fetch for details not in service
-            # ProjectPipelineService doesn't have a simple 'get_full_details' yet, so we use logic here.
-            
+
             from app.models.models import Project, ProjectScoreDetail, ScoringCriteria
-            
+
             # 1. Fetch Project
-            stmt = select(Project).where(Project.id == project_id)
+            stmt = select(Project).where(Project.id == _project_uuid)
             result = await db.execute(stmt)
             project = result.scalars().first()
             
@@ -51,7 +50,7 @@ async def get_project_details(project_id: str) -> str:
             
             # 2. Fetch Scores
             score_stmt = select(ProjectScoreDetail, ScoringCriteria).join(ScoringCriteria)\
-                .where(ProjectScoreDetail.project_id == project_id)
+                .where(ProjectScoreDetail.project_id == _project_uuid)
             score_res = await db.execute(score_stmt)
             scores = score_res.all() # list of (ProjectScoreDetail, ScoringCriteria)
             
@@ -132,9 +131,10 @@ async def trigger_investor_matching(project_id: str) -> str:
         Summary of matches found.
     """
     try:
+        import uuid as _uuid
         async with get_db_session_context() as db:
             service = get_investor_matching_service(db)
-            result = await service.match_investors(project_id)
+            result = await service.match_investors(_uuid.UUID(project_id))
             
             return json.dumps(result, indent=2)
             
@@ -160,30 +160,25 @@ async def generate_investment_memo(project_id: str) -> str:
             return details_json
             
         # 2. LLM Service
-        # LLMService might not need DB session depending on implementation.
-        # Assuming we can instantiate it directly as it likely uses API keys from env.
-        llm = LLMService() 
-        
+        llm = get_llm_service()
+
         prompt = f"""
         You are an Investment Analyst for the ECOWAS Summit.
         Please draft a professional Investment Memo for the following project based on the data provided:
-        
+
         {details_json}
-        
+
         Structure the memo with the following sections:
         1. Executive Summary
         2. Strategic Rationale
         3. Financial Overview
         4. Risks & Mitigations
         5. Recommendation
-        
+
         Format as Markdown.
         """
-        
-        # We need an async generation method if available, otherwise strict synchronous might block loop
-        # Check if LLMService has async method. If not, run in executor or if it is fast enough.
-        # Most LLM calls are I/O bound.
-        memo = await llm.generate_text_async(prompt, max_tokens=2000)
+
+        memo = llm.chat(prompt, max_tokens=2000)
         return memo
         
     except Exception as e:
@@ -213,15 +208,17 @@ async def analyze_project_documents(project_id: str) -> str:
             from app.services.document_analyzer import get_document_analyzer
             
             # 1. Fetch Project
-            stmt = select(Project).where(Project.id == project_id)
+            import uuid as _uuid
+            _project_uuid = _uuid.UUID(project_id)
+            stmt = select(Project).where(Project.id == _project_uuid)
             result = await db.execute(stmt)
             project = result.scalars().first()
-            
+
             if not project:
                 return f"Error: Project with ID {project_id} not found."
-            
+
             # 2. Fetch Documents
-            doc_stmt = select(Document).where(Document.project_id == project_id)
+            doc_stmt = select(Document).where(Document.project_id == _project_uuid)
             doc_res = await db.execute(doc_stmt)
             documents = doc_res.scalars().all()
             
@@ -367,7 +364,7 @@ async def analyze_project_documents(project_id: str) -> str:
 DEAL_PIPELINE_TOOLS = [
     {
         "name": "get_project_details",
-        "description": "Fetch details, scores, and status for a specific project.",
+        "description": "Fetch full project profile including investment size, readiness score, AfCEN score, and scoring breakdown. Use when the user asks about a specific project's details, scores, or status. Returns JSON with project info (name, description, status, investment_size, currency, readiness_score, afcen_score, pillar, lead_country) and score details. Example: User asks 'tell me about the solar project' → find its ID first, then call get_project_details(project_id='...').",
         "parameters": {
             "project_id": "The UUID of the project"
         },
@@ -375,13 +372,13 @@ DEAL_PIPELINE_TOOLS = [
     },
     {
         "name": "list_flagship_projects",
-        "description": "List all high-priority 'Flagship' projects in the Deal Room.",
+        "description": "List all high-priority 'Flagship' projects in the Deal Room. Use when the user asks about flagship projects, top-priority investments, or key deals. Returns JSON array of projects with: id, name, investment_size, status, afcen_score. Example: User asks 'what are our flagship projects?' → call list_flagship_projects().",
         "parameters": {},
         "function": list_flagship_projects
     },
     {
         "name": "trigger_investor_matching",
-        "description": "Run the investor matching engine for a project to find new potential investors.",
+        "description": "Run the investor matching algorithm for a specific project. Use when the user asks to find investors for a project or run matching. Returns summary of matched investors with compatibility scores. Example: User asks 'find investors for the wind farm project' → call trigger_investor_matching(project_id='...').",
         "parameters": {
             "project_id": "The UUID of the project"
         },
@@ -389,7 +386,7 @@ DEAL_PIPELINE_TOOLS = [
     },
     {
         "name": "generate_investment_memo",
-        "description": "Draft a professional investment memo for a project.",
+        "description": "Generate a Markdown-formatted investment memo for a project with executive summary, strategic rationale, financials, risks, and recommendations. Use when the user asks to draft or generate a memo for a project. Example: User asks 'draft an investment memo for the solar project' → call generate_investment_memo(project_id='...').",
         "parameters": {
             "project_id": "The UUID of the project"
         },
@@ -397,7 +394,7 @@ DEAL_PIPELINE_TOOLS = [
     },
     {
         "name": "analyze_project_documents",
-        "description": "Use AI to analyze all project documents (PDFs) and provide investment readiness assessment. Reads actual document content using OCR and LLM to verify completeness, extract financial metrics, and recommend next steps.",
+        "description": "Use AI to analyze all project documents (PDFs) and provide investment readiness assessment. Reads actual document content using OCR and LLM to verify completeness, extract financial metrics (IRR, NPV), check ESG compliance, and recommend next steps. Returns detailed report with readiness percentage and BANKABLE/NEAR-BANKABLE/EARLY STAGE rating. Example: User asks 'analyze the documents for project X' → call analyze_project_documents(project_id='...').",
         "parameters": {
             "project_id": "The UUID of the project"
         },

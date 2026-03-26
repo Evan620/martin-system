@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { RootState } from '../../store'
-import { meetings, actionItems } from '../../services/api'
+import { meetings, actionItems, twgs, recurringMeetings } from '../../services/api'
+import { UserRole } from '../../types/auth'
 import { Card, Badge } from '../../components/ui'
+import { toLocalInputValue } from '../../utils/dates'
 import MeetingSidebar from './components/MeetingSidebar'
 import MinutesVersionHistory from '../../components/schedule/MinutesVersionHistory'
 
@@ -21,6 +23,7 @@ export default function MeetingDetail() {
     const navigate = useNavigate()
     const location = useLocation()
     const user = useSelector((state: RootState) => state.auth.user)
+    const isFacilitator = user?.role === UserRole.ADMIN || user?.role === UserRole.SECRETARIAT_LEAD || user?.role === UserRole.FACILITATOR
     const [meeting, setMeeting] = useState<any>(null)
     const [activeTab, setActiveTab] = useState<TabType>('minutes')
     const [loading, setLoading] = useState(true)
@@ -40,7 +43,12 @@ export default function MeetingDetail() {
     // Participant State
     const [guestName, setGuestName] = useState('')
     const [guestEmail, setGuestEmail] = useState('')
+    const [bulkGuestsText, setBulkGuestsText] = useState('')
+    const [isBulkMode, setIsBulkMode] = useState(false)
     const [isAddingGuest, setIsAddingGuest] = useState(false)
+    const [isAddingMember, setIsAddingMember] = useState(false)
+    const [twgMembers, setTwgMembers] = useState<any[]>([])
+    const [selectedMembers, setSelectedMembers] = useState<string[]>([])
     const [isSendingInvites, setIsSendingInvites] = useState(false)
     const [isCheckingConflicts, setIsCheckingConflicts] = useState(false)
     const [showConflictModal, setShowConflictModal] = useState(false)
@@ -50,7 +58,7 @@ export default function MeetingDetail() {
     const [showInvitePreviewModal, setShowInvitePreviewModal] = useState(false)
     const [isLoadingAction, setIsLoadingAction] = useState(false)
     const [showVersionHistory, setShowVersionHistory] = useState(false)
-    const [statusModal, setStatusModal] = useState<{ isOpen: boolean, type: 'success' | 'error' | 'info', title: string, message: string }>({
+    const [statusModal, setStatusModal] = useState<{ isOpen: boolean, type: 'success' | 'error' | 'info', title: string, message: string, actionText?: string, onAction?: () => void }>({
         isOpen: false,
         type: 'info',
         title: '',
@@ -60,6 +68,7 @@ export default function MeetingDetail() {
     // Modal States
     const [isEditingMeeting, setIsEditingMeeting] = useState(false)
     const [isAddingAction, setIsAddingAction] = useState(false)
+    const [extractingActions, setExtractingActions] = useState(false)
 
     const [newActionDescription, setNewActionDescription] = useState('')
     const [newActionOwner, setNewActionOwner] = useState('')
@@ -74,6 +83,19 @@ export default function MeetingDetail() {
     const [editTitle, setEditTitle] = useState('')
     const [editDate, setEditDate] = useState('')
     const [editLocation, setEditLocation] = useState('')
+
+    // Manage Series State
+    const [showManageSeriesModal, setShowManageSeriesModal] = useState(false)
+    const [seriesData, setSeriesData] = useState<any>(null)
+    const [seriesLoading, setSeriesLoading] = useState(false)
+    const [seriesEditMode, setSeriesEditMode] = useState(false)
+    const [seriesTitle, setSeriesTitle] = useState('')
+    const [seriesTime, setSeriesTime] = useState('')
+    const [seriesDuration, setSeriesDuration] = useState(60)
+    const [seriesLocation, setSeriesLocation] = useState('')
+    const [seriesUpdateScope, setSeriesUpdateScope] = useState<'future' | 'all'>('future')
+    const [showCancelSeriesConfirm, setShowCancelSeriesConfirm] = useState(false)
+    const [seriesActionLoading, setSeriesActionLoading] = useState(false)
 
     // Transcript State
     const [transcript, setTranscript] = useState('')
@@ -321,6 +343,118 @@ export default function MeetingDetail() {
         }
     }
 
+    const handleOpenAddMember = async () => {
+        if (!meeting?.twg?.id) return
+        setIsAddingMember(true)
+        setSelectedMembers([])
+        try {
+            const res = await twgs.listMembers(meeting.twg.id)
+            const existingUserIds = new Set(
+                (meeting.participants || [])
+                    .filter((p: any) => p.user_id || p.user?.id)
+                    .map((p: any) => p.user_id || p.user?.id)
+            )
+            const available = (res.data || []).filter((m: any) => !existingUserIds.has(m.id))
+            setTwgMembers(available)
+        } catch (error) {
+            console.error("Failed to load TWG members", error)
+            setTwgMembers([])
+        }
+    }
+
+    const handleAddSelectedMembers = async () => {
+        if (!meetingId || selectedMembers.length === 0) return
+        setIsLoadingAction(true)
+        try {
+            await meetings.addParticipants(
+                meetingId,
+                selectedMembers.map(uid => ({ user_id: uid }))
+            )
+            setIsAddingMember(false)
+            setSelectedMembers([])
+            setTwgMembers([])
+            await loadMeetingDetails()
+        } catch (error) {
+            console.error("Failed to add members", error)
+            alert("Failed to add members")
+        } finally {
+            setIsLoadingAction(false)
+        }
+    }
+
+    const handleRemoveParticipant = async (participantId: string) => {
+        if (!meetingId) return
+        try {
+            await meetings.removeParticipant(meetingId, participantId)
+            await loadMeetingDetails()
+        } catch (error) {
+            console.error("Failed to remove participant", error)
+            alert("Failed to remove participant")
+        }
+    }
+
+    // Parse bulk guest input - supports formats:
+    // - email@example.com
+    // - Name <email@example.com>
+    // - Name, email@example.com
+    // - One per line or comma/semicolon separated
+    const parseBulkGuests = (text: string): Array<{ name?: string; email: string }> => {
+        const guests: Array<{ name?: string; email: string }> = []
+
+        // Split by newlines, commas, or semicolons
+        const lines = text.split(/[\n,;]+/).map(l => l.trim()).filter(l => l)
+
+        for (const line of lines) {
+            // Try "Name <email>" format
+            const angleMatch = line.match(/(.+?)\s*<([^>]+)>/)
+            if (angleMatch) {
+                guests.push({
+                    name: angleMatch[1].trim(),
+                    email: angleMatch[2].trim()
+                })
+                continue
+            }
+
+            // Just an email
+            const emailMatch = line.match(/[\w.-]+@[\w.-]+\.\w+/)
+            if (emailMatch) {
+                guests.push({ email: emailMatch[0] })
+            }
+        }
+
+        return guests
+    }
+
+    const handleBulkAddGuests = async () => {
+        if (!meetingId || !bulkGuestsText.trim()) return
+
+        const guests = parseBulkGuests(bulkGuestsText)
+        if (guests.length === 0) {
+            alert('No valid email addresses found')
+            return
+        }
+
+        setIsLoadingAction(true)
+        try {
+            await meetings.addParticipants(meetingId, guests)
+            setBulkGuestsText('')
+            setIsAddingGuest(false)
+            setIsBulkMode(false)
+            await loadMeetingDetails()
+            setStatusModal({
+                isOpen: true,
+                type: 'success',
+                title: 'Guests Added',
+                message: `Successfully added ${guests.length} guest${guests.length > 1 ? 's' : ''} to the meeting.`
+            })
+        } catch (error) {
+            console.error("Failed to add guests", error)
+            alert("Failed to add guests")
+        } finally {
+            setIsLoadingAction(false)
+        }
+    }
+
     const handleSendInvites = async () => {
         if (!meetingId || isSendingInvites || isCheckingConflicts) return
 
@@ -526,24 +660,127 @@ export default function MeetingDetail() {
     const handleUpdateMeeting = async () => {
         if (!meetingId) return;
         try {
+            // Convert local datetime-local value to UTC ISO string (same as create form)
+            const scheduledAtUTC = editDate ? new Date(editDate).toISOString() : undefined;
             await meetings.update(meetingId, {
                 title: editTitle,
-                scheduled_at: editDate,
+                scheduled_at: scheduledAtUTC,
                 location: editLocation
             })
             setIsEditingMeeting(false)
             await loadMeetingDetails()
+            // Prompt user to notify participants about the changes
+            setStatusModal({
+                isOpen: true,
+                type: 'success',
+                title: 'Meeting Updated',
+                message: 'Changes saved. Would you like to notify participants? They will receive an updated calendar invite via email.',
+                actionText: 'Notify Participants',
+                onAction: () => {
+                    setStatusModal(prev => ({ ...prev, isOpen: false }))
+                    setShowUpdateModal(true)
+                }
+            })
         } catch (error) {
             console.error("Failed to update meeting", error)
-            alert("Failed to update meeting")
+            setStatusModal({
+                isOpen: true,
+                type: 'error',
+                title: 'Update Failed',
+                message: 'Failed to update meeting. Please try again.'
+            })
         }
     }
 
     const openEditModal = () => {
         setEditTitle(meeting?.title || '')
-        setEditDate(meeting?.scheduled_at ? new Date(meeting.scheduled_at).toISOString().slice(0, 16) : '')
+        setEditDate(meeting?.scheduled_at ? toLocalInputValue(meeting.scheduled_at) : '')
         setEditLocation(meeting?.location || '')
         setIsEditingMeeting(true)
+    }
+
+    const openManageSeriesModal = async () => {
+        if (!meeting?.recurring_meeting_id) return
+        setShowManageSeriesModal(true)
+        setSeriesLoading(true)
+        setSeriesEditMode(false)
+        try {
+            const res = await recurringMeetings.get(meeting.recurring_meeting_id)
+            setSeriesData(res.data)
+            setSeriesTitle(res.data.title_template || '')
+            setSeriesTime(res.data.start_time || '')
+            setSeriesDuration(res.data.duration_minutes || 60)
+            setSeriesLocation(res.data.location || '')
+        } catch (error) {
+            console.error("Failed to load series data", error)
+            setStatusModal({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to load recurring series details.' })
+            setShowManageSeriesModal(false)
+        } finally {
+            setSeriesLoading(false)
+        }
+    }
+
+    const handleUpdateSeries = async () => {
+        if (!seriesData) return
+        setSeriesActionLoading(true)
+        try {
+            const payload: any = { update_scope: seriesUpdateScope }
+            if (seriesTitle !== seriesData.title_template) payload.title_template = seriesTitle
+            if (seriesTime !== seriesData.start_time) payload.start_time = seriesTime
+            if (seriesDuration !== seriesData.duration_minutes) payload.duration_minutes = seriesDuration
+            if (seriesLocation !== (seriesData.location || '')) payload.location = seriesLocation
+
+            const res = await recurringMeetings.update(seriesData.id, payload)
+            setSeriesData(res.data)
+            setSeriesEditMode(false)
+            setStatusModal({ isOpen: true, type: 'success', title: 'Series Updated', message: 'Recurring series has been updated.' })
+            await loadMeetingDetails()
+        } catch (error: any) {
+            console.error("Failed to update series", error)
+            setStatusModal({ isOpen: true, type: 'error', title: 'Update Failed', message: error?.response?.data?.detail || 'Failed to update series.' })
+        } finally {
+            setSeriesActionLoading(false)
+        }
+    }
+
+    const handleTogglePauseSeries = async () => {
+        if (!seriesData) return
+        setSeriesActionLoading(true)
+        try {
+            const isPaused = seriesData.status === 'paused'
+            const res = isPaused
+                ? await recurringMeetings.resume(seriesData.id)
+                : await recurringMeetings.pause(seriesData.id)
+            setSeriesData(res.data)
+            setStatusModal({
+                isOpen: true,
+                type: 'success',
+                title: isPaused ? 'Series Resumed' : 'Series Paused',
+                message: isPaused ? 'New instances will be generated again.' : 'No new instances will be generated until resumed.'
+            })
+        } catch (error: any) {
+            console.error("Failed to toggle pause", error)
+            setStatusModal({ isOpen: true, type: 'error', title: 'Error', message: error?.response?.data?.detail || 'Failed to update series status.' })
+        } finally {
+            setSeriesActionLoading(false)
+        }
+    }
+
+    const handleCancelSeries = async (_reason: string) => {
+        if (!seriesData) return
+        setSeriesActionLoading(true)
+        try {
+            await recurringMeetings.delete(seriesData.id, true)
+            setShowCancelSeriesConfirm(false)
+            setShowManageSeriesModal(false)
+            setStatusModal({ isOpen: true, type: 'success', title: 'Series Cancelled', message: 'The recurring series and all future instances have been cancelled.' })
+            await loadMeetingDetails()
+        } catch (error: any) {
+            console.error("Failed to cancel series", error)
+            setStatusModal({ isOpen: true, type: 'error', title: 'Error', message: error?.response?.data?.detail || 'Failed to cancel series.' })
+        } finally {
+            setSeriesActionLoading(false)
+        }
     }
 
     const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -637,7 +874,9 @@ export default function MeetingDetail() {
                     type={statusModal.type}
                     title={statusModal.title}
                     message={statusModal.message}
-                    onClose={() => setStatusModal(prev => ({ ...prev, isOpen: false }))}
+                    onClose={() => setStatusModal(prev => ({ ...prev, isOpen: false, actionText: undefined, onAction: undefined }))}
+                    actionText={statusModal.actionText}
+                    onAction={statusModal.onAction}
                 />
                 {/* HITL Invite Preview Modal */}
                 <InvitePreviewModal
@@ -687,10 +926,10 @@ export default function MeetingDetail() {
                 )}
 
                 {/* Header */}
-                <div className="px-8 py-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                    <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
+                <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
                                 <button onClick={() => navigate(-1)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors">
                                     <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -756,9 +995,16 @@ export default function MeetingDetail() {
                                     </span>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-4">
-                                <h1 className="text-3xl font-display font-black text-slate-900 dark:text-white">{meeting?.title}</h1>
-                                <Badge variant="success" className="uppercase text-xs">{meeting?.status}</Badge>
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <h1 className="text-2xl sm:text-3xl font-display font-black text-slate-900 dark:text-white">{meeting?.title}</h1>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <Badge variant="success" className="uppercase text-xs">{meeting?.status}</Badge>
+                                    {meeting?.recurring_meeting_id && (
+                                        <Badge variant="info" className="text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                                            Recurring Series
+                                        </Badge>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex items-center gap-2 mt-2 text-sm text-slate-500">
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -772,14 +1018,14 @@ export default function MeetingDetail() {
                                 </span>
                             </div>
                         </div>
-                        <div className="flex gap-3">
+                        <div className="flex flex-wrap gap-2 sm:gap-3">
                             {['scheduled', 'SCHEDULED'].includes(meeting?.status) && (
                                 <>
                                     <button onClick={handleNotifyUpdate} className="btn-secondary text-sm flex items-center gap-2 border-yellow-500 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/30">
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                                         </svg>
-                                        Send Update
+                                        <span className="hidden sm:inline">Send Update</span>
                                     </button>
                                     <button onClick={handleCancelMeeting} className="btn-secondary text-sm flex items-center gap-2 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -793,8 +1039,16 @@ export default function MeetingDetail() {
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
-                                Edit Meeting
+                                <span className="hidden sm:inline">Edit Meeting</span>
                             </button>
+                            {meeting?.recurring_meeting_id && (
+                                <button onClick={openManageSeriesModal} className="btn-secondary text-sm flex items-center gap-2 border-indigo-400 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    <span className="hidden sm:inline">Manage Series</span>
+                                </button>
+                            )}
                             {meeting?.video_link && (
                                 <button
                                     onClick={() => window.open(
@@ -825,7 +1079,7 @@ export default function MeetingDetail() {
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
-                                    Approve & Send
+                                    <span className="hidden sm:inline">Approve & Send</span>
                                 </button>
                             )}
                         </div>
@@ -1123,8 +1377,43 @@ export default function MeetingDetail() {
                                                     <div>
                                                         <div className="flex items-center justify-between mb-4">
                                                             <h2 className="text-xl font-bold text-slate-900 dark:text-white">Action Items</h2>
+                                                            {isFacilitator && (
                                                             <div className="flex gap-2">
 
+                                                                {minutesContent && (
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            try {
+                                                                                setExtractingActions(true)
+                                                                                const res = await meetings.extractActionItems(meetingId!)
+                                                                                const extracted = res.data?.action_items || res.data || []
+                                                                                const count = Array.isArray(extracted) ? extracted.length : 0
+                                                                                const actionsRes = await meetings.getActionItems(meetingId!)
+                                                                                setMeetingActionItems(actionsRes.data || [])
+                                                                                setStatusModal({ isOpen: true, type: 'success', title: 'Actions Extracted', message: `Extracted ${count} action item${count !== 1 ? 's' : ''} from minutes.` })
+                                                                            } catch (error: any) {
+                                                                                console.error(error)
+                                                                                setStatusModal({ isOpen: true, type: 'error', title: 'Extraction Failed', message: error?.response?.data?.detail || 'Failed to extract action items.' })
+                                                                            } finally {
+                                                                                setExtractingActions(false)
+                                                                            }
+                                                                        }}
+                                                                        disabled={extractingActions}
+                                                                        className="btn-secondary text-sm flex items-center gap-2"
+                                                                    >
+                                                                        {extractingActions ? (
+                                                                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                                            </svg>
+                                                                        ) : (
+                                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                                            </svg>
+                                                                        )}
+                                                                        {extractingActions ? 'Extracting...' : 'Extract Actions'}
+                                                                    </button>
+                                                                )}
                                                                 <button onClick={() => setIsAddingAction(true)} className="btn-secondary text-sm flex items-center gap-2">
                                                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1132,6 +1421,7 @@ export default function MeetingDetail() {
                                                                     Add Action
                                                                 </button>
                                                             </div>
+                                                            )}
                                                         </div>
 
                                                         {/* Add Action Form */}
@@ -1253,44 +1543,173 @@ export default function MeetingDetail() {
                                                         )}
                                                     </button>
                                                     <button
-                                                        onClick={() => setIsAddingGuest(!isAddingGuest)}
+                                                        onClick={() => {
+                                                            setIsAddingGuest(!isAddingGuest)
+                                                            setIsAddingMember(false)
+                                                        }}
                                                         className="btn-secondary text-sm"
                                                     >
                                                         {isAddingGuest ? 'Cancel' : '+ Add Guest'}
                                                     </button>
+                                                    {meeting?.twg?.id && (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (isAddingMember) {
+                                                                    setIsAddingMember(false)
+                                                                } else {
+                                                                    setIsAddingGuest(false)
+                                                                    handleOpenAddMember()
+                                                                }
+                                                            }}
+                                                            className="btn-secondary text-sm"
+                                                        >
+                                                            {isAddingMember ? 'Cancel' : '+ Add Member'}
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
 
+                                            {isAddingMember && (
+                                                <Card className="p-4 bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-800">
+                                                    <h4 className="font-bold text-sm text-green-900 dark:text-green-100 mb-3">Add TWG Members</h4>
+                                                    {twgMembers.length === 0 ? (
+                                                        <p className="text-sm text-slate-500">All TWG members are already participants.</p>
+                                                    ) : (
+                                                        <>
+                                                            <div className="space-y-2 max-h-60 overflow-y-auto mb-3">
+                                                                {twgMembers.map((m: any) => (
+                                                                    <label key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/20 cursor-pointer">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={selectedMembers.includes(m.id)}
+                                                                            onChange={(e) => {
+                                                                                if (e.target.checked) {
+                                                                                    setSelectedMembers(prev => [...prev, m.id])
+                                                                                } else {
+                                                                                    setSelectedMembers(prev => prev.filter(id => id !== m.id))
+                                                                                }
+                                                                            }}
+                                                                            className="rounded border-slate-300"
+                                                                        />
+                                                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-teal-600 flex items-center justify-center text-white text-xs font-bold">
+                                                                            {(m.full_name || m.email || '?')[0].toUpperCase()}
+                                                                        </div>
+                                                                        <div>
+                                                                            <div className="text-sm font-medium text-slate-900 dark:text-white">{m.full_name || 'Member'}</div>
+                                                                            <div className="text-xs text-slate-500">{m.email}</div>
+                                                                        </div>
+                                                                    </label>
+                                                                ))}
+                                                            </div>
+                                                            <div className="flex justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => setIsAddingMember(false)}
+                                                                    className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                                <button
+                                                                    onClick={handleAddSelectedMembers}
+                                                                    disabled={selectedMembers.length === 0 || isLoadingAction}
+                                                                    className="btn-primary text-sm disabled:opacity-50"
+                                                                >
+                                                                    {isLoadingAction ? 'Adding...' : `Add ${selectedMembers.length} Member${selectedMembers.length !== 1 ? 's' : ''}`}
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </Card>
+                                            )}
+
                                             {isAddingGuest && (
                                                 <Card className="p-4 bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800">
-                                                    <h4 className="font-bold text-sm mb-3 text-blue-900 dark:text-blue-100">Add External Guest</h4>
-                                                    <div className="flex gap-3">
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Name (Optional)"
-                                                            className="flex-1 px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm"
-                                                            value={guestName}
-                                                            onChange={e => setGuestName(e.target.value)}
-                                                        />
-                                                        <input
-                                                            type="email"
-                                                            placeholder="Email Address"
-                                                            className="flex-1 px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm"
-                                                            value={guestEmail}
-                                                            onChange={e => setGuestEmail(e.target.value)}
-                                                        />
-                                                        <button
-                                                            onClick={handleAddGuest}
-                                                            disabled={!guestEmail || isLoadingAction}
-                                                            className="btn-primary text-sm flex items-center gap-2"
-                                                        >
-                                                            {isLoadingAction ? (
-                                                                <><span className="animate-spin">⏳</span> Adding...</>
-                                                            ) : (
-                                                                'Add'
-                                                            )}
-                                                        </button>
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <h4 className="font-bold text-sm text-blue-900 dark:text-blue-100">
+                                                            {isBulkMode ? 'Add Multiple Guests' : 'Add External Guest'}
+                                                        </h4>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setIsBulkMode(!isBulkMode)
+                                                                    setGuestName('')
+                                                                    setGuestEmail('')
+                                                                    setBulkGuestsText('')
+                                                                }}
+                                                                className="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700 transition-colors"
+                                                            >
+                                                                {isBulkMode ? 'Single Guest' : 'Bulk Add'}
+                                                            </button>
+                                                        </div>
                                                     </div>
+
+                                                    {isBulkMode ? (
+                                                        // Bulk Add Mode
+                                                        <div className="space-y-3">
+                                                            <textarea
+                                                                placeholder={`Paste guest list (one per line or comma-separated)&#10;Supported formats:&#10;• email@example.com&#10;• Name <email@example.com>&#10;• Name, email@example.com`}
+                                                                className="w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm min-h-[120px] font-mono"
+                                                                value={bulkGuestsText}
+                                                                onChange={e => setBulkGuestsText(e.target.value)}
+                                                            />
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-xs text-slate-500">
+                                                                    {parseBulkGuests(bulkGuestsText).length} guest(s) detected
+                                                                </span>
+                                                                <div className="flex gap-2">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setIsAddingGuest(false)
+                                                                            setIsBulkMode(false)
+                                                                            setBulkGuestsText('')
+                                                                        }}
+                                                                        className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={handleBulkAddGuests}
+                                                                        disabled={parseBulkGuests(bulkGuestsText).length === 0 || isLoadingAction}
+                                                                        className="btn-primary text-sm flex items-center gap-2 disabled:opacity-50"
+                                                                    >
+                                                                        {isLoadingAction ? (
+                                                                            <><span className="animate-spin">⏳</span> Adding...</>
+                                                                        ) : (
+                                                                            <>Add All Guests</>
+                                                                        )}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        // Single Guest Mode
+                                                        <div className="flex gap-3">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Name (Optional)"
+                                                                className="flex-1 px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm"
+                                                                value={guestName}
+                                                                onChange={e => setGuestName(e.target.value)}
+                                                            />
+                                                            <input
+                                                                type="email"
+                                                                placeholder="Email Address"
+                                                                className="flex-1 px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm"
+                                                                value={guestEmail}
+                                                                onChange={e => setGuestEmail(e.target.value)}
+                                                            />
+                                                            <button
+                                                                onClick={handleAddGuest}
+                                                                disabled={!guestEmail || isLoadingAction}
+                                                                className="btn-primary text-sm flex items-center gap-2"
+                                                            >
+                                                                {isLoadingAction ? (
+                                                                    <><span className="animate-spin">⏳</span> Adding...</>
+                                                                ) : (
+                                                                    'Add'
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </Card>
                                             )}
 
@@ -1327,6 +1746,15 @@ export default function MeetingDetail() {
                                                                     <option value="accepted">Accept</option>
                                                                     <option value="declined">Decline</option>
                                                                 </select>
+                                                                <button
+                                                                    onClick={() => handleRemoveParticipant(p.id)}
+                                                                    className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                                    title="Remove participant"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                    </svg>
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     </Card>
@@ -1696,6 +2124,244 @@ export default function MeetingDetail() {
                     </div>
                 )
             }
+            {/* Manage Series Modal */}
+            {showManageSeriesModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Manage Recurring Series</h2>
+                                {seriesData && (
+                                    <Badge
+                                        variant={seriesData.status === 'active' ? 'success' : seriesData.status === 'paused' ? 'warning' : 'neutral'}
+                                        className="mt-1 text-xs uppercase"
+                                    >
+                                        {seriesData.status}
+                                    </Badge>
+                                )}
+                            </div>
+                            <button onClick={() => setShowManageSeriesModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {seriesLoading ? (
+                            <div className="p-12 text-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                                <p className="mt-3 text-sm text-slate-500">Loading series details...</p>
+                            </div>
+                        ) : seriesData && !seriesEditMode ? (
+                            /* View Mode */
+                            <div className="p-4 sm:p-6 space-y-6">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Title</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.title_template}</p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Frequency</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1 capitalize">
+                                            {seriesData.frequency}{seriesData.interval_weeks > 1 ? ` (every ${seriesData.interval_weeks} weeks)` : ''}
+                                        </p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Time</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.start_time}</p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Duration</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.duration_minutes} min</p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Day</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">
+                                            {seriesData.day_of_week !== null && seriesData.day_of_week !== undefined
+                                                ? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][seriesData.day_of_week]
+                                                : 'N/A'}
+                                        </p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">End Type</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1 capitalize">
+                                            {seriesData.end_type === 'never' ? 'Never' :
+                                                seriesData.end_type === 'after_date' ? `Until ${new Date(seriesData.end_date).toLocaleDateString()}` :
+                                                    `After ${seriesData.max_occurrences} occurrences`}
+                                        </p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Instances Created</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.occurrences_created}</p>
+                                    </div>
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Location</span>
+                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.location || 'Not set'}</p>
+                                    </div>
+                                </div>
+
+                                {/* Upcoming Instances */}
+                                {seriesData.upcoming_instances?.length > 0 && (
+                                    <div>
+                                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Upcoming Instances</h3>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                                            {seriesData.upcoming_instances.map((inst: any) => (
+                                                <div key={inst.id} className="flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm">
+                                                    <div>
+                                                        <span className="font-medium text-slate-900 dark:text-white">{inst.title}</span>
+                                                        <span className="text-slate-500 ml-2">
+                                                            {new Date(inst.scheduled_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                                                            {' '}
+                                                            {new Date(inst.scheduled_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                    </div>
+                                                    <Badge variant={inst.status === 'SCHEDULED' ? 'success' : 'neutral'} className="text-xs uppercase">{inst.status}</Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : seriesData && seriesEditMode ? (
+                            /* Edit Mode */
+                            <div className="p-4 sm:p-6 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Series Title</label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        value={seriesTitle}
+                                        onChange={e => setSeriesTitle(e.target.value)}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Start Time</label>
+                                        <input
+                                            type="time"
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            value={seriesTime}
+                                            onChange={e => setSeriesTime(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Duration (min)</label>
+                                        <input
+                                            type="number"
+                                            min={15}
+                                            step={15}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            value={seriesDuration}
+                                            onChange={e => setSeriesDuration(Number(e.target.value))}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Location</label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        value={seriesLocation}
+                                        onChange={e => setSeriesLocation(e.target.value)}
+                                        placeholder="Meeting location or video link"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Update Scope</label>
+                                    <div className="flex gap-4">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="seriesScope"
+                                                checked={seriesUpdateScope === 'future'}
+                                                onChange={() => setSeriesUpdateScope('future')}
+                                                className="text-indigo-600"
+                                            />
+                                            <span className="text-sm text-slate-700 dark:text-slate-300">Future instances only</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="seriesScope"
+                                                checked={seriesUpdateScope === 'all'}
+                                                onChange={() => setSeriesUpdateScope('all')}
+                                                className="text-indigo-600"
+                                            />
+                                            <span className="text-sm text-slate-700 dark:text-slate-300">All instances</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : null}
+
+                        {/* Footer */}
+                        {seriesData && !seriesLoading && (
+                            <div className="p-4 sm:p-6 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                                <div className="flex flex-wrap gap-2">
+                                    {seriesData.status !== 'cancelled' && (
+                                        <button
+                                            onClick={() => setShowCancelSeriesConfirm(true)}
+                                            disabled={seriesActionLoading}
+                                            className="px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                        >
+                                            Cancel Series
+                                        </button>
+                                    )}
+                                    {(seriesData.status === 'active' || seriesData.status === 'paused') && (
+                                        <button
+                                            onClick={handleTogglePauseSeries}
+                                            disabled={seriesActionLoading}
+                                            className="px-3 py-2 text-sm font-medium text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
+                                        >
+                                            {seriesActionLoading ? 'Processing...' : seriesData.status === 'paused' ? 'Resume Series' : 'Pause Series'}
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex flex-wrap gap-2 justify-end">
+                                    <button
+                                        onClick={() => { setShowManageSeriesModal(false); setSeriesEditMode(false) }}
+                                        className="btn-secondary"
+                                    >
+                                        Close
+                                    </button>
+                                    {seriesData.status !== 'cancelled' && (
+                                        seriesEditMode ? (
+                                            <button
+                                                onClick={handleUpdateSeries}
+                                                disabled={seriesActionLoading || !seriesTitle}
+                                                className="btn-primary bg-indigo-600 hover:bg-indigo-700"
+                                            >
+                                                {seriesActionLoading ? 'Saving...' : 'Save Changes'}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => setSeriesEditMode(true)}
+                                                className="btn-primary bg-indigo-600 hover:bg-indigo-700"
+                                            >
+                                                Edit Series
+                                            </button>
+                                        )
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Cancel Series Confirmation */}
+            <InputModal
+                isOpen={showCancelSeriesConfirm}
+                onCancel={() => setShowCancelSeriesConfirm(false)}
+                onConfirm={handleCancelSeries}
+                title="Cancel Recurring Series"
+                description="This will cancel the entire recurring series and all future meeting instances. This action cannot be undone."
+                placeholder="Enter reason for cancellation..."
+                confirmText="Cancel Series"
+                confirmVariant="danger"
+                isLoading={seriesActionLoading}
+            />
+
             {/* Action Item Detail Modal */}
             {
                 selectedAction && (

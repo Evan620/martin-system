@@ -6,6 +6,7 @@ import { UserRole } from '../../types/auth'
 import { meetings } from '../../services/api'
 import CreateMeetingModal from '../../components/schedule/CreateMeetingModal'
 import CalendarGrid, { CalendarEvent } from '../../components/common/CalendarGrid'
+import { parseUTCDate } from '../../utils/dates'
 
 
 
@@ -26,10 +27,10 @@ export default function SummitSchedule() {
     const loadMeetings = async () => {
         try {
             const response = await meetings.list()
-            const meetingData: CalendarEvent[] = response.data.map((m: any) => ({
+            const meetingData: CalendarEvent[] = response.data.filter((m: any) => m.status !== 'CANCELLED').map((m: any) => ({
                 id: m.id,
                 title: m.title,
-                scheduled_at: new Date(m.scheduled_at),
+                scheduled_at: parseUTCDate(m.scheduled_at),
                 type: m.meeting_type === 'virtual' ? 'virtual' : 'in_person',
                 status: m.status,
                 twg_name: m.twg?.name,

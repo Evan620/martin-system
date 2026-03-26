@@ -22,11 +22,9 @@ def upgrade() -> None:
     """Upgrade schema."""
     # Check if column exists before adding (idempotent migration)
     conn = op.get_bind()
-    result = conn.execute(sa.text(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_name='meetings' AND column_name='transcript'"
-    ))
-    if not result.fetchone():
+    inspector = sa.inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns('meetings')]
+    if 'transcript' not in columns:
         op.add_column('meetings', sa.Column('transcript', sa.Text(), nullable=True))
     # ### end Alembic commands ###
 

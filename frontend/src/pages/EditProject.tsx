@@ -22,10 +22,10 @@ const EditProject: React.FC = () => {
     });
 
     const pillars = [
-        { value: 'Infrastructure', icon: 'train', color: 'blue' },
-        { value: 'Energy', icon: 'solar_power', color: 'orange' },
+        { value: 'Strategic Minerals and Natural Resource Development', icon: 'train', color: 'blue' },
+        { value: 'Energy Trade and Industrial Growth', icon: 'solar_power', color: 'orange' },
         { value: 'Agribusiness and Food Systems Transformation', icon: 'agriculture', color: 'green' },
-        { value: 'Technology', icon: 'computer', color: 'indigo' },
+        { value: 'Digital Transformation', icon: 'computer', color: 'indigo' },
     ];
 
     const ecowasCountries = [

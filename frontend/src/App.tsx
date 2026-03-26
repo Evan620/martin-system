@@ -30,8 +30,10 @@ import NotificationCenter from './pages/notifications/NotificationCenter'
 import TeamManagement from './pages/admin/TeamManagement'
 import ControlTower from './pages/admin/ControlTower'
 import AuditLogs from './pages/admin/AuditLogs'
+import OrganizationInvitations from './pages/admin/OrganizationInvitations'
 import ProjectConflicts from './pages/Conflicts/ProjectConflicts'
 import ProtectedRoute from './components/ProtectedRoute'
+import PublicInvitationRespond from './pages/public/PublicInvitationRespond'
 
 function HomeRedirect() {
     const user = useAppSelector((state) => state.auth.user)
@@ -91,6 +93,7 @@ function App() {
         <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/invitations/:invitationId/respond" element={<PublicInvitationRespond />} />
 
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
@@ -140,6 +143,11 @@ function App() {
                 <Route path="/admin/logs" element={
                     <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]}>
                         <AuditLogs />
+                    </ProtectedRoute>
+                } />
+                <Route path="/admin/invitations" element={
+                    <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]}>
+                        <OrganizationInvitations />
                     </ProtectedRoute>
                 } />
             </Route>

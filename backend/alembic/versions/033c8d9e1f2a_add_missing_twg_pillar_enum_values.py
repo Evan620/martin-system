@@ -32,19 +32,20 @@ def upgrade() -> None:
         'resource_mobilization'
     ]
     
-    for value in enum_values:
-        # Check if value exists
-        result = connection.execute(text("""
-            SELECT COUNT(*) FROM pg_enum 
-            WHERE enumlabel = :value 
-            AND enumtypid = 'twgpillar'::regtype
-        """), {"value": value})
-        
-        if result.scalar() == 0:
-            # Commit current transaction before ALTER TYPE
-            connection.execute(text("COMMIT"))
-            # Add the enum value
-            connection.execute(text(f"ALTER TYPE twgpillar ADD VALUE '{value}'"))
+    if connection.dialect.name == "postgresql":
+        for value in enum_values:
+            # Check if value exists
+            result = connection.execute(text("""
+                SELECT COUNT(*) FROM pg_enum 
+                WHERE enumlabel = :value 
+                AND enumtypid = 'twgpillar'::regtype
+            """), {"value": value})
+            
+            if result.scalar() == 0:
+                # Commit current transaction before ALTER TYPE
+                connection.execute(text("COMMIT"))
+                # Add the enum value
+                connection.execute(text(f"ALTER TYPE twgpillar ADD VALUE '{value}'"))
 
 
 def downgrade() -> None:

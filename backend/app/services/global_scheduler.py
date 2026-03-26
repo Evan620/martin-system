@@ -11,6 +11,8 @@ from loguru import logger
 from enum import Enum
 from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
+import asyncio
+from app.services.gcal_executor import gcal_executor as _gcal_executor
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
@@ -18,12 +20,13 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db_session_context
 from app.models.models import (
-    Meeting, MeetingStatus, MeetingParticipant, 
+    Meeting, MeetingStatus, MeetingParticipant,
     VipProfile, Dependency, DependencyStatus,
     Conflict, ConflictType, ConflictSeverity, ConflictStatus,
     User, TWG
 )
 from app.services.calendar_service import calendar_service
+
 
 class EventPriority(str, Enum):
     """Event priority levels"""
@@ -162,13 +165,23 @@ class GlobalScheduler:
                         res_users = await session.execute(stmt_users)
                         vip_emails = list(res_users.scalars().all())
 
-                    gcal_event = calendar_service.create_meeting_event(
-                        title=title,
-                        start_time=start_time,
-                        duration_minutes=duration_minutes,
-                        description=description or "",
-                        attendees=vip_emails,
-                        meeting_id=str(new_meeting.id)
+                    loop = asyncio.get_running_loop()
+                    _title = title
+                    _start = start_time
+                    _dur = duration_minutes
+                    _desc = description or ""
+                    _emails = vip_emails
+                    _mid = str(new_meeting.id)
+                    gcal_event = await loop.run_in_executor(
+                        _gcal_executor,
+                        lambda: calendar_service.create_meeting_event(
+                            title=_title,
+                            start_time=_start,
+                            duration_minutes=_dur,
+                            description=_desc,
+                            attendees=_emails,
+                            meeting_id=_mid
+                        )
                     )
                     
                     if gcal_event and 'htmlLink' in gcal_event:
@@ -380,15 +393,18 @@ class GlobalScheduler:
     ) -> List[Meeting]:
         """Get schedule for a specific TWG from DB"""
         async with self._get_session(db) as session:
-            stmt = select(Meeting).where(Meeting.twg_id == twg_id)
-            
+            stmt = select(Meeting).where(
+                Meeting.twg_id == twg_id,
+                Meeting.status != MeetingStatus.CANCELLED
+            )
+
             if start_date:
                 stmt = stmt.where(Meeting.scheduled_at >= start_date)
             if end_date:
                 stmt = stmt.where(Meeting.scheduled_at <= end_date)
-            
+
             stmt = stmt.order_by(Meeting.scheduled_at)
-            
+
             result = await session.execute(stmt)
             return result.scalars().all()
 
@@ -400,13 +416,13 @@ class GlobalScheduler:
     ) -> List[Meeting]:
         """Get global schedule across all TWGs from DB"""
         async with self._get_session(db) as session:
-            stmt = select(Meeting)
-            
+            stmt = select(Meeting).where(Meeting.status != MeetingStatus.CANCELLED)
+
             if start_date:
                 stmt = stmt.where(Meeting.scheduled_at >= start_date)
             if end_date:
                 stmt = stmt.where(Meeting.scheduled_at <= end_date)
-                
+
             stmt = stmt.order_by(Meeting.scheduled_at)
             
             result = await session.execute(stmt)

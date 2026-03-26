@@ -106,6 +106,9 @@ export const meetings = {
     updateRsvp: (meetingId: string, participantId: string, status: string) =>
         api.put(`/meetings/${meetingId}/participants/${participantId}/rsvp`, { rsvp_status: status }),
 
+    removeParticipant: (meetingId: string, participantId: string) =>
+        api.delete(`/meetings/${meetingId}/participants/${participantId}`),
+
     getMinutes: (id: string) => api.get(`/meetings/${id}/minutes`),
     updateMinutes: (id: string, data: { content: string, status?: string }) => api.post(`/meetings/${id}/minutes`, data),
     generateMinutes: (id: string) => api.post(`/meetings/${id}/generate-minutes`),
@@ -133,9 +136,15 @@ export const meetings = {
     }),
     compileMeetingPack: (id: string) => api.post(`/meetings/${id}/meeting-pack`),
     proposeNextMeeting: (id: string) => api.post(`/meetings/${id}/propose-next`),
+    detachFromSeries: (id: string) => api.patch(`/meetings/${id}/detach-from-series`),
 };
 
 export const actionItems = {
+    list: (params?: { twg_id?: string; mine_only?: boolean; status?: string }) =>
+        api.get('/action-items/', { params }),
+    summary: (params?: { twg_id?: string }) =>
+        api.get('/action-items/summary', { params }),
+    create: (data: any) => api.post('/action-items/', data),
     update: (id: string, data: any) => api.patch(`/action-items/${id}`, data),
     delete: (id: string) => api.delete(`/action-items/${id}`),
 };
@@ -147,6 +156,7 @@ export const twgs = {
     update: (id: string, data: any) => api.patch(`/twgs/${id}`, data),
     listMembers: (twgId: string) => api.get(`/twgs/${twgId}/members`),
     addMember: (twgId: string, email: string, fullName?: string) => api.post(`/twgs/${twgId}/members`, { email, full_name: fullName || '' }),
+    bulkAddMembers: (twgId: string, members: { email: string; full_name: string }[]) => api.post(`/twgs/${twgId}/members/bulk`, { members }),
     removeMember: (twgId: string, userId: string) => api.delete(`/twgs/${twgId}/members/${userId}`),
 };
 
@@ -188,5 +198,87 @@ export const sharedDocuments = {
         });
     },
     delete: (fileId: string) => api.delete(`/shared-documents/${fileId}`),
+    cleanupOrphans: () => api.delete('/shared-documents/cleanup-orphans'),
+};
+
+export const recurringMeetings = {
+    list: (params?: { twg_id?: string; status?: string; skip?: number; limit?: number }) => {
+        const queryParams = new URLSearchParams();
+        if (params?.twg_id) queryParams.append('twg_id', params.twg_id);
+        if (params?.status) queryParams.append('status', params.status);
+        if (params?.skip !== undefined) queryParams.append('skip', params.skip.toString());
+        if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
+        const query = queryParams.toString();
+        return api.get(`/recurring-meetings/${query ? `?${query}` : ''}`);
+    },
+
+    get: (id: string) => api.get(`/recurring-meetings/${id}`),
+
+    create: (data: {
+        twg_id: string;
+        title_template: string;
+        duration_minutes?: number;
+        location?: string;
+        meeting_type?: string;
+        recurrence_rule: {
+            frequency: 'weekly' | 'biweekly' | 'monthly';
+            interval_weeks?: number;
+            day_of_week?: number | null;
+        };
+        recurrence_end: {
+            end_type: 'after_date' | 'after_occurrences' | 'never';
+            end_date?: string | null;
+            max_occurrences?: number | null;
+        };
+        start_date: string;
+        start_time: string;
+    }) => api.post('/recurring-meetings/', data),
+
+    update: (id: string, data: {
+        title_template?: string;
+        duration_minutes?: number;
+        location?: string;
+        meeting_type?: string;
+        recurrence_rule?: {
+            frequency: 'weekly' | 'biweekly' | 'monthly';
+            interval_weeks?: number;
+            day_of_week?: number | null;
+        };
+        recurrence_end?: {
+            end_type: 'after_date' | 'after_occurrences' | 'never';
+            end_date?: string | null;
+            max_occurrences?: number | null;
+        };
+        start_time?: string;
+        status?: 'active' | 'paused' | 'ended' | 'cancelled';
+        update_scope?: 'future' | 'all';
+    }) => api.patch(`/recurring-meetings/${id}`, data),
+
+    delete: (id: string, cancelFuture: boolean = true) =>
+        api.delete(`/recurring-meetings/${id}?cancel_future=${cancelFuture}`),
+
+    preview: (data: {
+        twg_id: string;
+        title_template: string;
+        duration_minutes?: number;
+        location?: string;
+        meeting_type?: string;
+        recurrence_rule: {
+            frequency: 'weekly' | 'biweekly' | 'monthly';
+            interval_weeks?: number;
+            day_of_week?: number | null;
+        };
+        recurrence_end: {
+            end_type: 'after_date' | 'after_occurrences' | 'never';
+            end_date?: string | null;
+            max_occurrences?: number | null;
+        };
+        start_date: string;
+        start_time: string;
+    }) => api.post('/recurring-meetings/preview', data),
+
+    pause: (id: string) => api.post(`/recurring-meetings/${id}/pause`),
+
+    resume: (id: string) => api.post(`/recurring-meetings/${id}/resume`),
 };
 

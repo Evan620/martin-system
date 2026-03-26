@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 from typing import List
 import uuid
@@ -47,6 +47,8 @@ async def list_twgs(
             selectinload(TWG.political_lead),
             selectinload(TWG.technical_lead),
             selectinload(TWG.members),
+            selectinload(TWG.action_items).selectinload(ActionItem.owner),
+            selectinload(TWG.documents),
         ]
         
         # We will need to perform separate queries or use scalar subqueries for stats.
@@ -167,12 +169,21 @@ async def get_twg(
     )
     pipeline_projects = projects_res.scalar() or 0
     
-    # Resources
+    # Resources - explicitly fetch documents for this TWG
+    # Exclude transcripts and shared_workspace from the count
     docs_res = await db.execute(
-        select(func.count(Document.id)).where(Document.twg_id == twg_id)
+        select(Document).options(selectinload(Document.uploaded_by))
+        .where(
+            Document.twg_id == twg_id,
+            or_(
+                Document.document_type.notin_(["transcript", "transcript_placeholder", "shared_workspace"]),
+                Document.document_type.is_(None)
+            )
+        )
     )
-    resources_count = docs_res.scalar() or 0
-    
+    twg_documents = docs_res.scalars().all()
+    resources_count = len(twg_documents)
+
     db_twg.stats = {
         "meetings_held": meetings_held,
         "open_actions": open_actions,
@@ -200,7 +211,7 @@ async def update_twg(
         .options(
             selectinload(TWG.political_lead),
             selectinload(TWG.technical_lead),
-            selectinload(TWG.action_items),
+            selectinload(TWG.action_items).selectinload(ActionItem.owner),
             selectinload(TWG.documents),
             selectinload(TWG.members),
         )
@@ -215,10 +226,18 @@ async def update_twg(
     # Admins can edit anything.
     
     update_data = twg_in.model_dump(exclude_unset=True)
+    leads_changed = "political_lead_id" in update_data or "technical_lead_id" in update_data
+
     for key, value in update_data.items():
         setattr(db_twg, key, value)
-    
+
     await db.commit()
+
+    # Auto-sync Leads Council membership when any TWG's leads change
+    if leads_changed:
+        await _sync_leads_council_membership(db)
+        await db.commit()
+
     # Refresh with eager loading to ensure relationships are loaded
     await db.refresh(db_twg, attribute_names=['political_lead', 'technical_lead', 'action_items', 'documents', 'members'])
     return db_twg
@@ -323,6 +342,9 @@ async def add_twg_member(
 
     twg = await _check_twg_management_access(twg_id, current_user, db)
 
+    if twg.group_type == "leads_council":
+        raise HTTPException(status_code=400, detail="Leads Council membership is auto-managed. Change TWG leads to update membership.")
+
     # Find user by email
     email = body.email.strip().lower()
     result = await db.execute(
@@ -403,6 +425,122 @@ async def add_twg_member(
     }
 
 
+class BulkAddMemberEntry(BaseModel):
+    email: str
+    full_name: str = ""
+
+
+class BulkAddMembersRequest(BaseModel):
+    members: list[BulkAddMemberEntry]
+
+
+@router.post("/{twg_id}/members/bulk", status_code=status.HTTP_201_CREATED)
+async def bulk_add_twg_members(
+    twg_id: uuid.UUID,
+    body: BulkAddMembersRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Bulk add members to a TWG.
+    Accepts a list of {email, full_name} entries.
+    Skips duplicates, auto-creates new users, sends invite emails.
+    """
+    from app.utils.security import hash_password
+
+    twg = await _check_twg_management_access(twg_id, current_user, db)
+
+    if twg.group_type == "leads_council":
+        raise HTTPException(status_code=400, detail="Leads Council membership is auto-managed. Change TWG leads to update membership.")
+
+    existing_member_emails = {m.email.lower() for m in twg.members}
+
+    results = {"added": [], "skipped": [], "errors": []}
+
+    for entry in body.members:
+        email = entry.email.strip().lower()
+        if not email:
+            continue
+
+        # Skip duplicates
+        if email in existing_member_emails:
+            results["skipped"].append({"email": email, "reason": "Already a member"})
+            continue
+
+        try:
+            # Find or create user
+            result = await db.execute(
+                select(User).where(User.email == email).options(selectinload(User.twgs))
+            )
+            user_to_add = result.scalar_one_or_none()
+            created_new = False
+
+            if not user_to_add:
+                if not entry.full_name.strip():
+                    results["errors"].append({"email": email, "reason": "Full name required for new users"})
+                    continue
+
+                temp_password = secrets.token_urlsafe(16)
+                user_to_add = User(
+                    full_name=entry.full_name.strip(),
+                    email=email,
+                    hashed_password=hash_password(temp_password),
+                    role=UserRole.TWG_MEMBER,
+                    is_active=True,
+                )
+                db.add(user_to_add)
+                await db.flush()
+                created_new = True
+
+            twg.members.append(user_to_add)
+            existing_member_emails.add(email)
+
+            added_entry = {
+                "id": str(user_to_add.id),
+                "email": email,
+                "full_name": user_to_add.full_name,
+                "created_new": created_new,
+            }
+
+            # Send invite for new users
+            if created_new:
+                try:
+                    from app.services.email_service import email_service
+                    from app.core.config import settings
+                    await email_service.send_user_invite(
+                        to_email=email,
+                        full_name=user_to_add.full_name,
+                        password=temp_password,
+                        role=user_to_add.role.value,
+                        login_url=settings.FRONTEND_URL
+                    )
+                    added_entry["invite_sent"] = True
+                except Exception as e:
+                    added_entry["invite_sent"] = False
+                    print(f"[TWG Bulk] Failed to send invite to {email}: {e}")
+
+            results["added"].append(added_entry)
+
+        except Exception as e:
+            results["errors"].append({"email": email, "reason": str(e)})
+
+    await db.commit()
+
+    total_added = len(results["added"])
+    total_skipped = len(results["skipped"])
+    total_errors = len(results["errors"])
+    new_accounts = sum(1 for a in results["added"] if a.get("created_new"))
+
+    return {
+        "message": f"Added {total_added} member{'s' if total_added != 1 else ''} to {twg.name}."
+                   + (f" {new_accounts} new account{'s' if new_accounts != 1 else ''} created." if new_accounts else "")
+                   + (f" {total_skipped} skipped (already members)." if total_skipped else "")
+                   + (f" {total_errors} failed." if total_errors else ""),
+        "summary": {"added": total_added, "skipped": total_skipped, "errors": total_errors, "new_accounts": new_accounts},
+        "results": results,
+    }
+
+
 @router.delete("/{twg_id}/members/{user_id}", status_code=status.HTTP_200_OK)
 async def remove_twg_member(
     twg_id: uuid.UUID,
@@ -415,6 +553,9 @@ async def remove_twg_member(
     Cannot remove yourself or a TWG lead.
     """
     twg = await _check_twg_management_access(twg_id, current_user, db)
+
+    if twg.group_type == "leads_council":
+        raise HTTPException(status_code=400, detail="Leads Council membership is auto-managed. Change TWG leads to update membership.")
 
     # Prevent removing yourself
     if user_id == current_user.id:
@@ -440,6 +581,63 @@ async def remove_twg_member(
     return {"message": f"{member_to_remove.full_name} has been removed from {twg.name}."}
 
 
+async def _sync_leads_council_membership(db: AsyncSession) -> dict:
+    """
+    Sync the TWG Leads Council membership from all active TWGs' leads.
+    Adds new leads and removes users who are no longer a lead of any TWG.
+    Uses flush() so the caller controls the transaction.
+    Returns {"added": int, "removed": int, "total_members": int}.
+    """
+    # Find the leads_council group
+    result = await db.execute(
+        select(TWG)
+        .options(selectinload(TWG.members))
+        .where(TWG.group_type == "leads_council")
+    )
+    council = result.scalar_one_or_none()
+    if not council:
+        return {"added": 0, "removed": 0, "total_members": 0}
+
+    # Fetch all active TWGs (standard TWGs only)
+    twgs_result = await db.execute(
+        select(TWG).where(TWG.group_type == "twg", TWG.status == "active")
+    )
+    all_twgs = twgs_result.scalars().all()
+
+    # Collect lead user IDs
+    lead_ids = set()
+    for t in all_twgs:
+        if t.political_lead_id:
+            lead_ids.add(t.political_lead_id)
+        if t.technical_lead_id:
+            lead_ids.add(t.technical_lead_id)
+
+    existing_member_ids = {m.id for m in council.members}
+
+    # Add new leads
+    added = 0
+    if lead_ids:
+        ids_to_add = lead_ids - existing_member_ids
+        if ids_to_add:
+            users_result = await db.execute(
+                select(User).where(User.id.in_(ids_to_add))
+            )
+            for user in users_result.scalars().all():
+                council.members.append(user)
+                added += 1
+
+    # Remove stale members (no longer a lead of any TWG)
+    removed = 0
+    stale = [m for m in council.members if m.id not in lead_ids]
+    for m in stale:
+        council.members.remove(m)
+        removed += 1
+
+    await db.flush()
+
+    return {"added": added, "removed": removed, "total_members": len(council.members)}
+
+
 @router.post("/{twg_id}/sync-leads", status_code=status.HTTP_200_OK)
 async def sync_leads_council(
     twg_id: uuid.UUID,
@@ -453,9 +651,7 @@ async def sync_leads_council(
     """
     # Verify this is the leads council
     result = await db.execute(
-        select(TWG)
-        .options(selectinload(TWG.members))
-        .where(TWG.id == twg_id)
+        select(TWG).where(TWG.id == twg_id)
     )
     council = result.scalar_one_or_none()
     if not council:
@@ -463,42 +659,12 @@ async def sync_leads_council(
     if council.group_type != "leads_council":
         raise HTTPException(status_code=400, detail="This endpoint is only for leads_council groups")
 
-    # Fetch all active TWGs (standard TWGs only)
-    twgs_result = await db.execute(
-        select(TWG).where(TWG.group_type == "twg", TWG.status == "active")
-    )
-    all_twgs = twgs_result.scalars().all()
-
-    # Collect lead user IDs
-    lead_ids = set()
-    for twg in all_twgs:
-        if twg.political_lead_id:
-            lead_ids.add(twg.political_lead_id)
-        if twg.technical_lead_id:
-            lead_ids.add(twg.technical_lead_id)
-
-    if not lead_ids:
-        return {"message": "No leads found across TWGs. No members added.", "synced": 0}
-
-    # Load the actual User objects
-    users_result = await db.execute(
-        select(User).where(User.id.in_(lead_ids))
-    )
-    lead_users = users_result.scalars().all()
-
-    # Determine existing council member IDs
-    existing_member_ids = {m.id for m in council.members}
-
-    added = 0
-    for user in lead_users:
-        if user.id not in existing_member_ids:
-            council.members.append(user)
-            added += 1
-
+    sync_result = await _sync_leads_council_membership(db)
     await db.commit()
 
     return {
-        "message": f"Synced {added} new lead(s) to {council.name}. Total members: {len(council.members)}.",
-        "synced": added,
-        "total_members": len(council.members)
+        "message": f"Synced leads council: {sync_result['added']} added, {sync_result['removed']} removed. Total members: {sync_result['total_members']}.",
+        "synced": sync_result["added"],
+        "removed": sync_result["removed"],
+        "total_members": sync_result["total_members"]
     }

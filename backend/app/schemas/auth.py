@@ -98,8 +98,11 @@ class UserResponse(BaseModel):
     is_active: bool
     last_login: Optional[datetime]
     created_at: datetime
+    invite_sent_at: Optional[datetime] = None
+    invite_accepted_at: Optional[datetime] = None
+    password_reset_at: Optional[datetime] = None
     twg_ids: list[uuid.UUID] = []
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -114,6 +117,7 @@ class UserWithToken(BaseModel):
 class UserUpdate(BaseModel):
     """Schema for updating user data (Admin only)."""
     full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
     role: Optional[UserRole] = None
     organization: Optional[str] = None
     is_active: Optional[bool] = None

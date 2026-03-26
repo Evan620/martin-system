@@ -69,8 +69,10 @@ class Settings(BaseSettings):
     )
     
     # LLM Provider Configuration
-    LLM_PROVIDER: str = "github"
-    LLM_MODEL: str = "gpt-4o-mini"
+    LLM_PROVIDER: str = "anthropic"
+    LLM_MODEL: str = "claude-sonnet-4-20250514"
+    LLM_MODEL_FAST: str = "claude-sonnet-4-20250514"
+    LLM_MODEL_POWERFUL: str = "claude-sonnet-4-20250514"
     LLM_MAX_TOKENS: int = 4000
 
     # Groq
@@ -83,7 +85,11 @@ class Settings(BaseSettings):
 
     # Gemini
     GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+
+    # Anthropic (Claude)
+    ANTHROPIC_API_KEY: Optional[str] = None
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
 
     # GitHub Models
     GITHUB_TOKEN: Optional[str] = None

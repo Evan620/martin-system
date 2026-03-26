@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block header_title %}Meeting Invitation{% endblock %}
+
+{% block content %}
+<h2>{{ title }}</h2>
+
+<p>You have been invited to a meeting.</p>
+
+<table>
+    <tr>
+        <td style="font-weight: 600; width: 140px; color: #333;">Date & Time</td>
+        <td>{{ scheduled_time }}</td>
+    </tr>
+    <tr>
+        <td style="font-weight: 600; color: #333;">Duration</td>
+        <td>{{ duration_minutes }} minutes</td>
+    </tr>
+    <tr>
+        <td style="font-weight: 600; color: #333;">TWG</td>
+        <td>{{ twg_name }}</td>
+    </tr>
+    <tr>
+        <td style="font-weight: 600; color: #333;">Venue</td>
+        <td>{{ location }}</td>
+    </tr>
+    {% if video_link %}
+    <tr>
+        <td style="font-weight: 600; color: #333;">Join Online</td>
+        <td><a href="{{ video_link }}" style="color: #004a99; font-weight: 600;">{{ video_link }}</a></td>
+    </tr>
+    {% endif %}
+</table>
+
+{% if video_link %}
+<div style="text-align: center; margin: 25px 0;">
+    <a href="{{ video_link }}" class="button">Join Meeting</a>
+</div>
+{% endif %}
+
+<p style="color: #6c757d; font-size: 13px;">
+    A Google Calendar invite has been sent to your email. Please check your calendar for the event.
+</p>
+{% endblock %}

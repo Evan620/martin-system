@@ -86,117 +86,38 @@ async def route_query_node(state: AgentState) -> AgentState:
         state["query"] = clean_q
         return state
 
-    relevant = []
-    
-    # --- 1. LLM INTENT PARSING ---
-    from app.agents.intent_parser import get_intent_parser
-    
+    # --- 1. SEMANTIC EMBEDDING ROUTING ---
+    from app.services.semantic_router import get_semantic_router
+
+    relevant = []  # Initialize before try block to avoid NameError on fallback
     try:
-        parser = get_intent_parser()
-        # Parse intent
-        intent = await parser.parse_directive(query, context)
-        
-        # Store intent in state
-        if intent:
-            state["directive_intent"] = intent.dict()
-            logger.info(f"[ROUTE] Intent Parsed: {intent.primary_action}, Targets: {intent.target_twgs}")
-            
-            # Use parsed targets if available and valid
-            if intent.target_twgs:
-                # Normalize TWG names (handle "ALL" or specific list)
-                if "ALL" in [t.upper() for t in intent.target_twgs]:
-                    # All agents
-                    agent_domains = ["energy", "agriculture", "minerals", "digital"]
-                    relevant = agent_domains
-                    logger.info("[ROUTE] Routing to ALL agents based on intent")
-                else:
-                    # Filter valid agents
-                    valid_agents = ["energy", "agriculture", "minerals", "digital"]
-                    for target in intent.target_twgs:
-                        target_clean = target.lower().strip()
-                        if target_clean in valid_agents:
-                            relevant.append(target_clean)
-                        # Handle mapping (e.g. 'finance' -> 'resource_mobilization') if needed, 
-                        # but keyword fallback catches most.
-                        
-                if relevant:
-                    logger.info(f"[ROUTE] Using LLM-routed agents: {relevant}")
-    
+        router = get_semantic_router()
+        routed_agents, del_type = router.route(query)
+
+        if routed_agents:
+            # Need to verify if the semantic router returned valid registered agents,
+            # but currently ALL main TWGs are valid.
+            relevant = routed_agents
+            logger.info(f"[ROUTE] Semantic Router delegated to: {relevant} ({del_type})")
+
     except Exception as e:
-        logger.error(f"[ROUTE] Intent parsing failed: {e}")
-        # Continue to fallback
-        
-    # --- 2. KEYWORD FALLBACK (if LLM didn't find specific targets) ---
-    if not relevant:
-        logger.info("[ROUTE] Fallback to Keyword Routing")
-        
-        agent_domains = {
-            "energy": {
-                "primary": ["energy", "infrastructure", "power", "electricity", "renewable", "solar", "wind", "wapp"],
-                "secondary": ["grid", "transmission", "hydroelectric", "fuel", "petroleum"]
-            },
-            "agriculture": {
-                "primary": ["agriculture", "food system", "food security", "farming", "crop", "livestock", "agribusiness"],
-                "secondary": ["fertilizer", "irrigation", "harvest", "rural", "farmer", "food production"]
-            },
-            "minerals": {
-                "primary": ["mining", "mineral", "critical minerals", "industrialization", "cobalt", "lithium", "gold", "bauxite", "extraction"],
-                "secondary": ["value chain", "ore", "quarry", "geology"]
-            },
-            "digital": {
-                "primary": ["digital", "technology", "internet", "broadband", "fintech", "e-commerce", "e-government", "transformation"],
-                "secondary": ["cybersecurity", "ai", "software", "tech", "online", "platform"]
-            },
+        logger.error(f"[ROUTE] Semantic routing failed, falling back to supervisor: {e}")
 
-        }
-
-        agent_scores = {}
-
-        # Score each agent based on keyword matches
-        for agent_id, keywords in agent_domains.items():
-            score = 0
-
-            # Check primary keywords (10 points each)
-            for keyword in keywords.get("primary", []):
-                if keyword in query_lower:
-                    score += 10
-                    logger.debug(f"Primary match '{keyword}' for {agent_id} (+10)")
-
-            # Check secondary keywords (3 points each)
-            for keyword in keywords.get("secondary", []):
-                if keyword in query_lower:
-                    score += 3
-                    logger.debug(f"Secondary match '{keyword}' for {agent_id} (+3)")
-
-            if score > 0:
-                agent_scores[agent_id] = score
-
-        # Filter agents that meet threshold (5 points minimum)
-        relevant_threshold = 5
-        relevant_keyword = [
-            agent_id for agent_id, score in agent_scores.items()
-            if score >= relevant_threshold
-        ]
-
-        # Sort by score (highest first)
-        relevant_keyword.sort(key=lambda x: agent_scores[x], reverse=True)
-        
-        relevant = relevant_keyword
-
-        if relevant:
-            scores_str = ", ".join([f"{a}({agent_scores[a]})" for a in relevant])
-            logger.info(f"[ROUTE] Relevant agents identified via keywords: {scores_str}")
-        else:
-            logger.info(f"[ROUTE] No specific TWG identified, will use supervisor")
-
-    # --- 3. SCHEDULING OVERRIDE ---
-    # If this is a scheduling request, ALWAYS route to supervisor (it has the scheduling tools)
+    # --- 3. SUPERVISOR OVERRIDE FOR CROSS-CUTTING QUERIES ---
+    # Scheduling requests → supervisor (has scheduling tools)
     scheduling_keywords = ["schedule", "book", "meeting", "calendar", "appointment"]
     is_scheduling_request = any(keyword in query_lower for keyword in scheduling_keywords)
-    
+
     if is_scheduling_request and relevant:
         logger.info(f"[ROUTE] Scheduling request detected - overriding to supervisor_only (has scheduling tools)")
-        # Clear TWG routing and force supervisor
+        relevant = []
+
+    # Document queries → supervisor (has get_document_registry_tool for cross-TWG search)
+    document_keywords = ["document", "file", "pdf", "upload", "registry", "letter", "report", "memo", "brief"]
+    is_document_query = any(keyword in query_lower for keyword in document_keywords)
+
+    if is_document_query and relevant:
+        logger.info(f"[ROUTE] Document query detected - overriding to supervisor_only (has document registry tool)")
         relevant = []
 
     # Determine delegation type
@@ -227,11 +148,25 @@ async def supervisor_node(state: AgentState, supervisor_agent: LangGraphBaseAgen
     thread_id = state.get("session_id")
     logger.info(f"[SUPERVISOR] Handling query with general knowledge")
 
-    user_timezone = state.get("user_timezone")
-    response = await supervisor_agent.chat(query, thread_id=thread_id, user_timezone=user_timezone)
+    try:
+        user_timezone = state.get("user_timezone")
+        response = await supervisor_agent.chat(query, thread_id=thread_id, user_timezone=user_timezone)
 
-    state["final_response"] = response
-    state["agent_responses"]["supervisor"] = response
+        # chat() returns dict {"response": str, "citations": list} — extract text for final_response
+        if isinstance(response, dict):
+            state["final_response"] = response.get("response", "")
+            citations = response.get("citations", [])
+            if citations:
+                state["citations"] = citations
+        else:
+            state["final_response"] = str(response)
+        state["agent_responses"]["supervisor"] = response
+    except GraphInterrupt:
+        # Re-raise so it bubbles up to the outer graph and API layer
+        raise
+    except Exception as e:
+        logger.error(f"[SUPERVISOR] Error in supervisor_node: {e}")
+        state["final_response"] = f"I encountered an error processing your request: {str(e)}"
 
     return state
 
@@ -333,7 +268,11 @@ FORMATTING RULES:
     # Get supervisor's unified memo
     try:
         unified_memo = await supervisor_agent.chat(synthesis_prompt)
-        output = unified_memo
+        # chat() returns dict {"response": str, "citations": list} — extract text
+        if isinstance(unified_memo, dict):
+            output = unified_memo.get("response", "")
+        else:
+            output = str(unified_memo)
     except Exception as e:
         logger.error(f"[SYNTHESIS] Synthesis generation failed: {e}")
         output = f"Error generating unified memo: {str(e)}\n\nPlease review the request and try again."
@@ -352,7 +291,8 @@ FORMATTING RULES:
         """
 
         try:
-            conflict_check = await supervisor_agent.chat(conflict_prompt)
+            conflict_check_raw = await supervisor_agent.chat(conflict_prompt)
+            conflict_check = conflict_check_raw.get("response", "") if isinstance(conflict_check_raw, dict) else str(conflict_check_raw)
 
             if "CONFLICT DETECTED" in conflict_check.upper():
                 output += f"\n\nCONFLICT ALERT:\n{conflict_check}"

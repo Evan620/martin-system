@@ -44,7 +44,7 @@ def get_prompt(agent_id: str) -> str:
     Example:
         >>> prompt = get_prompt("energy")
         >>> print(prompt[:50])
-        You are the Energy & Infrastructure TWG Agent...
+        You are Energy Martin, the Energy Trade and...
     """
     # Check if agent exists
     if agent_id not in AVAILABLE_AGENTS:

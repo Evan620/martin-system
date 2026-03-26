@@ -6,7 +6,8 @@ Triggers automated negotiation or escalation as needed.
 """
 
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 from loguru import logger
 import re
 import json

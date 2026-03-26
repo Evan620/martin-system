@@ -16,9 +16,63 @@ interface TwgMemberManagerProps {
     twgId: string;
     twgName?: string;
     canEdit?: boolean;
+    isAutoManaged?: boolean;
 }
 
-const TwgMemberManager = ({ twgId, twgName, canEdit = true }: TwgMemberManagerProps) => {
+/**
+ * Parse bulk text input into member entries.
+ * Supports formats:
+ *   - email@example.com (one per line or comma-separated)
+ *   - Full Name <email@example.com>
+ *   - Full Name, email@example.com
+ */
+function parseBulkInput(text: string): { email: string; full_name: string }[] {
+    const entries: { email: string; full_name: string }[] = [];
+    const seen = new Set<string>();
+
+    // Split by newlines and commas (but not commas inside "Name, email" pairs)
+    const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+
+    for (const line of lines) {
+        // Format: Name <email>
+        const angleBracket = line.match(/^(.+?)\s*<([^>]+@[^>]+)>\s*$/);
+        if (angleBracket) {
+            const email = angleBracket[2].trim().toLowerCase();
+            if (!seen.has(email)) {
+                seen.add(email);
+                entries.push({ email, full_name: angleBracket[1].trim() });
+            }
+            continue;
+        }
+
+        // Format: Name, email  (name has no @, email has @)
+        const commaParts = line.split(',').map(p => p.trim());
+        if (commaParts.length === 2 && commaParts[1].includes('@') && !commaParts[0].includes('@')) {
+            const email = commaParts[1].toLowerCase();
+            if (!seen.has(email)) {
+                seen.add(email);
+                entries.push({ email, full_name: commaParts[0] });
+            }
+            continue;
+        }
+
+        // Format: plain emails (comma-separated on one line)
+        const emailCandidates = line.split(/[,;]/).map(p => p.trim()).filter(Boolean);
+        for (const candidate of emailCandidates) {
+            if (candidate.includes('@')) {
+                const email = candidate.toLowerCase();
+                if (!seen.has(email)) {
+                    seen.add(email);
+                    entries.push({ email, full_name: '' });
+                }
+            }
+        }
+    }
+
+    return entries;
+}
+
+const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = false }: TwgMemberManagerProps) => {
     const [members, setMembers] = useState<TwgMember[]>([]);
     const [loading, setLoading] = useState(true);
     const [addEmail, setAddEmail] = useState('');
@@ -27,6 +81,13 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true }: TwgMemberManagerPr
     const [removingId, setRemovingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+
+    // Bulk mode state
+    const [bulkMode, setBulkMode] = useState(false);
+    const [bulkText, setBulkText] = useState('');
+    const [bulkResult, setBulkResult] = useState<any>(null);
+
+    const parsedBulk = bulkMode ? parseBulkInput(bulkText) : [];
 
     const loadMembers = async () => {
         try {
@@ -67,6 +128,30 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true }: TwgMemberManagerPr
         }
     };
 
+    const handleBulkAdd = async () => {
+        if (parsedBulk.length === 0) return;
+
+        setAdding(true);
+        setError(null);
+        setSuccess(null);
+        setBulkResult(null);
+
+        try {
+            const response = await twgs.bulkAddMembers(twgId, parsedBulk);
+            const data = response.data;
+            setSuccess(data.message);
+            setBulkResult(data);
+            setBulkText('');
+            await loadMembers();
+            setTimeout(() => { setSuccess(null); setBulkResult(null); }, 8000);
+        } catch (err: any) {
+            setError(err.response?.data?.detail || 'Failed to add members');
+            setTimeout(() => setError(null), 5000);
+        } finally {
+            setAdding(false);
+        }
+    };
+
     const handleRemoveMember = async (userId: string, name: string) => {
         if (!confirm(`Remove ${name} from this TWG?`)) return;
 
@@ -97,51 +182,153 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true }: TwgMemberManagerPr
 
     return (
         <div className="space-y-6">
+            {/* Auto-Managed Banner */}
+            {isAutoManaged && (
+                <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 flex items-center gap-3">
+                    <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[20px]">sync</span>
+                    <div>
+                        <p className="text-sm font-bold text-blue-700 dark:text-blue-300">Auto-Managed Membership</p>
+                        <p className="text-xs text-blue-600/80 dark:text-blue-400/80 mt-0.5">
+                            This group's membership is automatically synced from TWG political and technical leads. To update membership, change lead assignments on individual TWGs.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Add Member Form - only for editors */}
-            {canEdit && (
+            {canEdit && !isAutoManaged && (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2 mb-4">
-                        <span className="material-symbols-outlined text-blue-600 text-[20px]">person_add</span>
-                        Add Member
-                    </h3>
-                    <form onSubmit={handleAddMember} className="flex gap-3 flex-wrap">
-                        <input
-                            type="text"
-                            value={addName}
-                            onChange={(e) => setAddName(e.target.value)}
-                            placeholder="Full name"
-                            disabled={adding}
-                            className="w-48 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
-                        />
-                        <input
-                            type="email"
-                            value={addEmail}
-                            onChange={(e) => setAddEmail(e.target.value)}
-                            placeholder="Email address"
-                            disabled={adding}
-                            className="flex-1 min-w-[200px] px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
-                        />
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="material-symbols-outlined text-blue-600 text-[20px]">
+                                {bulkMode ? 'group_add' : 'person_add'}
+                            </span>
+                            {bulkMode ? 'Bulk Add Members' : 'Add Member'}
+                        </h3>
                         <button
-                            type="submit"
-                            disabled={adding || !addEmail.trim()}
-                            className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-blue-600/20"
+                            onClick={() => { setBulkMode(!bulkMode); setBulkResult(null); }}
+                            className="text-xs font-bold text-blue-600 hover:text-blue-500 transition-colors flex items-center gap-1"
                         >
-                            {adding ? (
-                                <>
-                                    <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
-                                    Adding...
-                                </>
-                            ) : (
-                                <>
-                                    <span className="material-symbols-outlined text-[18px]">add</span>
-                                    Add
-                                </>
-                            )}
+                            <span className="material-symbols-outlined text-[16px]">
+                                {bulkMode ? 'person_add' : 'group_add'}
+                            </span>
+                            {bulkMode ? 'Single Add' : 'Bulk Add'}
                         </button>
-                    </form>
-                    <p className="text-[11px] text-slate-400 mt-2">
-                        If the user isn't registered yet, provide their full name and a new account will be created automatically.
-                    </p>
+                    </div>
+
+                    {bulkMode ? (
+                        /* Bulk Add Mode */
+                        <div className="space-y-3">
+                            <textarea
+                                value={bulkText}
+                                onChange={(e) => setBulkText(e.target.value)}
+                                placeholder={`Paste emails here (one per line). Supported formats:\n\njohn@example.com\nJane Doe <jane@example.com>\nJohn Smith, john@example.com`}
+                                disabled={adding}
+                                rows={6}
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200 placeholder:text-slate-400 resize-none"
+                            />
+                            <div className="flex items-center justify-between">
+                                <div className="text-xs text-slate-500">
+                                    {parsedBulk.length > 0 ? (
+                                        <span className="font-bold text-blue-600">
+                                            {parsedBulk.length} member{parsedBulk.length !== 1 ? 's' : ''} detected
+                                            {parsedBulk.filter(p => !p.full_name).length > 0 && (
+                                                <span className="text-amber-500 ml-1">
+                                                    ({parsedBulk.filter(p => !p.full_name).length} without names)
+                                                </span>
+                                            )}
+                                        </span>
+                                    ) : bulkText.trim() ? (
+                                        <span className="text-amber-500">No valid emails detected</span>
+                                    ) : null}
+                                </div>
+                                <button
+                                    onClick={handleBulkAdd}
+                                    disabled={adding || parsedBulk.length === 0}
+                                    className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-blue-600/20"
+                                >
+                                    {adding ? (
+                                        <>
+                                            <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                                            Adding...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="material-symbols-outlined text-[18px]">group_add</span>
+                                            Add {parsedBulk.length} Member{parsedBulk.length !== 1 ? 's' : ''}
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Bulk Result Summary */}
+                            {bulkResult && (
+                                <div className="mt-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-xs space-y-1">
+                                    {bulkResult.summary.added > 0 && (
+                                        <div className="flex items-center gap-1 text-green-600 dark:text-green-400 font-bold">
+                                            <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                            {bulkResult.summary.added} added
+                                            {bulkResult.summary.new_accounts > 0 && ` (${bulkResult.summary.new_accounts} new accounts)`}
+                                        </div>
+                                    )}
+                                    {bulkResult.summary.skipped > 0 && (
+                                        <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-bold">
+                                            <span className="material-symbols-outlined text-[14px]">info</span>
+                                            {bulkResult.summary.skipped} skipped (already members)
+                                        </div>
+                                    )}
+                                    {bulkResult.summary.errors > 0 && (
+                                        <div className="flex items-center gap-1 text-red-600 dark:text-red-400 font-bold">
+                                            <span className="material-symbols-outlined text-[14px]">error</span>
+                                            {bulkResult.summary.errors} failed
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        /* Single Add Mode */
+                        <>
+                            <form onSubmit={handleAddMember} className="flex gap-3 flex-wrap">
+                                <input
+                                    type="text"
+                                    value={addName}
+                                    onChange={(e) => setAddName(e.target.value)}
+                                    placeholder="Full name"
+                                    disabled={adding}
+                                    className="w-48 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
+                                />
+                                <input
+                                    type="email"
+                                    value={addEmail}
+                                    onChange={(e) => setAddEmail(e.target.value)}
+                                    placeholder="Email address"
+                                    disabled={adding}
+                                    className="flex-1 min-w-[200px] px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={adding || !addEmail.trim()}
+                                    className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-blue-600/20"
+                                >
+                                    {adding ? (
+                                        <>
+                                            <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                                            Adding...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="material-symbols-outlined text-[18px]">add</span>
+                                            Add
+                                        </>
+                                    )}
+                                </button>
+                            </form>
+                            <p className="text-[11px] text-slate-400 mt-2">
+                                If the user isn't registered yet, provide their full name and a new account will be created automatically.
+                            </p>
+                        </>
+                    )}
                 </div>
             )}
 
@@ -228,8 +415,8 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true }: TwgMemberManagerPr
                                         </div>
                                     </div>
 
-                                    {/* Remove Button - hidden for leads and read-only viewers */}
-                                    {canEdit && !isLead && (
+                                    {/* Remove Button - hidden for leads, read-only viewers, and auto-managed groups */}
+                                    {canEdit && !isAutoManaged && !isLead && (
                                         <button
                                             onClick={() => handleRemoveMember(member.id, member.full_name)}
                                             disabled={removingId === member.id}
@@ -243,7 +430,7 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true }: TwgMemberManagerPr
                                             )}
                                         </button>
                                     )}
-                                    {canEdit && isLead && (
+                                    {canEdit && !isAutoManaged && isLead && (
                                         <span className="material-symbols-outlined text-[18px] text-slate-300 dark:text-slate-600" title="Leads cannot be removed here">
                                             lock
                                         </span>

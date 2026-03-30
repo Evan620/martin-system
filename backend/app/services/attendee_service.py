@@ -606,7 +606,7 @@ class AttendeeService:
         Uses meeting.attendee_bot_id for direct DB lookup (no fuzzy title matching).
         """
         try:
-            event = payload.get("event", "")
+            event = payload.get("trigger") or payload.get("event", "")
             bot_id = payload.get("bot_id") or payload.get("data", {}).get("bot_id")
             logger.info(f"Processing Attendee webhook — event={event}, bot_id={bot_id}")
 
@@ -637,7 +637,8 @@ class AttendeeService:
                 if event == "transcript.update":
                     await self._handle_transcript_update(meeting, bot_id, db)
                 elif event == "bot.state_change":
-                    new_state = payload.get("data", {}).get("state", "")
+                    data = payload.get("data", {})
+                    new_state = data.get("new_state") or data.get("state", "")
                     logger.info(f"Bot {bot_id} state changed to: {new_state}")
                     if new_state in ("ended", "post_processing", "done", "completed"):
                         # Bot finished — fetch transcript immediately

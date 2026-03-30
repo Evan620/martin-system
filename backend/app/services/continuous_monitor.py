@@ -33,7 +33,7 @@ from app.models.models import (
     ConflictType, ConflictSeverity, MeetingStatus
 )
 from app.services.conflict_detector import ConflictDetector
-from app.services.fireflies_service import fireflies_service
+from app.services.attendee_service import attendee_service
 
 class ContinuousMonitor:
     """
@@ -79,19 +79,23 @@ class ContinuousMonitor:
         #     trigger=IntervalTrigger(hours=6),
         #     id="scan_projects", replace_existing=True
         # )
-        # self.scheduler.add_job(
-        #     self.check_upcoming_meetings,  # No-op (Fireflies replaced Vexa)
-        #     trigger=IntervalTrigger(minutes=1),
-        #     id="vexa_dispatch", replace_existing=True
-        # )
 
-        # 6. Check Pending Transcripts (safety-net poll; webhooks are primary delivery)
+        # 6. Dispatch Attendee bots to upcoming meetings (every 60s)
+        self.scheduler.add_job(
+            self.dispatch_attendee_bots,
+            trigger=IntervalTrigger(seconds=60),
+            id="attendee_bot_dispatch",
+            replace_existing=True,
+            misfire_grace_time=60
+        )
+
+        # 7. Check Pending Transcripts (safety-net poll; webhooks are primary delivery)
         self.scheduler.add_job(
             self.check_pending_transcripts,
-            trigger=IntervalTrigger(minutes=settings.FIREFLIES_POLL_INTERVAL_MINUTES),
-            id="fireflies_transcript_check",
+            trigger=IntervalTrigger(minutes=settings.ATTENDEE_POLL_INTERVAL_MINUTES),
+            id="attendee_transcript_check",
             replace_existing=True,
-            misfire_grace_time=120  # tolerate up to 2 min delay
+            misfire_grace_time=120
         )
 
         # 7. Sync Pending Calendar Links (Every 30 seconds)
@@ -258,186 +262,180 @@ class ContinuousMonitor:
             except Exception as e:
                 logger.error(f"Error syncing calendar links: {e}")
 
-    async def check_upcoming_meetings(self):
+    async def dispatch_attendee_bots(self):
         """
-        No-op for Fireflies integration (Fireflies auto-joins via Calendar).
-        Kept for compatibility with scheduler or future pre-meeting logic.
+        Dispatch Attendee bots to upcoming meetings.
+        Runs every 60 seconds. Finds meetings starting within ATTENDEE_DISPATCH_MINUTES_BEFORE
+        that have a video_link but no attendee_bot_id yet.
         """
-        # Fireflies bot auto-joins meetings in the connected Google Calendar.
-        # No explicit dispatch needed.
-        pass
+        async with get_db_session_context() as db:
+            try:
+                now = datetime.utcnow()
+                dispatch_window = now + timedelta(minutes=settings.ATTENDEE_DISPATCH_MINUTES_BEFORE)
+
+                stmt = select(Meeting).where(
+                    and_(
+                        Meeting.scheduled_at <= dispatch_window,
+                        Meeting.scheduled_at >= now - timedelta(minutes=5),  # Don't dispatch for meetings that started >5 min ago
+                        Meeting.video_link.isnot(None),
+                        Meeting.video_link != "",
+                        Meeting.attendee_bot_id.is_(None),
+                        Meeting.status == MeetingStatus.SCHEDULED,
+                    )
+                )
+                result = await db.execute(stmt)
+                meetings = result.scalars().all()
+
+                if not meetings:
+                    return
+
+                logger.info(f"Dispatching Attendee bots for {len(meetings)} upcoming meetings")
+
+                for meeting in meetings:
+                    try:
+                        bot_id = await attendee_service.dispatch_bot(
+                            meeting_url=meeting.video_link,
+                            meeting_id=str(meeting.id),
+                        )
+                        if bot_id:
+                            meeting.attendee_bot_id = bot_id
+                            await db.commit()
+                            logger.info(f"Dispatched Attendee bot {bot_id} for '{meeting.title}'")
+                        else:
+                            logger.warning(f"Failed to dispatch Attendee bot for '{meeting.title}'")
+                    except Exception as e:
+                        logger.error(f"Error dispatching bot for '{meeting.title}': {e}")
+
+            except Exception as e:
+                logger.error(f"Error in dispatch_attendee_bots: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
 
     async def check_pending_transcripts(self):
         """
-        Safety-net poll for Fireflies transcripts.
-        Primary delivery is via the /api/v1/webhooks/fireflies webhook.
-        This poll runs every FIREFLIES_POLL_INTERVAL_MINUTES (default 15) to
-        catch any transcripts missed by the webhook path.
+        Safety-net poll for Attendee transcripts.
+        Primary delivery is via the /api/v1/webhooks/attendee webhook.
+        This poll catches any transcripts missed by the webhook path.
         """
-        # Skip if Fireflies API is currently rate-limited
-        rl_status = fireflies_service.get_rate_limit_status()
+        rl_status = attendee_service.get_rate_limit_status()
         if rl_status["is_rate_limited"]:
             logger.info(
-                f"Skipping Fireflies poll — rate-limited for {rl_status['seconds_remaining']}s "
+                f"Skipping Attendee poll — rate-limited for {rl_status['seconds_remaining']}s "
                 f"(consecutive failures: {rl_status['consecutive_failures']})"
             )
             return
 
-        logger.info("Checking pending Fireflies transcripts (safety-net poll)...")
+        logger.info("Checking pending Attendee transcripts (safety-net poll)...")
         async with get_db_session_context() as db:
             try:
                 start_window = datetime.utcnow() - timedelta(hours=24)
-                
+
+                # Find meetings with a bot dispatched but no transcript yet
                 stmt = select(Meeting).options(
                     selectinload(Meeting.twg),
                     selectinload(Meeting.minutes),
                     selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
                 ).where(
                     and_(
+                        Meeting.attendee_bot_id.isnot(None),
                         Meeting.scheduled_at >= start_window,
                         or_(Meeting.transcript.is_(None), Meeting.transcript == ""),
-                        Meeting.status.in_([MeetingStatus.IN_PROGRESS, MeetingStatus.COMPLETED, MeetingStatus.SCHEDULED])
+                        Meeting.status.in_([MeetingStatus.IN_PROGRESS, MeetingStatus.COMPLETED, MeetingStatus.SCHEDULED]),
                     )
                 )
                 result = await db.execute(stmt)
                 candidate_meetings = result.scalars().all()
-                
+
                 if not candidate_meetings:
-                    logger.debug("No pending meetings found for transcription check")
+                    logger.debug("No pending meetings found for Attendee transcript check")
                     return
 
-                logger.info(f"Found {len(candidate_meetings)} meetings to check for transcripts")
+                logger.info(f"Found {len(candidate_meetings)} meetings to check for Attendee transcripts")
 
-                # 2. List recent transcripts from Fireflies (small limit — this is a safety net)
-                fireflies_transcripts = await fireflies_service.list_transcripts(limit=5)
-                
-                if not fireflies_transcripts:
-                    logger.debug("No recent transcripts returned from Fireflies API")
-                    return
-
-                # 3. Match Transcripts to Meetings
                 for meeting in candidate_meetings:
-                    # Simple matching: Check if meeting title matches transcript title
-                    # Enhancement: Could also check date similarity
-                    
-                    matched_transcript = None
-                    for ft in fireflies_transcripts:
-                        # Normalize titles for comparison
-                        ft_title = ft.get("title", "").lower().strip()
-                        m_title = meeting.title.lower().strip()
-                        
-                        if m_title in ft_title or ft_title in m_title:
-                            # Verify date is close (within 1 hour)
-                            # Fireflies date format: 1738752834000 (ms timestamp) or ISO string?
-                            # API returns milliseconds usually.
-                            
-                            ft_date_raw = ft.get("date")
-                            if ft_date_raw:
-                                try:
-                                    # Handle ms timestamp
-                                    if isinstance(ft_date_raw, (int, float)):
-                                        ft_date = datetime.fromtimestamp(ft_date_raw / 1000.0, tz=UTC)
-                                    else:
-                                        # Try ISO format just in case
-                                        ft_date = datetime.fromisoformat(str(ft_date_raw))
-                                        if ft_date.tzinfo is None:
-                                            ft_date = ft_date.replace(tzinfo=UTC)
-                                    
-                                    # Make meeting date aware
-                                    m_date = meeting.scheduled_at.replace(tzinfo=UTC)
-                                    
-                                    # Check exact match or within reasonable window
-                                    diff = abs((ft_date - m_date).total_seconds())
-                                    if diff < 3600: # 1 hour
-                                        matched_transcript = ft
-                                        break
-                                except Exception as e:
-                                    logger.warning(f"Date parsing error for Fireflies transcript {ft.get('id')}: {e}")
-                                    # Fallback to just title match if date fails? 
-                                    # Safer to require date match to avoid wrong meeting.
-                                    pass
-                            else:
-                                # No date, rely on strict title
-                                matched_transcript = ft
-                                break
-                    
-                    if matched_transcript:
-                        logger.info(f"✓ Found MATCHING Fireflies transcript for '{meeting.title}' (ID: {matched_transcript['id']})")
-                        
-                        # 4. Fetch Full Transcript Details
-                        full_transcript = await fireflies_service.get_transcript(matched_transcript['id'])
-                        
-                        if full_transcript:
-                            transcript_text = fireflies_service.format_transcript_text(full_transcript)
+                    try:
+                        # Check bot status
+                        bot_status = await attendee_service.get_bot_status(meeting.attendee_bot_id)
+                        if not bot_status:
+                            continue
 
-                            if not transcript_text:
-                                logger.warning(f"Formatted transcript is empty for '{meeting.title}'. Fireflies keys: {list(full_transcript.keys())}")
-                                continue
+                        state = bot_status.get("state", bot_status.get("status", ""))
+                        logger.debug(f"Bot {meeting.attendee_bot_id} state: {state}")
 
-                            # Add summary to metadata if available
-                            summary = full_transcript.get('summary', {})
-                            if summary:
-                                if not meeting.ai_summary_json:
-                                    meeting.ai_summary_json = {}
-                                meeting.ai_summary_json['fireflies_summary'] = summary
+                        if state == "fatal_error":
+                            logger.error(f"Bot {meeting.attendee_bot_id} fatal error for '{meeting.title}'")
+                            continue
 
-                            logger.info(f"Processing transcript for '{meeting.title}' ({len(transcript_text)} chars)")
-                            
-                            # Call the new processing method to generate Minutes, PDF, etc.
-                            file_path_or_success = await fireflies_service.process_transcript_text(meeting, transcript_text, db)
-                            
-                            if file_path_or_success:
-                                meeting.status = MeetingStatus.COMPLETED
-                                logger.info(f"✓ Meeting {meeting.title} status updated to COMPLETED")
+                        if state not in ("ended", "post_processing", "done", "completed"):
+                            continue
 
-                                # Create a Document record for the transcript
-                                # Hack to get uploader
-                                res_u = await db.execute(select(User.id).limit(1))
-                                uploader_id = res_u.scalars().first()
-                                
-                                if uploader_id:
-                                    doc = Document(
-                                        twg_id=meeting.twg_id,
-                                        meeting_id=meeting.id,
-                                        file_name=f"Fireflies Transcript - {meeting.title}.txt",
-                                        file_path=str(file_path_or_success) if isinstance(file_path_or_success, str) else f"fireflies/{matched_transcript['id']}", 
-                                        file_type="text/plain",
-                                        document_type="transcript",
-                                        uploaded_by_id=uploader_id,
-                                        metadata_json={
-                                            "provider": "fireflies",
-                                            "fireflies_id": matched_transcript['id'],
-                                            "meeting_id": str(meeting.id),
-                                            "duration": full_transcript.get('duration'),
-                                            "participants": full_transcript.get('participants')
-                                        }
-                                    )
-                                    db.add(doc)
-                                
+                        # Bot has ended — fetch transcript
+                        transcript_data = await attendee_service.get_transcript(meeting.attendee_bot_id)
+                        if not transcript_data:
+                            logger.debug(f"Transcript not ready yet for bot {meeting.attendee_bot_id}")
+                            continue
+
+                        transcript_text = attendee_service.format_transcript_text(transcript_data)
+                        if not transcript_text:
+                            logger.warning(f"Formatted transcript is empty for '{meeting.title}'")
+                            continue
+
+                        logger.info(f"Processing transcript for '{meeting.title}' ({len(transcript_text)} chars)")
+
+                        file_path = await attendee_service.process_transcript_text(meeting, transcript_text, db)
+
+                        if file_path:
+                            meeting.status = MeetingStatus.COMPLETED
+                            logger.info(f"Meeting '{meeting.title}' status updated to COMPLETED")
+
+                            res_u = await db.execute(select(User.id).limit(1))
+                            uploader_id = res_u.scalars().first()
+                            if uploader_id:
+                                doc = Document(
+                                    twg_id=meeting.twg_id,
+                                    meeting_id=meeting.id,
+                                    file_name=f"Attendee Transcript - {meeting.title}.txt",
+                                    file_path=str(file_path) if isinstance(file_path, str) else f"attendee/{meeting.attendee_bot_id}",
+                                    file_type="text/plain",
+                                    document_type="transcript",
+                                    uploaded_by_id=uploader_id,
+                                    metadata_json={
+                                        "provider": "attendee",
+                                        "bot_id": meeting.attendee_bot_id,
+                                        "meeting_id": str(meeting.id),
+                                    },
+                                )
+                                db.add(doc)
+
+                            await db.commit()
+
+                            # Finalize and distribute
+                            try:
+                                logger.info(f"Finalizing and distributing minutes for '{meeting.title}'...")
+                                await attendee_service.finalize_and_distribute_minutes(meeting, db)
                                 await db.commit()
-                                
-                                # 5. Finalize and distribute minutes (after commit)
-                                try:
-                                    logger.info(f"Finalizing and distributing minutes for {meeting.title}...")
-                                    await fireflies_service.finalize_and_distribute_minutes(meeting, db)
-                                    await db.commit()
-                                except Exception as dist_e:
-                                    logger.error(f"Failed to finalize/distribute minutes: {dist_e}")
-                                    import traceback
-                                    logger.error(traceback.format_exc())
-                                
-                                # 6. Broadcast update
-                                try:
-                                    from app.services.broadcast_service import get_broadcast_service
-                                    broadcast = get_broadcast_service()
-                                    await broadcast.notify_meeting_update(meeting.id, {"status": "COMPLETED", "has_transcript": True})
-                                except Exception as be:
-                                    logger.error(f"Broadcast failed: {be}")
-                            else:
-                                logger.error(f"Failed to process transcript for {meeting.title}")
+                            except Exception as dist_e:
+                                logger.error(f"Failed to finalize/distribute minutes: {dist_e}")
+                                import traceback
+                                logger.error(traceback.format_exc())
+
+                            # Broadcast update
+                            try:
+                                from app.services.broadcast_service import get_broadcast_service
+                                broadcast = get_broadcast_service()
+                                await broadcast.notify_meeting_update(meeting.id, {"status": "COMPLETED", "has_transcript": True})
+                            except Exception as be:
+                                logger.error(f"Broadcast failed: {be}")
+                        else:
+                            logger.error(f"Failed to process transcript for '{meeting.title}'")
+
+                    except Exception as me:
+                        logger.error(f"Error processing meeting '{meeting.title}': {me}")
+                        import traceback
+                        logger.error(traceback.format_exc())
 
             except Exception as e:
-                logger.error(f"Error checking Fireflies transcripts: {e}")
+                logger.error(f"Error checking Attendee transcripts: {e}")
                 import traceback
                 traceback.print_exc()
 

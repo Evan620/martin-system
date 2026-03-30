@@ -679,40 +679,22 @@ async def generate_minutes(
 
     # 2. Validation & Fallback for transcript
     if not db_meeting.transcript:
-        # Legacy: Vexa placeholder fallback (deprecated — Fireflies is primary)
-        try:
-            from app.services.fireflies_service import fireflies_service as _ff_svc
-        except ImportError:
-            _ff_svc = None
-        
-        # Find placeholder doc
-        placeholder_doc = None
-        for doc in db_meeting.documents:
-            if doc.document_type == "transcript_placeholder":
-                placeholder_doc = doc
-                break
-        
-        if placeholder_doc and placeholder_doc.metadata_json and _ff_svc:
-            platform = placeholder_doc.metadata_json.get("platform")
-            native_meeting_id = placeholder_doc.metadata_json.get("native_meeting_id")
-            
-            if platform and native_meeting_id:
-                try:
-                    print(f"Attempting to fetch partial transcript for {platform}/{native_meeting_id}")
-                    # Try Fireflies transcript lookup by meeting ID
-                    full_transcript = await _ff_svc.get_transcript(native_meeting_id)
-                    
-                    if full_transcript:
-                        transcript_text = _ff_svc.format_transcript_text(full_transcript)
-                        if transcript_text:
-                            db_meeting.transcript = transcript_text
-                            await db.commit()
-                            print(f"Fetched and saved partial transcript ({len(db_meeting.transcript)} chars)")
-                except Exception as e:
-                    print(f"Failed to fetch partial transcript: {e}")
+        # Try fetching transcript from Attendee if bot was dispatched
+        if db_meeting.attendee_bot_id:
+            try:
+                from app.services.attendee_service import attendee_service as _att_svc
+                transcript_data = await _att_svc.get_transcript(db_meeting.attendee_bot_id)
+                if transcript_data:
+                    transcript_text = _att_svc.format_transcript_text(transcript_data)
+                    if transcript_text:
+                        db_meeting.transcript = transcript_text
+                        await db.commit()
+                        logger.info(f"Fetched and saved transcript from Attendee ({len(transcript_text)} chars)")
+            except Exception as e:
+                logger.warning(f"Failed to fetch transcript from Attendee: {e}")
 
     if not db_meeting.transcript:
-        raise HTTPException(status_code=400, detail="No transcript available for this meeting. Please add a transcript first or wait for Fireflies processing.")
+        raise HTTPException(status_code=400, detail="No transcript available for this meeting. Please add a transcript first or wait for Attendee processing.")
 
     # 3. Prepare Context for Synthesizer
     attendees_list = []
@@ -1267,7 +1249,16 @@ async def cancel_meeting(
 
     # Update status to cancelled
     db_meeting.status = MeetingStatus.CANCELLED
-    
+
+    # Remove Attendee bot if dispatched
+    if db_meeting.attendee_bot_id:
+        try:
+            from app.services.attendee_service import attendee_service
+            await attendee_service.leave_bot(db_meeting.attendee_bot_id)
+            logger.info(f"Attendee bot {db_meeting.attendee_bot_id} removed for cancelled meeting {db_meeting.id}")
+        except Exception as e:
+            logger.warning(f"Failed to remove Attendee bot on cancellation: {e}")
+
     emails_sent = 0
     if cancel_data.notify_participants and db_meeting.participants:
         # Collect emails
@@ -3664,7 +3655,8 @@ async def live_meeting_websocket(
                             question = msg_json.get("command")
                             print(f"Manual command received for {meeting_id}: {question}")
                             async with get_db_session_context() as db:
-                                await VexaService()._handle_live_command(str(meeting_id), question, db)
+                                from app.services.attendee_service import attendee_service
+                                await attendee_service._handle_live_command(str(meeting_id), question, db)
                         
                         elif msg_json.get("type") == "request_insight":
                             print(f"Manual insight request for {meeting_id}")
@@ -3677,7 +3669,8 @@ async def live_meeting_websocket(
                                     # For manual, we can treat the whole transcript as a 'chunk' or just the last bit.
                                     # Let's use the last 2000 chars for a quick manual scan.
                                     chunk = meeting_obj.transcript[-2000:]
-                                    await VexaService().analyze_live_chunk(str(meeting_id), chunk, db)
+                                    from app.services.attendee_service import attendee_service as _att_live
+                                    await _att_live.analyze_live_chunk(str(meeting_id), chunk, db)
                     except Exception as je:
                         # Not a valid JSON or other parse error, ignore or log
                         pass

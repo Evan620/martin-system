@@ -99,17 +99,17 @@ def scan_project_conflicts():
     max_retries=1,
 )
 def check_upcoming_meetings():
-    """Check for upcoming meetings and dispatch Vexa bot"""
-    logger.info("Celery task: check_upcoming_meetings started")
+    """Dispatch Attendee bots to upcoming meetings"""
+    logger.info("Celery task: dispatch_attendee_bots started")
     try:
         import asyncio
         from app.services.continuous_monitor import ContinuousMonitor
         monitor = ContinuousMonitor()
-        asyncio.run(monitor.check_upcoming_meetings())
-        logger.info("Celery task: check_upcoming_meetings completed")
+        asyncio.run(monitor.dispatch_attendee_bots())
+        logger.info("Celery task: dispatch_attendee_bots completed")
         return {"status": "success"}
     except Exception as e:
-        logger.error(f"Celery task: check_upcoming_meetings failed: {e}")
+        logger.error(f"Celery task: dispatch_attendee_bots failed: {e}")
         raise
 
 

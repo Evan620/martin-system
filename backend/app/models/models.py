@@ -371,6 +371,7 @@ class Meeting(Base):
     meeting_type: Mapped[str] = mapped_column(String(50), default="virtual") # virtual, in-person
     transcript: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # Text or link to transcript
     video_link: Mapped[Optional[str]] = mapped_column(String(512), nullable=True) # Google Meet / Zoom link
+    attendee_bot_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Attendee bot ID for transcript retrieval
 
     # Recurring Meeting Fields
     recurring_meeting_id: Mapped[Optional[uuid.UUID]] = mapped_column(

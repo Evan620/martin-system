@@ -286,32 +286,38 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = Field(default=50, description="Document chunk overlap")
     MAX_CHUNKS_PER_DOC: int = Field(default=1000, description="Maximum chunks per document")
 
-    # Vexa (Meeting Bot)
-    VEXA_API_URL: str = Field(
-        default="https://api.cloud.vexa.ai",
-        description="URL for Vexa Meeting Bot API"
-    )
-    VEXA_API_KEY: str = Field(
+    # Attendee Meeting Bot (self-hosted on Railway)
+    ATTENDEE_API_URL: str = Field(
         default="",
-        description="API Key from vexa.ai/dashboard/api-keys"
+        description="Attendee service API URL (e.g. https://attendee-service.railway.internal/api/v1)"
     )
-    
-    # Fireflies.ai (Meeting Transcription)
-    FIREFLIES_API_KEY: str = Field(
+    ATTENDEE_API_KEY: str = Field(
         default="",
-        description="API Key from Fireflies.ai for meeting transcription"
+        description="Attendee API token for authentication"
     )
-    FIREFLIES_API_URL: str = Field(
-        default="https://api.fireflies.ai/graphql",
-        description="Fireflies GraphQL API endpoint"
+    ATTENDEE_WEBHOOK_SECRET: str = Field(
+        default="",
+        description="HMAC-SHA256 secret for verifying Attendee webhook signatures"
     )
-    FIREFLIES_POLL_INTERVAL_MINUTES: int = Field(
+    ATTENDEE_BOT_NAME: str = Field(
+        default="ECOWAS Secretariat Bot",
+        description="Display name for the Attendee bot in meetings"
+    )
+    ATTENDEE_WEBHOOK_URL: str = Field(
+        default="",
+        description="Public URL for Attendee to send webhook events (e.g. https://martin-system-production-bb2f.up.railway.app/api/v1/webhooks/attendee)"
+    )
+    ATTENDEE_DISPATCH_MINUTES_BEFORE: int = Field(
+        default=2,
+        description="Minutes before meeting start to dispatch the Attendee bot"
+    )
+    ATTENDEE_POLL_INTERVAL_MINUTES: int = Field(
+        default=30,
+        description="How often to poll Attendee for missed transcripts (safety net; webhooks are primary)"
+    )
+    ATTENDEE_MAX_BACKOFF_MINUTES: int = Field(
         default=60,
-        description="How often to poll Fireflies for new transcripts (safety net; webhooks are primary)"
-    )
-    FIREFLIES_MAX_BACKOFF_MINUTES: int = Field(
-        default=60,
-        description="Maximum backoff time after repeated Fireflies API failures or rate limits"
+        description="Maximum backoff time after repeated Attendee API failures or rate limits"
     )
     
     @property

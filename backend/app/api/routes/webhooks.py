@@ -1,26 +1,56 @@
-from fastapi import APIRouter, Header, HTTPException, Request, Depends, BackgroundTasks
-from typing import Dict, Any, Optional
+import hashlib
+import hmac
 import logging
-from app.services.fireflies_service import fireflies_service
+from typing import Dict, Any
+
+from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
+
+from app.core.config import settings
+from app.services.attendee_service import attendee_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-@router.post("/fireflies")
-async def fireflies_webhook(payload: Dict[str, Any], background_tasks: BackgroundTasks):
-    """
-    Handle Fireflies.ai Webhook events.
-    Fireflies sends: {"meetingId": "...", "eventType": "Transcription completed"}
-    """
-    meeting_id = payload.get("meetingId", "unknown")
-    event_type = payload.get("eventType", "unknown")
-    logger.info(f"Received Fireflies webhook — meetingId={meeting_id}, eventType={event_type!r}")
 
-    if event_type != "Transcription completed":
-        logger.info(f"Ignoring non-transcription webhook event: {event_type}")
-        return {"status": "ignored", "reason": f"Event type '{event_type}' not handled"}
+def _verify_attendee_signature(raw_body: bytes, signature: str) -> bool:
+    """Verify HMAC-SHA256 signature from Attendee webhook."""
+    if not settings.ATTENDEE_WEBHOOK_SECRET:
+        logger.warning("ATTENDEE_WEBHOOK_SECRET not set — skipping signature verification")
+        return True
+    expected = hmac.new(
+        settings.ATTENDEE_WEBHOOK_SECRET.encode(),
+        raw_body,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)
 
-    # Offload processing to background task to respond quickly to the webhook
-    background_tasks.add_task(fireflies_service.process_webhook, payload)
+
+@router.post("/attendee")
+async def attendee_webhook(request: Request, background_tasks: BackgroundTasks):
+    """
+    Handle Attendee webhook events (transcript.update, bot.state_change).
+    Verifies HMAC-SHA256 signature before processing.
+    """
+    raw_body = await request.body()
+
+    # Verify signature
+    signature = request.headers.get("X-Webhook-Signature", "")
+    if not _verify_attendee_signature(raw_body, signature):
+        logger.warning("Invalid Attendee webhook signature")
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    # Parse payload
+    import json
+    try:
+        payload: Dict[str, Any] = json.loads(raw_body)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    event = payload.get("event", "unknown")
+    bot_id = payload.get("bot_id") or payload.get("data", {}).get("bot_id", "unknown")
+    logger.info(f"Received Attendee webhook — event={event}, bot_id={bot_id}")
+
+    # Offload processing to background task
+    background_tasks.add_task(attendee_service.process_webhook, payload)
 
     return {"status": "queued"}

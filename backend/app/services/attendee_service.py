@@ -635,14 +635,15 @@ class AttendeeService:
                     return
 
                 if event == "transcript.update":
-                    await self._handle_transcript_update(meeting, bot_id, db)
+                    # Real-time: just save the raw transcript to DB (no minutes/PDF/email)
+                    await self._save_live_transcript(meeting, bot_id, db)
                 elif event == "bot.state_change":
                     data = payload.get("data", {})
                     new_state = data.get("new_state") or data.get("state", "")
                     logger.info(f"Bot {bot_id} state changed to: {new_state}")
                     if new_state in ("ended", "post_processing", "done", "completed"):
-                        # Bot finished — fetch transcript immediately
-                        logger.info(f"Bot ended for '{meeting.title}', fetching transcript now...")
+                        # Bot finished — fetch final transcript and run full pipeline
+                        logger.info(f"Bot ended for '{meeting.title}', running full transcript pipeline...")
                         await self._handle_transcript_update(meeting, bot_id, db)
                     elif new_state == "fatal_error":
                         logger.error(f"Bot {bot_id} encountered fatal error for meeting '{meeting.title}'")
@@ -654,8 +655,37 @@ class AttendeeService:
             import traceback
             logger.error(traceback.format_exc())
 
+    async def _save_live_transcript(self, meeting: Meeting, bot_id: str, db: AsyncSession):
+        """
+        Real-time transcript update — save raw text to DB only.
+        Does NOT generate minutes, PDF, or send email.
+        Called on every transcript.update webhook during the meeting.
+        """
+        try:
+            transcript_data = await self.get_transcript(bot_id)
+            if not transcript_data:
+                return
+
+            transcript_text = self.format_transcript_text(transcript_data)
+            if not transcript_text:
+                return
+
+            # Only update if the new transcript is longer (more complete)
+            current_len = len(meeting.transcript or "")
+            if len(transcript_text) > current_len:
+                meeting.transcript = transcript_text
+                if meeting.status == MeetingStatus.SCHEDULED:
+                    meeting.status = MeetingStatus.IN_PROGRESS
+                await db.commit()
+                logger.info(
+                    f"Live transcript updated for '{meeting.title}' "
+                    f"({current_len} → {len(transcript_text)} chars)"
+                )
+        except Exception as e:
+            logger.error(f"Error saving live transcript for '{meeting.title}': {e}")
+
     async def _handle_transcript_update(self, meeting: Meeting, bot_id: str, db: AsyncSession):
-        """Handle a transcript.update webhook — fetch, process, finalize."""
+        """Handle bot ended — fetch final transcript, generate minutes, PDF, email."""
         # Skip if meeting already has a transcript
         if meeting.transcript and len(meeting.transcript) > 100:
             logger.info(f"Meeting '{meeting.title}' already has transcript, skipping webhook")

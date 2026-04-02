@@ -75,6 +75,25 @@ app.add_middleware(
     expose_headers=["Content-Disposition"],
 )
 
+# Safety-net: ensure CORS headers on unhandled exceptions that bypass CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.requests import Request as StarletteRequest
+
+@app.exception_handler(Exception)
+async def cors_safe_exception_handler(request: StarletteRequest, exc: Exception):
+    origin = request.headers.get("origin", "")
+    logger.error(f"Unhandled exception on {request.url.path}: {exc}")
+    response = JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+    if origin in cors_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
 @app.on_event("startup")
 async def startup_event():
     import logging

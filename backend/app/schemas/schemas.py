@@ -145,11 +145,12 @@ class SchemaBase(BaseModel):
 
 class UserBase(SchemaBase):
     full_name: str
-    email: EmailStr
+    email: str  # Use str for output schemas — EmailStr validation on input only
     role: UserRole = UserRole.TWG_MEMBER
     organization: Optional[str] = None
 
 class UserCreate(UserBase):
+    email: EmailStr  # Strict validation for input
     password: str
 
 class UserUpdate(SchemaBase):

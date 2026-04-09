@@ -78,7 +78,7 @@ async def upload_document(
                     result = await db.execute(
                         select(TWG).where(TWG.pillar == pillar_value)
                     )
-                    twg = result.scalar_one_or_none()
+                    twg = result.scalars().first()
                     if twg:
                         resolved_twg_id = twg.id
                     else:

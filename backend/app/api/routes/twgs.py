@@ -1,16 +1,146 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, and_
 from sqlalchemy.orm import selectinload
 from typing import List
+from datetime import datetime
+import asyncio
+import logging
 import uuid
 
 from app.core.database import get_db
-from app.models.models import TWG, User, UserRole, Meeting, Project, ActionItem, Document, MeetingStatus, ActionItemStatus
+from app.core.config import settings
+from app.models.models import TWG, User, UserRole, Meeting, Project, ActionItem, Document, MeetingStatus, ActionItemStatus, MeetingParticipant, RsvpStatus
+
+logger = logging.getLogger(__name__)
 from app.schemas.schemas import TWGCreate, TWGRead, TWGUpdate
 from app.api.deps import get_current_active_user, require_admin, require_facilitator
 
 router = APIRouter(prefix="/twgs", tags=["TWGs"])
+
+
+async def _sync_new_members_to_future_meetings(
+    twg_id: uuid.UUID,
+    new_user_ids: list[uuid.UUID],
+    new_user_emails: list[str],
+    db: AsyncSession,
+) -> None:
+    """
+    Auto-add newly-added TWG members as participants to all future
+    SCHEDULED / REQUESTED meetings for that TWG.
+    GCal sync and email invites run in a fire-and-forget background task.
+    """
+    if not new_user_ids:
+        return
+
+    now = datetime.utcnow()
+
+    # 1. Fetch future meetings for this TWG
+    result = await db.execute(
+        select(Meeting)
+        .options(selectinload(Meeting.participants), selectinload(Meeting.twg))
+        .where(
+            and_(
+                Meeting.twg_id == twg_id,
+                Meeting.scheduled_at > now,
+                Meeting.status.in_([MeetingStatus.SCHEDULED, MeetingStatus.REQUESTED]),
+            )
+        )
+    )
+    future_meetings = result.scalars().all()
+    if not future_meetings:
+        return
+
+    # 2. Insert MeetingParticipant rows (skip duplicates)
+    meetings_to_notify: list[dict] = []
+    for meeting in future_meetings:
+        existing_user_ids = {p.user_id for p in meeting.participants if p.user_id}
+        added_for_meeting = []
+        for uid, email in zip(new_user_ids, new_user_emails):
+            if uid not in existing_user_ids:
+                db.add(MeetingParticipant(
+                    meeting_id=meeting.id,
+                    user_id=uid,
+                    email=email,
+                    rsvp_status=RsvpStatus.PENDING,
+                ))
+                added_for_meeting.append(email)
+        if added_for_meeting:
+            meetings_to_notify.append({
+                "meeting_id": str(meeting.id),
+                "title": meeting.title,
+                "scheduled_at": meeting.scheduled_at,
+                "duration": meeting.duration_minutes,
+                "location": meeting.location,
+                "video_link": meeting.video_link,
+                "twg_name": meeting.twg.name if meeting.twg else "TWG",
+                "emails": added_for_meeting,
+            })
+
+    await db.commit()
+
+    if not meetings_to_notify:
+        return
+
+    # 3. Fire-and-forget: GCal sync + email invites
+    async def _bg_sync():
+        try:
+            from app.services.calendar_service import calendar_service
+            from app.services.email_service import email_service
+            from app.services.recurring_meeting_service import _gcal_executor
+            from app.api.routes.meetings import format_meeting_time_for_email
+
+            loop = asyncio.get_running_loop()
+            for info in meetings_to_notify:
+                # GCal
+                try:
+                    await loop.run_in_executor(
+                        _gcal_executor,
+                        lambda m=info: calendar_service.add_attendees_to_event(
+                            m["meeting_id"], m["emails"]
+                        ),
+                    )
+                except Exception as e:
+                    logger.warning(f"[TWG Sync] GCal add attendees failed for meeting {info['meeting_id']}: {e}")
+
+                # Email invite
+                try:
+                    date_str, time_str = format_meeting_time_for_email(info["scheduled_at"])
+                    await email_service.send_meeting_invite(
+                        to_emails=info["emails"],
+                        subject=f"Meeting Invitation: {info['title']}",
+                        template_name="meeting_invite.html",
+                        template_context={
+                            "user_name": "Valued Participant",
+                            "meeting_title": info["title"],
+                            "meeting_date": date_str,
+                            "meeting_time": time_str,
+                            "location": info.get("location") or "Virtual",
+                            "video_link": info.get("video_link"),
+                            "pillar_name": info["twg_name"],
+                            "portal_url": settings.FRONTEND_URL + "/schedule",
+                        },
+                        meeting_details={
+                            "title": info["title"],
+                            "meeting_id": info["meeting_id"],
+                            "start_time": info["scheduled_at"],
+                            "duration": info["duration"],
+                            "location": info.get("video_link") or info.get("location") or "Virtual",
+                        },
+                    )
+                except Exception as e:
+                    logger.warning(f"[TWG Sync] Email invite failed for meeting {info['meeting_id']}: {e}")
+
+                await asyncio.sleep(1)  # Rate-limit between meetings
+        except Exception as e:
+            logger.warning(f"[TWG Sync] Background sync task failed: {e}")
+
+    asyncio.create_task(_bg_sync())
+    logger.info(
+        f"[TWG Sync] Queued {len(meetings_to_notify)} future meeting(s) for "
+        f"{len(new_user_ids)} new member(s) in TWG {twg_id}"
+    )
+
 
 @router.post("/", response_model=TWGRead, status_code=status.HTTP_201_CREATED)
 async def create_twg(
@@ -412,6 +542,17 @@ async def add_twg_member(
     twg.members.append(user_to_add)
     await db.commit()
 
+    # Auto-add new member to future meetings for this TWG
+    try:
+        await _sync_new_members_to_future_meetings(
+            twg_id=twg.id,
+            new_user_ids=[user_to_add.id],
+            new_user_emails=[user_to_add.email],
+            db=db,
+        )
+    except Exception as e:
+        logger.warning(f"[TWG Members] Failed to sync new member to future meetings: {e}")
+
     # Send invitation email for newly created users
     invite_sent = False
     if created_new:
@@ -552,6 +693,20 @@ async def bulk_add_twg_members(
             results["errors"].append({"email": email, "reason": str(e)})
 
     await db.commit()
+
+    # Auto-add new members to future meetings for this TWG
+    added_user_ids = [uuid.UUID(e["id"]) for e in results["added"]]
+    added_user_emails = [e["email"] for e in results["added"]]
+    if added_user_ids:
+        try:
+            await _sync_new_members_to_future_meetings(
+                twg_id=twg.id,
+                new_user_ids=added_user_ids,
+                new_user_emails=added_user_emails,
+                db=db,
+            )
+        except Exception as e:
+            logger.warning(f"[TWG Bulk] Failed to sync new members to future meetings: {e}")
 
     total_added = len(results["added"])
     total_skipped = len(results["skipped"])

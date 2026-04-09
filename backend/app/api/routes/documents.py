@@ -8,6 +8,7 @@ import uuid
 import os
 import logging
 import io
+import asyncio
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -104,10 +105,11 @@ async def upload_document(
             twg_result = await db.execute(select(TWG).where(TWG.id == resolved_twg_id))
             twg = twg_result.scalar_one_or_none()
             if twg:
-                target_folder_id = storage.get_or_create_twg_folder(twg.name)
+                target_folder_id = await asyncio.to_thread(storage.get_or_create_twg_folder, twg.name)
 
-        # Upload to cloud
-        cloud_file_id, cloud_view_link, cloud_download_url = storage.upload_bytes(
+        # Upload to cloud (run blocking Google Drive call in thread)
+        cloud_file_id, cloud_view_link, cloud_download_url = await asyncio.to_thread(
+            storage.upload_bytes,
             file_bytes=file_content,
             file_name=safe_filename,
             mime_type=file.content_type or "application/octet-stream",
@@ -346,7 +348,7 @@ async def download_document(
 
     try:
         storage = get_storage_service()
-        file_bytes = storage.download_file(cloud_file_id)
+        file_bytes = await asyncio.to_thread(storage.download_file, cloud_file_id)
 
         if not file_bytes:
             raise HTTPException(status_code=404, detail="File not found in cloud storage")
@@ -669,7 +671,7 @@ async def delete_document(
     if cloud_file_id:
         try:
             storage = get_storage_service()
-            if storage.delete_file(cloud_file_id):
+            if await asyncio.to_thread(storage.delete_file, cloud_file_id):
                 logger.info(f"Deleted cloud file {cloud_file_id} for doc {doc_id}")
             else:
                 logger.warning(f"Failed to delete cloud file {cloud_file_id} for doc {doc_id}")

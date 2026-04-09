@@ -92,16 +92,34 @@ async def _sync_new_members_to_future_meetings(
 
             loop = asyncio.get_running_loop()
             for info in meetings_to_notify:
-                # GCal
+                # GCal — try add attendees; if no event exists, create one
                 try:
-                    await loop.run_in_executor(
+                    existing = await loop.run_in_executor(
                         _gcal_executor,
-                        lambda m=info: calendar_service.add_attendees_to_event(
-                            m["meeting_id"], m["emails"]
-                        ),
+                        lambda m=info: calendar_service.get_meeting_event(m["meeting_id"]),
                     )
+                    if existing:
+                        await loop.run_in_executor(
+                            _gcal_executor,
+                            lambda m=info: calendar_service.add_attendees_to_event(
+                                m["meeting_id"], m["emails"]
+                            ),
+                        )
+                    else:
+                        # No GCal event yet — create it with new attendees included
+                        await loop.run_in_executor(
+                            _gcal_executor,
+                            lambda m=info: calendar_service.create_meeting_event(
+                                title=m["title"],
+                                start_time=m["scheduled_at"],
+                                duration_minutes=m["duration"],
+                                description=f"Meeting: {m['title']}",
+                                attendees=m["emails"],
+                                meeting_id=m["meeting_id"],
+                            ),
+                        )
                 except Exception as e:
-                    logger.warning(f"[TWG Sync] GCal add attendees failed for meeting {info['meeting_id']}: {e}")
+                    logger.warning(f"[TWG Sync] GCal sync failed for meeting {info['meeting_id']}: {e}")
 
                 # Email invite
                 try:

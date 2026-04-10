@@ -163,6 +163,11 @@ async def update_user(
         twg_query = select(TWG).where(TWG.id.in_(user_update.twg_ids))
         twg_res = await db.execute(twg_query)
         new_twgs = twg_res.scalars().all()
+
+        # Determine newly added TWGs (weren't assigned before)
+        old_twg_ids = {t.id for t in user.twgs}
+        added_twgs = [t for t in new_twgs if t.id not in old_twg_ids]
+
         user.twgs = new_twgs  # Update relationship
 
     update_data = user_update.model_dump(exclude_unset=True, exclude={'twg_ids'})
@@ -172,6 +177,20 @@ async def update_user(
 
     await db.commit()
     await db.refresh(user, attribute_names=['twgs'])
+
+    # Sync newly added TWG memberships to future meetings
+    if user_update.twg_ids is not None and added_twgs:
+        try:
+            from app.api.routes.twgs import _sync_new_members_to_future_meetings
+            for twg in added_twgs:
+                await _sync_new_members_to_future_meetings(
+                    twg_id=twg.id,
+                    new_user_ids=[user.id],
+                    new_user_emails=[user.email],
+                    db=db,
+                )
+        except Exception as e:
+            print(f"[User Update] Failed to sync user to future meetings: {e}")
 
     # Explicitly compute twg_ids to ensure proper serialization
     response = UserResponse.model_validate(user)
@@ -274,7 +293,21 @@ async def invite_user(
     
     await db.commit()
     await db.refresh(user)
-    
+
+    # Auto-add new member to future meetings for each assigned TWG
+    if invite_data.twg_ids:
+        try:
+            from app.api.routes.twgs import _sync_new_members_to_future_meetings
+            for twg in user.twgs:
+                await _sync_new_members_to_future_meetings(
+                    twg_id=twg.id,
+                    new_user_ids=[user.id],
+                    new_user_emails=[user.email],
+                    db=db,
+                )
+        except Exception as e:
+            print(f"[User Invite] Failed to sync new user to future meetings: {e}")
+
     # Send invitation email
     invite_sent = False
     if invite_data.send_email:
@@ -464,6 +497,20 @@ async def bulk_invite_users(
 
             await db.commit()
             await db.refresh(user)
+
+            # Auto-add new member to future meetings for each assigned TWG
+            if user_data.twg_ids:
+                try:
+                    from app.api.routes.twgs import _sync_new_members_to_future_meetings
+                    for twg in user.twgs:
+                        await _sync_new_members_to_future_meetings(
+                            twg_id=twg.id,
+                            new_user_ids=[user.id],
+                            new_user_emails=[user.email],
+                            db=db,
+                        )
+                except Exception as e:
+                    print(f"[Bulk Invite] Failed to sync {user.email} to future meetings: {e}")
 
             # Send invitation email
             invite_sent = False

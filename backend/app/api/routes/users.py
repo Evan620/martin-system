@@ -292,7 +292,7 @@ async def invite_user(
         user.twgs = twg_res.scalars().all()
     
     await db.commit()
-    await db.refresh(user)
+    await db.refresh(user, attribute_names=['twgs'])
 
     # Auto-add new member to future meetings for each assigned TWG
     if invite_data.twg_ids:
@@ -306,7 +306,9 @@ async def invite_user(
                     db=db,
                 )
         except Exception as e:
+            import traceback
             print(f"[User Invite] Failed to sync new user to future meetings: {e}")
+            traceback.print_exc()
 
     # Send invitation email
     invite_sent = False
@@ -496,7 +498,7 @@ async def bulk_invite_users(
                     pass  # Invalid UUID, skip TWG assignment
 
             await db.commit()
-            await db.refresh(user)
+            await db.refresh(user, attribute_names=['twgs'])
 
             # Auto-add new member to future meetings for each assigned TWG
             if user_data.twg_ids:
@@ -510,7 +512,9 @@ async def bulk_invite_users(
                             db=db,
                         )
                 except Exception as e:
+                    import traceback
                     print(f"[Bulk Invite] Failed to sync {user.email} to future meetings: {e}")
+                    traceback.print_exc()
 
             # Send invitation email
             invite_sent = False

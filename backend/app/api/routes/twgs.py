@@ -99,9 +99,15 @@ async def _sync_new_members_to_future_meetings(
                         lambda m=info: calendar_service.get_meeting_event(m["meeting_id"]),
                     )
                     if existing:
-                        # Build full attendee list (existing + new) and force-patch
-                        existing_attendees = existing.get('attendees', [])
-                        existing_emails = {a.get('email') for a in existing_attendees}
+                        # Strip to email-only (like the working sync-calendar button)
+                        # Raw GCal attendees include read-only fields (responseStatus,
+                        # self, organizer, id) that silently break sendUpdates='all'
+                        existing_attendees = [
+                            {'email': a['email']}
+                            for a in existing.get('attendees', [])
+                            if a.get('email')
+                        ]
+                        existing_emails = {a['email'] for a in existing_attendees}
                         for email in info["emails"]:
                             if email and email not in existing_emails:
                                 existing_attendees.append({'email': email})

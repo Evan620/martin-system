@@ -98,16 +98,18 @@ async def _sync_new_members_to_future_meetings(
                         _gcal_executor,
                         lambda m=info: calendar_service.get_meeting_event(m["meeting_id"]),
                     )
+                    print(f"[TWG Sync] get_meeting_event for {info['meeting_id']}: {'FOUND' if existing else 'NOT FOUND'}")
                     if existing:
-                        await loop.run_in_executor(
+                        result = await loop.run_in_executor(
                             _gcal_executor,
                             lambda m=info: calendar_service.add_attendees_to_event(
                                 m["meeting_id"], m["emails"]
                             ),
                         )
+                        print(f"[TWG Sync] add_attendees result for {info['meeting_id']}: {result}")
                     else:
                         # No GCal event yet — create it with new attendees included
-                        await loop.run_in_executor(
+                        created = await loop.run_in_executor(
                             _gcal_executor,
                             lambda m=info: calendar_service.create_meeting_event(
                                 title=m["title"],
@@ -118,8 +120,11 @@ async def _sync_new_members_to_future_meetings(
                                 meeting_id=m["meeting_id"],
                             ),
                         )
+                        print(f"[TWG Sync] create_meeting_event result for {info['meeting_id']}: {bool(created)}")
                 except Exception as e:
-                    logger.warning(f"[TWG Sync] GCal sync failed for meeting {info['meeting_id']}: {e}")
+                    import traceback
+                    print(f"[TWG Sync] GCal sync failed for meeting {info['meeting_id']}: {e}")
+                    traceback.print_exc()
 
                 # Email invite
                 try:

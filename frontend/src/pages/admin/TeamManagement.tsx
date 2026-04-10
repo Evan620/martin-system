@@ -78,6 +78,23 @@ export default function TeamManagement() {
         }
     }
 
+    const handleExportAllMembers = async () => {
+        try {
+            const response = await twgService.exportAllMembers()
+            const url = window.URL.createObjectURL(new Blob([response.data]))
+            const a = document.createElement('a')
+            a.href = url
+            const today = new Date().toISOString().slice(0, 10)
+            a.download = `all_twg_members_${today}.csv`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            window.URL.revokeObjectURL(url)
+        } catch {
+            toast.error('Failed to export TWG members')
+        }
+    }
+
     const loadTwgs = async () => {
         setLoadingTwgs(true)
         try {
@@ -483,6 +500,13 @@ export default function TeamManagement() {
                     >
                         <span className="material-symbols-outlined text-sm">refresh</span>
                         Refresh
+                    </button>
+                    <button
+                        onClick={handleExportAllMembers}
+                        className="px-4 py-2 bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg text-sm font-bold text-[#0d121b] dark:text-white hover:bg-gray-50 dark:hover:bg-[#2d3748] transition-colors shadow-sm flex items-center gap-2"
+                    >
+                        <span className="material-symbols-outlined text-sm">download</span>
+                        Export TWG Members
                     </button>
                     <button
                         onClick={async () => {

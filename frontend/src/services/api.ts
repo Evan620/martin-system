@@ -161,6 +161,8 @@ export const twgs = {
     addMember: (twgId: string, email: string, fullName?: string) => api.post(`/twgs/${twgId}/members`, { email, full_name: fullName || '' }),
     bulkAddMembers: (twgId: string, members: { email: string; full_name: string }[]) => api.post(`/twgs/${twgId}/members/bulk`, { members }),
     removeMember: (twgId: string, userId: string) => api.delete(`/twgs/${twgId}/members/${userId}`),
+    exportMembers: (twgId: string) => api.get(`/twgs/${twgId}/members/export`, { responseType: 'blob' }),
+    exportAllMembers: () => api.get(`/twgs/members/export`, { responseType: 'blob' }),
 };
 
 export const auditLogs = {

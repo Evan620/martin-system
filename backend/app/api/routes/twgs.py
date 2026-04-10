@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_
 from sqlalchemy.orm import selectinload
@@ -7,6 +8,8 @@ from datetime import datetime
 import asyncio
 import logging
 import uuid
+import csv
+import io
 
 from app.core.database import get_db
 from app.core.config import settings
@@ -223,6 +226,52 @@ async def list_twgs_dropdown(
         {"id": str(r.id), "name": r.name, "pillar": r.pillar.value if r.pillar else None, "group_type": r.group_type}
         for r in rows
     ]
+
+
+@router.get("/members/export")
+async def export_all_twg_members(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Export all members across all TWGs as a single CSV (admin/facilitator only)."""
+    if current_user.role not in (UserRole.ADMIN, UserRole.SECRETARIAT_LEAD, UserRole.TWG_FACILITATOR):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    result = await db.execute(
+        select(TWG).options(selectinload(TWG.members)).order_by(TWG.name)
+    )
+    all_twgs = result.scalars().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["TWG", "Full Name", "Email", "Role", "Organization", "Status"])
+    for twg in all_twgs:
+        for m in twg.members:
+            if twg.political_lead_id == m.id:
+                role_label = "Political Lead"
+            elif twg.technical_lead_id == m.id:
+                role_label = "Technical Lead"
+            elif m.role == UserRole.TWG_FACILITATOR:
+                role_label = "Facilitator"
+            else:
+                role_label = "Member"
+            writer.writerow([
+                twg.name,
+                m.full_name,
+                m.email,
+                role_label,
+                m.organization or "",
+                "Active" if m.is_active else "Inactive",
+            ])
+
+    output.seek(0)
+    from datetime import date
+    filename = f"all_twg_members_{date.today().isoformat()}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/", response_model=List[TWGRead])
@@ -513,6 +562,53 @@ async def list_twg_members(
         }
         for m in twg.members
     ]
+
+
+@router.get("/{twg_id}/members/export")
+async def export_twg_members(
+    twg_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Export members of a single TWG as CSV."""
+    from app.api.deps import require_twg_access
+    await require_twg_access(twg_id, current_user, db)
+
+    result = await db.execute(
+        select(TWG).options(selectinload(TWG.members)).where(TWG.id == twg_id)
+    )
+    twg = result.scalar_one_or_none()
+    if not twg:
+        raise HTTPException(status_code=404, detail="TWG not found")
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["TWG", "Full Name", "Email", "Role", "Organization", "Status"])
+    for m in twg.members:
+        if twg.political_lead_id == m.id:
+            role_label = "Political Lead"
+        elif twg.technical_lead_id == m.id:
+            role_label = "Technical Lead"
+        elif m.role == UserRole.TWG_FACILITATOR:
+            role_label = "Facilitator"
+        else:
+            role_label = "Member"
+        writer.writerow([
+            twg.name,
+            m.full_name,
+            m.email,
+            role_label,
+            m.organization or "",
+            "Active" if m.is_active else "Inactive",
+        ])
+
+    output.seek(0)
+    filename = f"{twg.name.replace(' ', '_')}_members.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 from pydantic import BaseModel

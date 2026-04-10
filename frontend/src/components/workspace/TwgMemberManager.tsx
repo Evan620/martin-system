@@ -172,6 +172,23 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
         }
     };
 
+    const handleExport = async () => {
+        try {
+            const response = await twgs.exportMembers(twgId);
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${(twgName || 'twg').replace(/\s+/g, '_')}_members.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch {
+            setError('Failed to export members');
+            setTimeout(() => setError(null), 5000);
+        }
+    };
+
     const getRoleBadge = (member: TwgMember) => {
         if (member.is_political_lead) return { label: 'Political Lead', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' };
         if (member.is_technical_lead) return { label: 'Technical Lead', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' };
@@ -353,9 +370,21 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
                         <span className="material-symbols-outlined text-blue-600 text-[20px]">group</span>
                         {twgName ? `${twgName} Members` : 'TWG Members'}
                     </h3>
-                    <span className="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-700 px-3 py-1 rounded-full">
-                        {members.length} member{members.length !== 1 ? 's' : ''}
-                    </span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-700 px-3 py-1 rounded-full">
+                            {members.length} member{members.length !== 1 ? 's' : ''}
+                        </span>
+                        {members.length > 0 && (
+                            <button
+                                onClick={handleExport}
+                                className="text-xs font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
+                                title="Export members as CSV"
+                            >
+                                <span className="material-symbols-outlined text-[16px]">download</span>
+                                Export CSV
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {loading ? (

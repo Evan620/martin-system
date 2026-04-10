@@ -92,21 +92,31 @@ async def _sync_new_members_to_future_meetings(
 
             loop = asyncio.get_running_loop()
             for info in meetings_to_notify:
-                # GCal — try add attendees; if no event exists, create one
+                # GCal — mirror the sync-calendar button logic exactly
                 try:
                     existing = await loop.run_in_executor(
                         _gcal_executor,
                         lambda m=info: calendar_service.get_meeting_event(m["meeting_id"]),
                     )
-                    print(f"[TWG Sync] get_meeting_event for {info['meeting_id']}: {'FOUND' if existing else 'NOT FOUND'}")
                     if existing:
-                        result = await loop.run_in_executor(
+                        # Build full attendee list (existing + new) and force-patch
+                        existing_attendees = existing.get('attendees', [])
+                        existing_emails = {a.get('email') for a in existing_attendees}
+                        for email in info["emails"]:
+                            if email and email not in existing_emails:
+                                existing_attendees.append({'email': email})
+                        event_id = existing['id']
+
+                        await loop.run_in_executor(
                             _gcal_executor,
-                            lambda m=info: calendar_service.add_attendees_to_event(
-                                m["meeting_id"], m["emails"]
-                            ),
+                            lambda eid=event_id, att=existing_attendees: calendar_service.service.events().patch(
+                                calendarId='primary',
+                                eventId=eid,
+                                body={'attendees': att},
+                                sendUpdates='all'
+                            ).execute()
                         )
-                        print(f"[TWG Sync] add_attendees result for {info['meeting_id']}: {result}")
+                        print(f"[TWG Sync] Patched attendees to GCal event {event_id} for meeting {info['meeting_id']}")
                     else:
                         # No GCal event yet — create it with new attendees included
                         created = await loop.run_in_executor(
@@ -120,7 +130,7 @@ async def _sync_new_members_to_future_meetings(
                                 meeting_id=m["meeting_id"],
                             ),
                         )
-                        print(f"[TWG Sync] create_meeting_event result for {info['meeting_id']}: {bool(created)}")
+                        print(f"[TWG Sync] Created GCal event for meeting {info['meeting_id']}: {bool(created)}")
                 except Exception as e:
                     import traceback
                     print(f"[TWG Sync] GCal sync failed for meeting {info['meeting_id']}: {e}")

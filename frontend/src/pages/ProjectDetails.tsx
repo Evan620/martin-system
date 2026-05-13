@@ -8,7 +8,6 @@ import { ProjectLifecycleTimeline } from '../components/pipeline/ProjectLifecycl
 import { ProjectHistoryTimeline } from '../components/pipeline/ProjectHistoryTimeline';
 import { UserRole } from '../types/auth';
 import api from '../services/api';
-import ComingSoonOverlay from '../components/common/ComingSoonOverlay';
 
 const ProjectDetails: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -251,13 +250,16 @@ const ProjectDetails: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'identified': return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700';
-      case 'vetting': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200 border-blue-200 dark:border-blue-800';
-      case 'due_diligence': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200 border-purple-200 dark:border-purple-800';
-      case 'deal_room': return 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-200 border-pink-200 dark:border-pink-800';
-      case 'financing': return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200 border-indigo-200 dark:border-indigo-800';
-      case 'bankable': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 border-green-200 dark:border-green-800';
-      default: return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 border-amber-200 dark:border-amber-800';
+        case 'CONCEPT':         return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200 border-blue-200 dark:border-blue-800';
+        case 'PRE_FEASIBILITY': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200 border-purple-200 dark:border-purple-800';
+        case 'FEASIBILITY':     return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200 border-yellow-200 dark:border-yellow-800';
+        case 'BANKABLE':        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 border-green-200 dark:border-green-800';
+        case 'SUMMIT_FEATURED': return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200 border-orange-200 dark:border-orange-800';
+        case 'IN_NEGOTIATION':  return 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-200 border-pink-200 dark:border-pink-800';
+        case 'COMMITTED':       return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800';
+        case 'DECLINED':        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200 border-red-200 dark:border-red-800';
+        case 'NEEDS_REVISION':  return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 border-amber-200 dark:border-amber-800';
+        default:                return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700';
     }
   };
 
@@ -280,7 +282,6 @@ const ProjectDetails: React.FC = () => {
 
   return (
     <div className="max-w-[1200px] mx-auto space-y-6 relative">
-      <ComingSoonOverlay />
       {/* Breadcrumbs */}
       <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
         <button onClick={() => navigate('/dashboard')} className="hover:text-primary transition-colors">
@@ -482,6 +483,61 @@ const ProjectDetails: React.FC = () => {
                   <p className="mb-4">{project.description || 'No description provided.'}</p>
                 </div>
               </div>
+
+              {/* Investment Template Fields */}
+              {(project.subsector || project.project_sponsor || project.land_status || project.revenue_model || project.climate_impact || project.esg_compliance || project.is_cross_border) && (
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Project Details</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                    {project.subsector && (
+                      <div>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Subsector</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.subsector}</p>
+                      </div>
+                    )}
+                    {project.project_sponsor && (
+                      <div>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Project Sponsor</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.project_sponsor}</p>
+                      </div>
+                    )}
+                    {project.lead_country && (
+                      <div>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Country / Region</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.lead_country}</p>
+                      </div>
+                    )}
+                    <div>
+                      <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Regional Dimension</span>
+                      <p className="text-slate-900 dark:text-white mt-1">{project.is_cross_border ? 'Cross-border / Multi-country' : 'National'}</p>
+                    </div>
+                    {project.land_status && (
+                      <div className="md:col-span-2">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Land Status</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.land_status}</p>
+                      </div>
+                    )}
+                    {project.revenue_model && (
+                      <div className="md:col-span-2">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Revenue Model</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.revenue_model}</p>
+                      </div>
+                    )}
+                    {project.climate_impact && (
+                      <div className="md:col-span-2">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Climate Impact</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.climate_impact}</p>
+                      </div>
+                    )}
+                    {project.esg_compliance && (
+                      <div className="md:col-span-2">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">ESG Notes</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.esg_compliance}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Data for Strategic Rationale */}
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">

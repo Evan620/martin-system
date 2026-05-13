@@ -1,6 +1,7 @@
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../hooks/useRedux';
 import { logout } from '../store/slices/authSlice';
+
 import { fetchNotifications, addNotification } from '../store/slices/notificationsSlice';
 import { UserRole } from '../types/auth';
 import { NotificationType } from '../services/notificationService';

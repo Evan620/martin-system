@@ -68,6 +68,13 @@ async def list_pipeline_projects(
             is_flagship=p.is_flagship,
             funding_secured_usd=p.funding_secured_usd or 0,
             deal_room_priority=p.deal_room_priority,
+            subsector=p.subsector,
+            project_sponsor=p.project_sponsor,
+            is_cross_border=p.is_cross_border or False,
+            land_status=p.land_status,
+            revenue_model=p.revenue_model,
+            climate_impact=p.climate_impact,
+            esg_compliance=p.esg_compliance,
             allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role)
         ) for p in projects
     ]
@@ -106,6 +113,13 @@ async def ingest_project(
         is_flagship=p.is_flagship,
         funding_secured_usd=p.funding_secured_usd or 0,
         deal_room_priority=p.deal_room_priority,
+        subsector=p.subsector,
+        project_sponsor=p.project_sponsor,
+        is_cross_border=p.is_cross_border or False,
+        land_status=p.land_status,
+        revenue_model=p.revenue_model,
+        climate_impact=p.climate_impact,
+        esg_compliance=p.esg_compliance,
         allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role)
     )
 
@@ -141,6 +155,13 @@ async def get_project_details(
         is_flagship=p.is_flagship,
         funding_secured_usd=p.funding_secured_usd or 0,
         deal_room_priority=p.deal_room_priority,
+        subsector=p.subsector,
+        project_sponsor=p.project_sponsor,
+        is_cross_border=p.is_cross_border or False,
+        land_status=p.land_status,
+        revenue_model=p.revenue_model,
+        climate_impact=p.climate_impact,
+        esg_compliance=p.esg_compliance,
         allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role)
     )
 
@@ -182,6 +203,13 @@ async def update_project(
         is_flagship=p.is_flagship,
         funding_secured_usd=p.funding_secured_usd or 0,
         deal_room_priority=p.deal_room_priority,
+        subsector=p.subsector,
+        project_sponsor=p.project_sponsor,
+        is_cross_border=p.is_cross_border or False,
+        land_status=p.land_status,
+        revenue_model=p.revenue_model,
+        climate_impact=p.climate_impact,
+        esg_compliance=p.esg_compliance,
         allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role)
     )
 
@@ -225,6 +253,13 @@ async def advance_project_stage(
         is_flagship=p.is_flagship,
         funding_secured_usd=p.funding_secured_usd or 0,
         deal_room_priority=p.deal_room_priority,
+        subsector=p.subsector,
+        project_sponsor=p.project_sponsor,
+        is_cross_border=p.is_cross_border or False,
+        land_status=p.land_status,
+        revenue_model=p.revenue_model,
+        climate_impact=p.climate_impact,
+        esg_compliance=p.esg_compliance,
         allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role)
     )
 
@@ -501,11 +536,18 @@ _PILLAR_KEYWORDS: dict[str, TWGPillar] = {
 }
 
 _STAGE_MAP: dict[str, ProjectStatus] = {
-    "concept": ProjectStatus.DRAFT,
-    "pre-feasibility": ProjectStatus.PIPELINE,
-    "prefeasibility": ProjectStatus.PIPELINE,
-    "feasibility": ProjectStatus.UNDER_REVIEW,
-    "ready": ProjectStatus.SUMMIT_READY,
+    "early-stage commercialisation": ProjectStatus.PRE_FEASIBILITY,
+    "early-stage commercialization": ProjectStatus.PRE_FEASIBILITY,
+    "feasibility / investment-ready": ProjectStatus.BANKABLE,
+    "feasibility / bankable": ProjectStatus.BANKABLE,
+    "pre-feasibility": ProjectStatus.PRE_FEASIBILITY,
+    "prefeasibility": ProjectStatus.PRE_FEASIBILITY,
+    "feasibility": ProjectStatus.FEASIBILITY,
+    "bankable": ProjectStatus.BANKABLE,
+    "investment-ready": ProjectStatus.BANKABLE,
+    "investment ready": ProjectStatus.BANKABLE,
+    "concept": ProjectStatus.CONCEPT,
+    "early stage": ProjectStatus.PRE_FEASIBILITY,
 }
 
 
@@ -519,12 +561,12 @@ def _match_pillar(raw: str) -> TWGPillar:
 
 
 def _map_status(raw: str) -> ProjectStatus:
-    """Map a stage string to ProjectStatus; defaults to DRAFT."""
+    """Map a stage string to ProjectStatus; defaults to CONCEPT."""
     lowered = raw.strip().lower()
     for key, status in _STAGE_MAP.items():
         if key in lowered:
             return status
-    return ProjectStatus.DRAFT
+    return ProjectStatus.CONCEPT
 
 
 def _parse_investment(raw: str) -> Optional[float]:
@@ -685,7 +727,7 @@ async def import_projects_from_excel(
             pillar = _match_pillar(raw_pillar).value if raw_pillar else TWGPillar.digital_economy_transformation.value
 
             raw_status = _cell(row, col_map, "status")
-            status = _map_status(raw_status) if raw_status else ProjectStatus.DRAFT
+            status = _map_status(raw_status) if raw_status else ProjectStatus.CONCEPT
 
             raw_investment = _cell(row, col_map, "investment_size")
             investment_size = _parse_investment(raw_investment) if raw_investment else 0.0

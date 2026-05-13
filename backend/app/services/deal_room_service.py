@@ -37,8 +37,8 @@ class DealRoomService:
             select(Project)
             .where(
                 or_(
-                    Project.status == ProjectStatus.DEAL_ROOM,
-                    and_(Project.status == ProjectStatus.FINANCING, Project.readiness_score >= 7.0)
+                    Project.status == ProjectStatus.BANKABLE,
+                    and_(Project.status == ProjectStatus.SUMMIT_FEATURED, Project.readiness_score >= 7.0)
                 )
             )
             .order_by(Project.is_flagship.desc(), Project.afcen_score.desc())

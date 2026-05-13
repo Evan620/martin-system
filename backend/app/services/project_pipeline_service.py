@@ -346,28 +346,22 @@ class ProjectPipelineService:
              
         # Side Effects Triggers (retained from original logic)
         
-        if new_stage == ProjectStatus.PIPELINE:
+        if new_stage == ProjectStatus.PRE_FEASIBILITY:
              # Prompt: "Notification sent to Resource Mob team", "Auto-trigger scoring"
              # For MVP, we log this auto-trigger. In prod, this would be a Celery task.
              logger.info(f"Auto-triggering scoring task for project {project_id}")
-             # We could also auto-advance to UNDER_REVIEW immediately if we want to simulate fast scoring?
-             # But prompt says "1-48 hours". We'll leave it in PIPELINE.
              pass
 
-        if new_stage == ProjectStatus.UNDER_REVIEW: # Was VETTING/DUE_DILIGENCE? 
-             # Lifecycle map: VETTING -> UNDER_REVIEW. 
-             # If moving to UNDER_REVIEW, maybe trigger vetting?
-             # Or is that automatic now?
-             # Prompt says: "PIPELINE -> UNDER_REVIEW (Automated when scoring starts)"
-             # But if manually moved, we might want to ensure vetting is requested if not exists.
+        if new_stage == ProjectStatus.FEASIBILITY:
+             # If moving to FEASIBILITY, ensure vetting is requested if not exists.
              pass
 
-        if new_stage == ProjectStatus.SUMMIT_READY: 
+        if new_stage == ProjectStatus.BANKABLE:
              # Trigger investor matching via Celery for non-blocking execution
              try:
                  from app.services.scoring_tasks import match_investors_async
                  match_investors_async.delay(str(project_id))
-                 logger.info(f"✓ Triggered investor matching for project {project_id} after advancing to SUMMIT_READY")
+                 logger.info(f"✓ Triggered investor matching for project {project_id} after advancing to BANKABLE")
              except Exception as e:
                  logger.warning(f"Could not trigger automatic investor matching: {e}")
 
@@ -504,7 +498,7 @@ class ProjectPipelineService:
                 by_stage[stage_key] = {"total": 0, "stalled": 0}
             by_stage[stage_key]["total"] += 1
 
-            if stage == ProjectStatus.PRESENTED:
+            if stage == ProjectStatus.COMMITTED:
                 healthy_count += 1
                 continue
 
@@ -650,7 +644,7 @@ class ProjectPipelineService:
             investment_size=data["investment_size"],
             currency=data.get("currency", "USD"),
             readiness_score=readiness,
-            status=ProjectStatus.DRAFT, # Initial status
+            status=ProjectStatus.CONCEPT, # Initial status
             pillar=data.get("pillar"),
             lead_country=data.get("lead_country"),
             afcen_score=afcen_score,

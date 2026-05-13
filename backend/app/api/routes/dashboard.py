@@ -244,10 +244,10 @@ async def get_dashboard_stats(
     projects = projects_res.scalars().all()
     
     pipeline_stats = {
-        "drafting": len([p for p in projects if p.status == ProjectStatus.IDENTIFIED]),
-        "negotiation": len([p for p in projects if p.status == ProjectStatus.VETTING]),
+        "drafting": len([p for p in projects if p.status == ProjectStatus.CONCEPT]),
+        "negotiation": len([p for p in projects if p.status == ProjectStatus.PRE_FEASIBILITY]),
         "final_review": len([p for p in projects if p.status == ProjectStatus.BANKABLE]),
-        "signed": len([p for p in projects if p.status == ProjectStatus.PRESENTED]),
+        "signed": len([p for p in projects if p.status == ProjectStatus.COMMITTED]),
         "total": len(projects)
     }
     
@@ -285,7 +285,7 @@ async def get_dashboard_stats(
         completion = 0
         if twg.projects:
             # Simple weighted average or count based on status
-            done_projects = len([p for p in twg.projects if p.status == ProjectStatus.PRESENTED])
+            done_projects = len([p for p in twg.projects if p.status == ProjectStatus.COMMITTED])
             completion = int((done_projects / len(twg.projects)) * 100) if twg.projects else 0
         
         # Check for activity (last meeting)

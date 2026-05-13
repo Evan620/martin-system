@@ -28,6 +28,54 @@ from app.services.project_insights_service import insights_service
 router = APIRouter(prefix="/pipeline", tags=["deal-pipeline"])
 
 
+def _project_to_read(p: "Project", current_user: "User") -> ProjectPipelineRead:
+    """Convert a Project ORM object to ProjectPipelineRead schema."""
+    return ProjectPipelineRead(
+        id=p.id,
+        name=p.name,
+        description=p.description,
+        status=p.status,
+        investment_size=p.investment_size,
+        currency=p.currency,
+        readiness_score=p.readiness_score,
+        afcen_score=p.afcen_score,
+        strategic_alignment_score=p.strategic_alignment_score,
+        lead_country=p.lead_country,
+        pillar=p.pillar,
+        assigned_agent=p.assigned_agent,
+        updated_at=getattr(p, 'created_at', datetime.now(UTC)),
+        is_flagship=p.is_flagship,
+        funding_secured_usd=p.funding_secured_usd or 0,
+        deal_room_priority=p.deal_room_priority,
+        # Section A
+        subsector=p.subsector,
+        project_sponsor=p.project_sponsor,
+        is_cross_border=p.is_cross_border or False,
+        key_contact_name=p.key_contact_name,
+        key_contact_email=p.key_contact_email,
+        # Section B
+        technical_studies=p.technical_studies,
+        permits_licences=p.permits_licences,
+        land_status=p.land_status,
+        # Section C
+        financing_structure=p.financing_structure,
+        investment_stage_label=p.investment_stage_label,
+        revenue_model=p.revenue_model,
+        macroeconomic_roi=p.macroeconomic_roi,
+        # Section D
+        climate_impact=p.climate_impact,
+        esg_compliance=p.esg_compliance,
+        ghg_avoided_target=p.ghg_avoided_target,
+        jobs_construction=p.jobs_construction,
+        jobs_om=p.jobs_om,
+        electricity_connections=p.electricity_connections,
+        digital_connections=p.digital_connections,
+        smallholder_farmers_reached=p.smallholder_farmers_reached,
+        submitted_by=p.submitted_by,
+        allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role),
+    )
+
+
 @router.get("/", response_model=List[ProjectPipelineRead])
 async def list_pipeline_projects(
     stage: Optional[ProjectStatus] = None,
@@ -49,35 +97,7 @@ async def list_pipeline_projects(
     result = await db.execute(query)
     projects = result.scalars().all()
     
-    # Map to schema
-    return [
-        ProjectPipelineRead(
-            id=p.id,
-            name=p.name,
-            description=p.description,
-            status=p.status,
-            investment_size=p.investment_size,
-            currency=p.currency,
-            readiness_score=p.readiness_score,
-            afcen_score=p.afcen_score,
-            strategic_alignment_score=p.strategic_alignment_score,
-            lead_country=p.lead_country,
-            pillar=p.pillar,
-            assigned_agent=p.assigned_agent,
-            updated_at=getattr(p, 'created_at', datetime.now(UTC)),
-            is_flagship=p.is_flagship,
-            funding_secured_usd=p.funding_secured_usd or 0,
-            deal_room_priority=p.deal_room_priority,
-            subsector=p.subsector,
-            project_sponsor=p.project_sponsor,
-            is_cross_border=p.is_cross_border or False,
-            land_status=p.land_status,
-            revenue_model=p.revenue_model,
-            climate_impact=p.climate_impact,
-            esg_compliance=p.esg_compliance,
-            allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role)
-        ) for p in projects
-    ]
+    return [_project_to_read(p, current_user) for p in projects]
 
 @router.post("/ingest", response_model=ProjectPipelineRead)
 async def ingest_project(
@@ -96,32 +116,7 @@ async def ingest_project(
     )
     
     p = result["project"]
-    return ProjectPipelineRead(
-        id=p.id,
-        name=p.name,
-        description=p.description,
-        status=p.status,
-        investment_size=p.investment_size,
-        currency=p.currency,
-        readiness_score=p.readiness_score,
-        afcen_score=p.afcen_score,
-        strategic_alignment_score=p.strategic_alignment_score,
-        lead_country=p.lead_country,
-        pillar=p.pillar,
-        assigned_agent=p.assigned_agent,
-        updated_at=getattr(p, 'created_at', datetime.now(UTC)),
-        is_flagship=p.is_flagship,
-        funding_secured_usd=p.funding_secured_usd or 0,
-        deal_room_priority=p.deal_room_priority,
-        subsector=p.subsector,
-        project_sponsor=p.project_sponsor,
-        is_cross_border=p.is_cross_border or False,
-        land_status=p.land_status,
-        revenue_model=p.revenue_model,
-        climate_impact=p.climate_impact,
-        esg_compliance=p.esg_compliance,
-        allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role)
-    )
+    return _project_to_read(p, current_user)
 
 @router.get("/{project_id}", response_model=ProjectPipelineRead)
 async def get_project_details(
@@ -134,36 +129,11 @@ async def get_project_details(
     """
     result = await db.execute(select(Project).where(Project.id == project_id))
     p = result.scalars().first()
-    
+
     if not p:
         raise HTTPException(status_code=404, detail="Project not found")
-        
-    return ProjectPipelineRead(
-        id=p.id,
-        name=p.name,
-        description=p.description,
-        status=p.status,
-        investment_size=p.investment_size,
-        currency=p.currency,
-        readiness_score=p.readiness_score,
-        afcen_score=p.afcen_score,
-        strategic_alignment_score=p.strategic_alignment_score,
-        lead_country=p.lead_country,
-        pillar=p.pillar,
-        assigned_agent=p.assigned_agent,
-        updated_at=getattr(p, 'created_at', datetime.now(UTC)),
-        is_flagship=p.is_flagship,
-        funding_secured_usd=p.funding_secured_usd or 0,
-        deal_room_priority=p.deal_room_priority,
-        subsector=p.subsector,
-        project_sponsor=p.project_sponsor,
-        is_cross_border=p.is_cross_border or False,
-        land_status=p.land_status,
-        revenue_model=p.revenue_model,
-        climate_impact=p.climate_impact,
-        esg_compliance=p.esg_compliance,
-        allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role)
-    )
+
+    return _project_to_read(p, current_user)
 
 @router.patch("/{project_id}", response_model=ProjectPipelineRead)
 async def update_project(
@@ -181,37 +151,12 @@ async def update_project(
         data=payload.model_dump(exclude_unset=True),
         updated_by_user_id=current_user.id
     )
-    
+
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
-        
+
     p = result["project"]
-    return ProjectPipelineRead(
-        id=p.id,
-        name=p.name,
-        description=p.description,
-        status=p.status,
-        investment_size=p.investment_size,
-        currency=p.currency,
-        readiness_score=p.readiness_score,
-        afcen_score=p.afcen_score,
-        strategic_alignment_score=p.strategic_alignment_score,
-        lead_country=p.lead_country,
-        pillar=p.pillar,
-        assigned_agent=p.assigned_agent,
-        updated_at=getattr(p, 'created_at', datetime.now(UTC)),
-        is_flagship=p.is_flagship,
-        funding_secured_usd=p.funding_secured_usd or 0,
-        deal_room_priority=p.deal_room_priority,
-        subsector=p.subsector,
-        project_sponsor=p.project_sponsor,
-        is_cross_border=p.is_cross_border or False,
-        land_status=p.land_status,
-        revenue_model=p.revenue_model,
-        climate_impact=p.climate_impact,
-        esg_compliance=p.esg_compliance,
-        allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role)
-    )
+    return _project_to_read(p, current_user)
 
 @router.post("/{project_id}/advance", response_model=ProjectPipelineRead)
 async def advance_project_stage(
@@ -236,32 +181,7 @@ async def advance_project_stage(
         raise HTTPException(status_code=400, detail=result["error"])
         
     p = result["project"]
-    return ProjectPipelineRead(
-        id=p.id,
-        name=p.name,
-        description=p.description,
-        status=p.status,
-        investment_size=p.investment_size,
-        currency=p.currency,
-        readiness_score=p.readiness_score,
-        afcen_score=p.afcen_score,
-        strategic_alignment_score=p.strategic_alignment_score,
-        lead_country=p.lead_country,
-        pillar=p.pillar,
-        assigned_agent=p.assigned_agent,
-        updated_at=getattr(p, 'created_at', datetime.now(UTC)),
-        is_flagship=p.is_flagship,
-        funding_secured_usd=p.funding_secured_usd or 0,
-        deal_room_priority=p.deal_room_priority,
-        subsector=p.subsector,
-        project_sponsor=p.project_sponsor,
-        is_cross_border=p.is_cross_border or False,
-        land_status=p.land_status,
-        revenue_model=p.revenue_model,
-        climate_impact=p.climate_impact,
-        esg_compliance=p.esg_compliance,
-        allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role)
-    )
+    return _project_to_read(p, current_user)
 
 @router.get("/{project_id}/matches", response_model=List[InvestorMatchRead])
 async def get_project_matches(
@@ -614,7 +534,7 @@ def _find_header_row(ws):
                 continue
             if _col_matches(header, "project name", "project/programme name", "project title"):
                 col_map.setdefault("name", col_idx)
-            elif _col_matches(header, "country"):
+            elif _col_matches(header, "country") and "lead country" not in header:
                 col_map.setdefault("lead_country", col_idx)
             elif _col_matches(header, "cross-border", "national or cross-border", "cross border", "regional dimension"):
                 col_map.setdefault("is_cross_border", col_idx)
@@ -622,20 +542,46 @@ def _find_header_row(ws):
                 col_map.setdefault("pillar", col_idx)
             elif _col_matches(header, "subsector"):
                 col_map.setdefault("subsector", col_idx)
-            elif _col_matches(header, "sponsor", "developer"):
+            elif _col_matches(header, "project sponsor", "sponsor"):
                 col_map.setdefault("project_sponsor", col_idx)
-            elif _col_matches(header, "stage"):
+            elif _col_matches(header, "name of key contact", "key contact"):
+                col_map.setdefault("key_contact_name", col_idx)
+            elif _col_matches(header, "email of key contact", "email of key", "contact email"):
+                col_map.setdefault("key_contact_email", col_idx)
+            elif _col_matches(header, "stage of development"):
                 col_map.setdefault("status", col_idx)
+            elif _col_matches(header, "technical studies", "completed studies"):
+                col_map.setdefault("technical_studies", col_idx)
+            elif _col_matches(header, "permits", "licences", "licenses"):
+                col_map.setdefault("permits_licences", col_idx)
             elif _col_matches(header, "land status", "land_status"):
                 col_map.setdefault("land_status", col_idx)
-            elif _col_matches(header, "investment size", "capital"):
+            elif _col_matches(header, "investment size", "estimated investment", "capital required"):
                 col_map.setdefault("investment_size", col_idx)
+            elif _col_matches(header, "financing structure"):
+                col_map.setdefault("financing_structure", col_idx)
+            elif _col_matches(header, "investment stage"):
+                col_map.setdefault("investment_stage_label", col_idx)
             elif _col_matches(header, "revenue model", "revenue_model"):
                 col_map.setdefault("revenue_model", col_idx)
-            elif _col_matches(header, "climate"):
+            elif _col_matches(header, "macroeconomic roi", "macro", "economic roi"):
+                col_map.setdefault("macroeconomic_roi", col_idx)
+            elif _col_matches(header, "climate", "esg"):
                 col_map.setdefault("climate_impact", col_idx)
-            elif _col_matches(header, "esg"):
-                col_map.setdefault("esg_compliance", col_idx)
+            elif _col_matches(header, "ghg", "tco2", "emissions"):
+                col_map.setdefault("ghg_avoided_target", col_idx)
+            elif _col_matches(header, "jobs", "construction") and "o&m" not in header and "ongoing" not in header:
+                col_map.setdefault("jobs_construction", col_idx)
+            elif _col_matches(header, "jobs", "o&m") or _col_matches(header, "jobs", "ongoing"):
+                col_map.setdefault("jobs_om", col_idx)
+            elif _col_matches(header, "electricity connect"):
+                col_map.setdefault("electricity_connections", col_idx)
+            elif _col_matches(header, "digital connect", "smes digitized"):
+                col_map.setdefault("digital_connections", col_idx)
+            elif _col_matches(header, "smallholder", "farmers reached"):
+                col_map.setdefault("smallholder_farmers_reached", col_idx)
+            elif _col_matches(header, "submitted by"):
+                col_map.setdefault("submitted_by", col_idx)
         return row_idx, col_map
     return None, None
 
@@ -735,6 +681,10 @@ async def import_projects_from_excel(
             raw_cross = _cell(row, col_map, "is_cross_border").lower()
             is_cross_border = "cross" in raw_cross
 
+            def _get(field: str) -> Optional[str]:
+                v = _cell(row, col_map, field)
+                return v if v and v.upper() not in ("TBC", "N/A", "NA", "NONE", "-") else None
+
             project = Project(
                 id=uuid.uuid4(),
                 twg_id=parsed_twg_id,
@@ -744,14 +694,33 @@ async def import_projects_from_excel(
                 currency="USD",
                 status=status,
                 pillar=pillar,
+                # Section A
                 lead_country=_cell(row, col_map, "lead_country") or None,
-                subsector=_cell(row, col_map, "subsector") or None,
-                project_sponsor=_cell(row, col_map, "project_sponsor") or None,
+                subsector=_get("subsector"),
+                project_sponsor=_get("project_sponsor"),
                 is_cross_border=is_cross_border,
-                land_status=_cell(row, col_map, "land_status") or None,
-                revenue_model=_cell(row, col_map, "revenue_model") or None,
-                climate_impact=_cell(row, col_map, "climate_impact") or None,
-                esg_compliance=_cell(row, col_map, "esg_compliance") or None,
+                key_contact_name=_get("key_contact_name"),
+                key_contact_email=_get("key_contact_email"),
+                # Section B
+                technical_studies=_get("technical_studies"),
+                permits_licences=_get("permits_licences"),
+                land_status=_get("land_status"),
+                # Section C
+                financing_structure=_get("financing_structure"),
+                investment_stage_label=_get("investment_stage_label"),
+                revenue_model=_get("revenue_model"),
+                macroeconomic_roi=_get("macroeconomic_roi"),
+                # Section D
+                climate_impact=_get("climate_impact"),
+                esg_compliance=None,
+                ghg_avoided_target=_get("ghg_avoided_target"),
+                jobs_construction=_get("jobs_construction"),
+                jobs_om=_get("jobs_om"),
+                electricity_connections=_get("electricity_connections"),
+                digital_connections=_get("digital_connections"),
+                smallholder_farmers_reached=_get("smallholder_farmers_reached"),
+                # Metadata
+                submitted_by=_get("submitted_by"),
             )
             db.add(project)
             imported += 1

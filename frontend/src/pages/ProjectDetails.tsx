@@ -484,11 +484,26 @@ const ProjectDetails: React.FC = () => {
                 </div>
               </div>
 
-              {/* Investment Template Fields */}
-              {(project.subsector || project.project_sponsor || project.land_status || project.revenue_model || project.climate_impact || project.esg_compliance || project.is_cross_border) && (
+              {/* Investment Template — Full Sections A–D */}
+              <div className="space-y-4">
+
+                {/* Section A — Basic Project Information */}
                 <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Project Details</h3>
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-bold px-2 py-0.5 rounded">Section A</span>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Basic Project Information</h3>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                    {project.lead_country && (
+                      <div>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Country / Host State</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.lead_country}</p>
+                      </div>
+                    )}
+                    <div>
+                      <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Regional Dimension</span>
+                      <p className="text-slate-900 dark:text-white mt-1">{project.is_cross_border ? 'Cross-border' : 'National'}</p>
+                    </div>
                     {project.subsector && (
                       <div>
                         <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Subsector</span>
@@ -501,20 +516,74 @@ const ProjectDetails: React.FC = () => {
                         <p className="text-slate-900 dark:text-white mt-1">{project.project_sponsor}</p>
                       </div>
                     )}
-                    {project.lead_country && (
+                    {project.key_contact_name && (
                       <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Country / Region</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.lead_country}</p>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Key Contact</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.key_contact_name}</p>
                       </div>
                     )}
-                    <div>
-                      <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Regional Dimension</span>
-                      <p className="text-slate-900 dark:text-white mt-1">{project.is_cross_border ? 'Cross-border / Multi-country' : 'National'}</p>
-                    </div>
-                    {project.land_status && (
+                    {project.key_contact_email && (
+                      <div>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Contact Email</span>
+                        <p className="text-slate-900 dark:text-white mt-1">
+                          <a href={`mailto:${project.key_contact_email}`} className="text-blue-600 dark:text-blue-400 hover:underline">{project.key_contact_email}</a>
+                        </p>
+                      </div>
+                    )}
+                    {project.submitted_by && (
+                      <div>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Submitted By</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.submitted_by}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Section B — Project Development Status */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 text-xs font-bold px-2 py-0.5 rounded">Section B</span>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Project Development Status</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                    {project.technical_studies && (
                       <div className="md:col-span-2">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Technical Studies</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.technical_studies}</p>
+                      </div>
+                    )}
+                    {project.permits_licences && (
+                      <div>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Permits & Licences</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.permits_licences}</p>
+                      </div>
+                    )}
+                    {project.land_status && (
+                      <div>
                         <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Land Status</span>
                         <p className="text-slate-900 dark:text-white mt-1">{project.land_status}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Section C — Investment Profile */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-xs font-bold px-2 py-0.5 rounded">Section C</span>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Investment Profile</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                    {project.financing_structure && (
+                      <div>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Financing Structure</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.financing_structure}</p>
+                      </div>
+                    )}
+                    {project.investment_stage_label && (
+                      <div>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Investment Stage</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.investment_stage_label}</p>
                       </div>
                     )}
                     {project.revenue_model && (
@@ -523,21 +592,70 @@ const ProjectDetails: React.FC = () => {
                         <p className="text-slate-900 dark:text-white mt-1">{project.revenue_model}</p>
                       </div>
                     )}
-                    {project.climate_impact && (
+                    {project.macroeconomic_roi && (
                       <div className="md:col-span-2">
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Climate Impact</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.climate_impact}</p>
-                      </div>
-                    )}
-                    {project.esg_compliance && (
-                      <div className="md:col-span-2">
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">ESG Notes</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.esg_compliance}</p>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Macroeconomic ROI</span>
+                        <p className="text-slate-900 dark:text-white mt-1">{project.macroeconomic_roi}</p>
                       </div>
                     )}
                   </div>
                 </div>
-              )}
+
+                {/* Section D — Climate & Social Impact */}
+                {(project.climate_impact || project.esg_compliance || project.ghg_avoided_target || project.jobs_construction || project.jobs_om || project.smallholder_farmers_reached || project.electricity_connections || project.digital_connections) && (
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold px-2 py-0.5 rounded">Section D</span>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">Climate & Social Impact</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                      {project.climate_impact && (
+                        <div className="md:col-span-2">
+                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Climate & ESG Notes</span>
+                          <p className="text-slate-900 dark:text-white mt-1">{project.climate_impact}</p>
+                        </div>
+                      )}
+                      {project.ghg_avoided_target && (
+                        <div>
+                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">GHG Avoided (tCO₂e)</span>
+                          <p className="text-slate-900 dark:text-white mt-1">{project.ghg_avoided_target}</p>
+                        </div>
+                      )}
+                      {project.jobs_construction && (
+                        <div>
+                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Jobs — Construction</span>
+                          <p className="text-slate-900 dark:text-white mt-1">{project.jobs_construction}</p>
+                        </div>
+                      )}
+                      {project.jobs_om && (
+                        <div>
+                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Jobs — O&M (ongoing)</span>
+                          <p className="text-slate-900 dark:text-white mt-1">{project.jobs_om}</p>
+                        </div>
+                      )}
+                      {project.smallholder_farmers_reached && (
+                        <div>
+                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Smallholder Farmers Reached</span>
+                          <p className="text-slate-900 dark:text-white mt-1">{project.smallholder_farmers_reached}</p>
+                        </div>
+                      )}
+                      {project.electricity_connections && (
+                        <div>
+                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">New Electricity Connections</span>
+                          <p className="text-slate-900 dark:text-white mt-1">{project.electricity_connections}</p>
+                        </div>
+                      )}
+                      {project.digital_connections && (
+                        <div>
+                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Digital Connections / SMEs</span>
+                          <p className="text-slate-900 dark:text-white mt-1">{project.digital_connections}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              </div>
 
               {/* Data for Strategic Rationale */}
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">

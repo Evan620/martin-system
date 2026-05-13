@@ -100,6 +100,37 @@ class ProjectPipelineRead(BaseModel):
     is_flagship: bool = False
     deal_room_priority: Optional[int] = None
 
+    # Investment Template — Section A
+    subsector: Optional[str] = None
+    project_sponsor: Optional[str] = None
+    is_cross_border: bool = False
+    key_contact_name: Optional[str] = None
+    key_contact_email: Optional[str] = None
+
+    # Investment Template — Section B
+    technical_studies: Optional[str] = None
+    permits_licences: Optional[str] = None
+    land_status: Optional[str] = None
+
+    # Investment Template — Section C
+    financing_structure: Optional[str] = None
+    investment_stage_label: Optional[str] = None
+    revenue_model: Optional[str] = None
+    macroeconomic_roi: Optional[str] = None
+
+    # Investment Template — Section D
+    climate_impact: Optional[str] = None
+    esg_compliance: Optional[str] = None
+    ghg_avoided_target: Optional[str] = None
+    jobs_construction: Optional[str] = None
+    jobs_om: Optional[str] = None
+    electricity_connections: Optional[str] = None
+    digital_connections: Optional[str] = None
+    smallholder_farmers_reached: Optional[str] = None
+
+    # Submission metadata
+    submitted_by: Optional[str] = None
+
     # Lifecycle Config
     allowed_transitions: List[str] = []
 

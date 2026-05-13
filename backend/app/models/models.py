@@ -550,14 +550,36 @@ class Project(Base):
     approved_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     approval_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
-    # Investment Template Fields
+    # Investment Template Fields — Section A
     subsector: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     project_sponsor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_cross_border: Mapped[bool] = mapped_column(Boolean, default=False)
+    key_contact_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    key_contact_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    # Investment Template Fields — Section B
+    technical_studies: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    permits_licences: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     land_status: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Investment Template Fields — Section C
+    financing_structure: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    investment_stage_label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     revenue_model: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    macroeconomic_roi: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Investment Template Fields — Section D
     climate_impact: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     esg_compliance: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ghg_avoided_target: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    jobs_construction: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    jobs_om: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    electricity_connections: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    digital_connections: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    smallholder_farmers_reached: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Submission metadata
+    submitted_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Relationships
     twg: Mapped["TWG"] = relationship(back_populates="projects")

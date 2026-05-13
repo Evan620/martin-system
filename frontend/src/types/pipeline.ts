@@ -50,14 +50,36 @@ export interface Project {
     is_flagship?: boolean;
     deal_room_priority?: number;
 
-    // New fields (migration 2026)
+    // Section A — Basic Project Information
     subsector?: string;
     project_sponsor?: string;
     is_cross_border?: boolean;
+    key_contact_name?: string;
+    key_contact_email?: string;
+
+    // Section B — Project Development Status
+    technical_studies?: string;
+    permits_licences?: string;
     land_status?: string;
+
+    // Section C — Investment Profile
+    financing_structure?: string;
+    investment_stage_label?: string;
     revenue_model?: string;
+    macroeconomic_roi?: string;
+
+    // Section D — Climate & Social Impact
     climate_impact?: string;
     esg_compliance?: string;
+    ghg_avoided_target?: string;
+    jobs_construction?: string;
+    jobs_om?: string;
+    electricity_connections?: string;
+    digital_connections?: string;
+    smallholder_farmers_reached?: string;
+
+    // Submission
+    submitted_by?: string;
 
     // Metadata from backend API
     days_in_stage?: number;

@@ -1,56 +1,100 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { pipelineService } from '../services/pipelineService';
-import { documentService, Document } from '../services/documentService';
-import { Project, InvestorMatch, InvestorMatchStatus, ProjectScoreDetail, ProjectStatus } from '../types/pipeline';
+import { Project, ProjectStatus } from '../types/pipeline';
 import { useAppSelector } from '../hooks/useRedux';
-import { ProjectLifecycleTimeline } from '../components/pipeline/ProjectLifecycleTimeline';
-import { ProjectHistoryTimeline } from '../components/pipeline/ProjectHistoryTimeline';
 import { UserRole } from '../types/auth';
-import api from '../services/api';
+
+// ── dropdown option lists ────────────────────────────────────────────────────
+
+const PIPELINE_STAGES = [
+  { value: ProjectStatus.CONCEPT,         label: 'Concept' },
+  { value: ProjectStatus.PRE_FEASIBILITY, label: 'Pre-Feasibility' },
+  { value: ProjectStatus.FEASIBILITY,     label: 'Feasibility' },
+  { value: ProjectStatus.BANKABLE,        label: 'Bankable' },
+  { value: ProjectStatus.SUMMIT_FEATURED, label: 'Summit Featured' },
+  { value: ProjectStatus.IN_NEGOTIATION,  label: 'In Negotiation' },
+  { value: ProjectStatus.COMMITTED,       label: 'Committed' },
+  { value: ProjectStatus.ON_HOLD,         label: 'On Hold' },
+  { value: ProjectStatus.DECLINED,        label: 'Declined' },
+];
+
+const PERMITS_OPTIONS = ['Obtained', 'Pending', 'Not Required', 'TBC'];
+const LAND_OPTIONS    = ['Secured', 'Pending', 'Not Secured', 'Not Applicable', 'TBC'];
+const FINANCE_OPTIONS = [
+  'PPP / Private investment',
+  'PPP / Blended Finance',
+  'Private Equity',
+  'Debt Financing',
+  'Public Sector / Government',
+  'Blended Finance',
+  'Grant / Concessional',
+  'TBC',
+];
+const INV_STAGE_OPTIONS = ['Investment-ready', 'Bankable', 'Emerging', 'Early stage', 'Pre-commercial', 'TBC'];
+const ESG_OPTIONS       = ['Aligned', 'Partially Aligned', 'Not Assessed', 'TBC'];
+
+// ── status badge colour ──────────────────────────────────────────────────────
+
+const STATUS_COLORS: Record<string, string> = {
+  CONCEPT:         'bg-blue-100 text-blue-800 border-blue-200',
+  PRE_FEASIBILITY: 'bg-purple-100 text-purple-800 border-purple-200',
+  FEASIBILITY:     'bg-yellow-100 text-yellow-800 border-yellow-200',
+  BANKABLE:        'bg-green-100 text-green-800 border-green-200',
+  SUMMIT_FEATURED: 'bg-orange-100 text-orange-800 border-orange-200',
+  IN_NEGOTIATION:  'bg-pink-100 text-pink-800 border-pink-200',
+  COMMITTED:       'bg-emerald-100 text-emerald-800 border-emerald-200',
+  ON_HOLD:         'bg-slate-100 text-slate-600 border-slate-200',
+  DECLINED:        'bg-red-100 text-red-800 border-red-200',
+};
+
+// ── component ────────────────────────────────────────────────────────────────
 
 const ProjectDetails: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'documents' | 'history' | 'matches'>('overview');
-  const [project, setProject] = useState<Project | null>(null);
-  const [matches, setMatches] = useState<InvestorMatch[]>([]);
-  const [scoreDetails, setScoreDetails] = useState<ProjectScoreDetail[]>([]);
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMatches, setLoadingMatches] = useState(false);
-  const [triggeringMatch, setTriggeringMatch] = useState(false);
-  const [togglingFlagship, setTogglingFlagship] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [documentType, setDocumentType] = useState('feasibility_study');
-  const [rescoring, setRescoring] = useState(false);
+  const { user } = useAppSelector((s) => s.auth);
 
-  // Inline editing state for template sections
-  const [editingSection, setEditingSection] = useState<'A' | 'B' | 'C' | 'D' | null>(null);
-  const [editDraft, setEditDraft] = useState<Partial<Project>>({});
-  const [saving, setSaving] = useState(false);
+  const canEdit = !!user?.role && [
+    UserRole.ADMIN, UserRole.SECRETARIAT_LEAD, UserRole.FACILITATOR,
+  ].includes(user.role);
 
-  const startEdit = (section: 'A' | 'B' | 'C' | 'D') => {
-    if (!project) return;
-    setEditingSection(section);
-    setEditDraft({ ...project });
-  };
+  const [project, setProject]   = useState<Project | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [draft, setDraft]       = useState<Partial<Project>>({});
+  const [dirty, setDirty]       = useState(false);
+  const [saving, setSaving]     = useState(false);
+  const [saved, setSaved]       = useState(false);
 
-  const cancelEdit = () => {
-    setEditingSection(null);
-    setEditDraft({});
-  };
+  // ── data load ──────────────────────────────────────────────────────────────
 
-  const saveEdit = async () => {
-    if (!project || !editingSection) return;
+  useEffect(() => {
+    if (!projectId) return;
+    setLoading(true);
+    pipelineService.getProject(projectId)
+      .then(p => { setProject(p); setDraft({ ...p }); })
+      .catch(e => console.error('Failed to load project', e))
+      .finally(() => setLoading(false));
+  }, [projectId]);
+
+  // ── draft helpers ──────────────────────────────────────────────────────────
+
+  const set = useCallback((key: keyof Project, val: string | boolean) => {
+    setDraft(d => ({ ...d, [key]: val }));
+    setDirty(true);
+    setSaved(false);
+  }, []);
+
+  const handleSave = async () => {
+    if (!project || !dirty) return;
     setSaving(true);
     try {
-      const updated = await pipelineService.updateProject(project.id, editDraft);
+      const updated = await pipelineService.updateProject(project.id, draft);
       setProject(updated);
-      setEditingSection(null);
-      setEditDraft({});
+      setDraft({ ...updated });
+      setDirty(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
     } catch (e) {
       console.error('Save failed', e);
     } finally {
@@ -58,963 +102,291 @@ const ProjectDetails: React.FC = () => {
     }
   };
 
-  const setField = (key: keyof Project, val: string) =>
-    setEditDraft(d => ({ ...d, [key]: val }));
-
-  // RBAC - Must be at top level before any returns
-  const { user } = useAppSelector((state) => state.auth);
-  const canEdit = user?.role && [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD, UserRole.FACILITATOR].includes(user.role);
-
-  // AI Insight State
-  const [aiInsight, setAiInsight] = useState<string>('');
-  const [aiRecommendation, setAiRecommendation] = useState<string>('');
-  const [isLoadingInsight, setIsLoadingInsight] = useState(false);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!projectId) return;
-      setLoading(true);
-      try {
-        const data = await pipelineService.getProject(projectId);
-        setProject(data);
-
-        // Fetch parallel data
-        fetchMatches(projectId);
-        fetchScoreDetails(projectId);
-        fetchDocuments(projectId);
-      } catch (error) {
-        console.error("Failed to fetch project", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [projectId]);
-
-  const fetchMatches = async (id: string) => {
-    setLoadingMatches(true);
-    try {
-      const matchData = await pipelineService.getMatches(id);
-      setMatches(matchData);
-    } catch (e) {
-      console.error("Failed to load matches", e);
-    } finally {
-      setLoadingMatches(false);
-    }
-  };
-
-  const fetchScoreDetails = async (id: string) => {
-    try {
-      const details = await pipelineService.getScoreDetails(id);
-      setScoreDetails(details);
-    } catch (e) {
-      console.error("Failed to load score details", e);
-    }
-  };
-
-  const fetchDocuments = async (id: string) => {
-    try {
-      // documentService now supports projectId filter
-      const response = await documentService.listDocuments(undefined, 1, 100, id);
-      setDocuments(response.data);
-    } catch (e) {
-      console.error("Failed to load documents", e);
-    }
-  };
-
-  const handleUploadDocument = async () => {
-    if (!selectedFile || !projectId) return;
-
-    setUploadingDoc(true);
-    try {
-      // Upload document with project_id in metadata
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('is_confidential', 'false');
-      formData.append('document_type', documentType);
-      formData.append('project_id', projectId);
-
-      await api.post('/documents/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-
-      // Refresh documents list and scores
-      await fetchDocuments(projectId);
-      await fetchScoreDetails(projectId);
-
-      // Close modal and reset
-      setShowUploadModal(false);
-      setSelectedFile(null);
-      setDocumentType('feasibility_study');
-
-      alert('Document uploaded successfully!');
-    } catch (error) {
-      console.error('Upload failed:', error);
-      alert('Failed to upload document. Please try again.');
-    } finally {
-      setUploadingDoc(false);
-    }
-  };
-
-  const handleDeleteDocument = async (docId: string, fileName: string) => {
-    if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
-
-    try {
-      await documentService.deleteDocument(docId);
-
-      // Refresh documents list and scores
-      if (projectId) {
-        await fetchDocuments(projectId);
-        await fetchScoreDetails(projectId);
-      }
-
-      alert('Document deleted successfully!');
-    } catch (error) {
-      console.error('Delete failed:', error);
-      alert('Failed to delete document. Please try again.');
-    }
-  };
-
-  const toggleFlagship = async () => {
+  const handleDiscard = () => {
     if (!project) return;
-    setTogglingFlagship(true);
-    try {
-      const newVal = !project.is_flagship;
-      await pipelineService.toggleFlagship(project.id, newVal);
-      setProject({ ...project, is_flagship: newVal });
-    } catch (e) {
-      console.error("Failed toggle", e);
-    } finally {
-      setTogglingFlagship(false);
+    setDraft({ ...project });
+    setDirty(false);
+  };
+
+  // ── render helpers ─────────────────────────────────────────────────────────
+
+  /** One label | value row */
+  const Row = ({
+    label,
+    fkey,
+    type = 'text',
+    options,
+    wide = false,
+  }: {
+    label: string;
+    fkey: keyof Project;
+    type?: 'text' | 'email' | 'number' | 'textarea' | 'select' | 'bool';
+    options?: string[];
+    wide?: boolean;
+  }) => {
+    const val = draft[fkey] as string ?? '';
+
+    const inputClass =
+      'w-full bg-transparent border-0 border-b border-transparent focus:border-blue-400 ' +
+      'focus:bg-blue-50/30 dark:focus:bg-blue-900/20 rounded-none px-0 py-1 text-sm ' +
+      'text-slate-800 dark:text-slate-100 focus:outline-none transition-colors ' +
+      'placeholder:text-slate-300 dark:placeholder:text-slate-600';
+
+    const selectClass =
+      'w-full bg-transparent border-0 border-b border-transparent focus:border-blue-400 ' +
+      'focus:bg-blue-50/30 dark:focus:bg-blue-900/20 rounded-none px-0 py-1 text-sm ' +
+      'text-slate-800 dark:text-slate-100 focus:outline-none transition-colors cursor-pointer';
+
+    let input: React.ReactNode;
+
+    if (!canEdit) {
+      // View-only
+      const display = type === 'bool'
+        ? ((draft[fkey] as boolean) ? 'Cross-border' : 'National')
+        : (val || <span className="text-slate-300 dark:text-slate-600 italic">—</span>);
+      input = <span className="text-sm text-slate-800 dark:text-slate-200 py-1 block">{display}</span>;
+    } else if (type === 'bool') {
+      input = (
+        <select
+          value={(draft[fkey] as boolean) ? 'cross-border' : 'national'}
+          onChange={e => set(fkey, e.target.value === 'cross-border')}
+          className={selectClass}
+        >
+          <option value="national">National</option>
+          <option value="cross-border">Cross-border</option>
+        </select>
+      );
+    } else if (type === 'select' && options) {
+      input = (
+        <select
+          value={val}
+          onChange={e => set(fkey, e.target.value)}
+          className={selectClass}
+        >
+          <option value="">— select —</option>
+          {options.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      );
+    } else if (type === 'textarea') {
+      input = (
+        <textarea
+          value={val}
+          onChange={e => set(fkey, e.target.value)}
+          rows={2}
+          placeholder="—"
+          className={inputClass + ' resize-none leading-snug'}
+        />
+      );
+    } else {
+      input = (
+        <input
+          type={type}
+          value={val}
+          onChange={e => set(fkey, e.target.value)}
+          placeholder="—"
+          className={inputClass}
+        />
+      );
     }
+
+    return (
+      <tr className={`border-b border-slate-100 dark:border-slate-700/60 last:border-0 ${wide ? 'col-span-2' : ''}`}>
+        <td className="py-2.5 pr-6 pl-0 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 w-[36%] align-middle whitespace-nowrap select-none">
+          {label}
+        </td>
+        <td className="py-1 pr-0 align-middle">
+          {input}
+        </td>
+      </tr>
+    );
   };
 
-  const handleTriggerMatching = async () => {
-    if (!project) return;
-    setTriggeringMatch(true);
-    try {
-      await pipelineService.triggerMatching(project.id);
-      await fetchMatches(project.id);
-      alert("Investor matching triggered successfully!");
-    } catch (error: any) {
-      let errorMessage = 'Failed to trigger matching. Please try again.';
-      if (error.response?.data?.detail) {
-        errorMessage = typeof error.response.data.detail === 'string'
-          ? error.response.data.detail
-          : JSON.stringify(error.response.data.detail);
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      console.error("Failed to trigger matching", error);
-      alert(errorMessage);
-    } finally {
-      setTriggeringMatch(false);
-    }
-  };
+  /** Section card */
+  const Section = ({
+    sec, color, label, children,
+  }: {
+    sec: string; color: string; label: string; children: React.ReactNode;
+  }) => (
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+      <div className={`px-6 py-2.5 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2.5 ${color}`}>
+        <span className="text-[10px] font-black uppercase tracking-widest opacity-70">{sec}</span>
+        <span className="text-xs font-bold">{label}</span>
+      </div>
+      <table className="w-full px-6">
+        <tbody className="divide-y-0">
+          <tr><td colSpan={2} className="h-1" /></tr>
+          {children}
+          <tr><td colSpan={2} className="h-2" /></tr>
+        </tbody>
+      </table>
+    </div>
+  );
 
-  const handleUpdateMatchStatus = async (matchId: string, newStatus: InvestorMatchStatus) => {
-    try {
-      await pipelineService.updateMatchStatus(matchId, { status: newStatus });
-      // Optimistic update
-      setMatches(prev => prev.map(m => m.match_id === matchId ? { ...m, status: newStatus } : m));
-      if (newStatus === InvestorMatchStatus.INTERESTED) {
-        alert("Status updated to 'Interested'. Protocol Agent has been notified to schedule a meeting.");
-      }
-    } catch (error) {
-      console.error("Failed to update match status", error);
-      alert("Failed to update status.");
-    }
-  };
-
-  const handleStageTransition = async (newStage: string) => {
-    if (!project) return;
-    if (!confirm(`Are you sure you want to move this project to ${newStage.replace('_', ' ')}?`)) return;
-
-    try {
-      const result = await pipelineService.advanceStage(project.id, newStage as ProjectStatus);
-      setProject(result);
-      alert(`Project moved to ${newStage.replace('_', ' ')} successfully.`);
-    } catch (e: any) {
-      console.error("Transition failed", e);
-      alert(`Failed to transition: ${e.response?.data?.detail || e.message}`);
-    }
-  };
-
-  const fetchAIInsights = async () => {
-    if (!project) return;
-    setIsLoadingInsight(true);
-
-    try {
-      // Call the new AI insights API endpoint
-      const response = await api.get(`/pipeline/${project.id}/insights`);
-      setAiInsight(response.data.insight);
-      setAiRecommendation(response.data.recommendation);
-    } catch (error) {
-      console.error('Failed to fetch AI insights:', error);
-      // Fallback to basic insight
-      setAiInsight(`Readiness Score is ${project.readiness_score >= 80 ? 'high' : 'moderate'} (${project.readiness_score}/100). AfCEN Score: ${project.afcen_score ? Number(project.afcen_score).toFixed(1) : 'N/A'}`);
-      setAiRecommendation('Review pending investor matches in the Deal Room tab.');
-    } finally {
-      setIsLoadingInsight(false);
-    }
-  };
-
-  useEffect(() => {
-    if (project) fetchAIInsights();
-  }, [project]);
-
-  const handleRescore = async () => {
-    if (!project) return;
-    setRescoring(true);
-    try {
-      const response = await api.post(`/pipeline/${project.id}/rescore`);
-      // Refresh project data to get new score
-      const updatedProject = await pipelineService.getProject(project.id);
-      setProject(updatedProject);
-      await fetchScoreDetails(project.id);
-      alert(response.data.message || 'Project rescored successfully!');
-    } catch (error: any) {
-      console.error('Rescore failed:', error);
-      alert(error.response?.data?.detail || 'Failed to rescore project. Please try again.');
-    } finally {
-      setRescoring(false);
-    }
-  };
-
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-        case 'CONCEPT':         return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200 border-blue-200 dark:border-blue-800';
-        case 'PRE_FEASIBILITY': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200 border-purple-200 dark:border-purple-800';
-        case 'FEASIBILITY':     return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200 border-yellow-200 dark:border-yellow-800';
-        case 'BANKABLE':        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 border-green-200 dark:border-green-800';
-        case 'SUMMIT_FEATURED': return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200 border-orange-200 dark:border-orange-800';
-        case 'IN_NEGOTIATION':  return 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-200 border-pink-200 dark:border-pink-800';
-        case 'COMMITTED':       return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800';
-        case 'DECLINED':        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200 border-red-200 dark:border-red-800';
-        case 'NEEDS_REVISION':  return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 border-amber-200 dark:border-amber-800';
-        default:                return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700';
-    }
-  };
-
-  const getProgressColor = (score: number) => {
-    if (score >= 80) return 'bg-green-500';
-    if (score >= 60) return 'bg-primary';
-    return 'bg-orange-500';
-  };
-
-  const formatCurrency = (amount?: number) => {
-    if (!amount) return 'N/A';
-    if (amount >= 1000000000) return `$${(amount / 1000000000).toFixed(1)}B`;
-    if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
-    return `$${amount.toLocaleString()}`;
-  };
+  // ── loading ────────────────────────────────────────────────────────────────
 
   if (loading || !project) {
-    return <div className="p-12 text-center">Loading Project...</div>;
+    return (
+      <div className="flex items-center justify-center h-64 text-slate-400 text-sm">
+        Loading project…
+      </div>
+    );
   }
 
+  // ── render ─────────────────────────────────────────────────────────────────
+
   return (
-    <div className="max-w-[1200px] mx-auto space-y-6 relative">
-      {/* Breadcrumbs */}
-      <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-        <button onClick={() => navigate('/dashboard')} className="hover:text-primary transition-colors">
-          Home
-        </button>
-        <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+    <div className="max-w-3xl mx-auto pb-16 space-y-5">
+
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-xs text-slate-400 pt-1">
         <button onClick={() => navigate('/deal-pipeline')} className="hover:text-primary transition-colors">
           Deal Pipeline
         </button>
-        <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-        <span className="text-slate-900 dark:text-white font-medium">{project.name}</span>
+        <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+        <span className="text-slate-600 dark:text-slate-300">{project.name}</span>
       </div>
 
-      {/* Page Header */}
-      <div className="flex flex-wrap justify-between items-start gap-3">
-        <div className="flex flex-col gap-2 min-w-72">
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">
-              {project.name}
-            </h1>
-            <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider border ${getStatusColor(project.status)}`}>
-              {project.status.replace('_', ' ')}
-            </span>
-          </div>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">
-            Project ID: {project.id} • Lead: {project.lead_country || 'Regional'} •{' '}
-            <span className="inline-flex items-center gap-1 font-medium text-primary">
-              <span className="material-symbols-outlined text-[16px]">smart_toy</span>
-              AI Agent
-            </span>
-          </p>
-        </div>
-        <div className="flex gap-3">
-          {canEdit && (
-            <>
-              <button
-                onClick={toggleFlagship}
-                disabled={togglingFlagship}
-                className={`flex items-center justify-center gap-2 px-4 py-2 border text-sm font-bold rounded-lg transition-colors ${project.is_flagship
-                  ? 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                  }`}
+      {/* Header row */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          {/* Project name — editable for facilitators */}
+          {canEdit ? (
+            <input
+              value={draft.name ?? ''}
+              onChange={e => set('name', e.target.value)}
+              className="text-2xl font-black text-slate-900 dark:text-white bg-transparent border-0 border-b-2 border-transparent focus:border-blue-400 focus:outline-none w-full pb-0.5 transition-colors"
+            />
+          ) : (
+            <h1 className="text-2xl font-black text-slate-900 dark:text-white">{project.name}</h1>
+          )}
+
+          <div className="flex items-center flex-wrap gap-2 mt-2">
+            {/* Status — select for facilitators */}
+            {canEdit ? (
+              <select
+                value={draft.status ?? project.status}
+                onChange={e => set('status', e.target.value)}
+                className={`text-xs font-bold px-2 py-1 rounded border cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400/40 ${STATUS_COLORS[draft.status as string ?? project.status] ?? 'bg-slate-100 text-slate-700 border-slate-200'}`}
               >
-                <span className="material-symbols-outlined text-[18px]">
-                  {project.is_flagship ? 'star' : 'star_outline'}
-                </span>
-                <span>{project.is_flagship ? 'Flagship Project' : 'Mark as Flagship'}</span>
-              </button>
-
-              <button
-                onClick={() => navigate(`/deal-pipeline/${project.id}/edit`)}
-                className="flex items-center justify-center px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                <span>Edit Project</span>
-              </button>
-
-              {/* Transition Actions */}
-              {project.allowed_transitions && project.allowed_transitions.length > 0 && (
-                <div className="relative group">
-                  <button className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors">
-                    <span>Advance Stage</span>
-                    <span className="material-symbols-outlined text-[18px]">expand_more</span>
-                  </button>
-                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-1 z-50 hidden group-hover:block">
-                    {project.allowed_transitions.map(stage => (
-                      <button
-                        key={stage}
-                        onClick={() => handleStageTransition(stage)}
-                        className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md capitalize"
-                      >
-                        Move to {stage.replace(/_/g, ' ')}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-          <button
-            onClick={() => navigate(`/deal-pipeline/${encodeURIComponent(project.id)}/memo`)}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-blue-700 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
-            <span>Generate Memo</span>
-          </button>
-        </div>
-      </div>
-
-
-      {/* Lifecycle Timeline */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-        <ProjectLifecycleTimeline project={project} />
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Funding Ask */}
-        <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="flex justify-between items-start">
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Investment Size</p>
-            <span className="material-symbols-outlined text-slate-400">payments</span>
-          </div>
-          <p className="text-slate-900 dark:text-white text-2xl font-bold">
-            {formatCurrency(project.investment_size)} <span className="text-base font-medium text-slate-400">USD</span>
-          </p>
-          <p className="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded w-fit">
-            Estimated
-          </p>
-        </div>
-
-        {/* Readiness Score */}
-        <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-            <span className="material-symbols-outlined text-6xl text-primary">speed</span>
-          </div>
-          <div className="flex justify-between items-start z-10">
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Readiness Score</p>
-            <span className="material-symbols-outlined text-primary">check_circle</span>
-          </div>
-          <p className="text-slate-900 dark:text-white text-2xl font-bold">
-            {project.readiness_score}
-            <span className="text-slate-400 text-lg">/100</span>
-          </p>
-          <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 mt-2">
-            <div
-              className={`${getProgressColor(project.readiness_score)} h-1.5 rounded-full`}
-              style={{ width: `${project.readiness_score}%` }}
-            ></div>
-          </div>
-        </div>
-
-        {/* AfCEN Score (New) */}
-        <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="flex justify-between items-start">
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">AfCEN Score</p>
-            <span className="material-symbols-outlined text-purple-400">stars</span>
-          </div>
-          <p className="text-slate-900 dark:text-white text-2xl font-bold">{project.afcen_score ? Number(project.afcen_score).toFixed(1) : 'N/A'}</p>
-          <button
-            onClick={handleRescore}
-            disabled={rescoring}
-            className="mt-2 w-full py-1.5 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 text-purple-600 dark:text-purple-400 text-xs font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
-            title="Manually trigger AfCEN scoring assessment"
-          >
-            <span className="material-symbols-outlined text-[14px]">{rescoring ? 'hourglass_empty' : 'refresh'}</span>
-            {rescoring ? 'Scoring...' : 'Rescore Project'}
-          </button>
-        </div>
-
-        {/* Pillar */}
-        <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="flex justify-between items-start">
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Pillar</p>
-            <span className="material-symbols-outlined text-slate-400">category</span>
-          </div>
-          <p className="text-slate-900 dark:text-white text-xl font-bold truncate" title={project.pillar}>
-            {project.pillar || 'General'}
-          </p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="sticky top-[72px] bg-background-light dark:bg-background-dark z-40 pt-2 pb-0 mb-6">
-        <div className="flex border-b border-slate-200 dark:border-slate-700 gap-8 overflow-x-auto">
-          {['overview', 'matches', 'financials', 'documents', 'history'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab as any)}
-              className={`flex items-center justify-center border-b-[3px] pb-3 pt-2 min-w-fit transition-colors capitalize ${activeTab === tab
-                ? 'border-primary text-slate-900 dark:text-white'
-                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                }`}
-            >
-              <span className="text-sm font-bold">
-                {tab === 'matches' ? 'Deal Room / Investors' : tab}
-              </span>
-              {tab === 'matches' && matches.length > 0 && (
-                <span className="ml-2 bg-primary text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                  {matches.length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-12">
-        {/* Left Column (Primary Content) */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-
-          {/* Overview Tab Content */}
-          {activeTab === 'overview' && (
-            <>
-              {/* Executive Summary */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Description</h3>
-                <div className="prose prose-slate dark:prose-invert max-w-none text-slate-600 dark:text-slate-300">
-                  <p className="mb-4">{project.description || 'No description provided.'}</p>
-                </div>
-              </div>
-
-              {/* Investment Template — Sections A–D with inline editing */}
-              <div className="space-y-0 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-
-                {/* ── helpers ── */}
-                {(() => {
-                  const isEditing = (s: 'A' | 'B' | 'C' | 'D') => editingSection === s;
-
-                  /** One label-value row */
-                  const Row = ({
-                    label, fkey, textarea = false, isEmail = false, sec,
-                  }: {
-                    label: string;
-                    fkey: keyof Project;
-                    textarea?: boolean;
-                    isEmail?: boolean;
-                    sec: 'A' | 'B' | 'C' | 'D';
-                  }) => {
-                    const editing = isEditing(sec);
-                    const val = editing
-                      ? (editDraft[fkey] as string ?? '')
-                      : (project[fkey] as string ?? '');
-
-                    return (
-                      <tr className="border-b border-slate-100 dark:border-slate-700 last:border-0 group hover:bg-slate-50/60 dark:hover:bg-slate-700/30 transition-colors">
-                        <td className="py-3 pl-6 pr-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 w-[38%] align-top whitespace-nowrap">
-                          {label}
-                        </td>
-                        <td className="py-2 pr-4 text-sm text-slate-800 dark:text-slate-200 align-top">
-                          {editing ? (
-                            textarea ? (
-                              <textarea
-                                value={val}
-                                onChange={e => setField(fkey, e.target.value)}
-                                rows={2}
-                                className="w-full border border-blue-300 dark:border-blue-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400/50 resize-none"
-                              />
-                            ) : (
-                              <input
-                                type={isEmail ? 'email' : 'text'}
-                                value={val}
-                                onChange={e => setField(fkey, e.target.value)}
-                                className="w-full border border-blue-300 dark:border-blue-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
-                              />
-                            )
-                          ) : val ? (
-                            isEmail ? (
-                              <a href={`mailto:${val}`} className="text-blue-600 dark:text-blue-400 hover:underline">{val}</a>
-                            ) : val
-                          ) : (
-                            <span className="text-slate-300 dark:text-slate-600 italic">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  };
-
-                  /** Section wrapper with edit/save/cancel controls */
-                  const Section = ({
-                    sec, label, badge, children,
-                  }: {
-                    sec: 'A' | 'B' | 'C' | 'D';
-                    label: string;
-                    badge: string;
-                    children: React.ReactNode;
-                  }) => {
-                    const editing = isEditing(sec);
-                    const badgeColors: Record<string, string> = {
-                      A: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
-                      B: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300',
-                      C: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
-                      D: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
-                    };
-                    return (
-                      <div className="border-b border-slate-200 dark:border-slate-700 last:border-0">
-                        <div className="flex items-center justify-between px-6 py-3 bg-slate-50 dark:bg-slate-800/60">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${badgeColors[sec]}`}>
-                              {badge}
-                            </span>
-                            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">{label}</h3>
-                          </div>
-                          {canEdit && (
-                            editing ? (
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={cancelEdit}
-                                  className="px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  onClick={saveEdit}
-                                  disabled={saving}
-                                  className="px-3 py-1 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1"
-                                >
-                                  {saving && <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>}
-                                  {saving ? 'Saving…' : 'Save'}
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => startEdit(sec)}
-                                disabled={editingSection !== null}
-                                className="flex items-center gap-1 px-3 py-1 text-xs font-semibold text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-white dark:hover:bg-slate-700 hover:text-slate-800 dark:hover:text-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                              >
-                                <span className="material-symbols-outlined text-[14px]">edit</span>
-                                Edit
-                              </button>
-                            )
-                          )}
-                        </div>
-                        <table className="w-full">
-                          <tbody>{children}</tbody>
-                        </table>
-                      </div>
-                    );
-                  };
-
-                  return (
-                    <>
-                      {/* Section A */}
-                      <Section sec="A" badge="Section A" label="Basic Project Information">
-                        <Row sec="A" label="Country / Host State" fkey="lead_country" />
-                        {/* Regional Dimension: boolean rendered as select in edit mode */}
-                        <tr className="border-b border-slate-100 dark:border-slate-700 last:border-0 group hover:bg-slate-50/60 dark:hover:bg-slate-700/30 transition-colors">
-                          <td className="py-3 pl-6 pr-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 w-[38%] align-top whitespace-nowrap">
-                            Regional Dimension
-                          </td>
-                          <td className="py-2 pr-4 text-sm text-slate-800 dark:text-slate-200 align-top">
-                            {isEditing('A') ? (
-                              <select
-                                value={editDraft.is_cross_border ? 'cross-border' : 'national'}
-                                onChange={e => setEditDraft(d => ({ ...d, is_cross_border: e.target.value === 'cross-border' }))}
-                                className="border border-blue-300 dark:border-blue-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
-                              >
-                                <option value="national">National</option>
-                                <option value="cross-border">Cross-border</option>
-                              </select>
-                            ) : (
-                              project.is_cross_border ? 'Cross-border' : 'National'
-                            )}
-                          </td>
-                        </tr>
-                        <Row sec="A" label="Subsector" fkey="subsector" />
-                        <Row sec="A" label="Project Sponsor" fkey="project_sponsor" />
-                        <Row sec="A" label="Key Contact Name" fkey="key_contact_name" />
-                        <Row sec="A" label="Key Contact Email" fkey="key_contact_email" isEmail />
-                        <Row sec="A" label="Submitted By" fkey="submitted_by" />
-                      </Section>
-
-                      {/* Section B */}
-                      <Section sec="B" badge="Section B" label="Project Development Status">
-                        <Row sec="B" label="Technical Studies" fkey="technical_studies" textarea />
-                        <Row sec="B" label="Permits & Licences" fkey="permits_licences" textarea />
-                        <Row sec="B" label="Land Status" fkey="land_status" />
-                      </Section>
-
-                      {/* Section C */}
-                      <Section sec="C" badge="Section C" label="Investment Profile">
-                        <Row sec="C" label="Financing Structure" fkey="financing_structure" />
-                        <Row sec="C" label="Investment Stage" fkey="investment_stage_label" />
-                        <Row sec="C" label="Revenue Model" fkey="revenue_model" textarea />
-                        <Row sec="C" label="Macroeconomic ROI" fkey="macroeconomic_roi" textarea />
-                      </Section>
-
-                      {/* Section D */}
-                      <Section sec="D" badge="Section D" label="Climate & Social Impact">
-                        <Row sec="D" label="Climate & ESG Notes" fkey="climate_impact" textarea />
-                        <Row sec="D" label="ESG Compliance" fkey="esg_compliance" textarea />
-                        <Row sec="D" label="GHG Avoided (tCO₂e)" fkey="ghg_avoided_target" />
-                        <Row sec="D" label="Jobs — Construction" fkey="jobs_construction" />
-                        <Row sec="D" label="Jobs — O&M (ongoing)" fkey="jobs_om" />
-                        <Row sec="D" label="Smallholder Farmers Reached" fkey="smallholder_farmers_reached" />
-                        <Row sec="D" label="New Electricity Connections" fkey="electricity_connections" />
-                        <Row sec="D" label="Digital Connections / SMEs" fkey="digital_connections" />
-                      </Section>
-                    </>
-                  );
-                })()}
-
-              </div>
-
-              {/* Data for Strategic Rationale */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
-                  Scores Breakdown
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Strategic Alignment */}
-                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">Strategic Fit</h4>
-                    <div className="space-y-3">
-                      {scoreDetails.filter(d => d.criterion.criterion_type === 'strategic_fit').map(d => (
-                        <div key={d.id} className="flex justify-between items-center text-sm">
-                          <span className="text-slate-600 dark:text-slate-400">{d.criterion.criterion_name}</span>
-                          <span className="font-bold text-slate-900 dark:text-white">{d.score}/10</span>
-                        </div>
-                      ))}
-                      {scoreDetails.filter(d => d.criterion.criterion_type === 'strategic_fit').length === 0 && (
-                        <div className="text-xs text-slate-400 italic">No details available.</div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Readiness */}
-                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">Readiness Factors</h4>
-                    <div className="space-y-3">
-                      {scoreDetails.filter(d => d.criterion.criterion_type === 'readiness').map(d => (
-                        <div key={d.id} className="flex justify-between items-center text-sm">
-                          <span className="text-slate-600 dark:text-slate-400">{d.criterion.criterion_name}</span>
-                          <span className={`font-bold ${d.score >= 5 ? 'text-green-600' : 'text-slate-400'}`}>
-                            {d.score >= 5 ? 'Yes' : 'No'}
-                          </span>
-                        </div>
-                      ))}
-                      {scoreDetails.filter(d => d.criterion.criterion_type === 'readiness').length === 0 && (
-                        <div className="text-xs text-slate-400 italic">No details available. Defaulting to estimated score.</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Matches Tab */}
-          {activeTab === 'matches' && (
-            <div className="space-y-6">
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Investor Matching</h3>
-                  <button
-                    onClick={handleTriggerMatching}
-                    disabled={triggeringMatch}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-md hover:bg-primary-hover disabled:opacity-50">
-                    <span className="material-symbols-outlined">restart_alt</span>
-                    {triggeringMatch ? 'Running Engine...' : 'Run Matching Engine'}
-                  </button>
-                </div>
-
-                {loadingMatches ? (
-                  <div className="text-center py-8 text-slate-500">Loading matches...</div>
-                ) : matches.length === 0 ? (
-                  <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-300">
-                    <span className="material-symbols-outlined text-4xl mb-2">person_search</span>
-                    <p>No investors matched yet. Run the matching engine to find potential investors.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {matches.map((match) => (
-                      <div key={match.match_id} className="flex flex-col md:flex-row gap-4 p-4 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="text-base font-bold text-slate-900 dark:text-white">{match.investor?.name || 'Unknown Investor'}</h4>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${match.status === InvestorMatchStatus.INTERESTED ? 'bg-green-100 text-green-700' :
-                              match.status === InvestorMatchStatus.CONTACTED ? 'bg-blue-100 text-blue-700' :
-                                'bg-slate-100 text-slate-600'
-                              }`}>
-                              {match.status}
-                            </span>
-                          </div>
-                          <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
-                            {/* Use sector preferences or investment instruments */}
-                            {match.investor?.sector_preferences?.join(', ') || 'No specific strategy'}
-                          </p>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            <span className="font-medium">Ticket:</span> {match.investor?.ticket_size_min ? `$${match.investor.ticket_size_min}M - $${match.investor.ticket_size_max}M` : 'N/A'}
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            <span className="font-medium">Focus:</span> {match.investor?.geographic_focus?.join(', ') || 'N/A'}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-4 min-w-[140px]">
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-primary">{Math.round(match.score)}%</div>
-                            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Match Score</div>
-                          </div>
-
-                          <div className="relative group">
-                            <select
-                              value={match.status}
-                              onChange={(e) => handleUpdateMatchStatus(match.match_id, e.target.value as InvestorMatchStatus)}
-                              className="appearance-none bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold py-2 pl-3 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer hover:bg-slate-50"
-                            >
-                              <option value={InvestorMatchStatus.DETECTED}>Detected</option>
-                              <option value={InvestorMatchStatus.CONTACTED}>Contacted</option>
-                              <option value={InvestorMatchStatus.INTERESTED}>Interested</option>
-                              <option value={InvestorMatchStatus.COMMITTED}>Committed</option>
-                              <option value={InvestorMatchStatus.DECLINED}>Declined</option>
-                            </select>
-                            <span className="material-symbols-outlined absolute right-2 top-1.5 text-[18px] pointer-events-none text-slate-500">expand_more</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Matches Tab as "Financials" */}
-          {activeTab === 'financials' && (
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm space-y-6">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Financial Structure</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
-                  <div className="text-sm text-slate-500 mb-1">Total Investment</div>
-                  <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {formatCurrency(project.investment_size)}
-                  </div>
-                </div>
-                <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800">
-                  <div className="text-sm text-slate-500 mb-1">Funding Secured</div>
-                  <div className="text-2xl font-bold text-green-700 dark:text-green-400">
-                    {formatCurrency(project.funding_secured_usd)}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">
-                    {((project.funding_secured_usd || 0) / project.investment_size * 100).toFixed(1)}% of total
-                  </div>
-                </div>
-                <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800">
-                  <div className="text-sm text-slate-500 mb-1">Funding Gap</div>
-                  <div className="text-2xl font-bold text-orange-700 dark:text-orange-400">
-                    {formatCurrency(project.investment_size - (project.funding_secured_usd || 0))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'documents' && (
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Project Documents</h3>
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[18px]">upload_file</span>
-                  Upload Document
-                </button>
-              </div>
-              {documents.length === 0 ? (
-                <div className="text-center py-8 text-slate-500 italic">No documents found.</div>
-              ) : (
-                <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {documents.map(doc => (
-                    <div key={doc.id} className="py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="material-symbols-outlined text-slate-400">description</span>
-                        <div>
-                          <div className="font-medium text-slate-900 dark:text-white text-sm">{doc.file_name}</div>
-                          <div className="text-xs text-slate-500">{new Date(doc.created_at).toLocaleDateString()}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => documentService.downloadDocument(doc.id)}
-                          className="text-slate-400 hover:text-primary"
-                          title="Download"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">download</span>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteDocument(doc.id, doc.file_name)}
-                          className="text-slate-400 hover:text-red-600"
-                          title="Delete"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">delete</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'history' && (
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
-              <ProjectHistoryTimeline projectId={projectId!} />
-            </div>
-          )}
-
-        </div>
-
-        {/* Right Column (Sidebar) */}
-        <div className="flex flex-col gap-6">
-          {/* AI Insight Card */}
-          <div className="rounded-xl p-5 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/20 border border-blue-100 dark:border-blue-900 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-3 opacity-10">
-              <span className="material-symbols-outlined text-6xl text-primary">psychology</span>
-            </div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="material-symbols-outlined text-primary">auto_awesome</span>
-              <h4 className="text-sm font-bold text-primary">AI Agent Insight</h4>
-            </div>
-            {isLoadingInsight ? (
-              <div className="flex flex-col items-center justify-center py-4">
-                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Analyzing project...</p>
-              </div>
+                {PIPELINE_STAGES.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
             ) : (
-              <>
-                <p className="text-sm text-slate-700 dark:text-slate-300 mb-3 font-medium">
-                  {aiInsight || 'No insights available yet.'}
-                </p>
-                <div className="bg-white/60 dark:bg-black/20 rounded-lg p-3 text-xs text-slate-600 dark:text-slate-400 backdrop-blur-sm border border-white/50 dark:border-white/10">
-                  <strong>Recommendation:</strong> {aiRecommendation || 'Review matches.'}
-                </div>
-              </>
+              <span className={`text-xs font-bold px-2 py-1 rounded border ${STATUS_COLORS[project.status] ?? 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                {project.status.replace(/_/g, ' ')}
+              </span>
+            )}
+
+            {project.pillar && (
+              <span className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded">
+                {project.pillar.replace(/_/g, ' ')}
+              </span>
+            )}
+
+            {project.lead_country && (
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {project.lead_country}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Save / discard controls */}
+        {canEdit && (
+          <div className="flex items-center gap-2 pt-1 shrink-0">
+            {dirty && (
+              <button
+                onClick={handleDiscard}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                Discard
+              </button>
             )}
             <button
-              onClick={fetchAIInsights}
-              disabled={isLoadingInsight}
-              className="mt-3 w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleSave}
+              disabled={!dirty || saving}
+              className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                dirty
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                  : saved
+                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+              }`}
             >
-              <span className="material-symbols-outlined text-[16px]">psychology</span>
-              {isLoadingInsight ? 'Analyzing...' : 'Refresh AI Insight'}
+              {saving && <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>}
+              <span className="material-symbols-outlined text-[14px]">
+                {saved ? 'check_circle' : 'save'}
+              </span>
+              {saving ? 'Saving…' : saved ? 'Saved' : 'Save Changes'}
             </button>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Upload Document Modal */}
-      {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Upload Document</h3>
-              <button
-                onClick={() => setShowUploadModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
+      {/* ── Section A ── */}
+      <Section sec="Section A" label="Basic Project Information" color="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
+        <Row label="Country / Host State"  fkey="lead_country" />
+        <Row label="Regional Dimension"    fkey="is_cross_border" type="bool" />
+        <Row label="Subsector"             fkey="subsector" />
+        <Row label="Project Sponsor"       fkey="project_sponsor" />
+        <Row label="Key Contact Name"      fkey="key_contact_name" />
+        <Row label="Key Contact Email"     fkey="key_contact_email" type="email" />
+        <Row label="Submitted By"          fkey="submitted_by" />
+      </Section>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Document Type
-                </label>
-                <select
-                  value={documentType}
-                  onChange={(e) => setDocumentType(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                >
-                  <option value="feasibility_study">Feasibility Study</option>
-                  <option value="esia">ESIA Report</option>
-                  <option value="financial_model">Financial Model</option>
-                  <option value="government_support">Government Support Letter</option>
-                  <option value="investment_memo">Investment Memo</option>
-                  <option value="technical_spec">Technical Specification</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
+      {/* ── Section B ── */}
+      <Section sec="Section B" label="Project Development Status" color="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300">
+        <Row label="Technical Studies"  fkey="technical_studies"  type="textarea" />
+        <Row label="Permits & Licences" fkey="permits_licences"   type="select" options={PERMITS_OPTIONS} />
+        <Row label="Land Status"        fkey="land_status"        type="select" options={LAND_OPTIONS} />
+      </Section>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Select File
-                </label>
+      {/* ── Section C ── */}
+      <Section sec="Section C" label="Investment Profile" color="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300">
+        {/* Investment size: stored as raw USD, displayed as $XM */}
+        <tr className="border-b border-slate-100 dark:border-slate-700/60 last:border-0">
+          <td className="py-2.5 pr-6 pl-0 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 w-[36%] align-middle whitespace-nowrap select-none">
+            Investment Size
+          </td>
+          <td className="py-1 pr-0 align-middle">
+            {canEdit ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-400">$</span>
                 <input
-                  type="file"
-                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-blue-700"
+                  type="number"
+                  value={draft.investment_size ? Number(draft.investment_size) / 1_000_000 : ''}
+                  onChange={e => set('investment_size', String(Number(e.target.value) * 1_000_000))}
+                  placeholder="e.g. 250"
+                  className="w-32 bg-transparent border-0 border-b border-transparent focus:border-blue-400 focus:bg-blue-50/30 dark:focus:bg-blue-900/20 rounded-none px-0 py-1 text-sm text-slate-800 dark:text-slate-100 focus:outline-none transition-colors"
                 />
-                {selectedFile && (
-                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                    Selected: {selectedFile.name}
-                  </p>
-                )}
+                <span className="text-sm text-slate-400">M USD</span>
               </div>
+            ) : (
+              <span className="text-sm text-slate-800 dark:text-slate-200 py-1 block">
+                ${project.investment_size ? (Number(project.investment_size) / 1_000_000).toFixed(1) : '—'} M USD
+              </span>
+            )}
+          </td>
+        </tr>
+        <Row label="Financing Structure"     fkey="financing_structure"   type="select" options={FINANCE_OPTIONS} />
+        <Row label="Investment Stage"        fkey="investment_stage_label" type="select" options={INV_STAGE_OPTIONS} />
+        <Row label="Revenue Model"           fkey="revenue_model"         type="textarea" />
+        <Row label="Macroeconomic ROI"       fkey="macroeconomic_roi"     type="textarea" />
+      </Section>
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setShowUploadModal(false)}
-                  className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUploadDocument}
-                  disabled={!selectedFile || uploadingDoc}
-                  className="flex-1 px-4 py-2 bg-primary text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {uploadingDoc ? 'Uploading...' : 'Upload'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Section D ── */}
+      <Section sec="Section D" label="Climate & Social Impact" color="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300">
+        <Row label="Climate & ESG Notes"        fkey="climate_impact"             type="textarea" />
+        <Row label="ESG Compliance"             fkey="esg_compliance"             type="select" options={ESG_OPTIONS} />
+        <Row label="GHG Avoided (tCO₂e/yr)"    fkey="ghg_avoided_target" />
+        <Row label="Jobs — Construction"        fkey="jobs_construction" />
+        <Row label="Jobs — O&M (ongoing)"       fkey="jobs_om" />
+        <Row label="Smallholder Farmers Reached" fkey="smallholder_farmers_reached" />
+        <Row label="New Electricity Connections" fkey="electricity_connections" />
+        <Row label="Digital Connections / SMEs"  fkey="digital_connections" />
+      </Section>
+
     </div>
   );
 };

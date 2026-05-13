@@ -489,6 +489,7 @@ from app.models.models import TWGPillar
 _PILLAR_KEYWORDS: dict[str, TWGPillar] = {
     "energy": TWGPillar.energy_infrastructure,
     "agriculture": TWGPillar.agriculture_food_systems,
+    "agribusiness": TWGPillar.agriculture_food_systems,
     "food": TWGPillar.agriculture_food_systems,
     "mineral": TWGPillar.critical_minerals_industrialization,
     "industrial": TWGPillar.critical_minerals_industrialization,
@@ -527,14 +528,19 @@ def _map_status(raw: str) -> ProjectStatus:
 
 
 def _parse_investment(raw: str) -> Optional[float]:
-    """Parse investment value from strings like '$50M', '50,000,000', '50 million'."""
+    """Parse investment value from strings like '$50M', '50–100 million', 'USD 100-150 million'."""
     if not raw:
         return None
-    cleaned = str(raw).replace("$", "").replace(",", "").strip().lower()
-    multiplier = 1_000_000 if cleaned.endswith(("m", "million")) else 1
+    cleaned = str(raw).replace("$", "").replace(",", "").replace("USD", "").strip().lower()
+    multiplier = 1_000_000 if any(x in cleaned for x in ("m", "million")) else 1
+    # Handle ranges like "100–150" or "50-100" — take the lower bound
+    range_match = re.search(r"(\d+(?:\.\d+)?)\s*[–\-]\s*(\d+(?:\.\d+)?)", cleaned)
+    if range_match:
+        low, high = float(range_match.group(1)), float(range_match.group(2))
+        return ((low + high) / 2) * multiplier
     cleaned = re.sub(r"[^0-9.]", "", cleaned)
     try:
-        return float(cleaned) * multiplier
+        return float(cleaned) * multiplier if cleaned else None
     except (ValueError, TypeError):
         return None
 
@@ -555,7 +561,7 @@ def _find_header_row(ws):
         cells = [str(c).strip() if c is not None else "" for c in row]
         header_cells_lower = [c.lower() for c in cells]
         is_header = any(
-            "project name" in cell or "project/programme name" in cell
+            "project name" in cell or "project/programme name" in cell or "project title" in cell
             for cell in header_cells_lower
         )
         if not is_header:
@@ -564,11 +570,11 @@ def _find_header_row(ws):
         for col_idx, header in enumerate(header_cells_lower):
             if not header:
                 continue
-            if _col_matches(header, "project name", "project/programme name"):
+            if _col_matches(header, "project name", "project/programme name", "project title"):
                 col_map.setdefault("name", col_idx)
             elif _col_matches(header, "country"):
                 col_map.setdefault("lead_country", col_idx)
-            elif _col_matches(header, "cross-border", "national or cross-border", "cross border"):
+            elif _col_matches(header, "cross-border", "national or cross-border", "cross border", "regional dimension"):
                 col_map.setdefault("is_cross_border", col_idx)
             elif _col_matches(header, "sector") and "subsector" not in header:
                 col_map.setdefault("pillar", col_idx)
@@ -629,13 +635,31 @@ async def import_projects_from_excel(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Cannot parse Excel file: {exc}")
 
-    ws = wb.active
+    # Try "Investment Opportunities" tab first, then fall back to scanning all sheets
+    target_sheet_names = ["Investment Opportunities", "Projects", "Pipeline"]
+    ws = None
+    for sheet_name in target_sheet_names:
+        if sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            break
+    if ws is None:
+        ws = wb.active
+
     header_row_idx, col_map = _find_header_row(ws)
+
+    # If not found in preferred sheet, scan all sheets
+    if header_row_idx is None:
+        for sheet_name in wb.sheetnames:
+            candidate = wb[sheet_name]
+            header_row_idx, col_map = _find_header_row(candidate)
+            if header_row_idx is not None:
+                ws = candidate
+                break
 
     if header_row_idx is None:
         raise HTTPException(
             status_code=422,
-            detail="Could not find a header row containing 'Project Name'.",
+            detail="Could not find a header row containing 'Project Name' or 'Project Title'.",
         )
 
     imported = 0
@@ -648,6 +672,11 @@ async def import_projects_from_excel(
     for row_offset, row in enumerate(data_rows, start=header_row_idx + 2):
         name = _cell(row, col_map, "name")
         if not name:
+            skipped += 1
+            continue
+        # Skip template description/example rows and footer instructions
+        name_lower = name.lower()
+        if any(x in name_lower for x in ("full name of the project", "add further rows", "↓", "copy formatting")):
             skipped += 1
             continue
 

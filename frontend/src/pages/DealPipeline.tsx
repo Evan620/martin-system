@@ -6,7 +6,6 @@ import { useAppSelector } from '../hooks/useRedux';
 import { UserRole } from '../types/auth';
 import DealRoomDashboard from './DealRoomDashboard';
 import InvestorDatabase from './InvestorDatabase';
-import ComingSoonOverlay from '../components/common/ComingSoonOverlay';
 
 const DealPipeline: React.FC = () => {
   const navigate = useNavigate();
@@ -186,8 +185,6 @@ const DealPipeline: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 relative">
-      <ComingSoonOverlay />
-
       {/* Import Toast */}
       {importToast && (
         <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all ${importToast.startsWith('Error') ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>

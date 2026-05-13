@@ -550,7 +550,7 @@ class Project(Base):
     
     # Deal Pipeline fields
     pillar: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    lead_country: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    lead_country: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     afcen_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     strategic_alignment_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     assigned_agent: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -568,7 +568,7 @@ class Project(Base):
     subsector: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     project_sponsor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_cross_border: Mapped[bool] = mapped_column(Boolean, default=False)
-    land_status: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    land_status: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     revenue_model: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     climate_impact: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     esg_compliance: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

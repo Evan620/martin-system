@@ -59,36 +59,22 @@ class ActionItemPriority(str, enum.Enum):
     URGENT = "urgent"
 
 class ProjectStatus(str, enum.Enum):
-    # Submission Phase
-    DRAFT = "DRAFT"
-    PIPELINE = "PIPELINE"
-    UNDER_REVIEW = "UNDER_REVIEW"
-    
-    # Decision Phase
+    # Phase 1 — Project Development (TWG Facilitator)
+    CONCEPT = "CONCEPT"
+    PRE_FEASIBILITY = "PRE_FEASIBILITY"
+    FEASIBILITY = "FEASIBILITY"
+    BANKABLE = "BANKABLE"
+
+    # Phase 2 — Deal Making (Secretariat)
+    SUMMIT_FEATURED = "SUMMIT_FEATURED"
+    IN_NEGOTIATION = "IN_NEGOTIATION"
+    COMMITTED = "COMMITTED"
+
+    # System states
     DECLINED = "DECLINED"
     NEEDS_REVISION = "NEEDS_REVISION"
-    SUMMIT_READY = "SUMMIT_READY"
-    
-    # Deal Room Phase
-    DEAL_ROOM_FEATURED = "DEAL_ROOM_FEATURED"
-    IN_NEGOTIATION = "IN_NEGOTIATION"
-    
-    # Post-Deal Phase
-    COMMITTED = "COMMITTED"
-    IMPLEMENTED = "IMPLEMENTED"
-    
-    # Other
     ON_HOLD = "ON_HOLD"
     ARCHIVED = "ARCHIVED"
-    
-    # Legacy Statuses (Mapped to new ones where possible, but kept for safety)
-    IDENTIFIED = "identified"      # -> DRAFT or PIPELINE
-    VETTING = "vetting"            # -> UNSER_REVIEW
-    DUE_DILIGENCE = "due_diligence" # -> UNDER_REVIEW
-    FINANCING = "financing"         # -> SUMMIT_READY
-    DEAL_ROOM = "deal_room"        # -> SUMMIT_READY / DEAL_ROOM_FEATURED
-    BANKABLE = "bankable"          # -> COMMITTED
-    PRESENTED = "presented"        # -> DEAL_ROOM_FEATURED
 
 class NotificationType(str, enum.Enum):
     INFO = "info"
@@ -544,7 +530,7 @@ class Project(Base):
     investment_size: Mapped[Decimal] = mapped_column(Numeric(15, 2))
     currency: Mapped[str] = mapped_column(String(10), default="USD")
     readiness_score: Mapped[float] = mapped_column(Float, default=0.0)
-    status: Mapped[ProjectStatus] = mapped_column(Enum(ProjectStatus), default=ProjectStatus.IDENTIFIED)
+    status: Mapped[ProjectStatus] = mapped_column(Enum(ProjectStatus), default=ProjectStatus.CONCEPT)
     investment_memo_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("documents.id"), nullable=True)
     metadata_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     

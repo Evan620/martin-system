@@ -262,10 +262,14 @@ class PineconeKnowledgeBase:
                     if len(embedding) != self.dimension:
                         logger.warning(f"Embedding dim {len(embedding)} != Index dim {self.dimension}. This will likely fail.")
 
+                    meta = {**doc.get('metadata', {})}
+                    # Store text in metadata so search results include content for RAG
+                    if 'text' in doc and doc['text']:
+                        meta['text'] = doc['text'][:8000]  # Pinecone metadata value limit
                     vector = {
                         'id': doc['id'],
                         'values': embedding,
-                        'metadata': doc.get('metadata', {})
+                        'metadata': meta,
                     }
                     vectors.append(vector)
                 

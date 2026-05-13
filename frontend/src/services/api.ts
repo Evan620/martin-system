@@ -60,20 +60,32 @@ api.interceptors.request.use(
 
 // Response interceptor for handling 401 (Unauthorized)
 api.interceptors.response.use(
-    (response) => {
-        return response;
-    },
+    (response) => response,
     async (error) => {
         const originalRequest = error.config;
 
-        // If error is 401 and we haven't tried to refresh already
         if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
 
-            // Dispatch logout action to clear state and redirect to login
-            // Ideally implementation would try to refresh token here
+            const refreshToken = localStorage.getItem('refresh_token');
+            if (refreshToken) {
+                try {
+                    // Attempt silent token refresh
+                    const res = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken });
+                    const newAccessToken: string = res.data.access_token;
+
+                    localStorage.setItem('token', newAccessToken);
+                    store.dispatch({ type: 'auth/setToken', payload: newAccessToken });
+
+                    // Retry original request with new token
+                    originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+                    return api(originalRequest);
+                } catch {
+                    // Refresh failed — force logout
+                }
+            }
+
             store.dispatch(logout());
-            return Promise.reject(error);
         }
 
         return Promise.reject(error);

@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
-import { ChatMessage, ChatMessageType, EnhancedChatRequest, ActionType } from '../../types/agent';
+import { ChatMessage, ChatMessageType, ActionType } from '../../types/agent';
 import { UserRole } from '../../types/auth';
-import { useStreamingChat, StreamEvent } from '../../hooks/useStreamingChat';
-import ThinkingTimeline from '../../components/agent/ThinkingTimeline'; // Import ThinkingTimeline
+import { useAgentStream } from '../../hooks/useAgentStream';
+import StreamingChatView from '../../components/agent/StreamingChatView';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -24,8 +24,13 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [conversationId, setConversationId] = useState<string | undefined>(undefined);
-    const { streamingState, sendStreamingMessage, cancelStream: _cancelStream } = useStreamingChat();
-    const { isStreaming, currentStatus: _currentStatus, currentTool: _currentTool, steps, startTime } = streamingState; // Destructure steps and startTime
+    const {
+        messages: streamEvents,
+        isStreaming,
+        streamingText,
+        conversationId: streamConvId,
+        sendMessage: sendStreamMessage,
+    } = useAgentStream();
 
     // No hardcoded welcome — agents greet naturally via their prompt's GREETING PROTOCOL
 
@@ -38,60 +43,68 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                 behavior: 'smooth'
             });
         }
-    }, [messages, streamingState]);
+    }, [messages, isStreaming, streamingText]);
 
-    const handleSendMessage = async () => {
+    // Sync conversation ID from stream
+    useEffect(() => {
+        if (streamConvId) setConversationId(streamConvId);
+    }, [streamConvId]);
+
+    // Promote done event to messages when stream finishes
+    const prevIsStreamingRef = useRef(false);
+    useEffect(() => {
+        const wasStreaming = prevIsStreamingRef.current;
+        prevIsStreamingRef.current = isStreaming;
+
+        if (wasStreaming && !isStreaming) {
+            const doneEvt = streamEvents.find(m => m.event.type === 'done');
+            if (doneEvt && doneEvt.event.type === 'done') {
+                const done = doneEvt.event;
+                if (done.conversation_id) setConversationId(done.conversation_id);
+                setMessages(prev => [...prev, {
+                    message_id: Date.now().toString(),
+                    conversation_id: done.conversation_id || conversationId || '',
+                    message_type: ChatMessageType.AGENT_TEXT,
+                    content: done.response,
+                    sender: 'agent',
+                    timestamp: new Date().toISOString(),
+                } as ChatMessage]);
+            }
+
+            const errEvt = streamEvents.find(m => m.event.type === 'error');
+            if (errEvt && errEvt.event.type === 'error' && !doneEvt) {
+                setMessages(prev => [...prev, {
+                    message_id: Date.now().toString(),
+                    conversation_id: conversationId || '',
+                    message_type: ChatMessageType.SYSTEM,
+                    content: `Error: ${(errEvt.event as any).message}`,
+                    sender: 'system',
+                    timestamp: new Date().toISOString(),
+                } as ChatMessage]);
+            }
+        }
+    }, [isStreaming, streamEvents]);
+
+    const handleSendMessage = () => {
         if (!input.trim() || isStreaming) return;
 
         const content = input.trim();
         setInput('');
 
-        const userMsg: ChatMessage = {
+        setMessages(prev => [...prev, {
             message_id: Date.now().toString(),
             conversation_id: conversationId || '',
             message_type: ChatMessageType.USER_TEXT,
-            content: content,
+            content,
             sender: 'user',
-            timestamp: new Date().toISOString()
-        };
+            timestamp: new Date().toISOString(),
+        } as ChatMessage]);
 
-        setMessages(prev => [...prev, userMsg]);
-
-        const request: EnhancedChatRequest = {
+        sendStreamMessage({
             message: content,
-            conversation_id: conversationId,
-            twg_id: propTwgId || (user?.role !== UserRole.ADMIN ? user?.twg_ids?.[0] : undefined) // Pass TWG Context
-        };
-
-        // DEBUG: Log the request details
-        console.log('[COPILOT] Sending request:', {
-            twg_id: request.twg_id,
-            propTwgId,
-            userRole: user?.role,
-            userTwgIds: user?.twg_ids
+            conversationId,
+            twgId: propTwgId || (user?.role !== UserRole.ADMIN ? user?.twg_ids?.[0] : undefined),
         });
-
-        await sendStreamingMessage(
-            request,
-            (event: StreamEvent) => {
-                if (event.type === 'start' && event.conversation_id) {
-                    setConversationId(event.conversation_id);
-                }
-            },
-            (finalMsg: any) => {
-                setMessages(prev => [...prev, finalMsg]);
-            },
-            (err: string) => {
-                setMessages(prev => [...prev, {
-                    message_id: Date.now().toString(),
-                    conversation_id: conversationId || '',
-                    message_type: ChatMessageType.SYSTEM,
-                    content: `Error: ${err}`,
-                    sender: 'system',
-                    timestamp: new Date().toISOString()
-                }]);
-            }
-        );
     };
 
     // Fetch TWGs if authorized
@@ -275,13 +288,12 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                     </div>
                 ))}
 
-                {(isStreaming || steps.length > 0) && (
+                {isStreaming && (
                     <div className="px-2">
-                        <ThinkingTimeline
-                            steps={steps}
-                            isComplete={!isStreaming && steps.length > 0}
-                            startTime={startTime}
-                            agentName="Martin Copilot"
+                        <StreamingChatView
+                            messages={streamEvents}
+                            isStreaming={isStreaming}
+                            streamingText={streamingText}
                         />
                     </div>
                 )}

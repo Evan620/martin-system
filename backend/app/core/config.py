@@ -28,6 +28,11 @@ class Settings(BaseSettings):
         default=False,
         description="Disable in-app background monitoring (for use when Celery Beat is active)"
     )
+
+    TEST_MODE: bool = Field(
+        default=False,
+        description="When True, blocks all outbound email and calendar writes (no real invites/emails sent)"
+    )
     
     # Database
     DATABASE_URL: str = Field(
@@ -100,6 +105,17 @@ class Settings(BaseSettings):
     CUSTOM_LLM_API_KEY: str = "EMPTY"
     CUSTOM_LLM_MODEL: str = "zai-org/GLM-4.7-Flash"
     CUSTOM_LLM_BASE_URL: Optional[str] = None
+
+    # Azure OpenAI
+    AZURE_OPENAI_API_KEY: Optional[str] = None
+    AZURE_OPENAI_API_VERSION: str = "2024-10-21"
+    AZURE_OPENAI_DEPLOYMENT: str = "gpt-4o"
+    AZURE_OPENAI_ENDPOINT: Optional[str] = None
+
+    # DeepSeek / Azure AI Foundry
+    DEEPSEEK_API_KEY: Optional[str] = None
+    DEEPSEEK_MODEL: str = "deepseek-v3"
+    DEEPSEEK_ENDPOINT: Optional[str] = None
 
     # Lightning AI
     LIGHTNING_API_KEY: Optional[str] = None

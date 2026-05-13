@@ -504,13 +504,13 @@ class ToolRegistry:
         Raises:
             ToolAccessDenied: If the agent is not allowed to use this tool
         """
-        # 1. Validate access
-        self.validate_tool_access(tool_name, agent_id, twg_id)
-
-        # 2. Get handler
+        # 1. Check tool exists before access validation
         registration = self._tools.get(tool_name)
         if not registration:
             return json.dumps({"error": f"Tool '{tool_name}' not found in registry"})
+
+        # 2. Validate access
+        self.validate_tool_access(tool_name, agent_id, twg_id)
 
         # 3. Auto-inject contextual parameters
         func = registration.handler

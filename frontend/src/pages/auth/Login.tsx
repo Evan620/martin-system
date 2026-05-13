@@ -26,6 +26,9 @@ export default function Login() {
             const result = await authService.loginWithGoogle(response.credential);
 
             localStorage.setItem('token', result.access_token);
+            if (result.refresh_token) {
+                localStorage.setItem('refresh_token', result.refresh_token)
+            }
             dispatch(setToken(result.access_token));
 
             const user = await authService.getCurrentUser();
@@ -103,8 +106,11 @@ export default function Login() {
             // Let's check auth.py: login returns only tokens.
             // So we need to fetch /auth/me after login.
 
-            // Store token temporarily to allow fetching profile
+            // Store tokens — access token for requests, refresh token for silent renewal
             localStorage.setItem('token', response.access_token)
+            if (response.refresh_token) {
+                localStorage.setItem('refresh_token', response.refresh_token)
+            }
 
             // Dispatch token to store so api interceptor can use it for subsequent calls
             dispatch(setToken(response.access_token))

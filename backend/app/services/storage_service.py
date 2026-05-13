@@ -321,8 +321,21 @@ class StorageService:
                 fields='name, mimeType'
             ).execute()
 
-            # Download file content
-            request = self.service.files().get_media(fileId=file_id)
+            # Google Workspace native files must be exported (Docs → PDF, Sheets → xlsx, etc.)
+            google_export_map = {
+                "application/vnd.google-apps.document": "application/pdf",
+                "application/vnd.google-apps.spreadsheet": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "application/vnd.google-apps.presentation": "application/pdf",
+            }
+            mime = file.get("mimeType", "")
+            if mime in google_export_map:
+                request = self.service.files().export_media(
+                    fileId=file_id,
+                    mimeType=google_export_map[mime],
+                )
+            else:
+                request = self.service.files().get_media(fileId=file_id)
+
             buffer = io.BytesIO()
             downloader = MediaIoBaseDownload(buffer, request)
 

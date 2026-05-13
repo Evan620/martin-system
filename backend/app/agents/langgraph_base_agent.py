@@ -618,14 +618,24 @@ CRITICAL TOOL USAGE RULES:
         
         new_messages = []
         user_timezone = state.get("user_timezone")
-        
+        _stream_thread_id = state.get("session_id")
+
         for tool_call in last_message.tool_calls:
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
             tool_id = tool_call["id"]
-            
+
             logger.info(f"[{self.agent_id}] Executing tool: {tool_name}")
-            
+
+            # Emit real-time tool_call event to SSE stream
+            if _stream_thread_id:
+                from app.services.stream_events import emit as _stream_emit
+                await _stream_emit(_stream_thread_id, {
+                    "type": "tool_call",
+                    "name": tool_name,
+                    "args": {k: (v[:120] + "…" if isinstance(v, str) and len(v) > 120 else v) for k, v in tool_args.items()},
+                })
+
             try:
                 # Try Zero-Trust ToolRegistry first, fall back to local tool_map
                 # (Supervisor state tools added via add_tool() live in tool_map only)
@@ -709,8 +719,18 @@ CRITICAL TOOL USAGE RULES:
                     except Exception as e:
                         logger.error(f"[{self.agent_id}] Interrupt error: {e}")
 
+                # Emit real-time tool_result event to SSE stream
+                if _stream_thread_id:
+                    from app.services.stream_events import emit as _stream_emit
+                    _preview = output_str[:350] + ("…" if len(output_str) > 350 else "")
+                    await _stream_emit(_stream_thread_id, {
+                        "type": "tool_result",
+                        "name": tool_name,
+                        "content": _preview,
+                    })
+
                 new_messages.append(ToolMessage(tool_call_id=tool_id, content=output_str))
-            
+
             except ToolAccessDenied as tad:
                 logger.warning(f"[{self.agent_id}] Access denied for tool '{tool_name}': {tad}")
                 error_msg = json.dumps({"error": f"Access denied: {str(tad)}"})

@@ -427,6 +427,157 @@ async def enhanced_chat(
         )
 
 
+@router.get("/chat/stream")
+async def stream_chat_get(
+    message: str,
+    current_user: User = Depends(get_current_active_user),
+    request: Request = None,
+    conversation_id: str = None,
+    twg_id: str = None,
+):
+    """
+    GET-based SSE streaming chat endpoint for Claude Code-style UI.
+
+    Accepts query params: message (required), conversation_id (optional), twg_id (optional).
+    Auth: JWT Bearer (same as /chat).
+
+    Emits SSE event types: routing, agent, tool_call, tool_result, token, done, error.
+    """
+    from app.models.models import UserRole
+
+    user_timezone = request.headers.get("X-User-Timezone") if request else None
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        conv_id = conversation_id or str(uuid.uuid4())
+
+        def _sse(data: dict) -> str:
+            return f"data: {json.dumps(data)}\n\n"
+
+        _agent_label_map = {
+            "energy": "Energy Martin",
+            "agriculture": "Agriculture Martin",
+            "minerals": "Minerals Martin",
+            "digital": "Digital Martin",
+            "protocol": "Protocol Martin",
+            "resource_mobilization": "Investment Martin",
+            "supervisor_v1": "Supervisor",
+            "supervisor": "Supervisor",
+        }
+
+        from app.services.stream_events import register_queue, unregister_queue
+        event_queue: asyncio.Queue = asyncio.Queue()
+        register_queue(conv_id, event_queue)
+
+        try:
+            yield _sse({"type": "routing", "content": "Analysing query..."})
+
+            # RBAC — mirror the POST /chat logic
+            if current_user.role == UserRole.ADMIN:
+                twg_context = twg_id
+            elif current_user.role in [UserRole.TWG_FACILITATOR, UserRole.TWG_MEMBER]:
+                if not twg_id:
+                    yield _sse({"type": "error", "message": "TWG ID required for TWG member access."})
+                    return
+                from app.models.models import UserRole as UR
+                if not has_twg_access(current_user, uuid.UUID(twg_id)):
+                    yield _sse({"type": "error", "message": "You do not have access to this TWG."})
+                    return
+                twg_context = twg_id
+            else:
+                yield _sse({"type": "error", "message": "Insufficient permissions to access AI agents."})
+                return
+
+            supervisor = get_supervisor()
+
+            # Run the chat as a background task so we can drain the event queue
+            # concurrently — showing tool calls and agent routing in real-time.
+            chat_task = asyncio.create_task(
+                supervisor.chat_with_tools(
+                    message,
+                    twg_id=twg_context,
+                    thread_id=conv_id,
+                    user_timezone=user_timezone,
+                )
+            )
+
+            agent_emitted = False
+            agent_id = "supervisor"
+
+            # Drain event queue while chat_task is running
+            while not chat_task.done():
+                try:
+                    evt = await asyncio.wait_for(event_queue.get(), timeout=0.08)
+                    if evt.get("type") == "agent" and not agent_emitted:
+                        agent_emitted = True
+                        agent_id = evt.get("content", "supervisor")
+                    yield _sse(evt)
+                except asyncio.TimeoutError:
+                    continue
+
+            # Drain any events that arrived in the last tick
+            while not event_queue.empty():
+                evt = event_queue.get_nowait()
+                if evt.get("type") == "agent" and not agent_emitted:
+                    agent_emitted = True
+                    agent_id = evt.get("content", "supervisor")
+                yield _sse(evt)
+
+            # Get the final result (re-raises any exception from the task)
+            raw_response = await chat_task
+
+            # Extract response text and metadata
+            if isinstance(raw_response, dict):
+                response_text: str = raw_response.get("response", "")
+                citations = raw_response.get("citations", [])
+            else:
+                response_text = str(raw_response)
+                citations = []
+
+            # Emit agent badge if the queue never produced one
+            if not agent_emitted:
+                twg_key = twg_context or "supervisor"
+                for key in _agent_label_map:
+                    if key in twg_key:
+                        yield _sse({"type": "agent", "content": key, "label": _agent_label_map[key]})
+                        agent_id = key
+                        break
+                else:
+                    yield _sse({"type": "agent", "content": "supervisor", "label": "Supervisor"})
+
+            # Stream response word by word
+            words = response_text.split(" ")
+            for i, word in enumerate(words):
+                token_content = word if i == len(words) - 1 else word + " "
+                yield _sse({"type": "token", "content": token_content})
+                await asyncio.sleep(0.015)
+
+            yield _sse({
+                "type": "done",
+                "response": response_text,
+                "agent_id": agent_id,
+                "conversation_id": conv_id,
+                "citations": citations,
+            })
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            yield _sse({"type": "error", "message": str(e)})
+
+        finally:
+            unregister_queue(conv_id)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @router.post("/chat/stream")
 async def stream_chat(
     chat_in: EnhancedChatRequest,

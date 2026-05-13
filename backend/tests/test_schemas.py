@@ -24,7 +24,7 @@ def test_twg_schema_validation():
     """Test TWGCreate schema validation."""
     twg_in = TWGCreate(
         name="Digital Economy TWG",
-        pillar=TWGPillar.DIGITAL
+        pillar=TWGPillar.DIGITAL_ECONOMY_TRANSFORMATION
     )
     assert twg_in.name == "Digital Economy TWG"
-    assert twg_in.pillar == TWGPillar.DIGITAL
+    assert twg_in.pillar == TWGPillar.DIGITAL_ECONOMY_TRANSFORMATION

@@ -12,6 +12,8 @@ import SettingsModal from '../../components/agent/SettingsModal';
 import EnhancedMessageBubble from '../../components/agent/EnhancedMessageBubble';
 import ThinkingTimeline, { ThinkingStep } from '../../components/agent/ThinkingTimeline';
 import WorkspaceContextPanel from '../../components/workspace/WorkspaceContextPanel';
+import StreamingChatView from '../../components/agent/StreamingChatView';
+import { useAgentStream } from '../../hooks/useAgentStream';
 import { CommandAutocompleteResult } from '../../types/agent';
 import { UserRole } from '../../types/auth';
 
@@ -123,6 +125,16 @@ export default function TwgAgent() {
     const [typingMessage, setTypingMessage] = useState<string | null>(null);
     const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
     const [streamStartTime, setStreamStartTime] = useState<number>(0);
+
+    // Claude Code-style streaming hook
+    const {
+        messages: streamEvents,
+        isStreaming,
+        streamingText,
+        conversationId: streamConvId,
+        sendMessage: sendStreamMessage,
+        cancel: cancelStream,
+    } = useAgentStream();
 
     // ========================================================================
     // CHAT HISTORY PERSISTENCE (localStorage)
@@ -297,8 +309,70 @@ export default function TwgAgent() {
         scrollToBottom();
     }, [messages, isLoading, typingMessage, thinkingSteps]);
 
+    // When the stream finishes, promote the done-event response to the messages list
+    const prevIsStreamingRef = useRef(false);
+    useEffect(() => {
+        const wasStreaming = prevIsStreamingRef.current;
+        prevIsStreamingRef.current = isStreaming;
+
+        if (wasStreaming && !isStreaming) {
+            // Find the done event
+            const doneEvt = streamEvents.find(m => m.event.type === 'done');
+            if (doneEvt && doneEvt.event.type === 'done') {
+                const done = doneEvt.event;
+                let content = done.response;
+                let suggestions: string[] = [];
+
+                // Parse embedded suggestions
+                if (content.includes('<<SUGGESTIONS>>')) {
+                    try {
+                        const start = content.indexOf('<<SUGGESTIONS>>');
+                        const end = content.indexOf('<</SUGGESTIONS>>');
+                        if (start !== -1 && end !== -1) {
+                            const jsonStr = content.substring(start + 15, end);
+                            suggestions = JSON.parse(jsonStr);
+                            content = content.substring(0, start).trim();
+                        }
+                    } catch (_) { /* ignore */ }
+                }
+
+                const agentMessage: Message = {
+                    id: Date.now().toString(),
+                    role: 'agent',
+                    content,
+                    timestamp: new Date(),
+                    agentName: currentAgentName,
+                    citations: (done.citations as Citation[]) || [],
+                    suggestions,
+                };
+                setMessages(prev => [...prev, agentMessage]);
+                if (done.conversation_id) setConversationId(done.conversation_id);
+            }
+
+            // Also find error events
+            const errEvt = streamEvents.find(m => m.event.type === 'error');
+            if (errEvt && errEvt.event.type === 'error' && !doneEvt) {
+                setMessages(prev => [...prev, {
+                    id: Date.now().toString(),
+                    role: 'agent' as const,
+                    content: `Sorry, I encountered an error: ${(errEvt.event as { message: string }).message}`,
+                    timestamp: new Date(),
+                    agentName: currentAgentName,
+                }]);
+            }
+
+            setIsLoading(false);
+            setTypingMessage(null);
+        }
+    }, [isStreaming, streamEvents, currentAgentName]);
+
+    // Sync streamConvId back to conversationId
+    useEffect(() => {
+        if (streamConvId) setConversationId(streamConvId);
+    }, [streamConvId]);
+
     const handleSendMessage = async () => {
-        if (!inputMessage.trim() || isLoading) return;
+        if (!inputMessage.trim() || isLoading || isStreaming) return;
 
         const userMessage: Message = {
             id: Date.now().toString(),
@@ -311,138 +385,18 @@ export default function TwgAgent() {
         const messageToSend = inputMessage;
         setInputMessage('');
         setIsLoading(true);
-        setThinkingSteps([]); // Clear previous steps
+        setThinkingSteps([]);
         setStreamStartTime(Date.now());
-        setTypingMessage('Processing...');
+        setTypingMessage(null);
 
-        // Create new AbortController for this request
-        abortControllerRef.current = new AbortController();
+        const twgIdToSend = activeTwg?.id !== 'secretariat' ? activeTwg?.id : undefined;
 
-        try {
-            await agentService.chatStream({
-                message: messageToSend,
-                conversation_id: conversationId,
-                twg_id: activeTwg?.id !== 'secretariat' ? activeTwg?.id : undefined // Pass TWG ID if not secretariat
-            }, {
-                onStep: (step: ThinkingStep) => {
-                    // Filter out empty steps to prevent empty rows
-                    if (!step.label || !step.label.trim()) return;
-
-                    setThinkingSteps(prev => {
-                        const newSteps = [...prev];
-                        // Mark previous step as complete
-                        if (newSteps.length > 0) {
-                            const lastStep = newSteps[newSteps.length - 1];
-                            if (lastStep.status === 'active') {
-                                lastStep.status = 'complete';
-                                lastStep.durationMs = Date.now() - lastStep.timestamp;
-                            }
-                        }
-                        // Add new step
-                        newSteps.push({
-                            ...step,
-                            timestamp: Date.now()
-                        });
-                        return newSteps;
-                    });
-                    setTypingMessage(step.label);
-                },
-                onThinking: (_status) => {
-                    // Fallback or additional handling if needed
-                },
-                onResponse: (msg: any) => {
-                    console.log('[STREAM] Received response:', msg);
-
-                    // Parse suggestions from content (Format: <<SUGGESTIONS>>["A","B"]<</SUGGESTIONS>>)
-                    let content = msg.content;
-                    let suggestions: string[] = [];
-
-                    if (content.includes('<<SUGGESTIONS>>')) {
-                        try {
-                            const start = content.indexOf('<<SUGGESTIONS>>');
-                            const end = content.indexOf('<</SUGGESTIONS>>');
-                            if (start !== -1 && end !== -1) {
-                                const jsonStr = content.substring(start + 15, end);
-                                suggestions = JSON.parse(jsonStr);
-                                content = content.substring(0, start).trim();
-                            }
-                        } catch (e) {
-                            console.error('Error parsing suggestions:', e);
-                        }
-                    }
-
-                    const agentMessage: Message = {
-                        id: msg.message_id || Date.now().toString(),
-                        role: 'agent',
-                        content: content,
-                        timestamp: new Date(),
-                        citations: [], // Stream doesn't support citations yet
-                        agentName: currentAgentName,
-                        suggestions: suggestions
-                    };
-
-                    setMessages(prev => [...prev, agentMessage]);
-                    setConversationId(msg.conversation_id);
-                },
-                onInterrupt: (payload: any) => {
-                    console.log('[STREAM] Received interrupt:', payload);
-                    if (payload.type === 'email_approval_required') {
-                        setEmailApprovalRequest(payload);
-                        setIsLoading(false); // Stop loading indicator while waiting for user
-                    } else if (payload.type === 'document_approval_required') {
-                        setDocumentApprovalRequest(payload);
-                        setIsLoading(false);
-                    } else {
-                        const interruptMsg: Message = {
-                            id: `interrupt-${Date.now()}`,
-                            role: 'agent',
-                            content: payload.message || 'Action required.',
-                            timestamp: new Date(),
-                            agentName: currentAgentName,
-                            approvalRequest: payload
-                        };
-                        setMessages(prev => [...prev, interruptMsg]);
-                        setIsLoading(false);
-                        setTypingMessage(null);
-                    }
-                },
-                onDone: () => {
-                    // Mark the last step as complete
-                    setThinkingSteps(prev => {
-                        if (prev.length === 0) return prev;
-                        const newSteps = [...prev];
-                        const lastStep = newSteps[newSteps.length - 1];
-                        if (lastStep.status === 'active') {
-                            lastStep.status = 'complete';
-                            lastStep.durationMs = Date.now() - lastStep.timestamp;
-                        }
-                        return newSteps;
-                    });
-                    setIsLoading(false);
-                    setTypingMessage(null);
-                },
-                onError: (err) => {
-                    console.error('Stream error:', err);
-                    const errorMessage: Message = {
-                        id: (Date.now() + 1).toString(),
-                        role: 'agent',
-                        content: 'Sorry, I encountered an error. Please try again.',
-                        timestamp: new Date(),
-                    };
-                    setMessages(prev => [...prev, errorMessage]);
-                    setIsLoading(false);
-                    setTypingMessage(null);
-                }
-            });
-
-        } catch (error: any) {
-            // Fallback handled in onError usually, but strictly catch synchronous startup errors
-            setIsLoading(false);
-            setTypingMessage(null);
-            console.error('Error starting chat:', error);
-        } finally {
-            abortControllerRef.current = null;
-        }
+        // Use Claude Code-style GET stream via useAgentStream
+        sendStreamMessage({
+            message: messageToSend,
+            conversationId,
+            twgId: twgIdToSend,
+        });
     };
 
     // Detect slash commands and @mentions in input
@@ -581,13 +535,14 @@ export default function TwgAgent() {
     };
 
     const handleClearConversation = () => {
-        if (messages.length === 0 && !isLoading) return;
+        if (messages.length === 0 && !isLoading && !isStreaming) return;
 
         if (window.confirm('Are you sure you want to clear this conversation? This action cannot be undone.')) {
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort();
                 abortControllerRef.current = null;
             }
+            cancelStream();
 
             setMessages([]);
             setConversationId(undefined);
@@ -800,13 +755,14 @@ export default function TwgAgent() {
                             >
                                 <span className="material-symbols-outlined">view_sidebar</span>
                             </button>
-                            {isLoading && (
+                            {(isLoading || isStreaming) && (
                                 <button
                                     onClick={() => {
                                         if (abortControllerRef.current) {
                                             abortControllerRef.current.abort();
                                             abortControllerRef.current = null;
                                         }
+                                        cancelStream();
                                         setIsLoading(false);
                                         setTypingMessage(null);
                                     }}
@@ -906,7 +862,7 @@ export default function TwgAgent() {
                                 />
                             ))
                         )}
-                        {(isLoading || thinkingSteps.length > 0) && (
+                        {(isLoading || thinkingSteps.length > 0) && !isStreaming && (
                             <ThinkingTimeline
                                 steps={thinkingSteps}
                                 isComplete={!isLoading && thinkingSteps.length > 0}
@@ -914,6 +870,17 @@ export default function TwgAgent() {
                                 agentName={currentAgentName}
                             />
                         )}
+
+                        {/* Claude Code-style streaming events view */}
+                        {isStreaming && (
+                            <StreamingChatView
+                                messages={streamEvents}
+                                isStreaming={isStreaming}
+                                streamingText={streamingText}
+                                activeAgentLabel={currentAgentName}
+                            />
+                        )}
+
                         <div ref={messagesEndRef} />
                     </div>
 
@@ -945,7 +912,7 @@ export default function TwgAgent() {
                                 value={inputMessage}
                                 onChange={handleInputChange}
                                 onKeyDown={handleKeyPress}
-                                disabled={isLoading}
+                                disabled={isLoading || isStreaming}
                                 className="w-full bg-transparent border-none focus:ring-0 text-sm p-4 pr-14 sm:pr-36 min-h-[60px] max-h-32 resize-none text-[#0d121b] dark:text-white placeholder:text-[#9ca3af] disabled:opacity-50"
                                 placeholder="Ask me anything... Use / for commands or @ for agents"
                             />
@@ -959,7 +926,7 @@ export default function TwgAgent() {
                                 <div className="hidden sm:block w-px h-6 bg-[#e7ebf3] dark:bg-[#2d3748] mx-1"></div>
                                 <button
                                     onClick={handleSendMessage}
-                                    disabled={!inputMessage.trim() || isLoading}
+                                    disabled={!inputMessage.trim() || isLoading || isStreaming}
                                     className="p-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-md"
                                     title="Send message"
                                 >

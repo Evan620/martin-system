@@ -192,27 +192,6 @@ export default function EnhancedMessageBubble({ message, onReact, onCopy, onRepl
                             {message.role === 'agent' ? <MarkdownContent content={message.content} /> : message.content}
                         </div>
 
-                        {/* Citations */}
-                        {message.citations && message.citations.length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                                <div className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mb-1 flex items-center gap-1">
-                                    <span className="material-symbols-outlined text-[12px]">library_books</span>
-                                    Sources
-                                </div>
-                                <div className="space-y-0.5">
-                                    {message.citations.map((citation, idx) => (
-                                        <div
-                                            key={idx}
-                                            className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1.5 py-0.5 hover:text-blue-500 transition-colors cursor-pointer"
-                                        >
-                                            <span className="material-symbols-outlined text-[11px]">article</span>
-                                            <span className="flex-1 truncate">{citation.source}</span>
-                                            <span className="text-[10px] opacity-60">p.{citation.page}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
 
                         {/* Inline Approval UI */}
                         {message.approvalRequest && (

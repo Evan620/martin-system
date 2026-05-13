@@ -12,9 +12,10 @@ from loguru import logger
 from app.core.config import settings
 
 try:
-    from openai import OpenAI
+    from openai import OpenAI, AzureOpenAI
 except ImportError:
     OpenAI = None
+    AzureOpenAI = None
 
 try:
     import anthropic as anthropic_sdk
@@ -130,10 +131,17 @@ class OllamaLLMService(LLMService):
 class OpenAILLMService(LLMService):
     """Service for interacting with OpenAI-compatible APIs"""
 
+    # Newer models (o-series, gpt-5.x) require max_completion_tokens instead of max_tokens.
+    # Subclasses can override this to "max_completion_tokens".
+    _max_tokens_param: str = "max_tokens"
+    # Some newer models (gpt-5.x) only support the default temperature (1).
+    # Set to True in subclasses to omit the temperature parameter entirely.
+    _omit_temperature: bool = False
+
     def __init__(self, api_key: str, model: str = "gpt-4-turbo-preview", temperature: float = 0.7, base_url: Optional[str] = None):
         if not OpenAI:
             raise ImportError("openai package not installed. Run 'pip install openai'")
-        
+
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
         self.temperature = temperature
@@ -151,10 +159,11 @@ class OpenAILLMService(LLMService):
         create_kwargs: Dict[str, Any] = {
             "model": model or self.model,
             "messages": messages,
-            "temperature": temperature if temperature is not None else self.temperature,
-            "max_tokens": max_tokens
+            self._max_tokens_param: max_tokens,
         }
-        
+        if not self._omit_temperature:
+            create_kwargs["temperature"] = temperature if temperature is not None else self.temperature
+
         if tools:
             create_kwargs["tools"] = tools
         if response_format:
@@ -165,10 +174,10 @@ class OpenAILLMService(LLMService):
         try:
             response = self.client.chat.completions.create(**create_kwargs)
             message = response.choices[0].message
-            
+
             if message.tool_calls:
-                 return message
-            
+                return message
+
             return (message.content or "").strip()
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")
@@ -202,9 +211,10 @@ class OpenAILLMService(LLMService):
         create_kwargs: Dict[str, Any] = {
             "model": model or self.model,
             "messages": full_messages,
-            "temperature": temperature if temperature is not None else self.temperature
         }
-        
+        if not self._omit_temperature:
+            create_kwargs["temperature"] = temperature if temperature is not None else self.temperature
+
         if tools:
             create_kwargs["tools"] = tools
         if response_format:
@@ -215,10 +225,10 @@ class OpenAILLMService(LLMService):
         try:
             response = self.client.chat.completions.create(**create_kwargs)
             message = response.choices[0].message
-            
+
             if message.tool_calls:
-                 return message
-                 
+                return message
+
             return (message.content or "").strip()
         except Exception as e:
             logger.error(f"OpenAI History error: {e}")
@@ -267,6 +277,45 @@ class OpenAILLMService(LLMService):
         except Exception as e:
             logger.error(f"OpenAI Transcription error: {e}")
             raise Exception(f"OpenAI Transcription Error: {str(e)}")
+
+
+class AzureOpenAILLMService(OpenAILLMService):
+    """Service for interacting with Azure OpenAI deployments.
+
+    Thin subclass of OpenAILLMService — only __init__ is overridden to swap in
+    the AzureOpenAI client.  All chat/structured_output/transcribe methods are
+    inherited unchanged.
+    """
+
+    # Newer Azure deployments (gpt-5.x, o-series) require max_completion_tokens
+    _max_tokens_param: str = "max_completion_tokens"
+    # gpt-5.5 only supports temperature=1 (the default); omit the param entirely
+    _omit_temperature: bool = True
+
+    def __init__(
+        self,
+        api_key: str,
+        azure_endpoint: str,
+        api_version: str,
+        deployment: str,
+        temperature: float = 0.7,
+    ):
+        if not AzureOpenAI:
+            raise ImportError("openai package not installed. Run 'pip install openai'")
+
+        # Bypass OpenAILLMService.__init__ and set attributes directly so we can
+        # use the AzureOpenAI client instead of the standard OpenAI client.
+        self.client = AzureOpenAI(
+            api_key=api_key,
+            azure_endpoint=azure_endpoint,
+            api_version=api_version,
+        )
+        self.model = deployment
+        self.temperature = temperature
+        logger.info(
+            f"Initialized AzureOpenAILLMService: deployment={deployment} "
+            f"endpoint={azure_endpoint} api_version={api_version}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -625,6 +674,21 @@ def get_llm_service() -> LLMService:
                 model=getattr(settings, "GROQ_MODEL", "llama-3.3-70b-versatile"),
                 temperature=settings.LLM_TEMPERATURE,
                 base_url="https://api.groq.com/openai/v1"
+            )
+        elif provider == "azure" and getattr(settings, "AZURE_OPENAI_API_KEY", None):
+            _llm_service = AzureOpenAILLMService(
+                api_key=settings.AZURE_OPENAI_API_KEY,
+                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                api_version=settings.AZURE_OPENAI_API_VERSION,
+                deployment=settings.AZURE_OPENAI_DEPLOYMENT,
+                temperature=settings.LLM_TEMPERATURE,
+            )
+        elif provider == "deepseek" and getattr(settings, "DEEPSEEK_API_KEY", None):
+            _llm_service = OpenAILLMService(
+                api_key=settings.DEEPSEEK_API_KEY,
+                model=getattr(settings, "DEEPSEEK_MODEL", "deepseek-v3"),
+                temperature=settings.LLM_TEMPERATURE,
+                base_url=getattr(settings, "DEEPSEEK_ENDPOINT", None),
             )
         else:
             if provider != "ollama":

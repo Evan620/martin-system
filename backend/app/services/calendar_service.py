@@ -141,12 +141,13 @@ class CalendarService:
 
         try:
             # conferenceDataVersion=1 is REQUIRED for creating Meet links
-            # sendUpdates='all' so Google natively adds event to attendees' calendars
+            # Use sendUpdates='none' in TEST_MODE so no calendar invites reach real people
+            send_updates = 'none' if settings.TEST_MODE else 'all'
             created_event = self.service.events().insert(
                 calendarId='primary',
                 body=event,
                 conferenceDataVersion=1,
-                sendUpdates='all'
+                sendUpdates=send_updates
             ).execute()
             
             logger.info(f"Event created: {created_event.get('htmlLink')}")
@@ -266,12 +267,13 @@ class CalendarService:
 
             event['attendees'] = existing_attendees
             
-            # 4. Patch the event — sendUpdates='all' so new attendees get calendar invites
+            # 4. Patch the event — skip invite notifications in TEST_MODE
+            send_updates = 'none' if settings.TEST_MODE else 'all'
             self.service.events().patch(
                 calendarId='primary',
                 eventId=event_id,
                 body={'attendees': existing_attendees},
-                sendUpdates='all'
+                sendUpdates=send_updates
             ).execute()
             
             logger.info(f"Added {len(new_emails)} attendees to event {event_id}")
@@ -340,11 +342,12 @@ class CalendarService:
                 return True
             
             # 3. Patch the event
+            send_updates = 'none' if settings.TEST_MODE else 'all'
             self.service.events().patch(
                 calendarId='primary',
                 eventId=event_id,
                 body=patch_body,
-                sendUpdates='all'  # Send notification to attendees
+                sendUpdates=send_updates
             ).execute()
             
             logger.info(f"Updated calendar event {event_id} for meeting {meeting_id}")
@@ -382,10 +385,11 @@ class CalendarService:
             # Delete ALL matching events (handles duplicates)
             for event in events:
                 event_id = event['id']
+                send_updates = 'none' if settings.TEST_MODE else 'all'
                 self.service.events().delete(
                     calendarId='primary',
                     eventId=event_id,
-                    sendUpdates='all'  # Notify attendees of cancellation
+                    sendUpdates=send_updates  # Notify attendees of cancellation (skipped in TEST_MODE)
                 ).execute()
                 logger.info(f"Cancelled calendar event {event_id} for meeting {meeting_id}")
 

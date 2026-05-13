@@ -181,6 +181,16 @@ def create_twg_agent_node(agent_id: str, agent: LangGraphBaseAgent):
 
     Returns a function that can be used as a LangGraph node.
     """
+    _AGENT_LABELS = {
+        "energy": "Energy Martin",
+        "agriculture": "Agriculture Martin",
+        "minerals": "Minerals Martin",
+        "digital": "Digital Martin",
+        "protocol": "Protocol Martin",
+        "resource_mobilization": "Investment Martin",
+        "supervisor": "Supervisor",
+    }
+
     # Use default args to capture values at definition time, not call time
     async def twg_node(state: AgentState, _agent_id: str = agent_id, _agent: LangGraphBaseAgent = agent) -> AgentState:
         """
@@ -189,6 +199,15 @@ def create_twg_agent_node(agent_id: str, agent: LangGraphBaseAgent):
         query = state["query"]
         thread_id = state.get("session_id")
         logger.info(f"[TWG:{_agent_id.upper()}] Processing query...")
+
+        # Emit real-time agent routing event to SSE stream
+        if thread_id:
+            from app.services.stream_events import emit as _stream_emit
+            await _stream_emit(thread_id, {
+                "type": "agent",
+                "content": _agent_id,
+                "label": _AGENT_LABELS.get(_agent_id, _agent_id.replace("_", " ").title() + " Martin"),
+            })
 
         try:
             user_timezone = state.get("user_timezone")

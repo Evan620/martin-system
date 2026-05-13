@@ -73,9 +73,19 @@ class TestAccessControl:
     """Test zero-trust access control validation."""
 
     def test_supervisor_has_full_access(self, registry):
-        """Supervisor agent should be able to access all tools."""
+        """Supervisor accesses its own tools, unrestricted tools, and cross-cutting tools.
+        TWG-scoped tools are intentionally delegated to TWG agents via consult_twg_agents_tool."""
+        from app.tools.tool_registry import SUPERVISOR_ONLY_TOOLS, UNRESTRICTED_TOOLS, TWG_SCOPED_TOOLS
+        supervisor_accessible = SUPERVISOR_ONLY_TOOLS | UNRESTRICTED_TOOLS | {
+            "send_email", "create_email_draft", "create_meeting_invite",
+            "search_documents", "retrieve_document_content",
+        }
         for tool_name in registry.list_tools():
-            assert registry.validate_tool_access(tool_name, "supervisor", twg_id=None) is True
+            if tool_name in TWG_SCOPED_TOOLS and tool_name not in supervisor_accessible:
+                with pytest.raises(ToolAccessDenied):
+                    registry.validate_tool_access(tool_name, "supervisor", twg_id=None)
+            elif tool_name in supervisor_accessible:
+                assert registry.validate_tool_access(tool_name, "supervisor", twg_id=None) is True
 
     def test_twg_agent_denied_supervisor_tools(self, registry):
         """TWG agents should be denied access to supervisor-only tools."""
@@ -126,10 +136,25 @@ class TestToolRetrieval:
     """Test filtered tool retrieval for different agents."""
 
     def test_supervisor_gets_all_tools(self, registry):
-        """Supervisor should receive all registered tools."""
+        """Supervisor receives its own tools, unrestricted tools, and cross-cutting tools.
+        TWG-scoped tools are excluded (delegated via consult_twg_agents_tool)."""
+        from app.tools.tool_registry import SUPERVISOR_ONLY_TOOLS, UNRESTRICTED_TOOLS, TWG_SCOPED_TOOLS
         tool_defs, tool_map = registry.get_tools_for_agent("supervisor", twg_id=None)
-        assert len(tool_defs) == len(registry.list_tools())
-        assert len(tool_map) == len(registry.list_tools())
+        tool_names = set(tool_map.keys())
+
+        # Supervisor must have its own tools
+        for t in SUPERVISOR_ONLY_TOOLS:
+            if t in registry.list_tools():
+                assert t in tool_names, f"Supervisor missing its own tool '{t}'"
+
+        # Supervisor must NOT have TWG-scoped tools it doesn't explicitly whitelist
+        supervisor_accessible = SUPERVISOR_ONLY_TOOLS | UNRESTRICTED_TOOLS | {
+            "send_email", "create_email_draft", "create_meeting_invite",
+            "search_documents", "retrieve_document_content",
+        }
+        for t in TWG_SCOPED_TOOLS:
+            if t in registry.list_tools() and t not in supervisor_accessible:
+                assert t not in tool_names, f"Supervisor should not have TWG-scoped tool '{t}'"
 
     def test_twg_agent_gets_filtered_tools(self, registry):
         """TWG agents should receive a subset of tools."""

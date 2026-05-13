@@ -498,9 +498,40 @@ class ProjectBase(SchemaBase):
     funding_secured_usd: Decimal = 0
     is_flagship: bool = False
     deal_room_priority: Optional[int] = None
+    # Investment Template Fields
+    subsector: Optional[str] = None
+    project_sponsor: Optional[str] = None
+    is_cross_border: bool = False
+    land_status: Optional[str] = None
+    revenue_model: Optional[str] = None
+    climate_impact: Optional[str] = None
+    esg_compliance: Optional[str] = None
 
 class ProjectCreate(ProjectBase):
     pass
+
+class ProjectUpdate(SchemaBase):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    investment_size: Optional[float] = None
+    currency: Optional[str] = None
+    readiness_score: Optional[float] = None
+    afcen_score: Optional[Decimal] = None
+    strategic_alignment_score: Optional[Decimal] = None
+    status: Optional[ProjectStatus] = None
+    investment_memo_id: Optional[uuid.UUID] = None
+    metadata_json: Optional[dict] = None
+    funding_secured_usd: Optional[Decimal] = None
+    is_flagship: Optional[bool] = None
+    deal_room_priority: Optional[int] = None
+    # Investment Template Fields
+    subsector: Optional[str] = None
+    project_sponsor: Optional[str] = None
+    is_cross_border: Optional[bool] = None
+    land_status: Optional[str] = None
+    revenue_model: Optional[str] = None
+    climate_impact: Optional[str] = None
+    esg_compliance: Optional[str] = None
 
 class ProjectRead(ProjectBase):
     id: uuid.UUID

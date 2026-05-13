@@ -66,5 +66,15 @@ export const pipelineService = {
     updateMatchStatus: async (matchId: string, data: UpdateMatchStatusDTO): Promise<any> => {
         const response = await api.patch(`/pipeline/matches/${matchId}`, data);
         return response.data;
+    },
+
+    importFromExcel: async (file: File, twgId: string): Promise<any> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('twg_id', twgId);
+        const response = await api.post('/pipeline/import-excel', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
     }
 };

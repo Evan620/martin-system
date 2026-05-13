@@ -64,6 +64,15 @@ export interface Project {
     is_flagship?: boolean;
     deal_room_priority?: number;
 
+    // New fields (migration 2026)
+    subsector?: string;
+    project_sponsor?: string;
+    is_cross_border?: boolean;
+    land_status?: string;
+    revenue_model?: string;
+    climate_impact?: string;
+    esg_compliance?: string;
+
     // Metadata from backend API
     days_in_stage?: number;
     is_stalled?: boolean;

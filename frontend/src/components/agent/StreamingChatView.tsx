@@ -13,7 +13,6 @@ import {
     AgentEvent,
     ToolCallEvent,
     ToolResultEvent,
-    DoneEvent,
     ErrorEvent,
 } from '../../hooks/useAgentStream';
 

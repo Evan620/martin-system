@@ -19,6 +19,7 @@ const DealPipeline: React.FC = () => {
   const [stats, setStats] = useState<PipelineStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [importToast, setImportToast] = useState<string | null>(null);
 
   // Fetch Data
   useEffect(() => {
@@ -135,6 +136,31 @@ const DealPipeline: React.FC = () => {
     navigate('/deal-pipeline/new');
   };
 
+  const handleImportExcel = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx';
+    input.onchange = async (e: Event) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const twgId = user?.twg_ids?.[0] ?? user?.assigned_twg_id ?? '';
+      try {
+        const result = await pipelineService.importFromExcel(file, twgId);
+        const count = result?.imported ?? result?.count ?? result?.projects?.length ?? '?';
+        setImportToast(`Imported ${count} projects successfully`);
+        setTimeout(() => setImportToast(null), 5000);
+        // Refresh the list
+        const projectsData = await pipelineService.listProjects();
+        setProjects(projectsData);
+      } catch (err: any) {
+        const msg = err?.response?.data?.detail ?? err?.message ?? 'Import failed';
+        setImportToast(`Error: ${msg}`);
+        setTimeout(() => setImportToast(null), 5000);
+      }
+    };
+    input.click();
+  };
+
   const formatCurrency = (amount: number) => {
     if (amount >= 1000000000) return `$${(amount / 1000000000).toFixed(1)}B`;
     if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
@@ -161,6 +187,20 @@ const DealPipeline: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto space-y-6 relative">
       <ComingSoonOverlay />
+
+      {/* Import Toast */}
+      {importToast && (
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all ${importToast.startsWith('Error') ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
+          <span className="material-symbols-outlined text-[20px]">
+            {importToast.startsWith('Error') ? 'error' : 'check_circle'}
+          </span>
+          {importToast}
+          <button onClick={() => setImportToast(null)} className="ml-2 opacity-75 hover:opacity-100">
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+      )}
+
       {/* Breadcrumbs */}
       <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
         <a href="/dashboard" className="hover:text-primary transition-colors">
@@ -209,6 +249,14 @@ const DealPipeline: React.FC = () => {
             <span className="material-symbols-outlined text-[20px]">download</span>
             Export
           </button>
+          {canEdit && (
+            <button
+              onClick={handleImportExcel}
+              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm">
+              <span className="material-symbols-outlined text-[20px]">upload_file</span>
+              Import from Excel
+            </button>
+          )}
           {canEdit && (
             <button
               onClick={handleNewProject}

@@ -564,6 +564,15 @@ class Project(Base):
     approved_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     approval_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
+    # Investment Template Fields
+    subsector: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    project_sponsor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    is_cross_border: Mapped[bool] = mapped_column(Boolean, default=False)
+    land_status: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    revenue_model: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    climate_impact: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    esg_compliance: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Relationships
     twg: Mapped["TWG"] = relationship(back_populates="projects")
     investment_memo: Mapped[Optional["Document"]] = relationship(foreign_keys=[investment_memo_id])

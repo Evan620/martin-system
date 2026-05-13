@@ -1,13 +1,15 @@
 """
 Deal Pipeline API Routes
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, Path as PathParam
+from fastapi import APIRouter, Depends, HTTPException, Query, Path as PathParam, UploadFile, File, Form
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timezone
 UTC = timezone.utc
 import uuid
+import io
+import re
 
 from app.core.database import get_db
 from app.api.deps import get_current_user
@@ -455,15 +457,15 @@ async def rescore_project(
     # Verify project exists
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
-    
+
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    
+
     # Run scoring synchronously
     service = ProjectPipelineService(db)
     try:
         score = await service.assess_project_readiness(project_id)
-        
+
         return {
             "status": "success",
             "project_id": str(project_id),
@@ -475,4 +477,222 @@ async def rescore_project(
             status_code=500,
             detail=f"Scoring failed: {str(e)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Excel Import helpers
+# ---------------------------------------------------------------------------
+
+from app.models.models import TWGPillar
+
+
+_PILLAR_KEYWORDS: dict[str, TWGPillar] = {
+    "energy": TWGPillar.energy_infrastructure,
+    "agriculture": TWGPillar.agriculture_food_systems,
+    "food": TWGPillar.agriculture_food_systems,
+    "mineral": TWGPillar.critical_minerals_industrialization,
+    "industrial": TWGPillar.critical_minerals_industrialization,
+    "digital": TWGPillar.digital_economy_transformation,
+    "protocol": TWGPillar.protocol_logistics,
+    "logistics": TWGPillar.protocol_logistics,
+    "resource": TWGPillar.resource_mobilization,
+    "mobilization": TWGPillar.resource_mobilization,
+}
+
+_STAGE_MAP: dict[str, ProjectStatus] = {
+    "concept": ProjectStatus.DRAFT,
+    "pre-feasibility": ProjectStatus.PIPELINE,
+    "prefeasibility": ProjectStatus.PIPELINE,
+    "feasibility": ProjectStatus.UNDER_REVIEW,
+    "ready": ProjectStatus.SUMMIT_READY,
+}
+
+
+def _match_pillar(raw: str) -> TWGPillar:
+    """Map a free-text sector string to the nearest TWGPillar enum value."""
+    lowered = raw.strip().lower()
+    for keyword, pillar in _PILLAR_KEYWORDS.items():
+        if keyword in lowered:
+            return pillar
+    return TWGPillar.digital_economy_transformation
+
+
+def _map_status(raw: str) -> ProjectStatus:
+    """Map a stage string to ProjectStatus; defaults to DRAFT."""
+    lowered = raw.strip().lower()
+    for key, status in _STAGE_MAP.items():
+        if key in lowered:
+            return status
+    return ProjectStatus.DRAFT
+
+
+def _parse_investment(raw: str) -> Optional[float]:
+    """Parse investment value from strings like '$50M', '50,000,000', '50 million'."""
+    if not raw:
+        return None
+    cleaned = str(raw).replace("$", "").replace(",", "").strip().lower()
+    multiplier = 1_000_000 if cleaned.endswith(("m", "million")) else 1
+    cleaned = re.sub(r"[^0-9.]", "", cleaned)
+    try:
+        return float(cleaned) * multiplier
+    except (ValueError, TypeError):
+        return None
+
+
+def _col_matches(header: str, *patterns: str) -> bool:
+    """Case-insensitive partial match of a header against any of the patterns."""
+    lowered = header.strip().lower()
+    return any(p in lowered for p in patterns)
+
+
+def _find_header_row(ws):
+    """
+    Scan rows until one contains a cell with 'project name' or 'project/programme name'.
+    Returns (row_index_1based, col_map) where col_map maps field names to 0-based col indices.
+    Returns (None, None) if not found.
+    """
+    for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
+        cells = [str(c).strip() if c is not None else "" for c in row]
+        header_cells_lower = [c.lower() for c in cells]
+        is_header = any(
+            "project name" in cell or "project/programme name" in cell
+            for cell in header_cells_lower
+        )
+        if not is_header:
+            continue
+        col_map: dict[str, int] = {}
+        for col_idx, header in enumerate(header_cells_lower):
+            if not header:
+                continue
+            if _col_matches(header, "project name", "project/programme name"):
+                col_map.setdefault("name", col_idx)
+            elif _col_matches(header, "country"):
+                col_map.setdefault("lead_country", col_idx)
+            elif _col_matches(header, "cross-border", "national or cross-border", "cross border"):
+                col_map.setdefault("is_cross_border", col_idx)
+            elif _col_matches(header, "sector") and "subsector" not in header:
+                col_map.setdefault("pillar", col_idx)
+            elif _col_matches(header, "subsector"):
+                col_map.setdefault("subsector", col_idx)
+            elif _col_matches(header, "sponsor", "developer"):
+                col_map.setdefault("project_sponsor", col_idx)
+            elif _col_matches(header, "stage"):
+                col_map.setdefault("status", col_idx)
+            elif _col_matches(header, "land status", "land_status"):
+                col_map.setdefault("land_status", col_idx)
+            elif _col_matches(header, "investment size", "capital"):
+                col_map.setdefault("investment_size", col_idx)
+            elif _col_matches(header, "revenue model", "revenue_model"):
+                col_map.setdefault("revenue_model", col_idx)
+            elif _col_matches(header, "climate"):
+                col_map.setdefault("climate_impact", col_idx)
+            elif _col_matches(header, "esg"):
+                col_map.setdefault("esg_compliance", col_idx)
+        return row_idx, col_map
+    return None, None
+
+
+def _cell(row: tuple, col_map: dict, field: str) -> str:
+    """Safely get a cell value as a stripped string, or empty string."""
+    idx = col_map.get(field)
+    if idx is None or idx >= len(row):
+        return ""
+    val = row[idx]
+    return str(val).strip() if val is not None else ""
+
+
+@router.post("/import-excel")
+async def import_projects_from_excel(
+    file: UploadFile = File(...),
+    twg_id: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Bulk-import projects from an .xlsx file.
+    Skips instruction rows before the header; maps columns by partial header name.
+    Returns counts of imported, skipped, and per-row errors.
+    """
+    import openpyxl
+
+    if not file.filename or not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Only .xlsx files are supported.")
+
+    try:
+        parsed_twg_id = uuid.UUID(twg_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="twg_id must be a valid UUID.")
+
+    raw_bytes = await file.read()
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(raw_bytes), data_only=True)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Cannot parse Excel file: {exc}")
+
+    ws = wb.active
+    header_row_idx, col_map = _find_header_row(ws)
+
+    if header_row_idx is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not find a header row containing 'Project Name'.",
+        )
+
+    imported = 0
+    skipped = 0
+    errors: list[str] = []
+
+    rows = list(ws.iter_rows(values_only=True))
+    data_rows = rows[header_row_idx:]  # slice past the header row (0-based)
+
+    for row_offset, row in enumerate(data_rows, start=header_row_idx + 2):
+        name = _cell(row, col_map, "name")
+        if not name:
+            skipped += 1
+            continue
+
+        try:
+            raw_pillar = _cell(row, col_map, "pillar")
+            pillar = _match_pillar(raw_pillar).value if raw_pillar else TWGPillar.digital_economy_transformation.value
+
+            raw_status = _cell(row, col_map, "status")
+            status = _map_status(raw_status) if raw_status else ProjectStatus.DRAFT
+
+            raw_investment = _cell(row, col_map, "investment_size")
+            investment_size = _parse_investment(raw_investment) if raw_investment else 0.0
+
+            raw_cross = _cell(row, col_map, "is_cross_border").lower()
+            is_cross_border = "cross" in raw_cross
+
+            project = Project(
+                id=uuid.uuid4(),
+                twg_id=parsed_twg_id,
+                name=name,
+                description="",
+                investment_size=investment_size or 0,
+                currency="USD",
+                status=status,
+                pillar=pillar,
+                lead_country=_cell(row, col_map, "lead_country") or None,
+                subsector=_cell(row, col_map, "subsector") or None,
+                project_sponsor=_cell(row, col_map, "project_sponsor") or None,
+                is_cross_border=is_cross_border,
+                land_status=_cell(row, col_map, "land_status") or None,
+                revenue_model=_cell(row, col_map, "revenue_model") or None,
+                climate_impact=_cell(row, col_map, "climate_impact") or None,
+                esg_compliance=_cell(row, col_map, "esg_compliance") or None,
+            )
+            db.add(project)
+            imported += 1
+        except Exception as exc:
+            errors.append(f"Row {row_offset}: {exc}")
+            skipped += 1
+
+    try:
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database commit failed: {exc}")
+
+    return {"imported": imported, "skipped": skipped, "errors": errors}
 

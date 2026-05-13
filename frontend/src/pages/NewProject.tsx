@@ -18,6 +18,13 @@ const NewProject: React.FC = () => {
     currency: 'USD',
     icon: 'business',
     iconColor: 'blue',
+    subsector: '',
+    projectSponsor: '',
+    isCrossBorder: false,
+    landStatus: '',
+    revenueModel: '',
+    climateImpact: '',
+    esgCompliance: '',
   });
 
   const pillars = [
@@ -146,6 +153,13 @@ const NewProject: React.FC = () => {
         pillar: formData.pillar,
         lead_country: formData.leadCountry,
         status: 'identified',
+        subsector: formData.subsector || undefined,
+        project_sponsor: formData.projectSponsor || undefined,
+        is_cross_border: formData.isCrossBorder,
+        land_status: formData.landStatus || undefined,
+        revenue_model: formData.revenueModel || undefined,
+        climate_impact: formData.climateImpact || undefined,
+        esg_compliance: formData.esgCompliance || undefined,
         metadata_json: {
           leadCompany: formData.leadCompany,
           icon: formData.icon,
@@ -317,6 +331,52 @@ const NewProject: React.FC = () => {
             </div>
           </div>
 
+          {/* Subsector, Project Sponsor & Cross-Border Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="subsector" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                Subsector
+              </label>
+              <input
+                type="text"
+                id="subsector"
+                value={formData.subsector}
+                onChange={(e) => setFormData({ ...formData, subsector: e.target.value })}
+                className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder="e.g., Renewable Energy"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="projectSponsor" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                Project Sponsor
+              </label>
+              <input
+                type="text"
+                id="projectSponsor"
+                value={formData.projectSponsor}
+                onChange={(e) => setFormData({ ...formData, projectSponsor: e.target.value })}
+                className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder="e.g., Ministry of Energy"
+              />
+            </div>
+          </div>
+
+          {/* Cross-Border Toggle */}
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="isCrossBorder"
+              checked={formData.isCrossBorder}
+              onChange={(e) => setFormData({ ...formData, isCrossBorder: e.target.checked })}
+              className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary"
+            />
+            <label htmlFor="isCrossBorder" className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              Cross-Border Project
+            </label>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Check if this project spans multiple countries</p>
+          </div>
+
           {/* Investment Amount */}
           <div>
             <label htmlFor="investment" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
@@ -339,6 +399,40 @@ const NewProject: React.FC = () => {
             </p>
           </div>
 
+          {/* Land Status & Revenue Model */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="landStatus" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                Land Status
+              </label>
+              <select
+                id="landStatus"
+                value={formData.landStatus}
+                onChange={(e) => setFormData({ ...formData, landStatus: e.target.value })}
+                className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+              >
+                <option value="">Select land status...</option>
+                <option value="Secured">Secured</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Not Started">Not Started</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="revenueModel" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                Revenue Model
+              </label>
+              <textarea
+                id="revenueModel"
+                rows={2}
+                value={formData.revenueModel}
+                onChange={(e) => setFormData({ ...formData, revenueModel: e.target.value })}
+                className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                placeholder="Describe the revenue model..."
+              />
+            </div>
+          </div>
+
           {/* Description */}
           <div>
             <label htmlFor="description" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
@@ -353,6 +447,42 @@ const NewProject: React.FC = () => {
               className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
               placeholder="Provide a detailed description of the investment project..."
             />
+          </div>
+
+          {/* Climate & ESG Section */}
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-4">
+              Climate & ESG
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="climateImpact" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                  Climate Impact
+                </label>
+                <textarea
+                  id="climateImpact"
+                  rows={3}
+                  value={formData.climateImpact}
+                  onChange={(e) => setFormData({ ...formData, climateImpact: e.target.value })}
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                  placeholder="Describe the project's climate impact..."
+                />
+              </div>
+
+              <div>
+                <label htmlFor="esgCompliance" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                  ESG Compliance
+                </label>
+                <textarea
+                  id="esgCompliance"
+                  rows={3}
+                  value={formData.esgCompliance}
+                  onChange={(e) => setFormData({ ...formData, esgCompliance: e.target.value })}
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                  placeholder="Describe ESG compliance measures..."
+                />
+              </div>
+            </div>
           </div>
 
           {/* Document Upload */}

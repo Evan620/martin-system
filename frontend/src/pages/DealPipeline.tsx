@@ -215,19 +215,21 @@ const DealPipeline: React.FC = () => {
             Manage regional investment opportunities.
           </p>
         </div>
-        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+        {canAccessInvestorDB && <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
           <button
             onClick={() => setViewMode('pipeline')}
             className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${viewMode === 'pipeline' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
             All Projects
           </button>
-          <button
-            onClick={() => setViewMode('deal_room')}
-            className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${viewMode === 'deal_room' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            Deal Room
-          </button>
+          {canAccessInvestorDB && (
+            <button
+              onClick={() => setViewMode('deal_room')}
+              className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${viewMode === 'deal_room' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Deal Room
+            </button>
+          )}
           {canAccessInvestorDB && (
             <button
               onClick={() => setViewMode('investors')}
@@ -236,7 +238,7 @@ const DealPipeline: React.FC = () => {
               Investor DB
             </button>
           )}
-        </div>
+        </div>}
         <div className="flex items-center gap-3">
           <button
             onClick={handleExport}

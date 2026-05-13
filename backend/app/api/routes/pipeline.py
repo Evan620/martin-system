@@ -12,7 +12,7 @@ import io
 import re
 
 from app.core.database import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_facilitator
 from app.models.models import User, Project, ProjectStatus
 from app.services.project_pipeline_service import ProjectPipelineService
 from app.services.investor_matching_service import get_investor_matching_service
@@ -103,7 +103,7 @@ async def list_pipeline_projects(
 async def ingest_project(
     data: ProjectIngest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_facilitator)
 ):
     """
     Ingest a new project proposal and calculate initial scores.
@@ -140,7 +140,7 @@ async def update_project(
     project_id: uuid.UUID,
     payload: ProjectUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_facilitator)
 ):
     """
     Update project details.
@@ -163,7 +163,7 @@ async def advance_project_stage(
     project_id: uuid.UUID,
     payload: ProjectAdvanceStage,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_facilitator)
 ):
     """
     Advance a project to the next stage.
@@ -218,7 +218,7 @@ async def update_match_status(
     match_id: uuid.UUID,
     payload: InvestorMatchUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_facilitator)
 ):
     """
     Update match status (e.g. to INTERESTED to trigger Protocol Agent).
@@ -240,7 +240,7 @@ async def update_match_status(
 async def trigger_investor_matching(
     project_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_facilitator)
 ):
     """
     Manually trigger investor matching for a project.
@@ -382,7 +382,7 @@ async def toggle_project_flagship(
     project_id: uuid.UUID,
     is_flagship: bool = Query(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_facilitator)
 ):
     """
     Toggle the 'is_flagship' status of a project.
@@ -403,7 +403,7 @@ async def toggle_project_flagship(
 async def rescore_project(
     project_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_facilitator)
 ):
     """
     Manually trigger AfCEN scoring assessment for a project.
@@ -600,7 +600,7 @@ async def import_projects_from_excel(
     file: UploadFile = File(...),
     twg_id: str = Form(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_facilitator),
 ):
     """
     Bulk-import projects from an .xlsx file.

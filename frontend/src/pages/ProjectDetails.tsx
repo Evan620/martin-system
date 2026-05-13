@@ -27,6 +27,40 @@ const ProjectDetails: React.FC = () => {
   const [documentType, setDocumentType] = useState('feasibility_study');
   const [rescoring, setRescoring] = useState(false);
 
+  // Inline editing state for template sections
+  const [editingSection, setEditingSection] = useState<'A' | 'B' | 'C' | 'D' | null>(null);
+  const [editDraft, setEditDraft] = useState<Partial<Project>>({});
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = (section: 'A' | 'B' | 'C' | 'D') => {
+    if (!project) return;
+    setEditingSection(section);
+    setEditDraft({ ...project });
+  };
+
+  const cancelEdit = () => {
+    setEditingSection(null);
+    setEditDraft({});
+  };
+
+  const saveEdit = async () => {
+    if (!project || !editingSection) return;
+    setSaving(true);
+    try {
+      const updated = await pipelineService.updateProject(project.id, editDraft);
+      setProject(updated);
+      setEditingSection(null);
+      setEditDraft({});
+    } catch (e) {
+      console.error('Save failed', e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setField = (key: keyof Project, val: string) =>
+    setEditDraft(d => ({ ...d, [key]: val }));
+
   // RBAC - Must be at top level before any returns
   const { user } = useAppSelector((state) => state.auth);
   const canEdit = user?.role && [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD, UserRole.FACILITATOR].includes(user.role);
@@ -484,176 +518,185 @@ const ProjectDetails: React.FC = () => {
                 </div>
               </div>
 
-              {/* Investment Template — Full Sections A–D */}
-              <div className="space-y-4">
+              {/* Investment Template — Sections A–D with inline editing */}
+              <div className="space-y-0 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
 
-                {/* Section A — Basic Project Information */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-bold px-2 py-0.5 rounded">Section A</span>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Basic Project Information</h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-                    {project.lead_country && (
-                      <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Country / Host State</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.lead_country}</p>
-                      </div>
-                    )}
-                    <div>
-                      <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Regional Dimension</span>
-                      <p className="text-slate-900 dark:text-white mt-1">{project.is_cross_border ? 'Cross-border' : 'National'}</p>
-                    </div>
-                    {project.subsector && (
-                      <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Subsector</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.subsector}</p>
-                      </div>
-                    )}
-                    {project.project_sponsor && (
-                      <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Project Sponsor</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.project_sponsor}</p>
-                      </div>
-                    )}
-                    {project.key_contact_name && (
-                      <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Key Contact</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.key_contact_name}</p>
-                      </div>
-                    )}
-                    {project.key_contact_email && (
-                      <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Contact Email</span>
-                        <p className="text-slate-900 dark:text-white mt-1">
-                          <a href={`mailto:${project.key_contact_email}`} className="text-blue-600 dark:text-blue-400 hover:underline">{project.key_contact_email}</a>
-                        </p>
-                      </div>
-                    )}
-                    {project.submitted_by && (
-                      <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Submitted By</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.submitted_by}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                {/* ── helpers ── */}
+                {(() => {
+                  const isEditing = (s: 'A' | 'B' | 'C' | 'D') => editingSection === s;
 
-                {/* Section B — Project Development Status */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 text-xs font-bold px-2 py-0.5 rounded">Section B</span>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Project Development Status</h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-                    {project.technical_studies && (
-                      <div className="md:col-span-2">
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Technical Studies</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.technical_studies}</p>
-                      </div>
-                    )}
-                    {project.permits_licences && (
-                      <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Permits & Licences</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.permits_licences}</p>
-                      </div>
-                    )}
-                    {project.land_status && (
-                      <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Land Status</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.land_status}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  /** One label-value row */
+                  const Row = ({
+                    label, fkey, textarea = false, isEmail = false, sec,
+                  }: {
+                    label: string;
+                    fkey: keyof Project;
+                    textarea?: boolean;
+                    isEmail?: boolean;
+                    sec: 'A' | 'B' | 'C' | 'D';
+                  }) => {
+                    const editing = isEditing(sec);
+                    const val = editing
+                      ? (editDraft[fkey] as string ?? '')
+                      : (project[fkey] as string ?? '');
 
-                {/* Section C — Investment Profile */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-xs font-bold px-2 py-0.5 rounded">Section C</span>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Investment Profile</h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-                    {project.financing_structure && (
-                      <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Financing Structure</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.financing_structure}</p>
-                      </div>
-                    )}
-                    {project.investment_stage_label && (
-                      <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Investment Stage</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.investment_stage_label}</p>
-                      </div>
-                    )}
-                    {project.revenue_model && (
-                      <div className="md:col-span-2">
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Revenue Model</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.revenue_model}</p>
-                      </div>
-                    )}
-                    {project.macroeconomic_roi && (
-                      <div className="md:col-span-2">
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Macroeconomic ROI</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.macroeconomic_roi}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                    return (
+                      <tr className="border-b border-slate-100 dark:border-slate-700 last:border-0 group hover:bg-slate-50/60 dark:hover:bg-slate-700/30 transition-colors">
+                        <td className="py-3 pl-6 pr-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 w-[38%] align-top whitespace-nowrap">
+                          {label}
+                        </td>
+                        <td className="py-2 pr-4 text-sm text-slate-800 dark:text-slate-200 align-top">
+                          {editing ? (
+                            textarea ? (
+                              <textarea
+                                value={val}
+                                onChange={e => setField(fkey, e.target.value)}
+                                rows={2}
+                                className="w-full border border-blue-300 dark:border-blue-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400/50 resize-none"
+                              />
+                            ) : (
+                              <input
+                                type={isEmail ? 'email' : 'text'}
+                                value={val}
+                                onChange={e => setField(fkey, e.target.value)}
+                                className="w-full border border-blue-300 dark:border-blue-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+                              />
+                            )
+                          ) : val ? (
+                            isEmail ? (
+                              <a href={`mailto:${val}`} className="text-blue-600 dark:text-blue-400 hover:underline">{val}</a>
+                            ) : val
+                          ) : (
+                            <span className="text-slate-300 dark:text-slate-600 italic">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  };
 
-                {/* Section D — Climate & Social Impact */}
-                {(project.climate_impact || project.esg_compliance || project.ghg_avoided_target || project.jobs_construction || project.jobs_om || project.smallholder_farmers_reached || project.electricity_connections || project.digital_connections) && (
-                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold px-2 py-0.5 rounded">Section D</span>
-                      <h3 className="text-base font-bold text-slate-900 dark:text-white">Climate & Social Impact</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-                      {project.climate_impact && (
-                        <div className="md:col-span-2">
-                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Climate & ESG Notes</span>
-                          <p className="text-slate-900 dark:text-white mt-1">{project.climate_impact}</p>
+                  /** Section wrapper with edit/save/cancel controls */
+                  const Section = ({
+                    sec, label, badge, children,
+                  }: {
+                    sec: 'A' | 'B' | 'C' | 'D';
+                    label: string;
+                    badge: string;
+                    children: React.ReactNode;
+                  }) => {
+                    const editing = isEditing(sec);
+                    const badgeColors: Record<string, string> = {
+                      A: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
+                      B: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300',
+                      C: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
+                      D: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
+                    };
+                    return (
+                      <div className="border-b border-slate-200 dark:border-slate-700 last:border-0">
+                        <div className="flex items-center justify-between px-6 py-3 bg-slate-50 dark:bg-slate-800/60">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${badgeColors[sec]}`}>
+                              {badge}
+                            </span>
+                            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">{label}</h3>
+                          </div>
+                          {canEdit && (
+                            editing ? (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={cancelEdit}
+                                  className="px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={saveEdit}
+                                  disabled={saving}
+                                  className="px-3 py-1 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1"
+                                >
+                                  {saving && <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>}
+                                  {saving ? 'Saving…' : 'Save'}
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => startEdit(sec)}
+                                disabled={editingSection !== null}
+                                className="flex items-center gap-1 px-3 py-1 text-xs font-semibold text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-white dark:hover:bg-slate-700 hover:text-slate-800 dark:hover:text-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              >
+                                <span className="material-symbols-outlined text-[14px]">edit</span>
+                                Edit
+                              </button>
+                            )
+                          )}
                         </div>
-                      )}
-                      {project.ghg_avoided_target && (
-                        <div>
-                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">GHG Avoided (tCO₂e)</span>
-                          <p className="text-slate-900 dark:text-white mt-1">{project.ghg_avoided_target}</p>
-                        </div>
-                      )}
-                      {project.jobs_construction && (
-                        <div>
-                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Jobs — Construction</span>
-                          <p className="text-slate-900 dark:text-white mt-1">{project.jobs_construction}</p>
-                        </div>
-                      )}
-                      {project.jobs_om && (
-                        <div>
-                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Jobs — O&M (ongoing)</span>
-                          <p className="text-slate-900 dark:text-white mt-1">{project.jobs_om}</p>
-                        </div>
-                      )}
-                      {project.smallholder_farmers_reached && (
-                        <div>
-                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Smallholder Farmers Reached</span>
-                          <p className="text-slate-900 dark:text-white mt-1">{project.smallholder_farmers_reached}</p>
-                        </div>
-                      )}
-                      {project.electricity_connections && (
-                        <div>
-                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">New Electricity Connections</span>
-                          <p className="text-slate-900 dark:text-white mt-1">{project.electricity_connections}</p>
-                        </div>
-                      )}
-                      {project.digital_connections && (
-                        <div>
-                          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Digital Connections / SMEs</span>
-                          <p className="text-slate-900 dark:text-white mt-1">{project.digital_connections}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                        <table className="w-full">
+                          <tbody>{children}</tbody>
+                        </table>
+                      </div>
+                    );
+                  };
+
+                  return (
+                    <>
+                      {/* Section A */}
+                      <Section sec="A" badge="Section A" label="Basic Project Information">
+                        <Row sec="A" label="Country / Host State" fkey="lead_country" />
+                        {/* Regional Dimension: boolean rendered as select in edit mode */}
+                        <tr className="border-b border-slate-100 dark:border-slate-700 last:border-0 group hover:bg-slate-50/60 dark:hover:bg-slate-700/30 transition-colors">
+                          <td className="py-3 pl-6 pr-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 w-[38%] align-top whitespace-nowrap">
+                            Regional Dimension
+                          </td>
+                          <td className="py-2 pr-4 text-sm text-slate-800 dark:text-slate-200 align-top">
+                            {isEditing('A') ? (
+                              <select
+                                value={editDraft.is_cross_border ? 'cross-border' : 'national'}
+                                onChange={e => setEditDraft(d => ({ ...d, is_cross_border: e.target.value === 'cross-border' }))}
+                                className="border border-blue-300 dark:border-blue-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+                              >
+                                <option value="national">National</option>
+                                <option value="cross-border">Cross-border</option>
+                              </select>
+                            ) : (
+                              project.is_cross_border ? 'Cross-border' : 'National'
+                            )}
+                          </td>
+                        </tr>
+                        <Row sec="A" label="Subsector" fkey="subsector" />
+                        <Row sec="A" label="Project Sponsor" fkey="project_sponsor" />
+                        <Row sec="A" label="Key Contact Name" fkey="key_contact_name" />
+                        <Row sec="A" label="Key Contact Email" fkey="key_contact_email" isEmail />
+                        <Row sec="A" label="Submitted By" fkey="submitted_by" />
+                      </Section>
+
+                      {/* Section B */}
+                      <Section sec="B" badge="Section B" label="Project Development Status">
+                        <Row sec="B" label="Technical Studies" fkey="technical_studies" textarea />
+                        <Row sec="B" label="Permits & Licences" fkey="permits_licences" textarea />
+                        <Row sec="B" label="Land Status" fkey="land_status" />
+                      </Section>
+
+                      {/* Section C */}
+                      <Section sec="C" badge="Section C" label="Investment Profile">
+                        <Row sec="C" label="Financing Structure" fkey="financing_structure" />
+                        <Row sec="C" label="Investment Stage" fkey="investment_stage_label" />
+                        <Row sec="C" label="Revenue Model" fkey="revenue_model" textarea />
+                        <Row sec="C" label="Macroeconomic ROI" fkey="macroeconomic_roi" textarea />
+                      </Section>
+
+                      {/* Section D */}
+                      <Section sec="D" badge="Section D" label="Climate & Social Impact">
+                        <Row sec="D" label="Climate & ESG Notes" fkey="climate_impact" textarea />
+                        <Row sec="D" label="ESG Compliance" fkey="esg_compliance" textarea />
+                        <Row sec="D" label="GHG Avoided (tCO₂e)" fkey="ghg_avoided_target" />
+                        <Row sec="D" label="Jobs — Construction" fkey="jobs_construction" />
+                        <Row sec="D" label="Jobs — O&M (ongoing)" fkey="jobs_om" />
+                        <Row sec="D" label="Smallholder Farmers Reached" fkey="smallholder_farmers_reached" />
+                        <Row sec="D" label="New Electricity Connections" fkey="electricity_connections" />
+                        <Row sec="D" label="Digital Connections / SMEs" fkey="digital_connections" />
+                      </Section>
+                    </>
+                  );
+                })()}
 
               </div>
 

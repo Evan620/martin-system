@@ -717,17 +717,26 @@ class ProjectPipelineService:
         if not project:
             return {"error": "Project not found"}
             
-        # Update fields
-        if data.get("name"): project.name = data["name"]
-        if data.get("description"): project.description = data["description"]
-        if data.get("investment_size"): project.investment_size = data["investment_size"]
-        if data.get("currency"): project.currency = data["currency"]
-        if data.get("pillar"): project.pillar = data["pillar"]
-        if data.get("lead_country"): project.lead_country = data["lead_country"]
-        if data.get("assigned_agent"): project.assigned_agent = data["assigned_agent"]
-        if "is_flagship" in data and data["is_flagship"] is not None: 
-            project.is_flagship = data["is_flagship"]
-            
+        # Apply all updatable scalar fields
+        _UPDATABLE = {
+            "name", "description", "investment_size", "currency", "pillar",
+            "lead_country", "assigned_agent", "is_flagship",
+            # Section A
+            "subsector", "project_sponsor", "is_cross_border",
+            "key_contact_name", "key_contact_email", "submitted_by",
+            # Section B
+            "technical_studies", "permits_licences", "land_status",
+            # Section C
+            "financing_structure", "investment_stage_label", "revenue_model", "macroeconomic_roi",
+            # Section D
+            "climate_impact", "esg_compliance", "ghg_avoided_target",
+            "jobs_construction", "jobs_om", "electricity_connections",
+            "digital_connections", "smallholder_farmers_reached",
+        }
+        for field in _UPDATABLE:
+            if field in data and data[field] is not None:
+                setattr(project, field, data[field])
+
         # Merge metadata
         if data.get("metadata_json"):
             current_meta = project.metadata_json or {}

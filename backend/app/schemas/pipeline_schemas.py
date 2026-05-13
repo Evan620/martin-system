@@ -38,6 +38,35 @@ class ProjectUpdate(BaseModel):
     assigned_agent: Optional[str] = None
     is_flagship: Optional[bool] = None
 
+    # Section A
+    subsector: Optional[str] = None
+    project_sponsor: Optional[str] = None
+    is_cross_border: Optional[bool] = None
+    key_contact_name: Optional[str] = None
+    key_contact_email: Optional[str] = None
+    submitted_by: Optional[str] = None
+
+    # Section B
+    technical_studies: Optional[str] = None
+    permits_licences: Optional[str] = None
+    land_status: Optional[str] = None
+
+    # Section C
+    financing_structure: Optional[str] = None
+    investment_stage_label: Optional[str] = None
+    revenue_model: Optional[str] = None
+    macroeconomic_roi: Optional[str] = None
+
+    # Section D
+    climate_impact: Optional[str] = None
+    esg_compliance: Optional[str] = None
+    ghg_avoided_target: Optional[str] = None
+    jobs_construction: Optional[str] = None
+    jobs_om: Optional[str] = None
+    electricity_connections: Optional[str] = None
+    digital_connections: Optional[str] = None
+    smallholder_farmers_reached: Optional[str] = None
+
 class ProjectAdvanceStage(BaseModel):
     """Schema for advancing a project stage"""
     new_stage: ProjectStatus

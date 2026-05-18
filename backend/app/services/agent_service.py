@@ -59,7 +59,7 @@ class AgentService:
         projects_res = await self.db.execute(
             select(Project).where(
                 Project.twg_id == twg_id,
-                Project.status.in_([ProjectStatus.BANKABLE, ProjectStatus.PRESENTED])
+                Project.status.in_([ProjectStatus.SUMMIT_READY, ProjectStatus.DEAL_ROOM_FEATURED])
             )
         )
         projects = projects_res.scalars().all()

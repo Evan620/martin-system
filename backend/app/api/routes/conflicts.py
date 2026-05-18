@@ -104,8 +104,8 @@ async def resolve_conflict(
                 
             # Perform Merge (Basic Prototype)
             # 1. Update Merge Project status
-            merge_proj.status = ProjectStatus.ARCHIVED
-            # Archived = merged/superseded; metadata captures the merge target
+            merge_proj.status = ProjectStatus.ON_HOLD
+            # On Hold = merged/superseded; metadata captures the merge target
             
             merge_proj.metadata_json = {
                 **(merge_proj.metadata_json or {}),

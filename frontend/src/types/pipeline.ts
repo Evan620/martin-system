@@ -1,22 +1,26 @@
 
 // Project Status Enum
 export enum ProjectStatus {
-    // Phase 1 — Project Development (TWG Facilitator)
-    CONCEPT = "CONCEPT",
-    PRE_FEASIBILITY = "PRE_FEASIBILITY",
-    FEASIBILITY = "FEASIBILITY",
-    BANKABLE = "BANKABLE",
+    // Submission Phase
+    DRAFT = "DRAFT",
+    PIPELINE = "PIPELINE",
+    UNDER_REVIEW = "UNDER_REVIEW",
 
-    // Phase 2 — Deal Making (Secretariat)
-    SUMMIT_FEATURED = "SUMMIT_FEATURED",
-    IN_NEGOTIATION = "IN_NEGOTIATION",
-    COMMITTED = "COMMITTED",
-
-    // System states
+    // Decision Phase
     DECLINED = "DECLINED",
     NEEDS_REVISION = "NEEDS_REVISION",
+    SUMMIT_READY = "SUMMIT_READY",
+
+    // Deal Room Phase
+    DEAL_ROOM_FEATURED = "DEAL_ROOM_FEATURED",
+    IN_NEGOTIATION = "IN_NEGOTIATION",
+
+    // Post-Deal Phase
+    COMMITTED = "COMMITTED",
+    IMPLEMENTED = "IMPLEMENTED",
+
+    // Other
     ON_HOLD = "ON_HOLD",
-    ARCHIVED = "ARCHIVED",
 }
 
 // Investor Match Status Enum

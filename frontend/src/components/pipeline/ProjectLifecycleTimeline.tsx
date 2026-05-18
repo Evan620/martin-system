@@ -17,14 +17,14 @@ interface Props {
 }
 
 const PHASE1 = [
-    { key: ProjectStatus.CONCEPT, label: 'Concept', icon: LightBulbIcon },
-    { key: ProjectStatus.PRE_FEASIBILITY, label: 'Pre-feasibility', icon: ClockIcon },
-    { key: ProjectStatus.FEASIBILITY, label: 'Feasibility', icon: MagnifyingGlassIcon },
-    { key: ProjectStatus.BANKABLE, label: 'Bankable', icon: CheckBadgeIcon },
+    { key: ProjectStatus.DRAFT, label: 'Draft', icon: LightBulbIcon },
+    { key: ProjectStatus.PIPELINE, label: 'Pipeline', icon: ClockIcon },
+    { key: ProjectStatus.UNDER_REVIEW, label: 'Under Review', icon: MagnifyingGlassIcon },
+    { key: ProjectStatus.SUMMIT_READY, label: 'Summit Ready', icon: CheckBadgeIcon },
 ];
 
 const PHASE2 = [
-    { key: ProjectStatus.SUMMIT_FEATURED, label: 'Summit Featured', icon: StarIcon },
+    { key: ProjectStatus.DEAL_ROOM_FEATURED, label: 'Deal Room Featured', icon: StarIcon },
     { key: ProjectStatus.IN_NEGOTIATION, label: 'In Negotiation', icon: CurrencyDollarIcon },
     { key: ProjectStatus.COMMITTED, label: 'Committed', icon: TrophyIcon },
 ];
@@ -38,7 +38,7 @@ export const ProjectLifecycleTimeline: React.FC<Props> = ({ project }) => {
 
     let activeIndex = ALL_STAGES.findIndex(s => s.key === currentStatus);
     if (activeIndex === -1) {
-        if (isDeclined || isRevision) activeIndex = ALL_STAGES.findIndex(s => s.key === ProjectStatus.FEASIBILITY);
+        if (isDeclined || isRevision) activeIndex = ALL_STAGES.findIndex(s => s.key === ProjectStatus.UNDER_REVIEW);
         else activeIndex = 0;
     }
 

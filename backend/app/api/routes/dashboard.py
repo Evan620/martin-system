@@ -244,9 +244,9 @@ async def get_dashboard_stats(
     projects = projects_res.scalars().all()
     
     pipeline_stats = {
-        "drafting": len([p for p in projects if p.status == ProjectStatus.CONCEPT]),
-        "negotiation": len([p for p in projects if p.status == ProjectStatus.PRE_FEASIBILITY]),
-        "final_review": len([p for p in projects if p.status == ProjectStatus.BANKABLE]),
+        "drafting": len([p for p in projects if p.status == ProjectStatus.DRAFT]),
+        "negotiation": len([p for p in projects if p.status == ProjectStatus.PIPELINE]),
+        "final_review": len([p for p in projects if p.status == ProjectStatus.SUMMIT_READY]),
         "signed": len([p for p in projects if p.status == ProjectStatus.COMMITTED]),
         "total": len(projects)
     }

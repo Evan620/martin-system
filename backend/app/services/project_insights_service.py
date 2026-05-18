@@ -104,20 +104,20 @@ Focus on practical next steps that move projects forward."""
             insight = f"AfCEN score needs attention to improve project competitiveness."
         
         # Rule-based recommendation
-        if project.status == ProjectStatus.CONCEPT:
+        if project.status == ProjectStatus.DRAFT:
             recommendation = "Complete project documentation and submit for early studies."
-        elif project.status == ProjectStatus.PRE_FEASIBILITY:
-            recommendation = "Progress pre-feasibility work and advance to full feasibility stage."
-        elif project.status == ProjectStatus.FEASIBILITY:
+        elif project.status == ProjectStatus.PIPELINE:
+            recommendation = "Progress pre-feasibility work and advance to full review stage."
+        elif project.status == ProjectStatus.UNDER_REVIEW:
             if days_in_stage > 30:
-                recommendation = f"Project has been in feasibility for {days_in_stage} days. Follow up with TWG lead for status update."
+                recommendation = f"Project has been under review for {days_in_stage} days. Follow up with TWG lead for status update."
             else:
                 recommendation = "Await TWG technical review feedback."
         elif project.status == ProjectStatus.NEEDS_REVISION:
             recommendation = "Address reviewer feedback and resubmit for evaluation."
-        elif project.status == ProjectStatus.BANKABLE:
+        elif project.status == ProjectStatus.SUMMIT_READY:
             recommendation = "Prepare pitch deck and schedule presentation for upcoming summit."
-        elif project.status == ProjectStatus.SUMMIT_FEATURED:
+        elif project.status == ProjectStatus.DEAL_ROOM_FEATURED:
             recommendation = "Review pending investor matches and schedule introductory meetings."
         else:
             recommendation = "Continue monitoring project progress and update documentation as needed."

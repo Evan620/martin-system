@@ -456,18 +456,19 @@ _PILLAR_KEYWORDS: dict[str, TWGPillar] = {
 }
 
 _STAGE_MAP: dict[str, ProjectStatus] = {
-    "early-stage commercialisation": ProjectStatus.PRE_FEASIBILITY,
-    "early-stage commercialization": ProjectStatus.PRE_FEASIBILITY,
-    "feasibility / investment-ready": ProjectStatus.BANKABLE,
-    "feasibility / bankable": ProjectStatus.BANKABLE,
-    "pre-feasibility": ProjectStatus.PRE_FEASIBILITY,
-    "prefeasibility": ProjectStatus.PRE_FEASIBILITY,
-    "feasibility": ProjectStatus.FEASIBILITY,
-    "bankable": ProjectStatus.BANKABLE,
-    "investment-ready": ProjectStatus.BANKABLE,
-    "investment ready": ProjectStatus.BANKABLE,
-    "concept": ProjectStatus.CONCEPT,
-    "early stage": ProjectStatus.PRE_FEASIBILITY,
+    "early-stage commercialisation": ProjectStatus.PIPELINE,
+    "early-stage commercialization": ProjectStatus.PIPELINE,
+    "feasibility / investment-ready": ProjectStatus.SUMMIT_READY,
+    "feasibility / bankable": ProjectStatus.SUMMIT_READY,
+    "pre-feasibility": ProjectStatus.PIPELINE,
+    "prefeasibility": ProjectStatus.PIPELINE,
+    "feasibility": ProjectStatus.UNDER_REVIEW,
+    "bankable": ProjectStatus.SUMMIT_READY,
+    "investment-ready": ProjectStatus.SUMMIT_READY,
+    "investment ready": ProjectStatus.SUMMIT_READY,
+    "concept": ProjectStatus.DRAFT,
+    "draft": ProjectStatus.DRAFT,
+    "early stage": ProjectStatus.PIPELINE,
 }
 
 
@@ -481,12 +482,12 @@ def _match_pillar(raw: str) -> TWGPillar:
 
 
 def _map_status(raw: str) -> ProjectStatus:
-    """Map a stage string to ProjectStatus; defaults to CONCEPT."""
+    """Map a stage string to ProjectStatus; defaults to DRAFT."""
     lowered = raw.strip().lower()
     for key, status in _STAGE_MAP.items():
         if key in lowered:
             return status
-    return ProjectStatus.CONCEPT
+    return ProjectStatus.DRAFT
 
 
 def _parse_investment(raw: str) -> Optional[float]:
@@ -673,7 +674,7 @@ async def import_projects_from_excel(
             pillar = _match_pillar(raw_pillar).value if raw_pillar else TWGPillar.digital_economy_transformation.value
 
             raw_status = _cell(row, col_map, "status")
-            status = _map_status(raw_status) if raw_status else ProjectStatus.CONCEPT
+            status = _map_status(raw_status) if raw_status else ProjectStatus.DRAFT
 
             raw_investment = _cell(row, col_map, "investment_size")
             investment_size = _parse_investment(raw_investment) if raw_investment else 0.0

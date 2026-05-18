@@ -346,22 +346,22 @@ class ProjectPipelineService:
              
         # Side Effects Triggers (retained from original logic)
         
-        if new_stage == ProjectStatus.PRE_FEASIBILITY:
+        if new_stage == ProjectStatus.PIPELINE:
              # Prompt: "Notification sent to Resource Mob team", "Auto-trigger scoring"
              # For MVP, we log this auto-trigger. In prod, this would be a Celery task.
              logger.info(f"Auto-triggering scoring task for project {project_id}")
              pass
 
-        if new_stage == ProjectStatus.FEASIBILITY:
-             # If moving to FEASIBILITY, ensure vetting is requested if not exists.
+        if new_stage == ProjectStatus.UNDER_REVIEW:
+             # If moving to UNDER_REVIEW, ensure vetting is requested if not exists.
              pass
 
-        if new_stage == ProjectStatus.BANKABLE:
+        if new_stage == ProjectStatus.SUMMIT_READY:
              # Trigger investor matching via Celery for non-blocking execution
              try:
                  from app.services.scoring_tasks import match_investors_async
                  match_investors_async.delay(str(project_id))
-                 logger.info(f"✓ Triggered investor matching for project {project_id} after advancing to BANKABLE")
+                 logger.info(f"✓ Triggered investor matching for project {project_id} after advancing to SUMMIT_READY")
              except Exception as e:
                  logger.warning(f"Could not trigger automatic investor matching: {e}")
 
@@ -644,7 +644,7 @@ class ProjectPipelineService:
             investment_size=data["investment_size"],
             currency=data.get("currency", "USD"),
             readiness_score=readiness,
-            status=ProjectStatus.CONCEPT, # Initial status
+            status=ProjectStatus.DRAFT, # Initial status
             pillar=data.get("pillar"),
             lead_country=data.get("lead_country"),
             afcen_score=afcen_score,

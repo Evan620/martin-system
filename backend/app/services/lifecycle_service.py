@@ -15,35 +15,35 @@ class LifecycleService:
     """
 
     ALLOWED_TRANSITIONS = {
-        (ProjectStatus.CONCEPT, ProjectStatus.PRE_FEASIBILITY): {
+        (ProjectStatus.DRAFT, ProjectStatus.PIPELINE): {
             "roles": [UserRole.TWG_FACILITATOR, UserRole.ADMIN, UserRole.SECRETARIAT_LEAD],
             "description": "Submit for early studies"
         },
-        (ProjectStatus.PRE_FEASIBILITY, ProjectStatus.FEASIBILITY): {
+        (ProjectStatus.PIPELINE, ProjectStatus.UNDER_REVIEW): {
             "roles": [UserRole.TWG_FACILITATOR, UserRole.ADMIN, UserRole.SECRETARIAT_LEAD],
             "description": "Advance to feasibility stage"
         },
-        (ProjectStatus.FEASIBILITY, ProjectStatus.DECLINED): {
+        (ProjectStatus.UNDER_REVIEW, ProjectStatus.DECLINED): {
             "roles": [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD],
             "description": "Decline project"
         },
-        (ProjectStatus.FEASIBILITY, ProjectStatus.NEEDS_REVISION): {
+        (ProjectStatus.UNDER_REVIEW, ProjectStatus.NEEDS_REVISION): {
             "roles": [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD],
             "description": "Request revision"
         },
-        (ProjectStatus.FEASIBILITY, ProjectStatus.BANKABLE): {
+        (ProjectStatus.UNDER_REVIEW, ProjectStatus.SUMMIT_READY): {
             "roles": [UserRole.TWG_FACILITATOR, UserRole.ADMIN, UserRole.SECRETARIAT_LEAD],
-            "description": "Mark as bankable / investment-ready"
+            "description": "Mark as summit-ready / investment-ready"
         },
-        (ProjectStatus.NEEDS_REVISION, ProjectStatus.FEASIBILITY): {
+        (ProjectStatus.NEEDS_REVISION, ProjectStatus.UNDER_REVIEW): {
             "roles": [UserRole.TWG_FACILITATOR, UserRole.ADMIN, UserRole.SECRETARIAT_LEAD],
             "description": "Resubmit after revision"
         },
-        (ProjectStatus.BANKABLE, ProjectStatus.SUMMIT_FEATURED): {
+        (ProjectStatus.SUMMIT_READY, ProjectStatus.DEAL_ROOM_FEATURED): {
             "roles": [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD],
             "description": "Select for summit"
         },
-        (ProjectStatus.SUMMIT_FEATURED, ProjectStatus.IN_NEGOTIATION): {
+        (ProjectStatus.DEAL_ROOM_FEATURED, ProjectStatus.IN_NEGOTIATION): {
             "roles": [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD],
             "description": "Investor engaged"
         },
@@ -51,17 +51,21 @@ class LifecycleService:
             "roles": [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD],
             "description": "Deal committed"
         },
+        (ProjectStatus.COMMITTED, ProjectStatus.IMPLEMENTED): {
+            "roles": [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD],
+            "description": "Deal implemented"
+        },
     }
 
     # Keep TRANSITION_RULES as an alias so existing callers don't break
     TRANSITION_RULES = ALLOWED_TRANSITIONS
 
     STAGE_DURATION_THRESHOLDS = {
-        ProjectStatus.CONCEPT: 14,
-        ProjectStatus.PRE_FEASIBILITY: 30,
-        ProjectStatus.FEASIBILITY: 30,
-        ProjectStatus.BANKABLE: 30,
-        ProjectStatus.SUMMIT_FEATURED: 30,
+        ProjectStatus.DRAFT: 14,
+        ProjectStatus.PIPELINE: 30,
+        ProjectStatus.UNDER_REVIEW: 30,
+        ProjectStatus.SUMMIT_READY: 30,
+        ProjectStatus.DEAL_ROOM_FEATURED: 30,
         ProjectStatus.IN_NEGOTIATION: 60,
         ProjectStatus.COMMITTED: 90,
     }
@@ -116,9 +120,9 @@ class LifecycleService:
 
         if not rule:
             # Check for generic "Archived" or "On Hold"
-            if new_status in [ProjectStatus.ARCHIVED, ProjectStatus.ON_HOLD]:
+            if new_status in [ProjectStatus.ON_HOLD]:
                 if changed_by_user.role not in [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]:
-                     raise HTTPException(status_code=403, detail="Insufficient permissions to archive/hold project")
+                     raise HTTPException(status_code=403, detail="Insufficient permissions to hold project")
             elif changed_by_user.role != UserRole.ADMIN:
                  raise HTTPException(status_code=400, detail=f"Invalid status transition from {current_status} to {new_status}")
         else:
@@ -166,8 +170,6 @@ class LifecycleService:
         
         # Add generic transitions allowed for admins/leads
         if user_role in [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]:
-            if ProjectStatus.ARCHIVED not in allowed and current_status != ProjectStatus.ARCHIVED:
-                allowed.append(ProjectStatus.ARCHIVED)
             if ProjectStatus.ON_HOLD not in allowed and current_status != ProjectStatus.ON_HOLD:
                 allowed.append(ProjectStatus.ON_HOLD)
                 

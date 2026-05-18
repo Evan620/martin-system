@@ -138,7 +138,7 @@ async def update_project_score(
     # Auto-update status based on score thresholds (Example logic)
     if score >= 80.0:
         from app.models.models import ProjectStatus
-        db_project.status = ProjectStatus.BANKABLE
+        db_project.status = ProjectStatus.SUMMIT_READY
         
     await db.commit()
     await db.refresh(db_project)

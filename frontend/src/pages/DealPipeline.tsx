@@ -47,19 +47,19 @@ const DealPipeline: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'CONCEPT':
+      case 'DRAFT':
+        return 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+
+      case 'PIPELINE':
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
 
-      case 'PRE_FEASIBILITY':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300';
+      case 'UNDER_REVIEW':
+        return 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300';
 
-      case 'FEASIBILITY':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
-
-      case 'BANKABLE':
+      case 'SUMMIT_READY':
         return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
 
-      case 'SUMMIT_FEATURED':
+      case 'DEAL_ROOM_FEATURED':
         return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300';
 
       case 'IN_NEGOTIATION':
@@ -68,6 +68,9 @@ const DealPipeline: React.FC = () => {
       case 'COMMITTED':
         return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300';
 
+      case 'IMPLEMENTED':
+        return 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300';
+
       case 'DECLINED':
         return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
 
@@ -75,7 +78,6 @@ const DealPipeline: React.FC = () => {
         return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
 
       case 'ON_HOLD':
-      case 'ARCHIVED':
         return 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
 
       default:
@@ -401,13 +403,16 @@ const DealPipeline: React.FC = () => {
                     className="w-full appearance-none bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-sm rounded-lg focus:ring-primary focus:border-primary block px-3 py-2 pr-8"
                   >
                     <option value="">Status: All</option>
-                    <option value={ProjectStatus.CONCEPT}>Concept</option>
-                    <option value={ProjectStatus.PRE_FEASIBILITY}>Pre-feasibility</option>
-                    <option value={ProjectStatus.FEASIBILITY}>Feasibility</option>
-                    <option value={ProjectStatus.BANKABLE}>Bankable</option>
-                    <option value={ProjectStatus.SUMMIT_FEATURED}>Summit Featured</option>
+                    <option value={ProjectStatus.DRAFT}>Draft</option>
+                    <option value={ProjectStatus.PIPELINE}>Pipeline</option>
+                    <option value={ProjectStatus.UNDER_REVIEW}>Under Review</option>
+                    <option value={ProjectStatus.SUMMIT_READY}>Summit Ready</option>
+                    <option value={ProjectStatus.DEAL_ROOM_FEATURED}>Deal Room Featured</option>
                     <option value={ProjectStatus.IN_NEGOTIATION}>In Negotiation</option>
                     <option value={ProjectStatus.COMMITTED}>Committed</option>
+                    <option value={ProjectStatus.IMPLEMENTED}>Implemented</option>
+                    <option value={ProjectStatus.ON_HOLD}>On Hold</option>
+                    <option value={ProjectStatus.DECLINED}>Declined</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
                     <span className="material-symbols-outlined text-[20px]">expand_more</span>

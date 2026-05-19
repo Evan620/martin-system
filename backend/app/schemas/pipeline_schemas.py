@@ -105,11 +105,11 @@ class ProjectPipelineRead(BaseModel):
     investment_size: Decimal
     currency: str = "USD"
     
-    # Scores
+    # Scores — must be float so JSON serializes as numbers, not strings
     readiness_score: float = 0.0
-    afcen_score: Optional[Decimal] = None
-    strategic_alignment_score: Optional[Decimal] = None
-    regional_impact_score: Optional[Decimal] = None
+    afcen_score: Optional[float] = None
+    strategic_alignment_score: Optional[float] = None
+    regional_impact_score: Optional[float] = None
     
     # Metadata
     pillar: Optional[str] = None

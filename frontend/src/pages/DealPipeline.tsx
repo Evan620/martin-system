@@ -515,7 +515,7 @@ const DealPipeline: React.FC = () => {
                     </td>
                   </tr>
                 ) : paginatedProjects.map((project) => {
-                  const score = project.afcen_score ?? project.readiness_score ?? 0;
+                  const score = Number(project.afcen_score ?? project.readiness_score ?? 0);
                   const isAIScored = project.afcen_score != null;
                   return (
                     <tr

@@ -888,7 +888,7 @@ export default function TwgAgent() {
                     <div className="bg-white dark:bg-[#1a202c] border-t border-[#e7ebf3] dark:border-[#2d3748] p-4">
 
 
-                        <div className="relative bg-white dark:bg-[#0d121b] border-2 border-[#e7ebf3] dark:border-[#2d3748] rounded-2xl shadow-lg focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:border-blue-500 dark:focus-within:border-blue-400 transition-all">
+                        <div className="relative bg-white dark:bg-[#0d121b] border-2 border-[#e7ebf3] dark:border-[#2d3748] rounded-2xl shadow-lg focus-within:border-blue-500 dark:focus-within:border-blue-400 transition-all">
                             {autocompleteType === 'command' && commandSuggestions.length > 0 && (
                                 <CommandAutocomplete
                                     suggestions={commandSuggestions}

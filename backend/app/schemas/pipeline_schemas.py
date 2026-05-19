@@ -170,6 +170,9 @@ class ScoringCriteriaRead(BaseModel):
     weight: Decimal
     description: Optional[str] = None
 
+class ScoringCriteriaWeightUpdate(BaseModel):
+    weight: Decimal
+
 class ProjectScoreDetailRead(BaseModel):
     id: UUID
     criterion: ScoringCriteriaRead

@@ -1,7 +1,7 @@
 """add_project_investment_template_fields
 
 Revision ID: a62ab7bf978a
-Revises: att3nd33_b0t_id
+Revises: 5ebf43f69e8b
 Create Date: 2026-05-13 12:21:38.562123
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'a62ab7bf978a'
-down_revision: Union[str, Sequence[str], None] = 'att3nd33_b0t_id'
+down_revision: Union[str, Sequence[str], None] = '5ebf43f69e8b'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

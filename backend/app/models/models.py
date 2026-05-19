@@ -815,7 +815,7 @@ class ProjectScoreDetail(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"))
     criterion_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("scoring_criteria.id"))
-    score: Mapped[Decimal] = mapped_column(Numeric(3, 1)) # 0-10
+    score: Mapped[Decimal] = mapped_column(Numeric(5, 2))  # 0-100
     scored_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id"))
     scored_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

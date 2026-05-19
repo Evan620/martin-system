@@ -12,14 +12,14 @@ import io
 import re
 
 from app.core.database import get_db
-from app.api.deps import get_current_user, require_facilitator
+from app.api.deps import get_current_user, require_facilitator, require_admin
 from app.models.models import User, Project, ProjectStatus
 from app.services.project_pipeline_service import ProjectPipelineService
 from app.services.investor_matching_service import get_investor_matching_service
 from app.schemas.pipeline_schemas import (
     ProjectIngest, ProjectUpdate, ProjectPipelineRead, ProjectAdvanceStage, 
     InvestorMatchRead, PipelineStats, InvestorMatchUpdate, InvestorRead,
-    ProjectScoreDetailRead, ScoringCriteriaRead
+    ProjectScoreDetailRead, ScoringCriteriaRead, ScoringCriteriaWeightUpdate
 )
 from app.models.models import ProjectScoreDetail, ScoringCriteria
 from app.services.lifecycle_service import LifecycleService
@@ -117,6 +117,53 @@ async def ingest_project(
     
     p = result["project"]
     return _project_to_read(p, current_user)
+
+
+@router.get("/scoring-criteria", response_model=List[ScoringCriteriaRead])
+async def list_scoring_criteria(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """List all WAIIS scoring criteria and their current weights."""
+    result = await db.execute(select(ScoringCriteria))
+    criteria = result.scalars().all()
+    return [
+        ScoringCriteriaRead(
+            id=c.id,
+            criterion_name=c.criterion_name,
+            criterion_type=c.criterion_type,
+            weight=c.weight,
+            description=c.description
+        )
+        for c in criteria
+    ]
+
+
+@router.patch("/scoring-criteria/{criterion_id}", response_model=ScoringCriteriaRead)
+async def update_scoring_criterion_weight(
+    criterion_id: uuid.UUID,
+    body: ScoringCriteriaWeightUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """Update the weight of a WAIIS scoring criterion. Admin only."""
+    from decimal import Decimal
+    result = await db.execute(select(ScoringCriteria).where(ScoringCriteria.id == criterion_id))
+    criterion = result.scalar_one_or_none()
+    if not criterion:
+        raise HTTPException(status_code=404, detail="Criterion not found")
+    if body.weight < Decimal("0") or body.weight > Decimal("9.99"):
+        raise HTTPException(status_code=422, detail="Weight must be between 0 and 9.99")
+    criterion.weight = body.weight
+    await db.commit()
+    return ScoringCriteriaRead(
+        id=criterion.id,
+        criterion_name=criterion.criterion_name,
+        criterion_type=criterion.criterion_type,
+        weight=criterion.weight,
+        description=criterion.description
+    )
+
 
 @router.get("/{project_id}", response_model=ProjectPipelineRead)
 async def get_project_details(
@@ -295,7 +342,6 @@ async def get_project_score_details(
         )
         for d, c in rows
     ]
-
 
 
 @router.get("/{project_id}/insights")

@@ -49,30 +49,46 @@ class ProjectPipelineService:
         self.doc_intelligence = DocumentIntelligenceService()
 
     async def _ensure_default_criteria(self):
-        """Seed default scoring criteria if none exist."""
-        logger.info("Checking if default criteria need to be seeded...")
-        
+        """Seed WAIIS scoring criteria; migrate from legacy 7-criteria set if needed."""
+        from sqlalchemy import delete as sa_delete
+
         result = await self.db.execute(select(ScoringCriteria))
         existing = result.scalars().all()
-        
-        logger.info(f"Query returned {len(existing)} criteria")
-        
-        if len(existing) > 0:
-            logger.info(f"Found {len(existing)} existing criteria: {[c.criterion_name for c in existing]}")
-            return
-        
-        logger.info("No criteria found, seeding defaults...")
+
+        waiis_names = {
+            "Readiness", "Scale of Impact", "Country & Political Enablement",
+            "Bankability", "Additionality", "Scalability/Replicability"
+        }
+        existing_names = {c.criterion_name for c in existing}
+
+        if waiis_names.issubset(existing_names):
+            return  # already on current criteria set
+
+        # Clear stale criteria and linked score details before re-seeding
+        if existing:
+            for c in existing:
+                await self.db.execute(
+                    sa_delete(ProjectScoreDetail).where(ProjectScoreDetail.criterion_id == c.id)
+                )
+            await self.db.execute(sa_delete(ScoringCriteria))
+            await self.db.commit()
+            logger.info("Cleared legacy scoring criteria; re-seeding with WAIIS criteria")
 
         defaults = [
-            {"name": "Feasibility Study", "type": "readiness", "weight": 2.0, "desc": "Completed Feasibility Study"},
-            {"name": "ESIA", "type": "readiness", "weight": 2.0, "desc": "Environmental & Social Impact Assessment"},
-            {"name": "Financial Model", "type": "readiness", "weight": 2.0, "desc": "Robust Financial Model"},
-            {"name": "Site Control", "type": "readiness", "weight": 2.0, "desc": "Land/Site Access Secured"},
-            {"name": "Permits", "type": "readiness", "weight": 2.0, "desc": "Key Permits Obtained"},
-            {"name": "Gov Support", "type": "strategic_fit", "weight": 5.0, "desc": "Letter of Government Support"},
-            {"name": "Regional Integration", "type": "strategic_fit", "weight": 5.0, "desc": "Cross-border benefits"},
+            {"name": "Readiness", "type": "readiness", "weight": 1.0,
+             "desc": "Technical and regulatory readiness (feasibility, ESIA, permits, site control)"},
+            {"name": "Scale of Impact", "type": "impact", "weight": 1.0,
+             "desc": "Investment size and cross-border reach"},
+            {"name": "Country & Political Enablement", "type": "political", "weight": 1.0,
+             "desc": "Government support and policy/land enablement"},
+            {"name": "Bankability", "type": "bankability", "weight": 1.0,
+             "desc": "Financial model quality, IRR, and revenue structure"},
+            {"name": "Additionality", "type": "additionality", "weight": 1.0,
+             "desc": "ESG compliance, climate impact, and concessional/blended finance"},
+            {"name": "Scalability/Replicability", "type": "scalability", "weight": 1.0,
+             "desc": "Cross-border potential and investment scale ceiling"},
         ]
-        
+
         for d in defaults:
             self.db.add(ScoringCriteria(
                 criterion_name=d["name"],
@@ -80,117 +96,62 @@ class ProjectPipelineService:
                 weight=Decimal(str(d["weight"])),
                 description=d["desc"]
             ))
-        
-        # Commit immediately to ensure criteria persist
+
         await self.db.commit()
-        logger.info(f"✓ Seeded and committed {len(defaults)} default criteria")
+        logger.info("✓ Seeded 6 WAIIS scoring criteria")
 
     async def assess_project_readiness(self, project_id: uuid.UUID) -> Decimal:
         """
-        Run a full AfCEN readiness assessment against the project.
-        Uses AI to analyze document content and updates ProjectScoreDetail records.
+        Score project against 6 WAIIS criteria (each 0-100) using hybrid
+        field + document analysis. Returns composite AfCEN score (0-100).
         """
         await self._ensure_default_criteria()
-        
-        # Fetch Project with Documents
+
         stmt = select(Project).where(Project.id == project_id)
         result = await self.db.execute(stmt)
         project = result.scalars().first()
-        
         if not project:
             return Decimal("0.0")
 
-        # Fetch Documents
         doc_stmt = select(Document).where(Document.project_id == project_id)
         doc_res = await self.db.execute(doc_stmt)
         documents = doc_res.scalars().all()
-        
-        # AI-POWERED ANALYSIS: Extract text and analyze with LLM
+
         from app.services.document_analyzer import get_document_analyzer
-        
         analyzer = get_document_analyzer()
         all_analyses = []
-        
         logger.info(f"Analyzing {len(documents)} documents for project {project_id}")
-        
         for doc in documents:
             try:
-                # Extract text from PDF
                 text = await self.doc_intelligence.extract_text_from_document(
-                    doc.file_path, 
-                    doc.file_type
+                    doc.file_path, doc.file_type
                 )
-                
-                # Analyze with LLM
                 analysis = await analyzer.analyze_document(text, doc.file_name)
                 all_analyses.append(analysis)
-                
                 logger.info(f"✓ Analyzed {doc.file_name}: {analysis.get('document_type')}")
-                
             except Exception as e:
                 logger.error(f"Failed to analyze {doc.file_name}: {e}")
-                continue
-        
-        # Aggregate analysis results
-        aggregated = self._aggregate_document_analyses(all_analyses)
-        logger.info(f"Aggregated analysis: {aggregated}")
-        
-        # Fetch scoring criteria
+
+        agg = self._aggregate_document_analyses(all_analyses)
+        sub_scores = self._compute_waiis_sub_scores(project, agg)
+
         criteria_res = await self.db.execute(select(ScoringCriteria))
         all_criteria = criteria_res.scalars().all()
-        logger.info(f"Found {len(all_criteria)} criteria to evaluate")
-        
-        if not all_criteria:
-            logger.warning("No scoring criteria found! Score will be 0.")
-        
-        total_readiness = Decimal("0.0")
-        total_strategic = Decimal("0.0")
-        
-        # Score each criterion based on AI analysis
-        for crit in all_criteria:
-            score = Decimal("0.0")
-            notes = "Not found"
-            
-            crit_name = crit.criterion_name.lower()
-            
-            # Debug: Log what we're evaluating
-            logger.debug(f"Evaluating criterion: '{crit_name}' (type: {crit.criterion_type})")
-            
-            # Map criteria to AI analysis results (more flexible matching)
-            if ("feasibility" in crit_name or "feasibility study" in crit_name) and aggregated.get("has_feasibility_study"):
-                score = Decimal("10.0")
-                notes = "AI verified: Feasibility study found in documents"
-            elif ("esia" in crit_name or "environmental" in crit_name) and aggregated.get("has_esia"):
-                score = Decimal("10.0")
-                notes = "AI verified: ESIA report found"
-            elif ("financial" in crit_name or "model" in crit_name) and aggregated.get("has_financial_model"):
-                score = Decimal("10.0")
-                irr = aggregated.get("irr_percentage")
-                notes = f"AI verified: Financial model found{f' (IRR: {irr}%)' if irr else ''}"
-            elif ("site" in crit_name or "land" in crit_name) and aggregated.get("has_site_control"):
-                score = Decimal("10.0")
-                notes = "AI verified: Site control mentioned"
-            elif ("permit" in crit_name or "license" in crit_name) and aggregated.get("has_permits"):
-                score = Decimal("10.0")
-                notes = "AI verified: Permits/licenses mentioned"
-            elif ("gov" in crit_name or "government" in crit_name or "support" in crit_name) and aggregated.get("has_government_support"):
-                score = Decimal("10.0")
-                notes = "AI verified: Government support confirmed"
-            elif ("regional" in crit_name or "cross" in crit_name or "integration" in crit_name) and aggregated.get("cross_border_impact"):
-                score = Decimal("10.0")
-                notes = "AI verified: Cross-border/regional impact identified"
-            
-            # Log the result
-            logger.info(f"Criterion '{crit.criterion_name}': score={score}, notes='{notes}'")
-            
-            # Save/Update Score Detail
+        criteria_map = {c.criterion_name: c for c in all_criteria}
+
+        for name, raw_score in sub_scores.items():
+            crit = criteria_map.get(name)
+            if not crit:
+                continue
+            score = Decimal(f"{raw_score:.2f}")
+            notes = self._build_score_notes(name, project, agg, raw_score)
+
             detail_stmt = select(ProjectScoreDetail).where(
                 ProjectScoreDetail.project_id == project_id,
                 ProjectScoreDetail.criterion_id == crit.id
             )
             det_res = await self.db.execute(detail_stmt)
             detail = det_res.scalars().first()
-            
             if detail:
                 detail.score = score
                 detail.notes = notes
@@ -202,41 +163,40 @@ class ProjectPipelineService:
                     score=score,
                     notes=notes
                 ))
-            
-            # Weighted aggregation
-            if crit.criterion_type == 'readiness':
-                total_readiness += score * crit.weight
-            elif crit.criterion_type == 'strategic_fit':
-                total_strategic += score * crit.weight
 
-        # Normalize scores (0-10 scale)
-        final_readiness = min(Decimal("10.0"), total_readiness / Decimal("10.0"))
-        final_strategic = min(Decimal("10.0"), total_strategic / Decimal("10.0"))
-        
-        # Update Project
-        project.readiness_score = float(final_readiness)
-        project.strategic_alignment_score = float(final_strategic)  # Convert to float
-        
-        # Recalculate AfCEN
-        afcen = self.calculate_afcen_score(float(final_readiness), float(final_strategic))
+        weighted_sum = sum(
+            sub_scores[name] * float(criteria_map[name].weight)
+            for name in sub_scores
+            if name in criteria_map
+        )
+        total_weight = sum(
+            float(criteria_map[name].weight)
+            for name in sub_scores
+            if name in criteria_map
+        )
+        final_afcen = weighted_sum / total_weight if total_weight > 0 else 0.0
+        afcen = Decimal(f"{final_afcen:.2f}")
+
+        project.readiness_score = sub_scores.get("Readiness", 0.0)
+        project.strategic_alignment_score = float(afcen) / 10.0
         project.afcen_score = afcen
-        
+
         await self.db.flush()
-        await self.db.commit()  # Persist changes to database
-        
-        logger.info(f"✓ AfCEN Score calculated: {afcen} (Readiness: {final_readiness}, Strategic: {final_strategic})")
-        
-        # AUTOMATIC INVESTOR MATCHING: Trigger if AfCEN score >= 60
-        # This runs in background via Celery (non-blocking)
+        await self.db.commit()
+
+        logger.info(
+            f"✓ AfCEN scored: {afcen} | " +
+            " | ".join(f"{k}: {v:.0f}" for k, v in sub_scores.items())
+        )
+
         if float(afcen) >= 60:
             try:
                 from app.services.scoring_tasks import match_investors_async
                 match_investors_async.delay(str(project_id))
                 logger.info(f"✓ Triggered investor matching for project {project_id} (AfCEN: {afcen})")
             except Exception as e:
-                # Don't crash if Celery is not running or task fails
-                logger.warning(f"Could not trigger automatic investor matching (non-critical): {e}")
-        
+                logger.warning(f"Could not trigger automatic investor matching: {e}")
+
         return afcen
     
     def _aggregate_document_analyses(self, analyses: list) -> dict:
@@ -273,22 +233,109 @@ class ProjectPipelineService:
         
         return aggregated
 
-    def __init__(self, db: AsyncSession):
-        """
-        Initialize project pipeline service.
+    def _compute_waiis_sub_scores(self, project, agg: dict) -> dict:
+        """Compute 6 WAIIS sub-scores (0-100) from hybrid field + document signals."""
+        # 1. READINESS: technical and regulatory completeness
+        doc_r = 0.0
+        if agg.get("has_feasibility_study"): doc_r += 25
+        if agg.get("has_esia"):              doc_r += 25
+        if agg.get("has_permits"):           doc_r += 25
+        if agg.get("has_site_control"):      doc_r += 25
+        field_r = 0.0
+        if project.permits_licences and str(project.permits_licences).strip(): field_r += 34
+        if project.land_status and str(project.land_status).strip():           field_r += 33
+        if project.technical_studies and str(project.technical_studies).strip(): field_r += 33
+        readiness = (doc_r * 0.5) + (field_r * 0.5)
 
-        Args:
-            db: Async database session
-        """
-        self.db = db
-        self.doc_intelligence = DocumentIntelligenceService()
+        # 2. SCALE OF IMPACT: investment size + cross-border reach
+        inv = float(project.investment_size or 0)
+        scale = 75.0 if inv >= 50_000_000 else (50.0 if inv >= 8_000_000 else (25.0 if inv > 0 else 0.0))
+        if project.is_cross_border: scale += 25
+        scale = min(100.0, scale)
 
-    async def _ensure_default_criteria(self):
-        # ... (keep existing implementation)
-        return await super()._ensure_default_criteria() if hasattr(super(), '_ensure_default_criteria') else None 
-        # Actually I can't call super() here easily since it's not inheriting validly. 
-        # I will just keep the existing code but the tool needs me to target a chunk. 
-        # I'll just target the advance_project_stage method mainly.
+        # 3. COUNTRY & POLITICAL ENABLEMENT
+        doc_p = 50.0 if agg.get("has_government_support") else 0.0
+        sponsor = str(project.project_sponsor or "").lower()
+        land = str(project.land_status or "").lower()
+        field_p = 0.0
+        if any(w in sponsor for w in ["government", "ministry", "public", "state", "federal"]):
+            field_p += 25
+        if any(w in land for w in ["government", "approved", "secured", "acquired", "granted"]):
+            field_p += 25
+        political = min(100.0, doc_p + field_p)
+
+        # 4. BANKABILITY: financial model quality and returns
+        doc_b = 25.0 if agg.get("has_financial_model") else 0.0
+        irr = agg.get("irr_percentage")
+        if irr is not None:
+            irr_f = float(irr)
+            doc_b += 50 if irr_f >= 15 else (25 if irr_f >= 8 else 0)
+        field_b = 0.0
+        if project.revenue_model and str(project.revenue_model).strip():            field_b += 25
+        if project.financing_structure and str(project.financing_structure).strip(): field_b += 25
+        bankability = min(100.0, doc_b + field_b)
+
+        # 5. ADDITIONALITY: ESG, climate, concessional finance
+        add = 34.0 if agg.get("esg_compliant") else 0.0
+        if project.esg_compliance and str(project.esg_compliance).strip(): add += 33
+        if project.climate_impact and str(project.climate_impact).strip():  add += 17
+        financing = str(project.financing_structure or "").lower()
+        if any(w in financing for w in ["concessional", "blended", "dfi", "grant", "oda"]):
+            add += 16
+        additionality = min(100.0, add)
+
+        # 6. SCALABILITY / REPLICABILITY
+        scal = 0.0
+        if project.is_cross_border: scal += 34
+        if project.climate_impact and str(project.climate_impact).strip(): scal += 33
+        if inv >= 50_000_000:   scal += 33
+        elif inv >= 20_000_000: scal += 17
+        scalability = min(100.0, scal)
+
+        return {
+            "Readiness": readiness,
+            "Scale of Impact": scale,
+            "Country & Political Enablement": political,
+            "Bankability": bankability,
+            "Additionality": additionality,
+            "Scalability/Replicability": scalability,
+        }
+
+    def _build_score_notes(self, criterion: str, project, agg: dict, score: float) -> str:
+        """Generate human-readable scoring notes for a criterion."""
+        notes = []
+        if criterion == "Readiness":
+            if agg.get("has_feasibility_study"): notes.append("feasibility study ✓")
+            if agg.get("has_esia"):              notes.append("ESIA ✓")
+            if agg.get("has_permits"):           notes.append("permits ✓")
+            if agg.get("has_site_control"):      notes.append("site control ✓")
+            if project.technical_studies:        notes.append("technical studies ✓")
+            if project.permits_licences:         notes.append("permits field ✓")
+            if project.land_status:              notes.append("land status ✓")
+        elif criterion == "Scale of Impact":
+            inv = float(project.investment_size or 0)
+            notes.append(f"Investment: ${inv:,.0f}")
+            if project.is_cross_border: notes.append("cross-border ✓")
+        elif criterion == "Country & Political Enablement":
+            if agg.get("has_government_support"): notes.append("gov support doc ✓")
+            if project.project_sponsor:           notes.append(f"sponsor: {project.project_sponsor}")
+            if project.land_status:               notes.append(f"land: {str(project.land_status)[:40]}")
+        elif criterion == "Bankability":
+            if agg.get("has_financial_model"): notes.append("financial model ✓")
+            irr = agg.get("irr_percentage")
+            if irr:                            notes.append(f"IRR: {irr}%")
+            if project.revenue_model:          notes.append("revenue model ✓")
+            if project.financing_structure:    notes.append("financing structure ✓")
+        elif criterion == "Additionality":
+            if agg.get("esg_compliant"):   notes.append("ESG compliant (doc) ✓")
+            if project.esg_compliance:     notes.append("ESG field ✓")
+            if project.climate_impact:     notes.append("climate impact ✓")
+        elif criterion == "Scalability/Replicability":
+            if project.is_cross_border: notes.append("cross-border ✓")
+            if project.climate_impact:  notes.append("climate impact ✓")
+            inv = float(project.investment_size or 0)
+            if inv >= 20_000_000:       notes.append(f"large-scale (${inv / 1e6:.0f}M)")
+        return "; ".join(notes) if notes else f"Score: {score:.0f}/100"
 
     async def advance_project_stage(
         self,
@@ -579,38 +626,15 @@ class ProjectPipelineService:
         regional_impact_score: Optional[float] = None
     ) -> Decimal:
         """
-        Calculate the composite AfCEN score (0-999.99).
-        
-        Algorithm:
-        - Readiness Score (0-10): 40% weight
-        - Strategic Alignment (0-10): 30% weight
-        - Regional Impact (0-10): 30% weight
-        
-        Result is scaled to 0-100 range.
-        
-        Args:
-            readiness_score: Project readiness (0-10)
-            strategic_alignment_score: Strategic fit (0-10)
-            regional_impact_score: Optional impact score, defaults to 5.0 if not provided
-            
-        Returns:
-            Decimal score
+        Compute a preliminary AfCEN score (0-100) from 0-10 input fields.
+        Used for initial estimates before document analysis runs.
+        Full WAIIS scoring is done by assess_project_readiness().
         """
-        # Ensure inputs are within bounds (0-10)
-        r_score = max(0.0, min(10.0, float(readiness_score)))
-        s_score = max(0.0, min(10.0, float(strategic_alignment_score)))
-        if regional_impact_score is not None:
-             i_score = max(0.0, min(10.0, float(regional_impact_score)))
-        else:
-             i_score = 5.0
-        
-        # Calculate weighted sum
-        weighted_sum = (r_score * 0.4) + (s_score * 0.3) + (i_score * 0.3)
-        
-        # Scale to 0-100
-        final_score = weighted_sum * 10
-        
-        return Decimal(f"{final_score:.2f}")
+        r = max(0.0, min(10.0, float(readiness_score)))
+        s = max(0.0, min(10.0, float(strategic_alignment_score)))
+        i = max(0.0, min(10.0, float(regional_impact_score))) if regional_impact_score is not None else 5.0
+        weighted = (r * 0.4) + (s * 0.3) + (i * 0.3)
+        return Decimal(f"{weighted * 10:.2f}")
 
     async def ingest_project_proposal(
         self,

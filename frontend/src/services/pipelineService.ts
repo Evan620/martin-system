@@ -76,5 +76,15 @@ export const pipelineService = {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
         return response.data;
-    }
+    },
+
+    getScoringCriteria: async (): Promise<any[]> => {
+        const response = await api.get('/pipeline/scoring-criteria');
+        return response.data;
+    },
+
+    updateCriterionWeight: async (criterionId: string, weight: number): Promise<any> => {
+        const response = await api.patch(`/pipeline/scoring-criteria/${criterionId}`, { weight });
+        return response.data;
+    },
 };

@@ -238,10 +238,8 @@ const ProjectDetails: React.FC = () => {
       const updatedProject = await pipelineService.getProject(project.id);
       setProject(updatedProject);
       await fetchScoreDetails(project.id);
-      alert(response.data.message || 'Project rescored successfully!');
     } catch (error: any) {
       console.error('Rescore failed:', error);
-      alert(error.response?.data?.detail || 'Failed to rescore project. Please try again.');
     } finally {
       setRescoring(false);
     }
@@ -541,46 +539,37 @@ const ProjectDetails: React.FC = () => {
                 </div>
               )}
 
-              {/* Data for Strategic Rationale */}
+              {/* WAIIS Scoring Breakdown */}
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
-                  Scores Breakdown
+                  AfCEN Score Breakdown
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Strategic Alignment */}
-                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">Strategic Fit</h4>
-                    <div className="space-y-3">
-                      {scoreDetails.filter(d => d.criterion.criterion_type === 'strategic_fit').map(d => (
-                        <div key={d.id} className="flex justify-between items-center text-sm">
-                          <span className="text-slate-600 dark:text-slate-400">{d.criterion.criterion_name}</span>
-                          <span className="font-bold text-slate-900 dark:text-white">{d.score}/10</span>
+                {scoreDetails.length === 0 ? (
+                  <div className="text-sm text-slate-400 italic">No score details available. Click "Rescore Project" to run the WAIIS assessment.</div>
+                ) : (
+                  <div className="space-y-4">
+                    {scoreDetails.map(d => {
+                      const pct = Math.min(100, Math.max(0, Number(d.score)));
+                      const barColor = pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-primary' : 'bg-amber-400';
+                      return (
+                        <div key={d.id}>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{d.criterion.criterion_name}</span>
+                            <span className={`text-sm font-bold ${pct >= 70 ? 'text-green-600' : pct >= 40 ? 'text-primary' : 'text-amber-500'}`}>
+                              {pct.toFixed(0)}/100
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2">
+                            <div className={`${barColor} h-2 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+                          </div>
+                          {d.notes && d.notes !== `Score: ${pct.toFixed(0)}/100` && (
+                            <p className="text-xs text-slate-400 mt-0.5 truncate" title={d.notes}>{d.notes}</p>
+                          )}
                         </div>
-                      ))}
-                      {scoreDetails.filter(d => d.criterion.criterion_type === 'strategic_fit').length === 0 && (
-                        <div className="text-xs text-slate-400 italic">No details available.</div>
-                      )}
-                    </div>
+                      );
+                    })}
                   </div>
-
-                  {/* Readiness */}
-                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">Readiness Factors</h4>
-                    <div className="space-y-3">
-                      {scoreDetails.filter(d => d.criterion.criterion_type === 'readiness').map(d => (
-                        <div key={d.id} className="flex justify-between items-center text-sm">
-                          <span className="text-slate-600 dark:text-slate-400">{d.criterion.criterion_name}</span>
-                          <span className={`font-bold ${d.score >= 5 ? 'text-green-600' : 'text-slate-400'}`}>
-                            {d.score >= 5 ? 'Yes' : 'No'}
-                          </span>
-                        </div>
-                      ))}
-                      {scoreDetails.filter(d => d.criterion.criterion_type === 'readiness').length === 0 && (
-                        <div className="text-xs text-slate-400 italic">No details available. Defaulting to estimated score.</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             </>
           )}

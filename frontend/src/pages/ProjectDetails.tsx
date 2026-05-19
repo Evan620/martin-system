@@ -233,7 +233,7 @@ const ProjectDetails: React.FC = () => {
     if (!project) return;
     setRescoring(true);
     try {
-      const response = await api.post(`/pipeline/${project.id}/rescore`);
+      await api.post(`/pipeline/${project.id}/rescore`);
       // Refresh project data to get new score
       const updatedProject = await pipelineService.getProject(project.id);
       setProject(updatedProject);

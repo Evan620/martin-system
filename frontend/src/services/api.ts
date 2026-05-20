@@ -177,6 +177,27 @@ export const twgs = {
     exportAllMembers: () => api.get(`/twgs/members/export`, { responseType: 'blob' }),
 };
 
+export const subgroups = {
+    list: (twgId: string) =>
+        api.get(`/twgs/${twgId}/subgroups/`),
+    create: (twgId: string, data: { name: string; description?: string; lead_id?: string }) =>
+        api.post(`/twgs/${twgId}/subgroups/`, data),
+    get: (twgId: string, sgId: string) =>
+        api.get(`/twgs/${twgId}/subgroups/${sgId}`),
+    update: (twgId: string, sgId: string, data: { name?: string; description?: string; lead_id?: string; status?: string }) =>
+        api.patch(`/twgs/${twgId}/subgroups/${sgId}`, data),
+    delete: (twgId: string, sgId: string) =>
+        api.delete(`/twgs/${twgId}/subgroups/${sgId}`),
+    listMembers: (twgId: string, sgId: string) =>
+        api.get(`/twgs/${twgId}/subgroups/${sgId}/members`),
+    addMember: (twgId: string, sgId: string, userId: string) =>
+        api.post(`/twgs/${twgId}/subgroups/${sgId}/members`, { user_id: userId }),
+    removeMember: (twgId: string, sgId: string, userId: string) =>
+        api.delete(`/twgs/${twgId}/subgroups/${sgId}/members/${userId}`),
+    listDocuments: (twgId: string, sgId: string) =>
+        api.get(`/twgs/${twgId}/subgroups/${sgId}/documents`),
+};
+
 export const auditLogs = {
     list: (skip = 0, limit = 100) => api.get(`/audit-logs/?skip=${skip}&limit=${limit}`),
 };

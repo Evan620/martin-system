@@ -6,6 +6,7 @@ import { fetchNotifications, addNotification } from '../store/slices/notificatio
 import { UserRole } from '../types/auth';
 import { NotificationType } from '../services/notificationService';
 import { useEffect, useRef, useState } from 'react';
+import GlobalCopilot from '../components/copilot/GlobalCopilot';
 
 interface ModernLayoutProps {
     children?: React.ReactNode;
@@ -21,11 +22,20 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
     const socketRef = useRef<WebSocket | null>(null);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [copilotOpen, setCopilotOpen] = useState(() => {
+        const saved = localStorage.getItem('copilot_open');
+        return saved !== null ? saved === 'true' : false;
+    });
 
     // Close mobile menu on route change
     useEffect(() => {
         setIsMobileMenuOpen(false);
     }, [location.pathname]);
+
+    // Persist copilot open state
+    useEffect(() => {
+        localStorage.setItem('copilot_open', String(copilotOpen));
+    }, [copilotOpen]);
 
     useEffect(() => {
         if (token) {
@@ -95,9 +105,9 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
     const isActive = (path: string) => location.pathname === path;
 
     return (
-        <div className="font-display bg-background-light dark:bg-background-dark text-[#0d121b] dark:text-white h-screen overflow-hidden flex flex-col">
+        <div className="font-display bg-frosted-warm text-[#0d121b] dark:text-white h-screen overflow-hidden flex flex-col">
             {/* Top Navbar */}
-            <header className="sticky top-0 z-50 w-full bg-white dark:bg-[#1a202c] border-b border-[#e7ebf3] dark:border-[#2d3748]">
+            <header className="sticky top-0 z-50 w-full glass-nav border-b border-white/60 dark:border-slate-700/50">
                 <div className="px-6 lg:px-10 py-3 flex items-center justify-between gap-6">
                     <div className="flex items-center gap-4 lg:gap-8">
                         {/* Mobile Hamburger */}
@@ -128,46 +138,21 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                         </div>
                     </div>
                     <div className="flex items-center gap-6">
-                        {/* Nav Links */}
-                        <nav className="hidden lg:flex items-center gap-6">
-                            <button
-                                onClick={() => navigate('/dashboard')}
-                                className={`${isActive('/dashboard') ? 'text-[#1152d4]' : 'text-[#4c669a] dark:text-[#a0aec0]'} font-medium text-sm hover:text-[#1152d4] transition-colors`}
-                            >
-                                Dashboard
-                            </button>
-                            <button
-                                onClick={() => navigate('/schedule')}
-                                className={`${isActive('/schedule') ? 'text-[#1152d4]' : 'text-[#4c669a] dark:text-[#a0aec0]'} font-medium text-sm hover:text-[#1152d4] transition-colors`}
-                            >
-                                Meetings
-                            </button>
-                            <button
-                                onClick={() => navigate('/documents')}
-                                className={`${isActive('/documents') ? 'text-[#1152d4]' : 'text-[#4c669a] dark:text-[#a0aec0]'} font-medium text-sm hover:text-[#1152d4] transition-colors`}
-                            >
-                                Documents
-                            </button>
-                            <button
-                                onClick={() => navigate('/twgs')}
-                                className={`${isActive('/twgs') ? 'text-[#1152d4]' : 'text-[#4c669a] dark:text-[#a0aec0]'} font-medium text-sm hover:text-[#1152d4] transition-colors`}
-                            >
-                                TWG Agents
-                            </button>
-                            <button
-                                onClick={() => navigate('/actions')}
-                                className={`${isActive('/actions') ? 'text-[#1152d4]' : 'text-[#4c669a] dark:text-[#a0aec0]'} font-medium text-sm hover:text-[#1152d4] transition-colors`}
-                            >
-                                Actions
-                            </button>
-                            {isFacilitator && (
-                                <button className="text-[#4c669a] dark:text-[#a0aec0] hover:text-[#1152d4] dark:hover:text-white text-sm font-medium transition-colors">
-                                    Reports
-                                </button>
-                            )}
-                        </nav>
                         {/* User Profile & Actions */}
                         <div className="flex items-center gap-4 border-l border-[#e7ebf3] dark:border-[#2d3748] pl-6">
+                            {/* Martin Copilot Toggle */}
+                            <button
+                                onClick={() => setCopilotOpen(!copilotOpen)}
+                                title={copilotOpen ? 'Close Martin Copilot' : 'Open Martin Copilot'}
+                                className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                    copilotOpen
+                                        ? 'bg-[#1152d4] text-white shadow-md shadow-blue-500/30'
+                                        : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f0f2f5] dark:hover:bg-[#2d3748] hover:text-[#1152d4]'
+                                }`}
+                            >
+                                <span className="text-base leading-none">✦</span>
+                                <span className="hidden sm:inline">Martin</span>
+                            </button>
                             <button
                                 onClick={() => navigate('/notifications')}
                                 className={`relative p-1 ${isActive('/notifications') ? 'text-[#1152d4]' : 'text-[#4c669a] dark:text-[#a0aec0]'} hover:text-[#1152d4] transition-colors`}
@@ -192,7 +177,7 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
             {isMobileMenuOpen && (
                 <div className="fixed inset-0 z-40 lg:hidden">
                     <div className="absolute inset-0 bg-black/50" onClick={() => setIsMobileMenuOpen(false)} />
-                    <div className="absolute left-0 top-0 bottom-0 w-72 bg-white dark:bg-[#1a202c] shadow-2xl flex flex-col animate-slide-in-left">
+                    <div className="absolute left-0 top-0 bottom-0 w-72 glass-nav shadow-2xl flex flex-col animate-slide-in-left">
                         <div className="p-4 border-b border-[#e7ebf3] dark:border-[#2d3748] flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="size-8 rounded-full bg-[#1152d4]/10 flex items-center justify-center text-[#1152d4]">
@@ -295,7 +280,7 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
             {/* Main Content with Sidebar */}
             <div className="flex-1 flex overflow-hidden">
                 {/* Left Sidebar Navigation */}
-                <aside className={`bg-white dark:bg-[#1a202c] border-r border-[#e7ebf3] dark:border-[#2d3748] hidden lg:block shrink-0 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
+                <aside className={`glass-nav border-r border-white/60 dark:border-slate-700/50 hidden lg:block shrink-0 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
                     <div className={`flex flex-col h-full ${isSidebarCollapsed ? 'p-3' : 'p-6'} transition-all duration-300`}>
                         <div className="flex-1 space-y-6 overflow-y-auto custom-scrollbar">
                             <div>
@@ -461,12 +446,38 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                 </aside>
 
                 {/* Main Content Area */}
-                <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-20">
+                <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-20 bg-frosted-warm min-w-0">
                     <div className="max-w-[1440px] mx-auto w-full h-full">
                         {children || <Outlet />}
                     </div>
                 </main>
+
+                {/* Global Copilot Panel — desktop side panel */}
+                {copilotOpen && (
+                    <div className="hidden lg:flex w-[380px] shrink-0 border-l border-white/60 dark:border-slate-700/50 overflow-hidden">
+                        <GlobalCopilot onClose={() => setCopilotOpen(false)} />
+                    </div>
+                )}
             </div>
+
+            {/* Mobile copilot overlay */}
+            {copilotOpen && (
+                <div className="lg:hidden fixed inset-0 z-50 flex flex-col bg-white dark:bg-dark-card">
+                    <GlobalCopilot onClose={() => setCopilotOpen(false)} />
+                </div>
+            )}
+
+            {/* Floating copilot button — visible on all screens */}
+            {!copilotOpen && (
+                <button
+                    onClick={() => setCopilotOpen(true)}
+                    title="Open Martin Copilot"
+                    className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 rounded-full bg-[#1152d4] text-white shadow-lg shadow-blue-500/30 hover:bg-[#0e44b0] transition-all hover:scale-105 active:scale-95"
+                >
+                    <span className="text-base leading-none">✦</span>
+                    <span className="text-sm font-medium">Martin</span>
+                </button>
+            )}
         </div>
     );
 }

@@ -120,6 +120,8 @@ export default function TwgAgent() {
 
     // Context panel state
     const [showContextPanel, setShowContextPanel] = useState(false);
+    const [showOverflow, setShowOverflow] = useState(false);
+    const overflowRef = useRef<HTMLDivElement>(null);
 
     // Typing state
     const [typingMessage, setTypingMessage] = useState<string | null>(null);
@@ -292,6 +294,18 @@ export default function TwgAgent() {
         }
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showTwgSwitcher]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (overflowRef.current && !overflowRef.current.contains(event.target as Node)) {
+                setShowOverflow(false);
+            }
+        };
+        if (showOverflow) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showOverflow]);
 
     const handleTwgSwitch = (twg: { id: string; name: string }) => {
         setActiveTwg({ id: twg.id, name: twg.name });
@@ -664,15 +678,15 @@ export default function TwgAgent() {
     };
 
     return (
-        <div className="font-display bg-background-light dark:bg-background-dark text-[#0d121b] dark:text-white h-full flex flex-col overflow-hidden">
+        <div className="font-display text-[#0d121b] dark:text-white h-full flex flex-col overflow-hidden">
 
 
             {/* Main Content */}
             <main className="flex-1 flex overflow-hidden">
                 {/* Chat Area */}
-                <div className="flex-1 flex flex-col bg-[#f6f6f8] dark:bg-[#0d121b]">
+                <div className="flex-1 flex flex-col bg-transparent">
                     {/* Agent Header */}
-                    <div className="bg-white dark:bg-[#1a202c] border-b border-[#e7ebf3] dark:border-[#2d3748] px-6 py-4 flex items-center justify-between">
+                    <div className="glass-nav border-b border-white/60 dark:border-white/10 px-6 py-4 flex items-center justify-between">
                         <div className="relative flex items-center gap-3" ref={twgSwitcherRef}>
                             <div className="relative">
                                 <div className={`size-10 rounded-full bg-gradient-to-br ${getTwgColor(activeTwg?.name)} flex items-center justify-center text-white`}>
@@ -698,15 +712,14 @@ export default function TwgAgent() {
                                         {currentAgentName}
                                     </h3>
                                 )}
-                                <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                                    <span className="size-1.5 bg-green-500 rounded-full"></span>
-                                    Online
+                                <p className="text-xs text-[#6b7280] dark:text-[#9ca3af]">
+                                    Online · {activeTwg?.name || 'Secretariat'}
                                 </p>
                             </div>
 
                             {/* TWG Switcher Dropdown */}
                             {showTwgSwitcher && user?.twgs && user.twgs.length > 1 && (
-                                <div className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-xl shadow-xl z-50 overflow-hidden">
+                                <div className="absolute top-full left-0 mt-2 w-72 glass-card rounded-xl shadow-xl z-50 overflow-hidden">
                                     <div className="px-4 py-2.5 border-b border-[#e7ebf3] dark:border-[#2d3748]">
                                         <p className="text-xs font-semibold text-[#4c669a] dark:text-[#9ca3af] uppercase tracking-wider">Switch Agent</p>
                                     </div>
@@ -744,7 +757,7 @@ export default function TwgAgent() {
                                 </div>
                             )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                             <button
                                 onClick={() => setShowContextPanel(!showContextPanel)}
                                 className={`p-2 rounded-lg transition-colors ${showContextPanel
@@ -772,81 +785,67 @@ export default function TwgAgent() {
                                     <span className="material-symbols-outlined">stop_circle</span>
                                 </button>
                             )}
-                            <button
-                                onClick={() => setSettingsOpen(true)}
-                                className="p-2 text-[#4c669a] hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
-                                title="Settings"
-                            >
-                                <span className="material-symbols-outlined">settings</span>
-                            </button>
-                            <button
-                                onClick={handleClearConversation}
-                                className="p-2 text-[#4c669a] hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Clear conversation"
-                                disabled={messages.length === 0 && !isLoading}
-                            >
-                                <span className="material-symbols-outlined">delete</span>
-                            </button>
+                            <div className="relative" ref={overflowRef}>
+                                <button
+                                    onClick={() => setShowOverflow(!showOverflow)}
+                                    className="p-2 text-[#4c669a] hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
+                                    title="More options"
+                                >
+                                    <span className="material-symbols-outlined">more_horiz</span>
+                                </button>
+                                {showOverflow && (
+                                    <div className="absolute right-0 top-full mt-1 w-52 glass-card rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                                        <button
+                                            onClick={() => { setSettingsOpen(true); setShowOverflow(false); }}
+                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#0d121b] dark:text-white hover:bg-gray-50 dark:hover:bg-[#2d3748] transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-[18px] text-[#4c669a]">settings</span>
+                                            Settings
+                                        </button>
+                                        <button
+                                            onClick={() => { handleClearConversation(); setShowOverflow(false); }}
+                                            disabled={messages.length === 0 && !isLoading}
+                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                                            Clear conversation
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
                     {/* Messages */}
-                    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gradient-to-b from-gray-50/50 to-transparent dark:from-[#0d121b]/30 dark:to-transparent">
+                    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6 bg-transparent">
                         {messages.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center px-4">
-                                <div className="max-w-3xl w-full text-center mb-8">
-                                    <div className="size-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-900/20">
-                                        <span className="material-symbols-outlined text-white" style={{ fontSize: '32px' }}>smart_toy</span>
+                                <div className="max-w-2xl w-full text-center space-y-6">
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-[#111827] dark:text-white">
+                                            Good morning, {user?.full_name ? user.full_name.split(' ')[0] : 'there'}
+                                        </h2>
+                                        <p className="text-sm text-[#6b7280] dark:text-[#9ca3af] mt-1">
+                                            How can {currentAgentName} help you today?
+                                        </p>
                                     </div>
-                                    <h3 className="text-3xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-purple-600 dark:from-blue-400 dark:to-purple-400 mb-3">
-                                        Good day, {user?.full_name ? user.full_name.split(' ')[0] : 'Dr. Sow'}
-                                    </h3>
-                                    <h4 className="text-xl text-slate-600 dark:text-slate-400 font-medium mb-8">
-                                        {currentAgentName} is online. How may I assist?
-                                    </h4>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-left">
-                                        <button
-                                            onClick={() => {
-                                                setInputMessage("Draft minutes for the last meeting");
-                                                inputRef.current?.focus();
-                                            }}
-                                            className="p-5 bg-white dark:bg-[#1a202c] border border-slate-200 dark:border-slate-700 rounded-2xl hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md dark:hover:bg-[#2d3748] transition-all group"
-                                        >
-                                            <div className="size-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-                                                <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">description</span>
-                                            </div>
-                                            <h5 className="font-bold text-slate-900 dark:text-white mb-1">Draft Minutes</h5>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Generate formal minutes from the latest meeting transcript.</p>
-                                        </button>
-
-                                        <button
-                                            onClick={() => {
-                                                setInputMessage("Summarize the last session's key outcomes");
-                                                inputRef.current?.focus();
-                                            }}
-                                            className="p-5 bg-white dark:bg-[#1a202c] border border-slate-200 dark:border-slate-700 rounded-2xl hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-md dark:hover:bg-[#2d3748] transition-all group"
-                                        >
-                                            <div className="size-10 rounded-full bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-                                                <span className="material-symbols-outlined text-purple-600 dark:text-purple-400">summarize</span>
-                                            </div>
-                                            <h5 className="font-bold text-slate-900 dark:text-white mb-1">Summarize Session</h5>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Get a quick overview of decisions and action items.</p>
-                                        </button>
-
-                                        <button
-                                            onClick={() => {
-                                                setInputMessage("Check availability for the next board meeting");
-                                                inputRef.current?.focus();
-                                            }}
-                                            className="p-5 bg-white dark:bg-[#1a202c] border border-slate-200 dark:border-slate-700 rounded-2xl hover:border-green-400 dark:hover:border-green-500 hover:shadow-md dark:hover:bg-[#2d3748] transition-all group"
-                                        >
-                                            <div className="size-10 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-                                                <span className="material-symbols-outlined text-green-600 dark:text-green-400">calendar_month</span>
-                                            </div>
-                                            <h5 className="font-bold text-slate-900 dark:text-white mb-1">Check Availability</h5>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Find optimal times for cross-functional meetings.</p>
-                                        </button>
+                                    <div className="flex flex-wrap gap-2 justify-center">
+                                        {[
+                                            { label: 'Draft minutes', prompt: 'Draft minutes for the last meeting' },
+                                            { label: 'Summarize session', prompt: "Summarize the last session's key outcomes" },
+                                            { label: 'Check availability', prompt: 'Check availability for the next board meeting' },
+                                            { label: 'Find documents', prompt: 'Find recent documents from this TWG' },
+                                            { label: 'Action items', prompt: 'List all open action items from the last meeting' },
+                                            { label: 'Prepare agenda', prompt: 'Help me prepare an agenda for the next meeting' },
+                                        ].map(({ label, prompt }) => (
+                                            <button
+                                                key={label}
+                                                onClick={() => { setInputMessage(prompt); inputRef.current?.focus(); }}
+                                                className="px-4 py-2 glass-card rounded-full text-sm text-[#374151] dark:text-[#d1d5db] hover:bg-white/90 dark:hover:bg-white/10 transition-all"
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
@@ -885,10 +884,8 @@ export default function TwgAgent() {
                     </div>
 
                     {/* Input Area */}
-                    <div className="bg-white dark:bg-[#1a202c] border-t border-[#e7ebf3] dark:border-[#2d3748] p-4">
-
-
-                        <div className="relative bg-white dark:bg-[#0d121b] border-2 border-[#e7ebf3] dark:border-[#2d3748] rounded-2xl shadow-lg focus-within:border-blue-500 dark:focus-within:border-blue-400 transition-all">
+                    <div className="glass-nav border-t border-white/60 dark:border-white/10 px-4 pt-3 pb-4">
+                        <div className="relative flex items-center gap-2 border border-white/70 dark:border-white/20 rounded-[26px] px-4 py-2 bg-white/80 dark:bg-slate-800/60 focus-within:border-[#7c3aed]/60 dark:focus-within:border-[#7c3aed]/60 transition-colors backdrop-blur-sm">
                             {autocompleteType === 'command' && commandSuggestions.length > 0 && (
                                 <CommandAutocomplete
                                     suggestions={commandSuggestions}
@@ -913,27 +910,25 @@ export default function TwgAgent() {
                                 onChange={handleInputChange}
                                 onKeyDown={handleKeyPress}
                                 disabled={isLoading || isStreaming}
-                                className="w-full bg-transparent border-none focus:ring-0 text-sm p-4 pr-14 sm:pr-36 min-h-[60px] max-h-32 resize-none text-[#0d121b] dark:text-white placeholder:text-[#9ca3af] disabled:opacity-50"
-                                placeholder="Ask me anything... Use / for commands or @ for agents"
+                                className="flex-1 bg-transparent border-none outline-none focus:ring-0 text-sm py-1.5 min-h-[28px] max-h-32 resize-none text-[#0d121b] dark:text-white placeholder:text-[#9ca3af] disabled:opacity-50"
+                                placeholder="Ask anything… or use / for commands"
                             />
-                            <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
-                                <button className="hidden sm:block p-2 text-[#6b7280] dark:text-[#9ca3af] hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all" title="Attach file">
-                                    <span className="material-symbols-outlined text-[20px]">attach_file</span>
-                                </button>
-                                <button className="hidden sm:block p-2 text-[#6b7280] dark:text-[#9ca3af] hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all" title="Voice input">
-                                    <span className="material-symbols-outlined text-[20px]">mic</span>
-                                </button>
-                                <div className="hidden sm:block w-px h-6 bg-[#e7ebf3] dark:bg-[#2d3748] mx-1"></div>
-                                <button
-                                    onClick={handleSendMessage}
-                                    disabled={!inputMessage.trim() || isLoading || isStreaming}
-                                    className="p-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-md"
-                                    title="Send message"
-                                >
-                                    <span className="material-symbols-outlined text-[20px]">send</span>
-                                </button>
-                            </div>
+                            <button
+                                className="p-1.5 text-[#9ca3af] hover:text-[#6b7280] dark:hover:text-[#d1d5db] transition-colors flex-shrink-0"
+                                title="Attach file"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">attach_file</span>
+                            </button>
+                            <button
+                                onClick={handleSendMessage}
+                                disabled={!inputMessage.trim() || isLoading || isStreaming}
+                                className="p-1.5 bg-[#7c3aed] text-white rounded-full hover:bg-[#6d28d9] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                                title="Send message"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">arrow_upward</span>
+                            </button>
                         </div>
+                        <p className="text-[10px] text-[#d1d5db] dark:text-[#4b5563] text-center mt-2">↵ to send · / for commands · @ to mention an agent</p>
                     </div>
                 </div>
 

@@ -128,14 +128,11 @@ export default function EnhancedMessageBubble({ message, onReact, onCopy, onRepl
     }
 
     const [showActions, setShowActions] = useState(false);
-    const [showReactions, setShowReactions] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editSubject, setEditSubject] = useState(message.approvalRequest?.draft.subject || '');
     const [editBody, setEditBody] = useState(message.approvalRequest?.draft.body || '');
     const [actionStatus, setActionStatus] = useState<'idle' | 'approving' | 'approved' | 'declining' | 'declined'>('idle');
-
-    const commonReactions = ['👍', '❤️', '🎉', '🤔', '👀', '✅'];
 
     const handleCopy = () => {
         if (onCopy) {
@@ -153,7 +150,7 @@ export default function EnhancedMessageBubble({ message, onReact, onCopy, onRepl
         if (onReact) {
             onReact(message.id, emoji);
         }
-        setShowReactions(false);
+        setShowActions(false);
     };
 
     return (
@@ -162,33 +159,26 @@ export default function EnhancedMessageBubble({ message, onReact, onCopy, onRepl
             onMouseEnter={() => setShowActions(true)}
             onMouseLeave={() => {
                 setShowActions(false);
-                setShowReactions(false);
+                setShowActions(false);
             }}
         >
-            {message.role === 'agent' && (
-                <div className="relative shrink-0 mt-0.5">
-                    <div className={`size-7 rounded-full ${message.agentIcon || 'bg-gradient-to-br from-blue-600 to-purple-600'} flex items-center justify-center text-white`}>
-                        <span className="material-symbols-outlined text-[16px]">smart_toy</span>
-                    </div>
-                </div>
-            )}
-
-            <div className="flex flex-col gap-0.5 max-w-[85%]">
+            <div className={`flex flex-col gap-1 ${message.role === 'user' ? 'max-w-[72%] items-end' : 'max-w-[680px] w-full items-start'}`}>
                 {/* Agent name tag */}
                 {message.role === 'agent' && message.agentName && (
-                    <div className="flex items-center gap-1.5 px-1">
-                        <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">{message.agentName}</span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="size-1.5 rounded-full bg-[#7c3aed] flex-shrink-0"></span>
+                        <span className="text-[11px] font-bold text-[#7c3aed] dark:text-[#a78bfa]">{message.agentName}</span>
                     </div>
                 )}
 
-                <div className="relative">
+                <div className="relative w-full">
                     {/* Message bubble */}
                     <div className={`${message.role === 'user'
-                        ? 'bg-blue-600 text-white rounded-2xl rounded-tr-sm px-3.5 py-2.5'
-                        : 'text-slate-700 dark:text-slate-300 px-1 py-0.5'
+                        ? 'bg-[#f3f4f6] dark:bg-[#1e2433] text-[#111827] dark:text-white rounded-[18px_18px_4px_18px] px-3.5 py-2.5 inline-block'
+                        : 'text-[#111827] dark:text-slate-200 w-full'
                         } transition-all`}>
                         {/* Content */}
-                        <div className={`text-[13px] ${message.role === 'user' ? 'text-white leading-snug' : 'leading-[1.55]'}`}>
+                        <div className={`text-[13px] ${message.role === 'user' ? 'leading-snug' : 'leading-[1.65]'}`}>
                             {message.role === 'agent' ? <MarkdownContent content={message.content} /> : message.content}
                         </div>
 
@@ -359,27 +349,6 @@ export default function EnhancedMessageBubble({ message, onReact, onCopy, onRepl
                             </div>
                         )}
 
-                        {/* Reactions */}
-                        {message.reactions && message.reactions.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-3 pt-2 border-t border-[#e7ebf3] dark:border-[#2d3748]">
-                                {message.reactions.map((reaction, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => handleReact(reaction.emoji)}
-                                        className="flex items-center gap-1 px-2 py-1 bg-slate-50 dark:bg-slate-800 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-xs"
-                                        title={reaction.users.join(', ')}
-                                    >
-                                        <span>{reaction.emoji}</span>
-                                        <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400">{reaction.count}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Timestamp */}
-                        <div className={`text-[10px] mt-1.5 flex items-center gap-1.5 ${message.role === 'user' ? 'text-white/60 justify-end' : 'text-slate-400/70 dark:text-slate-500/70'}`}>
-                            <span>{message.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
                     </div>
 
                     {/* Suggestions */}
@@ -397,66 +366,38 @@ export default function EnhancedMessageBubble({ message, onReact, onCopy, onRepl
                         </div>
                     )}
 
-                    {/* Action buttons */}
+                    {/* Inline action buttons — shown on hover */}
                     {showActions && (
-                        <div className={`absolute ${message.role === 'user' ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} top-2 flex items-center gap-1 px-2 animate-in fade-in slide-in-from-right-2 duration-200`}>
-                            {/* Copy button */}
+                        <div className="flex items-center gap-3 mt-1.5 animate-in fade-in duration-150">
                             <button
                                 onClick={handleCopy}
-                                className="p-1.5 bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg shadow-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                                title={copied ? 'Copied!' : 'Copy message'}
+                                className="flex items-center gap-1 text-[11px] text-[#d1d5db] dark:text-[#4b5563] hover:text-[#6b7280] dark:hover:text-[#9ca3af] transition-colors"
+                                title={copied ? 'Copied!' : 'Copy'}
                             >
-                                <span className="material-symbols-outlined text-[16px] text-slate-600 dark:text-slate-400">
-                                    {copied ? 'check' : 'content_copy'}
-                                </span>
+                                <span className="material-symbols-outlined text-[14px]">{copied ? 'check' : 'content_copy'}</span>
+                                {copied ? 'Copied' : 'Copy'}
                             </button>
-
-                            {/* React button */}
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowReactions(!showReactions)}
-                                    className="p-1.5 bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg shadow-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                                    title="Add reaction"
-                                >
-                                    <span className="material-symbols-outlined text-[16px] text-slate-600 dark:text-slate-400">add_reaction</span>
-                                </button>
-
-                                {/* Reaction picker */}
-                                {showReactions && (
-                                    <div className="absolute top-full mt-1 right-0 bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg shadow-xl p-2 flex gap-1 animate-in fade-in slide-in-from-top-2 duration-200 z-10">
-                                        {commonReactions.map((emoji) => (
-                                            <button
-                                                key={emoji}
-                                                onClick={() => handleReact(emoji)}
-                                                className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors text-lg hover:scale-125 transition-transform"
-                                            >
-                                                {emoji}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Reply button */}
                             {onReply && (
                                 <button
                                     onClick={() => onReply(message.id)}
-                                    className="p-1.5 bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg shadow-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                                    title="Reply"
+                                    className="flex items-center gap-1 text-[11px] text-[#d1d5db] dark:text-[#4b5563] hover:text-[#6b7280] dark:hover:text-[#9ca3af] transition-colors"
+                                    title="Retry"
                                 >
-                                    <span className="material-symbols-outlined text-[16px] text-slate-600 dark:text-slate-400">reply</span>
+                                    <span className="material-symbols-outlined text-[14px]">refresh</span>
+                                    Retry
                                 </button>
                             )}
+                            <button
+                                onClick={() => handleReact('👍')}
+                                className="text-[11px] text-[#d1d5db] dark:text-[#4b5563] hover:text-[#6b7280] dark:hover:text-[#9ca3af] transition-colors"
+                                title="Helpful"
+                            >
+                                👍
+                            </button>
                         </div>
                     )}
                 </div>
             </div>
-
-            {message.role === 'user' && (
-                <div className="size-7 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="material-symbols-outlined text-white text-[16px]">person</span>
-                </div>
-            )}
         </div>
     );
 }

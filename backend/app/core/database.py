@@ -18,19 +18,22 @@ if SQLALCHEMY_DATABASE_URL.startswith("postgresql://"):
 
 # For SQLite, we need to enable check_same_thread=False and connect_args
 engine_kwargs = {
-    "echo": False,  # Set to False in production
+    "echo": False,
     "future": True,
-    "pool_pre_ping": True,
-    "pool_recycle": 3600,  # Recycle connections every hour
+    "pool_pre_ping": False,   # disabled: pre-ping hangs on Railway stale TCP sockets
+    "pool_recycle": 1800,     # recycle connections every 30 min (before Railway's idle timeout)
 }
 
 # Add SQLite-specific configuration
 if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:
-    # PostgreSQL specific optimizations
-    engine_kwargs["pool_size"] = 20
-    engine_kwargs["max_overflow"] = 10
+    # PostgreSQL / asyncpg
+    engine_kwargs["pool_size"] = 10
+    engine_kwargs["max_overflow"] = 5
+    engine_kwargs["pool_timeout"] = 15
+    # command_timeout applies to every asyncpg operation — prevents indefinite hangs
+    engine_kwargs["connect_args"] = {"timeout": 10, "command_timeout": 20}
 
 engine = create_async_engine(SQLALCHEMY_DATABASE_URL, **engine_kwargs)
 

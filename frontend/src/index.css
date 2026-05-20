@@ -20,7 +20,15 @@
   }
 
   .card {
-    @apply bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-dark-border shadow-sm;
+    @apply rounded-xl;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(24px) saturate(200%);
+    -webkit-backdrop-filter: blur(24px) saturate(200%);
+    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04), inset 0 1px 0 rgba(255,255,255,.9);
+  }
+  .dark .card {
+    background: rgba(30, 41, 59, 0.70);
+    box-shadow: 0 2px 8px rgba(0,0,0,.18), 0 8px 24px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.06);
   }
 
   .input-field {
@@ -61,3 +69,52 @@
 .scrollbar-thin::-webkit-scrollbar-thumb {
   @apply bg-slate-300 dark:bg-slate-600 rounded-full;
 }
+
+/* ─── Warm Frosted Glass System ───────────────────────────── */
+
+/* Main content area gradient */
+.bg-frosted-warm {
+  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 50%, #f0f4ff 100%);
+  background-attachment: fixed;
+}
+.dark .bg-frosted-warm {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0d1526 100%);
+}
+
+/* Glass card — primary surface */
+.glass-card {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04), inset 0 1px 0 rgba(255,255,255,.9);
+}
+.dark .glass-card {
+  background: rgba(30, 41, 59, 0.70);
+  box-shadow: 0 2px 8px rgba(0,0,0,.18), 0 8px 24px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+/* Glass card — Martin AI accent (blue tint) */
+.glass-martin {
+  background: rgba(239, 246, 255, 0.82);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  box-shadow: 0 2px 8px rgba(17,82,212,.08), 0 8px 24px rgba(17,82,212,.05), inset 0 1px 0 rgba(255,255,255,.9);
+}
+.dark .glass-martin {
+  background: rgba(17, 37, 75, 0.72);
+  box-shadow: 0 2px 8px rgba(0,0,0,.2), 0 8px 24px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+/* Frosted nav / sidebar bar */
+.glass-nav {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+.dark .glass-nav {
+  background: rgba(15, 23, 42, 0.88);
+}
+
+/* Hide scrollbar helper */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

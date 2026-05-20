@@ -346,9 +346,19 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
 
     return (
         <>
+            {/* Page Header */}
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h1 className="text-3xl font-black text-[#0d121b] dark:text-white tracking-tight">Document Library</h1>
+                    <p className="text-[#4c669a] dark:text-[#a0aec0] font-medium">
+                        {loading ? 'Loading...' : `${documents.length} document${documents.length !== 1 ? 's' : ''} · Manage and search your knowledge base`}
+                    </p>
+                </div>
+            </div>
+
             <div className="flex flex-col lg:flex-row gap-8 h-full pb-12">
                 {/* Left Sidebar Filters */}
-                <aside className="w-full lg:w-64 space-y-8">
+                <aside className="w-full lg:w-64 space-y-4 lg:sticky lg:top-4 lg:self-start">
                     <div>
                         <button
                             onClick={() => setShowUploadModal(true)}
@@ -359,15 +369,15 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                         </button>
                     </div>
 
-                    <div className="space-y-6">
+                    <div className="glass-card rounded-2xl p-5 space-y-6">
                         <section>
-                            <p className="text-[11px] font-black text-[#8a9dbd] uppercase tracking-[0.2em] mb-4">Library</p>
-                            <div className="space-y-1">
+                            <p className="text-[11px] font-black text-[#8a9dbd] uppercase tracking-[0.2em] mb-3">Library</p>
+                            <div className="space-y-0.5">
                                 {libraryItems.map(item => (
                                     <button
                                         key={item.id}
                                         onClick={() => setActiveLibraryTab(item.id)}
-                                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${activeLibraryTab === item.id ? 'bg-[#eef2ff] text-[#1152d4]' : 'text-[#4c669a] hover:bg-gray-50'}`}
+                                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${activeLibraryTab === item.id ? 'bg-white/70 dark:bg-white/10 text-[#1152d4] shadow-sm' : 'text-[#4c669a] hover:bg-white/50 dark:hover:bg-white/5'}`}
                                     >
                                         <div className="flex items-center gap-3">
                                             <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
@@ -380,7 +390,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                         </section>
 
                         <section>
-                            <p className="text-[11px] font-black text-[#8a9dbd] uppercase tracking-[0.2em] mb-4">Document Types</p>
+                            <p className="text-[11px] font-black text-[#8a9dbd] uppercase tracking-[0.2em] mb-3">Document Types</p>
                             <div className="space-y-2">
                                 {documentTypes.map(type => (
                                     <label key={type} className="flex items-center gap-3 cursor-pointer group">
@@ -397,7 +407,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                         </section>
 
                         <section>
-                            <p className="text-[11px] font-black text-[#8a9dbd] uppercase tracking-[0.2em] mb-4">Labels</p>
+                            <p className="text-[11px] font-black text-[#8a9dbd] uppercase tracking-[0.2em] mb-3">Labels</p>
                             <div className="space-y-2">
                                 {labels.map(label => (
                                     <button
@@ -414,7 +424,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
 
                         {availableTwgs.length > 0 && (
                             <section>
-                                <p className="text-[11px] font-black text-[#8a9dbd] uppercase tracking-[0.2em] mb-4">TWG Filter</p>
+                                <p className="text-[11px] font-black text-[#8a9dbd] uppercase tracking-[0.2em] mb-3">TWG Filter</p>
                                 <div className="space-y-2">
                                     {availableTwgs.map((t: any) => (
                                         <label key={t.id} className="flex items-center gap-3 cursor-pointer group">
@@ -432,14 +442,14 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                 </div>
                             </section>
                         )}
-                    </div>
+                    </div>{/* end glass-card */}
                 </aside>
 
                 {/* Main Content Area */}
                 <div className="flex-1 space-y-6">
 
                     {/* Top Level Tabs */}
-                    <div className="flex items-center gap-6 border-b border-[#e7ebf3] dark:border-[#2d3748] mb-6">
+                    <div className="flex items-center gap-6 border-b border-white/60 dark:border-[#2d3748] mb-6">
                         <button
                             onClick={() => setMainTab('library')}
                             className={`pb-3 text-sm font-black uppercase tracking-wider relative transition-all ${mainTab === 'library' ? 'text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
@@ -488,7 +498,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                             setSelectedLabels([])
                                             setActiveLibraryTab('all')
                                         }}
-                                        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-xs font-black text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider hover:bg-gray-50 transition-all shadow-sm"
+                                        className="flex items-center gap-2 px-4 py-2 glass-card rounded-lg text-xs font-black text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider hover:bg-white/90 transition-all"
                                     >
                                         <span className="material-symbols-outlined text-sm">filter_list</span>
                                         Clear Filters
@@ -515,14 +525,14 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     placeholder="Search by name, owner, or tag..."
-                                    className="w-full pl-12 pr-4 py-4 rounded-xl border border-[#e7ebf3] dark:border-[#4a5568] bg-white dark:bg-[#1a202c] text-sm focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 shadow-sm"
+                                    className="w-full pl-12 pr-4 py-4 rounded-xl border border-white/60 dark:border-[#4a5568] bg-white/80 dark:bg-[#1a202c]/80 backdrop-blur-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 shadow-sm text-[#0d121b] dark:text-white placeholder:text-[#8a9dbd]"
                                 />
                                 <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#8a9dbd]">search</span>
                             </form>
 
                             {/* AI Knowledge Base Search Results */}
                             {isSearching && (
-                                <div className="bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-2xl p-6 animate-in slide-in-from-top-2 duration-300">
+                                <div className="glass-card border border-blue-100/40 dark:border-blue-900/30 rounded-2xl p-6 animate-in slide-in-from-top-2 duration-300">
                                     <div className="flex items-center justify-between mb-4">
                                         <h2 className="text-sm font-black text-[#1152d4] flex items-center gap-2 uppercase tracking-wider">
                                             <span className="material-symbols-outlined text-[20px]">psychology</span>
@@ -533,7 +543,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {searchResults.length > 0 ? (
                                             searchResults.map((result, idx) => (
-                                                <div key={idx} className="bg-white dark:bg-[#1a202c] p-4 rounded-xl shadow-sm border border-[#e7ebf3] dark:border-[#2d3748] hover:border-[#1152d4]/30 transition-all">
+                                                <div key={idx} className="glass-card p-4 rounded-xl hover:scale-[1.01] transition-transform">
                                                     <div className="flex justify-between items-start mb-2">
                                                         <span className="text-[10px] font-black text-[#4c669a] uppercase truncate max-w-[150px]">{result.metadata.file_name}</span>
                                                         <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">{(result.score * 100).toFixed(0)}% Match</span>
@@ -549,11 +559,12 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                             )}
 
                             {/* Table View */}
-                            <div className="bg-white dark:bg-[#1a202c] rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm overflow-hidden">
-                                <table className="w-full text-left text-sm">
+                            <div className="glass-card rounded-2xl">
+                                <div className="overflow-x-auto rounded-2xl">
+                                <table className="w-full min-w-[860px] text-left text-sm">
                                     <thead>
-                                        <tr className="border-b border-[#e7ebf3] dark:border-[#2d3748]">
-                                            <th className="px-6 py-4 w-12 text-center">
+                                        <tr className="border-b border-white/60 dark:border-[#2d3748] bg-white/30 dark:bg-white/5">
+                                            <th className="px-4 py-4 w-10 text-center">
                                                 <input
                                                     type="checkbox"
                                                     checked={selectedDocs.length > 0 && selectedDocs.length === paginatedDocs.length}
@@ -561,23 +572,23 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                     className="size-4 rounded border-[#cfd7e7] text-[#1152d4]"
                                                 />
                                             </th>
-                                            <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider">Name</th>
-                                            <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Context (TWG)</th>
-                                            <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Uploader</th>
-                                            <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Modified</th>
-                                            <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center text-center">RAG Sync</th>
-                                            <th className="px-6 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Label</th>
-                                            <th className="px-6 py-4 w-24"></th>
+                                            <th className="px-4 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider">Name</th>
+                                            <th className="px-4 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Context (TWG)</th>
+                                            <th className="px-4 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Uploader</th>
+                                            <th className="px-4 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Modified</th>
+                                            <th className="px-4 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">RAG Sync</th>
+                                            <th className="px-4 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Label</th>
+                                            <th className="px-4 py-4 w-20"></th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#2d3748]">
+                                    <tbody className="divide-y divide-white/40 dark:divide-[#2d3748]">
                                         {loading ? (
                                             <tr><td colSpan={8} className="p-12 text-center text-[#4c669a] font-bold tracking-widest uppercase text-xs">Initializing Document Stream...</td></tr>
                                         ) : paginatedDocs.length === 0 ? (
                                             <tr><td colSpan={8} className="p-12 text-center text-[#4c669a] font-bold">No documents match the current filters.</td></tr>
                                         ) : paginatedDocs.map((doc) => (
-                                            <tr key={doc.id} className={`hover:bg-blue-50/50 dark:hover:bg-blue-900/5 transition-colors group ${selectedDocs.includes(doc.id) ? 'bg-blue-50/30' : ''}`}>
-                                                <td className="px-6 py-5 text-center">
+                                            <tr key={doc.id} className={`hover:bg-white/60 dark:hover:bg-white/5 transition-colors group ${selectedDocs.includes(doc.id) ? 'bg-blue-50/40 dark:bg-blue-900/10' : ''}`}>
+                                                <td className="px-4 py-4 text-center">
                                                     <input
                                                         type="checkbox"
                                                         checked={selectedDocs.includes(doc.id)}
@@ -585,13 +596,13 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                         className="size-4 rounded border-[#cfd7e7] text-[#1152d4]"
                                                     />
                                                 </td>
-                                                <td className="px-6 py-5">
+                                                <td className="px-4 py-4">
                                                     <button
                                                         onClick={() => handleDownload(doc.id)}
                                                         disabled={downloading === doc.id}
-                                                        className="flex items-center gap-4 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg p-2 -ml-2 -my-1 transition-all cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        className="flex items-center gap-4 hover:bg-white/70 dark:hover:bg-white/10 rounded-lg p-2 -ml-2 -my-1 transition-all cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
                                                     >
-                                                        <div className="size-10 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-[#4c669a] group-hover:bg-[#1152d4] group-hover:text-white transition-all">
+                                                        <div className="size-10 rounded-lg bg-white/60 dark:bg-white/10 backdrop-blur-sm border border-white/60 dark:border-white/10 flex items-center justify-center text-[#4c669a] group-hover:bg-[#1152d4] group-hover:text-white transition-all group-hover:border-[#1152d4]">
                                                             {downloading === doc.id ? (
                                                                 <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
                                                             ) : (
@@ -606,7 +617,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                         </div>
                                                     </button>
                                                 </td>
-                                                <td className="px-6 py-5 text-center">
+                                                <td className="px-4 py-4 text-center">
                                                     {doc.twg ? (
                                                         <span className="inline-block px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                                                             {doc.twg.name}
@@ -617,13 +628,13 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                         </span>
                                                     )}
                                                 </td>
-                                                <td className="px-6 py-5 text-center text-[#4c669a] font-bold">
+                                                <td className="px-4 py-4 text-center text-[#4c669a] font-bold">
                                                     {doc.uploaded_by?.full_name || 'System Admin'}
                                                 </td>
-                                                <td className="px-6 py-5 text-center text-[#4c669a] text-xs font-bold">
+                                                <td className="px-4 py-4 text-center text-[#4c669a] text-xs font-bold">
                                                     {new Date(doc.created_at).toLocaleDateString()}
                                                 </td>
-                                                <td className="px-6 py-5 text-center">
+                                                <td className="px-4 py-4 text-center">
                                                     {doc.ingested_at ? (
                                                         <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50/50 text-[#1152d4] border border-blue-100">
                                                             <span className="material-symbols-outlined text-[16px]">check_circle</span>
@@ -640,13 +651,13 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                         </button>
                                                     )}
                                                 </td>
-                                                <td className="px-6 py-5 text-center">
+                                                <td className="px-4 py-4 text-center">
                                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${doc.is_confidential ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
                                                         <span className={`size-1.5 rounded-full ${doc.is_confidential ? 'bg-red-600' : 'bg-emerald-600'} mr-2`}></span>
                                                         {doc.is_confidential ? 'Confidential' : 'Public'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-5 text-right flex justify-end gap-1">
+                                                <td className="px-4 py-4 text-right flex justify-end gap-1">
                                                     <button
                                                         onClick={() => handleDownload(doc.id)}
                                                         disabled={downloading === doc.id}
@@ -676,7 +687,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                         {translateMenuDoc === doc.id && (
                                                             <>
                                                                 <div className="fixed inset-0 z-10" onClick={() => setTranslateMenuDoc(null)} />
-                                                                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-20 py-1 min-w-[160px]">
+                                                                <div className="absolute right-0 top-full mt-1 glass-card rounded-xl z-20 py-1 min-w-[160px] overflow-hidden border border-white/60 dark:border-slate-700">
                                                                     {[
                                                                         { code: 'fr', label: 'Français (French)' },
                                                                         { code: 'pt', label: 'Português (Portuguese)' },
@@ -684,7 +695,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                                         <button
                                                                             key={lang.code}
                                                                             onClick={() => handleTranslateDownload(doc.id, lang.code)}
-                                                                            className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                                                                            className="w-full text-left px-4 py-2 text-sm text-[#4c669a] dark:text-slate-300 hover:bg-white/60 dark:hover:bg-white/10 font-bold"
                                                                         >
                                                                             {lang.label}
                                                                         </button>
@@ -705,10 +716,11 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                         ))}
                                     </tbody>
                                 </table>
+                                </div>{/* end overflow-x-auto */}
 
                                 {/* Pagination Footer */}
                                 {totalPages > 1 && (
-                                    <div className="px-6 py-4 bg-gray-50/50 dark:bg-[#1a202c] border-t border-[#e7ebf3] dark:border-[#2d3748] flex items-center justify-between">
+                                    <div className="px-6 py-4 bg-white/30 dark:bg-white/5 border-t border-white/50 dark:border-white/10 flex items-center justify-between">
                                         <p className="text-xs font-black text-[#8a9dbd] uppercase tracking-widest">
                                             Page {currentPage} of {totalPages}
                                         </p>
@@ -748,8 +760,8 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
             {/* Upload Modal */}
             {showUploadModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-[#1a202c] rounded-3xl shadow-2xl border border-[#e7ebf3] dark:border-[#2d3748] w-full max-w-md overflow-hidden relative">
-                        <div className="px-8 py-6 border-b border-[#e7ebf3] dark:border-[#2d3748] flex items-center justify-between">
+                    <div className="glass-card rounded-3xl w-full max-w-md overflow-hidden relative">
+                        <div className="px-8 py-6 border-b border-white/40 dark:border-[#2d3748] flex items-center justify-between">
                             <h3 className="font-black text-[#0d121b] dark:text-white uppercase tracking-tight">
                                 {uploadStep === 'initial' ? 'Upload Knowledge Asset' :
                                     uploadStep === 'ready_to_ingest' ? 'Upload Successful' :
@@ -790,7 +802,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                             value={selectedTwgId}
                                             onChange={(e) => setSelectedTwgId(e.target.value)}
                                             disabled={!!twgId}
-                                            className={`w-full px-4 py-3 rounded-xl border border-[#cfd7e7] dark:border-[#4a5568] text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 appearance-none transition-all ${twgId ? 'bg-gray-100 dark:bg-[#2d3748] text-[#8a9dbd] cursor-not-allowed' : 'bg-white dark:bg-[#2d3748] text-[#4c669a]'}`}
+                                            className={`w-full px-4 py-3 rounded-xl border text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 appearance-none transition-all ${twgId ? 'bg-white/40 dark:bg-[#2d3748] border-white/40 text-[#8a9dbd] cursor-not-allowed' : 'bg-white/80 dark:bg-[#2d3748]/80 backdrop-blur-sm border-white/60 dark:border-[#4a5568] text-[#4c669a]'}`}
                                         >
                                             <option value="" disabled>Select Target Knowledge Base...</option>
                                             {isAdmin && <option value="global">Global Secretariat (General)</option>}
@@ -814,7 +826,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                         <select
                                             value={selectedDocType}
                                             onChange={(e) => setSelectedDocType(e.target.value)}
-                                            className="w-full px-4 py-3 rounded-xl border border-[#cfd7e7] dark:border-[#4a5568] bg-white dark:bg-[#2d3748] text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 appearance-none transition-all text-[#4c669a]"
+                                            className="w-full px-4 py-3 rounded-xl border border-white/60 dark:border-[#4a5568] bg-white/80 dark:bg-[#2d3748]/80 backdrop-blur-sm text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 appearance-none transition-all text-[#4c669a]"
                                         >
                                             <option value="" disabled>Select document type...</option>
                                             <option value="Meeting Minutes">Meeting Minutes</option>
@@ -830,7 +842,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                 value={customDocType}
                                                 onChange={(e) => setCustomDocType(e.target.value)}
                                                 placeholder="Enter document type..."
-                                                className="mt-2 w-full px-4 py-3 rounded-xl border border-[#cfd7e7] dark:border-[#4a5568] bg-white dark:bg-[#2d3748] text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 transition-all text-[#4c669a]"
+                                                className="mt-2 w-full px-4 py-3 rounded-xl border border-white/60 dark:border-[#4a5568] bg-white/80 dark:bg-[#2d3748]/80 backdrop-blur-sm text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 transition-all text-[#4c669a]"
                                             />
                                         )}
                                     </div>

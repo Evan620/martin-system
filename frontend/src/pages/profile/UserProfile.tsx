@@ -64,7 +64,7 @@ export default function UserProfile() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Profile Overview Card */}
                     <div className="lg:col-span-1">
-                        <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm p-6">
+                        <div className="glass-card rounded-xl p-6">
                             <div className="flex flex-col items-center text-center">
                                 <div className="size-24 rounded-full bg-blue-100 flex items-center justify-center text-[#1152d4] mb-4">
                                     <span className="material-symbols-outlined text-[48px]">person</span>
@@ -100,7 +100,7 @@ export default function UserProfile() {
                     {/* Profile Details & Tabs */}
                     <div className="lg:col-span-2 space-y-8">
                         {/* Personal Details Section */}
-                        <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm p-6">
+                        <div className="glass-card rounded-xl p-6">
                             <h3 className="text-lg font-bold text-[#0d121b] dark:text-white mb-6">Personal Details</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
@@ -125,10 +125,10 @@ export default function UserProfile() {
                         </div>
 
                         {/* Account Security */}
-                        <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm p-6">
+                        <div className="glass-card rounded-xl p-6">
                             <h3 className="text-lg font-bold text-[#0d121b] dark:text-white mb-6">Account Security</h3>
                             <div className="space-y-4">
-                                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-[#2d3748]/30 rounded-lg">
+                                <div className="flex items-center justify-between p-4 bg-white/40 dark:bg-white/5 rounded-lg">
                                     <div className="flex items-center gap-3">
                                         <span className="material-symbols-outlined text-[#4c669a]">password</span>
                                         <div>
@@ -143,7 +143,7 @@ export default function UserProfile() {
                                         Change
                                     </button>
                                 </div>
-                                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-[#2d3748]/30 rounded-lg">
+                                <div className="flex items-center justify-between p-4 bg-white/40 dark:bg-white/5 rounded-lg">
                                     <div className="flex items-center gap-3">
                                         <span className="material-symbols-outlined text-emerald-500">verified_user</span>
                                         <div>

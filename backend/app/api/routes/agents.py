@@ -6,6 +6,10 @@ import uuid
 import asyncio
 import json
 import logging
+import re as _re
+import uuid as _uuid_mod
+from datetime import datetime, timedelta
+from pydantic import BaseModel
 from langgraph.errors import GraphInterrupt
 
 logger = logging.getLogger(__name__)
@@ -33,9 +37,97 @@ from app.schemas.email_approval import (
     EmailApprovalResult
 )
 from app.services.audit_service import audit_service
-from datetime import datetime
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
+
+# ---------------------------------------------------------------------------
+# Pending action store — module-level dict, TTL-based (no Redis/DB required)
+# ---------------------------------------------------------------------------
+_pending_actions: dict[str, dict] = {}  # action_id → {payload, user_id, action_type, expires_at}
+
+_ACTION_TTL_MINUTES = 10
+
+
+def _store_action(action_id: str, user_id: str, action_type: str, payload: dict) -> None:
+    """Store a pending action with a TTL of 10 minutes."""
+    _pending_actions[action_id] = {
+        "action_id": action_id,
+        "user_id": user_id,
+        "action_type": action_type,
+        "payload": payload,
+        "expires_at": (datetime.utcnow() + timedelta(minutes=_ACTION_TTL_MINUTES)).isoformat(),
+    }
+
+
+def _get_action(action_id: str, user_id: str) -> dict | None:
+    """Retrieve a pending action, returning None if missing, expired, or user mismatch."""
+    entry = _pending_actions.get(action_id)
+    if not entry:
+        return None
+    if datetime.utcnow() > datetime.fromisoformat(entry["expires_at"]):
+        del _pending_actions[action_id]
+        return None
+    if entry["user_id"] != str(user_id):
+        return None
+    return entry
+
+
+def _extract_meeting_title(text: str) -> str:
+    """Extract a meeting title from response text."""
+    match = _re.search(r'"([^"]{5,60})"', text)
+    if match:
+        return match.group(1)
+    match = _re.search(r'meeting (?:for|about|on) ([A-Z][^.]{5,40})', text)
+    if match:
+        return match.group(1).strip()
+    return "TWG Meeting"
+
+
+def _extract_action_title(text: str) -> str:
+    """Extract an action item title from response text."""
+    match = _re.search(r'"([^"]{5,60})"', text)
+    if match:
+        return match.group(1)
+    return "Action Item"
+
+
+def _detect_action_intent(response_text: str, twg_id: str | None) -> dict | None:
+    """Detect if the response contains a schedulable/actionable intent."""
+    text_lower = response_text.lower()
+
+    # Detect meeting scheduling intent
+    if any(kw in text_lower for kw in ["schedule", "book", "arrange", "set up"]) and \
+       any(kw in text_lower for kw in ["meeting", "session", "call", "sync"]):
+        action_id = str(_uuid_mod.uuid4())[:8]
+        return {
+            "type": "action_required",
+            "action_id": action_id,
+            "action_type": "schedule_meeting",
+            "payload": {
+                "title": _extract_meeting_title(response_text),
+                "twg_id": twg_id,
+                "duration_minutes": 60,
+            },
+            "confirm_endpoint": "/api/v1/agents/execute",
+        }
+
+    # Detect action item creation intent
+    if any(kw in text_lower for kw in ["create", "add", "assign", "track"]) and \
+       any(kw in text_lower for kw in ["action item", "task", "todo", "follow-up"]):
+        action_id = str(_uuid_mod.uuid4())[:8]
+        return {
+            "type": "action_required",
+            "action_id": action_id,
+            "action_type": "create_action_item",
+            "payload": {
+                "title": _extract_action_title(response_text),
+                "twg_id": twg_id,
+                "priority": "medium",
+            },
+            "confirm_endpoint": "/api/v1/agents/execute",
+        }
+
+    return None
 
 # Initialize the supervisor agent (singleton)
 supervisor_agent = None
@@ -544,13 +636,19 @@ async def stream_chat_get(
                 else:
                     yield _sse({"type": "agent", "content": "supervisor", "label": "Supervisor"})
 
-            # Stream response word by word
-            words = response_text.split(" ")
-            for i, word in enumerate(words):
-                token_content = word if i == len(words) - 1 else word + " "
-                yield _sse({"type": "token", "content": token_content})
-                await asyncio.sleep(0.015)
+            # Emit action_required if intent detected (TWG context only)
+            if twg_context and response_text:
+                action_event = _detect_action_intent(response_text, twg_context)
+                if action_event:
+                    _store_action(
+                        action_event["action_id"],
+                        str(current_user.id),
+                        action_event["action_type"],
+                        action_event["payload"],
+                    )
+                    yield _sse(action_event)
 
+            # Tokens were already streamed in real-time via the event queue.
             yield _sse({
                 "type": "done",
                 "response": response_text,
@@ -746,6 +844,19 @@ async def stream_chat(
 
             # Send completion event
             yield f"data: {json.dumps({'type': 'tool_complete', 'status': 'Completed', 'step_id': str(uuid.uuid4())})}\n\n"
+
+            # Emit action_required if intent detected (TWG context only)
+            twg_id_str = str(chat_in.twg_id) if chat_in.twg_id else None
+            if twg_id_str and response_text:
+                action_event = _detect_action_intent(response_text, twg_id_str)
+                if action_event:
+                    _store_action(
+                        action_event["action_id"],
+                        str(current_user.id),
+                        action_event["action_type"],
+                        action_event["payload"],
+                    )
+                    yield f"data: {json.dumps(action_event)}\n\n"
 
             # Only send fallback response if we haven't already sent a final_response event
             if not final_response_sent:
@@ -1184,6 +1295,143 @@ async def decline_email(
         message=f"Email declined: {reason}" if reason else "Email sending cancelled",
         email_sent=False
     )
+
+
+# ---------------------------------------------------------------------------
+# Execute Action Endpoint
+# ---------------------------------------------------------------------------
+
+class ExecuteActionRequest(BaseModel):
+    action_id: str
+    confirmed: bool
+    edits: dict = {}
+
+
+@router.post("/execute")
+async def execute_action(
+    request: ExecuteActionRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Execute a pending action (schedule meeting, create action item, draft document)."""
+    entry = _get_action(request.action_id, str(current_user.id))
+    if not entry:
+        raise HTTPException(status_code=400, detail="Action expired or not found")
+
+    if not request.confirmed:
+        del _pending_actions[request.action_id]
+        return {"success": True, "cancelled": True, "message": "Action cancelled."}
+
+    payload = {**entry["payload"], **request.edits}
+    action_type = entry["action_type"]
+
+    try:
+        if action_type == "schedule_meeting":
+            return await _execute_schedule_meeting(payload, current_user, db, request.action_id)
+
+        elif action_type == "create_action_item":
+            return await _execute_create_action_item(payload, current_user, db, request.action_id)
+
+        elif action_type == "draft_document":
+            del _pending_actions[request.action_id]
+            return {
+                "success": True,
+                "resource_id": None,
+                "message": "Draft ready.",
+                "draft_content": payload.get("content", ""),
+            }
+
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown action type: {action_type}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to execute action: {str(e)}")
+
+
+async def _execute_schedule_meeting(payload: dict, current_user: User, db: AsyncSession, action_id: str) -> dict:
+    """Create a meeting directly via SQLAlchemy, matching the pattern used in the meetings route."""
+    import datetime as _dt
+    from app.models.models import Meeting as _Meeting
+
+    twg_id_raw = payload.get("twg_id")
+    if not twg_id_raw:
+        raise HTTPException(status_code=400, detail="twg_id is required to schedule a meeting")
+
+    twg_id = uuid.UUID(str(twg_id_raw))
+    title = payload.get("title", "TWG Meeting")
+    duration_minutes = int(payload.get("duration_minutes", 60))
+    meeting_type = payload.get("meeting_type", "virtual")
+
+    start_raw = payload.get("date") or payload.get("start_time") or payload.get("scheduled_at")
+    if start_raw and isinstance(start_raw, str):
+        scheduled_at = _dt.datetime.fromisoformat(start_raw.replace("Z", "+00:00")).replace(tzinfo=None)
+    elif isinstance(start_raw, _dt.datetime):
+        scheduled_at = start_raw.replace(tzinfo=None)
+    else:
+        scheduled_at = _dt.datetime.utcnow() + _dt.timedelta(days=7)
+
+    meeting_id = uuid.uuid4()
+    db_meeting = _Meeting(
+        id=meeting_id,
+        twg_id=twg_id,
+        title=title,
+        scheduled_at=scheduled_at,
+        duration_minutes=duration_minutes,
+        meeting_type=meeting_type,
+    )
+    db.add(db_meeting)
+    await db.commit()
+
+    del _pending_actions[action_id]
+    return {"success": True, "resource_id": str(meeting_id), "message": f"Meeting '{title}' scheduled successfully."}
+
+
+async def _execute_create_action_item(payload: dict, current_user: User, db: AsyncSession, action_id: str) -> dict:
+    """Create an action item directly via SQLAlchemy, matching the pattern used in the meetings route."""
+    import datetime as _dt
+    from app.models.models import ActionItem as _ActionItem, ActionItemStatus as _ActionItemStatus, ActionItemPriority as _ActionItemPriority
+
+    twg_id_raw = payload.get("twg_id")
+    if not twg_id_raw:
+        raise HTTPException(status_code=400, detail="twg_id is required to create an action item")
+
+    twg_id = uuid.UUID(str(twg_id_raw))
+    description = payload.get("title") or payload.get("description") or "Action Item"
+
+    due_raw = payload.get("due_date")
+    if due_raw and isinstance(due_raw, str):
+        due_date = _dt.datetime.fromisoformat(due_raw.replace("Z", "+00:00")).replace(tzinfo=None)
+    elif isinstance(due_raw, _dt.datetime):
+        due_date = due_raw.replace(tzinfo=None)
+    else:
+        due_date = None
+
+    priority_raw = str(payload.get("priority", "medium")).lower()
+    try:
+        priority = _ActionItemPriority(priority_raw)
+    except ValueError:
+        priority = _ActionItemPriority.MEDIUM
+
+    owner_id_raw = payload.get("assignee_id") or payload.get("owner_id")
+    owner_id = uuid.UUID(str(owner_id_raw)) if owner_id_raw else None
+
+    item_id = uuid.uuid4()
+    db_item = _ActionItem(
+        id=item_id,
+        twg_id=twg_id,
+        description=description,
+        owner_id=owner_id,
+        due_date=due_date,
+        priority=priority,
+        status=_ActionItemStatus.PENDING,
+    )
+    db.add(db_item)
+    await db.commit()
+
+    del _pending_actions[action_id]
+    return {"success": True, "resource_id": str(item_id), "message": f"Action item '{description}' created."}
 
 
 # Project Memo Email Endpoint

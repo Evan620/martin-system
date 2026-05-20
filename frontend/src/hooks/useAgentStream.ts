@@ -12,7 +12,9 @@ export type StreamEventType =
     | 'tool_result'
     | 'token'
     | 'done'
-    | 'error';
+    | 'error'
+    | 'action_required'
+    | 'navigate';
 
 export interface RoutingEvent {
     type: 'routing';
@@ -55,6 +57,19 @@ export interface ErrorEvent {
     message: string;
 }
 
+export interface ActionRequiredEvent {
+    type: 'action_required';
+    action_id: string;
+    action_type: 'schedule_meeting' | 'create_action_item' | 'draft_document';
+    payload: Record<string, unknown>;
+    confirm_endpoint: string;
+}
+
+export interface NavigateEvent {
+    type: 'navigate';
+    path: string;
+}
+
 export type StreamEvent =
     | RoutingEvent
     | AgentEvent
@@ -62,7 +77,9 @@ export type StreamEvent =
     | ToolResultEvent
     | TokenEvent
     | DoneEvent
-    | ErrorEvent;
+    | ErrorEvent
+    | ActionRequiredEvent
+    | NavigateEvent;
 
 // ---------------------------------------------------------------------------
 // Hook state
@@ -221,6 +238,10 @@ export function useAgentStream(): UseAgentStreamResult {
 
             if (event.type === 'error') {
                 setError(event.message);
+            }
+
+            if (event.type === 'action_required') {
+                // Push action_required events into the message list for ActionConfirmCard rendering
             }
 
             setMessages(prev => [...prev, { id: makeId(), event }]);

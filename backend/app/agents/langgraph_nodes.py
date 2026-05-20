@@ -86,51 +86,15 @@ async def route_query_node(state: AgentState) -> AgentState:
         state["query"] = clean_q
         return state
 
-    # --- 1. SEMANTIC EMBEDDING ROUTING ---
-    from app.services.semantic_router import get_semantic_router
+    # --- 1. LLM-BASED ROUTING via Supervisor ---
+    # Let the supervisor LLM decide which TWG agent(s) to consult.
+    # The supervisor has full language understanding and a tool per agent, so it
+    # makes better routing decisions than a pre-computed embedding similarity score.
+    logger.info(f"[ROUTE] Deferring to supervisor LLM for routing decision")
 
-    relevant = []  # Initialize before try block to avoid NameError on fallback
-    try:
-        router = get_semantic_router()
-        routed_agents, del_type = router.route(query)
-
-        if routed_agents:
-            # Need to verify if the semantic router returned valid registered agents,
-            # but currently ALL main TWGs are valid.
-            relevant = routed_agents
-            logger.info(f"[ROUTE] Semantic Router delegated to: {relevant} ({del_type})")
-
-    except Exception as e:
-        logger.error(f"[ROUTE] Semantic routing failed, falling back to supervisor: {e}")
-
-    # --- 3. SUPERVISOR OVERRIDE FOR CROSS-CUTTING QUERIES ---
-    # Scheduling requests → supervisor (has scheduling tools)
-    scheduling_keywords = ["schedule", "book", "meeting", "calendar", "appointment"]
-    is_scheduling_request = any(keyword in query_lower for keyword in scheduling_keywords)
-
-    if is_scheduling_request and relevant:
-        logger.info(f"[ROUTE] Scheduling request detected - overriding to supervisor_only (has scheduling tools)")
-        relevant = []
-
-    # Document queries → supervisor (has get_document_registry_tool for cross-TWG search)
-    document_keywords = ["document", "file", "pdf", "upload", "registry", "letter", "report", "memo", "brief"]
-    is_document_query = any(keyword in query_lower for keyword in document_keywords)
-
-    if is_document_query and relevant:
-        logger.info(f"[ROUTE] Document query detected - overriding to supervisor_only (has document registry tool)")
-        relevant = []
-
-    # Determine delegation type
-    if not relevant:
-        delegation_type = "supervisor_only"
-    elif len(relevant) == 1:
-        delegation_type = "single"
-    else:
-        delegation_type = "multiple"
-
-    state["relevant_agents"] = relevant
-    state["delegation_type"] = delegation_type
-    state["requires_synthesis"] = len(relevant) > 1
+    state["relevant_agents"] = []
+    state["delegation_type"] = "supervisor_only"
+    state["requires_synthesis"] = False
 
     return state
 

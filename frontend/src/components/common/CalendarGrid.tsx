@@ -61,14 +61,14 @@ export default function CalendarGrid({
 
     if (isLoading) {
         return (
-            <div className="flex h-[400px] items-center justify-center bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+            <div className="flex h-[400px] items-center justify-center glass-card rounded-2xl">
                 <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             </div>
         );
     }
 
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col h-full">
+        <div className="glass-card rounded-2xl overflow-hidden flex flex-col h-full">
             {/* Header / Navigation */}
             <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -106,7 +106,7 @@ export default function CalendarGrid({
             <div className="flex-1 overflow-x-auto">
               <div className="min-w-[500px]">
                 {/* Weekday Headers */}
-                <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                <div className="grid grid-cols-7 border-b border-white/50 dark:border-white/10 bg-white/30 dark:bg-white/5">
                     {weekDays.map(day => (
                         <div key={day} className="py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             {day}
@@ -127,7 +127,7 @@ export default function CalendarGrid({
                             onClick={() => onDateClick?.(day)}
                             className={`
                                 border-b border-r border-slate-100 dark:border-slate-700/50 p-2 relative group flex flex-col cursor-pointer transition-colors overflow-hidden
-                                ${!isCurrentMonth ? 'bg-slate-50/50 dark:bg-slate-900/30 text-slate-300 dark:text-slate-700' : 'bg-white dark:bg-slate-800 hover:bg-blue-50/10'}
+                                ${!isCurrentMonth ? 'bg-white/20 dark:bg-slate-900/20 text-slate-300 dark:text-slate-700' : 'bg-transparent hover:bg-blue-50/20'}
                                 ${isTodayDate ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}
                             `}
                         >

@@ -113,34 +113,48 @@ async def startup_event():
     # TODO: Run migrations manually with: alembic upgrade head
     logger.info("Skipping automatic migrations (run manually: alembic upgrade head)")
 
-    # Auto-add missing columns (safe: IF NOT EXISTS)
+    # Auto-add missing columns (safe: IF NOT EXISTS) — 12s asyncio timeout to avoid hanging on Railway
     try:
+        import asyncio
         from sqlalchemy import text
         from app.core.database import AsyncSessionLocal
-        async with AsyncSessionLocal() as session:
-            migrations = [
-                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS ingested_at TIMESTAMP",
-                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS scope JSONB DEFAULT '[\"twg_restricted\"]'::jsonb",
-                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'twg_specific'",
-                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS last_broadcast TIMESTAMP",
-                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS access_control VARCHAR(50) DEFAULT 'twg_restricted'",
-                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS parent_document_id UUID REFERENCES documents(id)",
-            ]
-            for stmt in migrations:
-                await session.execute(text(stmt))
-            await session.commit()
-            logger.info("Startup migrations: document columns verified")
+
+        async def _run_startup_migrations():
+            async with AsyncSessionLocal() as session:
+                migrations = [
+                    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS ingested_at TIMESTAMP",
+                    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS scope JSONB DEFAULT '[\"twg_restricted\"]'::jsonb",
+                    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'twg_specific'",
+                    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS last_broadcast TIMESTAMP",
+                    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS access_control VARCHAR(50) DEFAULT 'twg_restricted'",
+                    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS parent_document_id UUID REFERENCES documents(id)",
+                ]
+                for stmt in migrations:
+                    await session.execute(text(stmt))
+                await session.commit()
+                logger.info("Startup migrations: document columns verified")
+
+        await asyncio.wait_for(_run_startup_migrations(), timeout=12)
+    except asyncio.TimeoutError:
+        logger.warning("Startup migration skipped: DB connection timed out (Railway slow start)")
     except Exception as e:
         logger.warning(f"Startup migration note: {e}")
 
     # Auto-sync Leads Council membership from current TWG leads
     try:
+        import asyncio
         from app.core.database import AsyncSessionLocal
         from app.api.routes.twgs import _sync_leads_council_membership
-        async with AsyncSessionLocal() as session:
-            result = await _sync_leads_council_membership(session)
-            await session.commit()
-            logger.info(f"Leads Council sync: +{result['added']} added, -{result['removed']} removed, {result['total_members']} total")
+
+        async def _run_leads_sync():
+            async with AsyncSessionLocal() as session:
+                result = await _sync_leads_council_membership(session)
+                await session.commit()
+                logger.info(f"Leads Council sync: +{result['added']} added, -{result['removed']} removed, {result['total_members']} total")
+
+        await asyncio.wait_for(_run_leads_sync(), timeout=12)
+    except asyncio.TimeoutError:
+        logger.warning("Leads Council sync skipped: DB connection timed out (Railway slow start)")
     except Exception as e:
         logger.warning(f"Leads Council startup sync note: {e}")
 

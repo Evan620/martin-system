@@ -119,7 +119,7 @@ export default function NotificationCenter() {
                     </button>
                     <button
                         onClick={() => dispatch(fetchNotifications())}
-                        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg text-sm font-bold text-[#0d121b] dark:text-white hover:bg-gray-50 dark:hover:bg-[#2d3748] transition-colors shadow-sm"
+                        className="flex items-center gap-2 px-4 py-2 glass-card rounded-lg text-sm font-bold text-[#0d121b] dark:text-white hover:bg-white/90 dark:hover:bg-white/10 transition-colors"
                     >
                         <span className="material-symbols-outlined text-[18px]">refresh</span>
                         Refresh
@@ -129,8 +129,8 @@ export default function NotificationCenter() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8 h-auto lg:h-[calc(100vh-280px)]">
                 {/* Notification List Sidebar */}
-                <div className="lg:col-span-1 bg-white dark:bg-[#1a202c] rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm overflow-hidden flex flex-col max-h-[50vh] lg:max-h-none">
-                    <div className="p-4 border-b border-[#e7ebf3] dark:border-[#2d3748] bg-gray-50/50 dark:bg-[#1a202c]/50">
+                <div className="lg:col-span-1 glass-card rounded-2xl overflow-hidden flex flex-col max-h-[50vh] lg:max-h-none">
+                    <div className="p-4 border-b border-white/50 dark:border-white/10 bg-white/30 dark:bg-white/5">
                         <div className="flex items-center justify-between">
                             <h3 className="font-bold text-[#0d121b] dark:text-white">Notifications</h3>
                             <span className="bg-[#1152d4] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
@@ -213,7 +213,7 @@ export default function NotificationCenter() {
                 </div>
 
                 {/* Notification Detail View */}
-                <div className="lg:col-span-2 bg-white dark:bg-[#1a202c] rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm flex flex-col glassmorphism overflow-hidden">
+                <div className="lg:col-span-2 glass-card rounded-2xl flex flex-col overflow-hidden">
                     {selectedNotification ? (
                         <div className="flex flex-col h-full">
                             <div className="p-8 flex-1">
@@ -244,9 +244,9 @@ export default function NotificationCenter() {
                                     </p>
                                 </div>
 
-                                <div className="mt-12 bg-gray-50 dark:bg-[#2d3748]/50 rounded-2xl p-6 border border-[#e7ebf3] dark:border-[#4a5568] flex items-center justify-between group">
+                                <div className="mt-12 glass-card rounded-2xl p-6 flex items-center justify-between group">
                                     <div className="flex items-center gap-4">
-                                        <div className="size-12 rounded-xl bg-white dark:bg-[#1a202c] flex items-center justify-center text-[#1152d4] border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm">
+                                        <div className="size-12 rounded-xl bg-white/60 dark:bg-white/10 flex items-center justify-center text-[#1152d4]">
                                             <span className="material-symbols-outlined">link</span>
                                         </div>
                                         <div>
@@ -274,7 +274,7 @@ export default function NotificationCenter() {
                                 </div>
                             </div>
 
-                            <div className="p-8 border-t border-[#e7ebf3] dark:border-[#2d3748] bg-gray-50/50 dark:bg-[#1a202c]/50 flex items-center justify-between">
+                            <div className="p-8 border-t border-white/50 dark:border-white/10 bg-white/30 dark:bg-white/5 flex items-center justify-between">
                                 <div className="flex items-center gap-2 text-[#a0aec0]">
                                     <span className="material-symbols-outlined text-[18px]">calendar_today</span>
                                     <span className="text-sm font-medium">{formatTime(selectedNotification.created_at)}</span>
@@ -287,7 +287,7 @@ export default function NotificationCenter() {
                         </div>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                            <div className="size-24 rounded-full bg-gray-50 dark:bg-[#2d3748] flex items-center justify-center text-gray-200 dark:text-[#4a5568] mb-6">
+                            <div className="size-24 rounded-full bg-white/40 dark:bg-white/5 flex items-center justify-center text-gray-200 dark:text-[#4a5568] mb-6">
                                 <span className="material-symbols-outlined text-[48px]">mark_email_read</span>
                             </div>
                             <h3 className="text-xl font-black text-[#0d121b] dark:text-white">Select an alert to view details</h3>
@@ -299,17 +299,6 @@ export default function NotificationCenter() {
                 </div>
             </div>
 
-            <style dangerouslySetInnerHTML={{
-                __html: `
-                .glassmorphism {
-                    background: rgba(255, 255, 255, 0.7);
-                    backdrop-filter: blur(10px);
-                    -webkit-backdrop-filter: blur(10px);
-                }
-                .dark .glassmorphism {
-                    background: rgba(26, 32, 44, 0.7);
-                }
-            `}} />
         </>
     );
 }

@@ -234,6 +234,65 @@ class OpenAILLMService(LLMService):
             logger.error(f"OpenAI History error: {e}")
             raise Exception(f"OpenAI Error: {str(e)}")
 
+    async def complete(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict]] = None,
+        system_prompt: Optional[str] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Async bridge for AgentLoop — calls chat_with_history in a thread."""
+        import asyncio, json as _json
+
+        # Convert AgentLoop compact tool_call format → OpenAI wire format
+        converted: List[Dict[str, Any]] = []
+        for m in messages:
+            if m.get("role") == "assistant" and m.get("tool_calls"):
+                m = dict(m)
+                openai_tcs = []
+                for tc in m["tool_calls"]:
+                    if "function" in tc:
+                        openai_tcs.append(tc)
+                    else:
+                        args_raw = _json.dumps(tc.get("args") or {})
+                        openai_tcs.append({
+                            "id": tc.get("id", ""),
+                            "type": "function",
+                            "function": {"name": tc.get("name", ""), "arguments": args_raw},
+                        })
+                m["tool_calls"] = openai_tcs
+            converted.append(m)
+
+        result = await asyncio.to_thread(
+            self.chat_with_history,
+            messages=converted,
+            system_prompt=system_prompt,
+            tools=tools,
+        )
+        if isinstance(result, str):
+            return {"content": result, "tool_calls": None}
+
+        content = getattr(result, "content", "") or ""
+        raw_tcs = getattr(result, "tool_calls", None) or []
+        if not raw_tcs:
+            return {"content": content, "tool_calls": None}
+
+        tool_calls = []
+        for tc in raw_tcs:
+            fn = getattr(tc, "function", None)
+            name = getattr(fn, "name", "") if fn else ""
+            args_raw = getattr(fn, "arguments", "{}") if fn else "{}"
+            try:
+                args = _json.loads(args_raw) if isinstance(args_raw, str) else (args_raw or {})
+            except Exception:
+                args = {}
+            tool_calls.append({
+                "id": getattr(tc, "id", ""),
+                "name": name,
+                "args": args if isinstance(args, dict) else {},
+            })
+        return {"content": content, "tool_calls": tool_calls}
+
     def structured_output(self, messages: List[Dict[str, Any]], schema: dict, system_prompt: Optional[str] = None, **kwargs) -> dict:
         """
         Use OpenAI's response_format: {"type": "json_schema"} for structured data.

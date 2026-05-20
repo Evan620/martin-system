@@ -278,6 +278,77 @@ class OpenAILLMService(LLMService):
             logger.error(f"OpenAI Transcription error: {e}")
             raise Exception(f"OpenAI Transcription Error: {str(e)}")
 
+    async def stream_tokens(
+        self,
+        messages: List[Dict[str, Any]],
+        system_prompt: Optional[str] = None,
+        on_token=None,
+        tools: Optional[List[Dict]] = None,
+        **kwargs,
+    ) -> Any:
+        """Stream text tokens via on_token callback; return complete response."""
+        from openai import AsyncOpenAI
+
+        full_messages: List[Dict[str, Any]] = []
+        if system_prompt:
+            full_messages.append({"role": "system", "content": system_prompt})
+        full_messages.extend(messages)
+
+        async_client = AsyncOpenAI(
+            api_key=self.client.api_key,
+            base_url=str(self.client.base_url),
+        )
+
+        create_kwargs: Dict[str, Any] = {
+            "model": self.model,
+            "messages": full_messages,
+            "stream": True,
+            self._max_tokens_param: kwargs.get("max_tokens", 4000),
+        }
+        if not self._omit_temperature:
+            create_kwargs["temperature"] = self.temperature
+        if tools:
+            create_kwargs["tools"] = tools
+
+        full_content = ""
+        tool_calls_acc: Dict[int, Dict] = {}
+
+        try:
+            response = await async_client.chat.completions.create(**create_kwargs)
+            async for chunk in response:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    full_content += delta.content
+                    if on_token:
+                        await on_token(delta.content)
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in tool_calls_acc:
+                            tool_calls_acc[idx] = {"id": tc.id or "", "name": (tc.function.name or "") if tc.function else "", "arguments": ""}
+                        else:
+                            if tc.id:
+                                tool_calls_acc[idx]["id"] = tc.id
+                            if tc.function:
+                                if tc.function.name:
+                                    tool_calls_acc[idx]["name"] += tc.function.name
+                                if tc.function.arguments:
+                                    tool_calls_acc[idx]["arguments"] += tc.function.arguments
+        except Exception as e:
+            logger.error(f"[OpenAI] Stream error: {e}")
+            raise
+
+        if tool_calls_acc:
+            tcs = [
+                _ToolCall(id=v["id"], function=_ToolFunction(name=v["name"], arguments=v["arguments"]))
+                for _, v in sorted(tool_calls_acc.items())
+            ]
+            return _AnthropicResponseWrapper(content=full_content, tool_calls=tcs if tcs else None)
+
+        return full_content
+
 
 class AzureOpenAILLMService(OpenAILLMService):
     """Service for interacting with Azure OpenAI deployments.
@@ -312,10 +383,92 @@ class AzureOpenAILLMService(OpenAILLMService):
         )
         self.model = deployment
         self.temperature = temperature
+        self._azure_api_key = api_key
+        self._azure_endpoint = azure_endpoint
+        self._azure_api_version = api_version
         logger.info(
             f"Initialized AzureOpenAILLMService: deployment={deployment} "
             f"endpoint={azure_endpoint} api_version={api_version}"
         )
+
+    async def stream_tokens(
+        self,
+        messages: List[Dict[str, Any]],
+        system_prompt: Optional[str] = None,
+        on_token=None,
+        tools: Optional[List[Dict]] = None,
+        **kwargs,
+    ) -> Any:
+        """Stream text tokens via on_token callback; return complete response in the same shape as chat_with_history."""
+        from openai import AsyncAzureOpenAI
+
+        full_messages: List[Dict[str, Any]] = []
+        if system_prompt:
+            full_messages.append({"role": "system", "content": system_prompt})
+        full_messages.extend(messages)
+
+        async_client = AsyncAzureOpenAI(
+            api_key=self._azure_api_key,
+            azure_endpoint=self._azure_endpoint,
+            api_version=self._azure_api_version,
+        )
+
+        create_kwargs: Dict[str, Any] = {
+            "model": self.model,
+            "messages": full_messages,
+            "stream": True,
+            self._max_tokens_param: kwargs.get("max_tokens", 4000),
+        }
+        if not self._omit_temperature:
+            create_kwargs["temperature"] = self.temperature
+        if tools:
+            create_kwargs["tools"] = tools
+
+        full_content = ""
+        tool_calls_acc: Dict[int, Dict] = {}
+
+        try:
+            response = await async_client.chat.completions.create(**create_kwargs)
+            async for chunk in response:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    full_content += delta.content
+                    if on_token:
+                        await on_token(delta.content)
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in tool_calls_acc:
+                            tool_calls_acc[idx] = {
+                                "id": tc.id or "",
+                                "name": (tc.function.name or "") if tc.function else "",
+                                "arguments": "",
+                            }
+                        else:
+                            if tc.id:
+                                tool_calls_acc[idx]["id"] = tc.id
+                            if tc.function:
+                                if tc.function.name:
+                                    tool_calls_acc[idx]["name"] += tc.function.name
+                                if tc.function.arguments:
+                                    tool_calls_acc[idx]["arguments"] += tc.function.arguments
+        except Exception as e:
+            logger.error(f"[AzureOpenAI] Stream error: {e}")
+            raise
+
+        if tool_calls_acc:
+            tcs = [
+                _ToolCall(
+                    id=v["id"],
+                    function=_ToolFunction(name=v["name"], arguments=v["arguments"]),
+                )
+                for _, v in sorted(tool_calls_acc.items())
+            ]
+            return _AnthropicResponseWrapper(content=full_content, tool_calls=tcs if tcs else None)
+
+        return full_content
 
 
 # ---------------------------------------------------------------------------
@@ -619,6 +772,99 @@ class AnthropicLLMService(LLMService):
     def transcribe_audio(self, file_path: str, **kwargs) -> str:
         raise NotImplementedError("Anthropic does not provide audio transcription. Use OpenAI Whisper instead.")
 
+    async def stream_tokens(
+        self,
+        messages: List[Dict[str, Any]],
+        system_prompt: Optional[str] = None,
+        on_token=None,
+        tools: Optional[List[Dict]] = None,
+        **kwargs,
+    ) -> Any:
+        """Stream text tokens via on_token callback; return complete response."""
+        if not anthropic_sdk:
+            raise ImportError("anthropic package not installed")
+
+        from anthropic import AsyncAnthropic
+
+        async_client = AsyncAnthropic(api_key=self.client.api_key)
+
+        # Reuse the same message conversion as chat_with_history
+        anthropic_messages: List[Dict[str, Any]] = []
+        system_text = system_prompt or ""
+
+        for m in messages:
+            role = m.get("role", "user")
+            content = m.get("content", "")
+            if role == "system":
+                system_text = f"{system_text}\n{content}" if system_text else content
+                continue
+            if role == "tool":
+                anthropic_messages.append({
+                    "role": "user",
+                    "content": [{"type": "tool_result", "tool_use_id": m.get("tool_call_id", ""), "content": content or ""}],
+                })
+                continue
+            if role == "assistant":
+                if "tool_calls" in m and m["tool_calls"]:
+                    blocks: List[Dict[str, Any]] = []
+                    if content:
+                        blocks.append({"type": "text", "text": content})
+                    for tc in m["tool_calls"]:
+                        func = tc.get("function", {})
+                        args_raw = func.get("arguments", "{}")
+                        try:
+                            args_parsed = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                        except json.JSONDecodeError:
+                            args_parsed = {}
+                        blocks.append({"type": "tool_use", "id": tc.get("id", ""), "name": func.get("name", ""), "input": args_parsed})
+                    anthropic_messages.append({"role": "assistant", "content": blocks})
+                else:
+                    anthropic_messages.append({"role": "assistant", "content": content or ""})
+                continue
+            anthropic_messages.append({"role": "user", "content": content or ""})
+
+        # Merge consecutive same-role messages
+        merged: List[Dict[str, Any]] = []
+        for msg in anthropic_messages:
+            if merged and merged[-1]["role"] == msg["role"]:
+                prev_content = merged[-1]["content"]
+                cur_content = msg["content"]
+                if isinstance(prev_content, str):
+                    prev_content = [{"type": "text", "text": prev_content}] if prev_content else []
+                if isinstance(cur_content, str):
+                    cur_content = [{"type": "text", "text": cur_content}] if cur_content else []
+                merged[-1]["content"] = prev_content + cur_content
+            else:
+                merged.append(msg)
+        anthropic_messages = merged
+
+        create_kwargs: Dict[str, Any] = {
+            "model": self.model,
+            "messages": anthropic_messages,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+        }
+        if system_text:
+            create_kwargs["system"] = system_text.strip()
+        if tools:
+            create_kwargs["tools"] = self._convert_tools_openai_to_anthropic(tools)
+
+        try:
+            async with async_client.messages.stream(**create_kwargs) as stream:
+                async for event in stream:
+                    if (
+                        event.type == "content_block_delta"
+                        and hasattr(event, "delta")
+                        and hasattr(event.delta, "text")
+                    ):
+                        if on_token:
+                            await on_token(event.delta.text)
+            final_message = await stream.get_final_message()
+            return self._wrap_response(final_message)
+        except Exception as e:
+            logger.error(f"[Anthropic] Stream error: {e}")
+            raise
+
 
 # Singleton instance
 _llm_service: Optional[LLMService] = None
@@ -657,7 +903,7 @@ def get_llm_service() -> LLMService:
         elif provider == "gemini" and getattr(settings, "GEMINI_API_KEY", None):
              _llm_service = OpenAILLMService(
                 api_key=settings.GEMINI_API_KEY,
-                model=getattr(settings, "GEMINI_MODEL", "gemini-3.1-pro-preview"),
+                model=getattr(settings, "GEMINI_MODEL", "gemini-3.5-flash"),
                 temperature=settings.LLM_TEMPERATURE,
                 base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
             )

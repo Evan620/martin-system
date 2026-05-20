@@ -100,7 +100,6 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
     }, [token, dispatch]);
 
     const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.SECRETARIAT_LEAD;
-    const isFacilitator = user?.role === UserRole.FACILITATOR || user?.role === UserRole.SECRETARIAT_LEAD || isAdmin;
 
     const isActive = (path: string) => location.pathname === path;
 

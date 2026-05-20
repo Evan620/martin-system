@@ -170,6 +170,15 @@ twg_members = Table(
     extend_existing=True
 )
 
+subgroup_members = Table(
+    "subgroup_members",
+    Base.metadata,
+    Column("subgroup_id", Uuid, ForeignKey("subgroups.id", ondelete="CASCADE"), primary_key=True),
+    Column("user_id", Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("joined_at", DateTime, default=datetime.utcnow),
+    extend_existing=True
+)
+
 class MeetingDependency(Base):
     __tablename__ = "meeting_dependencies"
     __table_args__ = {'extend_existing': True}
@@ -311,11 +320,30 @@ class TWG(Base):
     projects: Mapped[List["Project"]] = relationship(back_populates="twg")
     action_items: Mapped[List["ActionItem"]] = relationship(back_populates="twg")
     documents: Mapped[List["Document"]] = relationship(back_populates="twg")
+    subgroups: Mapped[List["SubGroup"]] = relationship("SubGroup", back_populates="twg", cascade="all, delete-orphan")
     recurring_meetings: Mapped[List["RecurringMeeting"]] = relationship(back_populates="twg")
 
     # Dependencies
     dependencies_as_source: Mapped[List["Dependency"]] = relationship("Dependency", foreign_keys="[Dependency.source_twg_id]", back_populates="source_twg")
     dependencies_as_target: Mapped[List["Dependency"]] = relationship("Dependency", foreign_keys="[Dependency.target_twg_id]", back_populates="target_twg")
+
+class SubGroup(Base):
+    __tablename__ = "subgroups"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    twg_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("twgs.id", ondelete="CASCADE"))
+    lead_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    twg: Mapped["TWG"] = relationship("TWG", back_populates="subgroups")
+    lead: Mapped[Optional["User"]] = relationship("User", foreign_keys=[lead_id])
+    members: Mapped[List["User"]] = relationship("User", secondary=subgroup_members)
+    documents: Mapped[List["Document"]] = relationship("Document", back_populates="subgroup")
 
 class Dependency(Base):
     """
@@ -627,6 +655,7 @@ class Document(Base):
     twg_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("twgs.id"), nullable=True)
     meeting_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("meetings.id"), nullable=True)
     project_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("projects.id"), nullable=True)
+    subgroup_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("subgroups.id", ondelete="SET NULL"), nullable=True)
     file_name: Mapped[str] = mapped_column(String(255))
     file_path: Mapped[str] = mapped_column(String(512))
     file_type: Mapped[str] = mapped_column(String(255))  # MIME type can be long
@@ -641,6 +670,7 @@ class Document(Base):
     twg: Mapped[Optional["TWG"]] = relationship(back_populates="documents")
     meeting: Mapped[Optional["Meeting"]] = relationship(foreign_keys=[meeting_id], back_populates="documents")
     project: Mapped[Optional["Project"]] = relationship(foreign_keys=[project_id], back_populates="documents")
+    subgroup: Mapped[Optional["SubGroup"]] = relationship("SubGroup", back_populates="documents")
 
     # Versioning
     version: Mapped[int] = mapped_column(Integer, default=1)

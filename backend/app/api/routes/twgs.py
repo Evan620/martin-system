@@ -13,7 +13,7 @@ import io
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.models.models import TWG, User, UserRole, Meeting, Project, ActionItem, Document, MeetingStatus, ActionItemStatus, MeetingParticipant, RsvpStatus
+from app.models.models import TWG, User, UserRole, Meeting, Project, ActionItem, Document, MeetingStatus, ActionItemStatus, MeetingParticipant, RsvpStatus, SubGroup
 
 logger = logging.getLogger(__name__)
 from app.schemas.schemas import TWGCreate, TWGRead, TWGUpdate
@@ -893,6 +893,19 @@ async def remove_twg_member(
         raise HTTPException(status_code=404, detail="User is not a member of this TWG.")
 
     twg.members.remove(member_to_remove)
+
+    # Remove the user from all subgroups in this TWG
+    sg_result = await db.execute(
+        select(SubGroup)
+        .options(selectinload(SubGroup.members))
+        .where(SubGroup.twg_id == twg_id)
+    )
+    for sg in sg_result.scalars().all():
+        sg.members = [m for m in sg.members if m.id != user_id]
+        # Clear lead if this user was the subgroup lead
+        if sg.lead_id == user_id:
+            sg.lead_id = None
+
     await db.commit()
 
     return {"message": f"{member_to_remove.full_name} has been removed from {twg.name}."}

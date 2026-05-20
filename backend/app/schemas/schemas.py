@@ -206,6 +206,35 @@ class TWGRead(TWGBase):
     documents: List["DocumentRead"] = []
     stats: Optional[TWGStats] = None
 
+# --- SubGroup Schemas ---
+
+class SubGroupBase(SchemaBase):
+    name: str
+    description: Optional[str] = None
+    lead_id: Optional[uuid.UUID] = None
+
+class SubGroupCreate(SubGroupBase):
+    pass
+
+class SubGroupUpdate(SchemaBase):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    lead_id: Optional[uuid.UUID] = None
+    status: Optional[str] = None
+
+class SubGroupMemberAdd(SchemaBase):
+    user_id: uuid.UUID
+
+class SubGroupRead(SubGroupBase):
+    id: uuid.UUID
+    twg_id: uuid.UUID
+    status: str
+    created_at: datetime
+    lead: Optional["UserSimple"] = None
+    members: List["UserSimple"] = []
+    member_count: int = 0
+    document_count: int = 0
+
 # --- Document Schemas ---
 
 class DocumentBase(SchemaBase):

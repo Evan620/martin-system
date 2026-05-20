@@ -901,11 +901,10 @@ def get_llm_service() -> LLMService:
                 base_url=settings.GITHUB_BASE_URL
             )
         elif provider == "gemini" and getattr(settings, "GEMINI_API_KEY", None):
-             _llm_service = OpenAILLMService(
+            from app.services.gemini_native import GeminiNativeService
+            _llm_service = GeminiNativeService(
                 api_key=settings.GEMINI_API_KEY,
                 model=getattr(settings, "GEMINI_MODEL", "gemini-3.5-flash"),
-                temperature=settings.LLM_TEMPERATURE,
-                base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
             )
         elif provider == "anthropic" and getattr(settings, "ANTHROPIC_API_KEY", None):
              _llm_service = AnthropicLLMService(

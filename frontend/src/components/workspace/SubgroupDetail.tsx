@@ -37,7 +37,7 @@ interface SubgroupDetailProps {
 
 export default function SubgroupDetail({ twgId, twgName, subgroup: initialSubgroup, canEdit, onBack }: SubgroupDetailProps) {
     const [activeTab, setActiveTab] = useState<'members' | 'documents'>('members')
-    const [sg, setSg] = useState<SubGroup>(initialSubgroup)
+    const [sg] = useState<SubGroup>(initialSubgroup)
     const [members, setMembers] = useState<SubGroupMember[]>([])
     const [docs, setDocs] = useState<SubGroupDoc[]>([])
     const [twgMembers, setTwgMembers] = useState<SubGroupMember[]>([])

@@ -3,8 +3,9 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { UserRole } from '../../types/auth';
 import PolicyFactory from '../../components/workspace/PolicyFactory'
-import CopilotChat from '../../components/workspace/CopilotChat'
 import TwgMemberManager from '../../components/workspace/TwgMemberManager'
+import SubgroupsManager from '../../components/workspace/SubgroupsManager'
+import SubgroupDetail from '../../components/workspace/SubgroupDetail'
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { meetings, twgs } from '../../services/api'
@@ -31,7 +32,6 @@ export default function TwgWorkspace() {
 
     // Modal State
     const [isScheduling, setIsScheduling] = useState(false)
-    const [isCopilotExpanded, setIsCopilotExpanded] = useState(false)
 
     // Pagination State for Meetings
     const MEETINGS_PER_PAGE = 5;
@@ -79,7 +79,8 @@ export default function TwgWorkspace() {
     }, [twgId]);
 
 
-    const [activeTab, setActiveTab] = useState<'overview' | 'factory' | 'members'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'factory' | 'members' | 'subgroups'>('overview');
+    const [activeSubgroup, setActiveSubgroup] = useState<any>(null);
 
 
 
@@ -105,15 +106,13 @@ export default function TwgWorkspace() {
                                         <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold text-[10px]">ECOWAS SUMMIT '26</Badge>
                                     </div>
                                     <h1 className="text-2xl font-display font-bold text-white tracking-tight truncate">{twg?.name || 'Loading TWG...'}</h1>
-                                    {!isCopilotExpanded && (
-                                        <p className="text-blue-200/70 text-xs max-w-xl leading-relaxed line-clamp-2">
-                                            {twg?.pillar === 'energy_infrastructure' && 'Strategic coordination for regional power pool integration and sustainable energy transition.'}
-                                            {twg?.pillar === 'agriculture_food_systems' && 'Advancing agricultural transformation, food security, and sustainable farming systems.'}
-                                            {twg?.pillar === 'critical_minerals_industrialization' && 'Developing critical mineral value chains and industrialization strategies.'}
-                                            {twg?.pillar === 'digital_economy_transformation' && 'Driving digital infrastructure, connectivity, and technology ecosystem development.'}
-                                            {!twg?.pillar && 'Technical Working Group for the ECOWAS Summit.'}
-                                        </p>
-                                    )}
+                                    <p className="text-blue-200/70 text-xs max-w-xl leading-relaxed line-clamp-2">
+                                        {twg?.pillar === 'energy_infrastructure' && 'Strategic coordination for regional power pool integration and sustainable energy transition.'}
+                                        {twg?.pillar === 'agriculture_food_systems' && 'Advancing agricultural transformation, food security, and sustainable farming systems.'}
+                                        {twg?.pillar === 'critical_minerals_industrialization' && 'Developing critical mineral value chains and industrialization strategies.'}
+                                        {twg?.pillar === 'digital_economy_transformation' && 'Driving digital infrastructure, connectivity, and technology ecosystem development.'}
+                                        {!twg?.pillar && 'Technical Working Group for the ECOWAS Summit.'}
+                                    </p>
                                 </div>
 
                                 <div className="flex gap-2 shrink-0">
@@ -184,7 +183,7 @@ export default function TwgWorkspace() {
                     </div>
 
                     {/* Quick Stats Grid */}
-                    <div className={`grid grid-cols-2 ${isCopilotExpanded ? 'md:grid-cols-2' : 'md:grid-cols-4'} gap-3 transition-all`}>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <Card className="p-3 flex items-center gap-3 group hover:border-blue-500/50 transition-all">
                             <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -250,7 +249,16 @@ export default function TwgWorkspace() {
                                     : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                                     }`}
                             >
-                                Members
+                                    Members
+                            </button>
+                            <button
+                                onClick={() => { setActiveTab('subgroups'); setActiveSubgroup(null); }}
+                                className={`pb-3 text-sm font-bold transition-all border-b-2 ${activeTab === 'subgroups'
+                                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                    }`}
+                            >
+                                Subgroups
                             </button>
                         </div>
                     </div>
@@ -453,21 +461,26 @@ export default function TwgWorkspace() {
                             isAutoManaged={twg?.group_type === 'leads_council'}
                         />
                     )}
+
+                    {activeTab === 'subgroups' && (
+                        activeSubgroup ? (
+                            <SubgroupDetail
+                                twgId={twgId}
+                                twgName={twg?.name || ''}
+                                subgroup={activeSubgroup}
+                                canEdit={canManageMembers}
+                                onBack={() => setActiveSubgroup(null)}
+                            />
+                        ) : (
+                            <SubgroupsManager
+                                twgId={twgId}
+                                canEdit={canManageMembers}
+                                onOpenSubgroup={(sg) => setActiveSubgroup(sg)}
+                            />
+                        )
+                    )}
                 </div>
 
-                {/* AI Copilot Sidebar */}
-
-                {/* AI Copilot Sidebar */}
-                <div className={`hidden lg:flex ${isCopilotExpanded ? 'w-[45%]' : 'w-80'} flex-col gap-6 transition-all duration-300 ease-in-out shrink-0`}>
-                    <Card className="flex-1 flex flex-col p-0 overflow-hidden bg-white dark:bg-dark-card border-slate-100 dark:border-dark-border transition-colors h-[calc(100vh-140px)] shadow-xl shadow-blue-900/5">
-                        <CopilotChat
-                            twgId={twgId}
-                            twgName={twg?.name}
-                            isExpanded={isCopilotExpanded}
-                            onToggleExpand={() => setIsCopilotExpanded(!isCopilotExpanded)}
-                        />
-                    </Card>
-                </div>
             </div>
             {/* Modals */}
             <CreateMeetingModal

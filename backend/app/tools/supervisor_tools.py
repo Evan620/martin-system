@@ -33,6 +33,36 @@ def set_supervisor_context(twg_agents: Dict[str, Any], session_id: Optional[str]
     _session_id = session_id
 
 
+# Page name → frontend route mapping
+_PAGE_ROUTES: Dict[str, str] = {
+    "dashboard": "/dashboard",
+    "home": "/dashboard",
+    "schedule": "/schedule",
+    "meetings": "/schedule",
+    "calendar": "/schedule",
+    "documents": "/documents",
+    "docs": "/documents",
+    "files": "/documents",
+    "twgs": "/twgs",
+    "agents": "/twgs",
+    "workspaces": "/twgs",
+    "actions": "/actions",
+    "tasks": "/actions",
+    "action items": "/actions",
+    "pipeline": "/deal-pipeline",
+    "deal pipeline": "/deal-pipeline",
+    "deals": "/deal-pipeline",
+    "projects": "/deal-pipeline",
+    "notifications": "/notifications",
+    "profile": "/profile",
+    "settings": "/profile",
+    "team": "/admin/team",
+    "logs": "/admin/logs",
+    "audit": "/admin/logs",
+    "audit logs": "/admin/logs",
+}
+
+
 # =============================================================================
 # Tool Handlers (module-level async/sync functions)
 # =============================================================================
@@ -197,58 +227,75 @@ def start_negotiation_tool(conflict_description: str, agent_a: str, agent_b: str
     return f"NEGOTIATION_STARTED::{conflict_description}::{agent_a}::{agent_b}"
 
 
+_MAX_AGENT_RESPONSE_CHARS = 600  # per agent, to keep total context small
+
+
 async def consult_twg_agents_tool(agent_names: str, query: str) -> str:
     """
-    Consult multiple TWG agents simultaneously.
+    Consult multiple TWG agents sequentially (max 3 at once to avoid rate limits).
     agent_names is a comma-separated string (e.g. "energy,digital").
     """
-    import asyncio
-
     if not _twg_agents:
         return "Error: No TWG agents are currently registered."
 
-    # Parse comma-separated names
     raw_names = [n.strip().lower().replace(" twg", "").replace(" agent", "") for n in agent_names.split(",")]
+    valid_agents = [n for n in raw_names if n in _twg_agents]
 
-    tasks = []
-    valid_agents = []
-
-    for name in raw_names:
-        if name in _twg_agents:
-            valid_agents.append(name)
-            tasks.append(_twg_agents[name].chat(query, thread_id=_session_id))
-        else:
-            logger.warning(
-                f"[SUPERVISOR] Requested agent '{name}' not found. "
-                f"Available: {list(_twg_agents.keys())}"
-            )
-
-    if not tasks:
+    if not valid_agents:
         return (
             f"Error: None of the requested agents were found. "
             f"Available agents: {', '.join(_twg_agents.keys())}"
         )
 
+    # Cap at 3 agents to limit parallel Gemini calls
+    valid_agents = valid_agents[:3]
+
     try:
         logger.info(f"[SUPERVISOR] Consulting agents {valid_agents} with query: {query}")
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
         response_parts = []
-        for agent_name, result in zip(valid_agents, results):
-            if isinstance(result, Exception):
-                response_parts.append(f"[{agent_name.upper()} TWG] Error: {str(result)}")
-            else:
+        for agent_name in valid_agents:
+            try:
+                result = await _twg_agents[agent_name].chat(query, thread_id=_session_id)
                 res_text = (
                     result.get("response", str(result))
                     if isinstance(result, dict)
                     else str(result)
                 )
+                # Truncate per-agent response to keep total context manageable
+                if len(res_text) > _MAX_AGENT_RESPONSE_CHARS:
+                    res_text = res_text[:_MAX_AGENT_RESPONSE_CHARS] + "…"
                 response_parts.append(f"[{agent_name.upper()} TWG]\n{res_text}")
+            except Exception as agent_err:
+                response_parts.append(f"[{agent_name.upper()} TWG] Error: {str(agent_err)[:200]}")
 
         return "\n\n---\n\n".join(response_parts)
     except Exception as e:
         logger.error(f"[SUPERVISOR] Error consulting agents: {e}")
         return f"Error executing cross-agent query: {str(e)}"
+
+
+async def navigate_to_page_tool(page: str) -> str:
+    """Navigate the user's browser to a page in the application."""
+    from app.services.stream_events import emit
+
+    normalized = page.lower().strip()
+    route = _PAGE_ROUTES.get(normalized)
+
+    if not route:
+        for key, path in _PAGE_ROUTES.items():
+            if key in normalized or normalized in key:
+                route = path
+                break
+
+    if not route:
+        unique_routes = sorted(set(_PAGE_ROUTES.values()))
+        return f"Unknown page '{page}'. Available: {', '.join(unique_routes)}"
+
+    if _session_id:
+        await emit(_session_id, {"type": "navigate", "path": route})
+
+    page_label = page.title()
+    return f"Opening {page_label} now."
 
 
 def check_availability_tool(start_time_iso: str, duration_minutes: int, vip_names: str = "") -> str:
@@ -307,7 +354,11 @@ def request_booking_tool(
     try:
         loguru_logger.info(f"[BOOKING_TOOL] Starting booking: {title}")
 
-        clean_time_str = start_time_iso.rstrip('Z')
+        # Preserve UTC offset: replace Z suffix with +00:00 so fromisoformat
+        # returns a timezone-aware datetime. rstrip('Z') would strip the UTC
+        # indicator and produce a naive datetime, causing a double-conversion
+        # when user_timezone is also provided.
+        clean_time_str = start_time_iso.replace('Z', '+00:00')
         start_time = datetime.fromisoformat(clean_time_str)
 
         from zoneinfo import ZoneInfo
@@ -412,8 +463,8 @@ def request_booking_tool(
             meeting_type = "virtual" if is_virtual else "in-person"
 
             insert_meeting = text("""
-                INSERT INTO meetings (id, twg_id, title, scheduled_at, duration_minutes, location, status, meeting_type, video_link)
-                VALUES (:id, :twg_id, :title, :scheduled_at, :duration_minutes, :location, :status, :meeting_type, :video_link)
+                INSERT INTO meetings (id, twg_id, title, scheduled_at, duration_minutes, location, status, meeting_type, video_link, is_recurring_exception)
+                VALUES (:id, :twg_id, :title, :scheduled_at, :duration_minutes, :location, :status, :meeting_type, :video_link, false)
             """)
             session.execute(insert_meeting, {
                 "id": meeting_id,
@@ -429,11 +480,11 @@ def request_booking_tool(
 
             if all_participant_ids:
                 for uid in all_participant_ids:
-                    sql = (
-                        f"INSERT INTO meeting_participants (meeting_id, user_id, rsvp_status, attended) "
-                        f"VALUES ('{meeting_id}', '{uid}', 'PENDING', false)"
-                    )
-                    session.execute(text(sql))
+                    participant_id = uuid4()
+                    session.execute(text(
+                        "INSERT INTO meeting_participants (id, meeting_id, user_id, rsvp_status, attended) "
+                        "VALUES (:pid, :mid, :uid, 'PENDING', false)"
+                    ), {"pid": participant_id, "mid": meeting_id, "uid": uid})
 
             session.commit()
 
@@ -689,6 +740,30 @@ SUPERVISOR_TOOL_DEFS = [
     {
         "type": "function",
         "function": {
+            "name": "navigate_to_page_tool",
+            "description": (
+                "Navigate the user's browser to a specific page in the application. "
+                "Use when the user asks to 'go to', 'open', 'show me', or 'take me to' a page. "
+                "Supported pages: dashboard, schedule/meetings, documents, twgs/agents, actions/tasks, "
+                "deal-pipeline/projects, notifications, profile, team, audit logs. "
+                "Example: User says 'show me the documents page' → call navigate_to_page_tool(page='documents'). "
+                "Example: User says 'go to schedule' → call navigate_to_page_tool(page='schedule')."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "string",
+                        "description": "Name of the page to navigate to (e.g. 'dashboard', 'documents', 'schedule', 'actions', 'pipeline', 'notifications', 'profile', 'team', 'logs')"
+                    }
+                },
+                "required": ["page"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "check_availability_tool",
             "description": (
                 "Check if a time slot is free before booking a meeting. "
@@ -819,6 +894,7 @@ SUPERVISOR_TOOL_DEFS = [
 
 # Build handler map for easy lookup
 SUPERVISOR_TOOL_HANDLERS = {
+    "navigate_to_page_tool": navigate_to_page_tool,
     "get_global_calendar_tool": get_global_calendar_tool,
     "get_document_registry_tool": get_document_registry_tool,
     "get_project_pipeline_tool": get_project_pipeline_tool,

@@ -61,6 +61,21 @@ class AgentLoop:
 
         for iteration in range(self.max_iterations):
             window = history[-self.max_history:]
+            # Gemini requires the window to start at a user message (never a
+            # tool result). If the trimmed window has no user message (can
+            # happen when max_history < tool-call depth), search backwards
+            # through the full history for the last real user message.
+            for i, msg in enumerate(window):
+                if msg["role"] == "user":
+                    window = window[i:]
+                    break
+            else:
+                for i in range(len(history) - 1, -1, -1):
+                    if history[i]["role"] == "user":
+                        window = history[i:]
+                        break
+                else:
+                    window = history[-1:]
 
             try:
                 if stream_callback:
@@ -194,6 +209,10 @@ class AgentLoop:
             except Exception as e:
                 logger.error(f"[{self.agent_id}] Tool '{name}' failed: {e}")
                 result_str = json.dumps({"error": f"Tool '{name}' failed: {str(e)}"})
+
+            # Cap tool results to avoid context overflow with Gemini
+            if len(result_str) > 3000:
+                result_str = result_str[:3000] + "…[truncated]"
 
             return name, tc_id, result_str
 

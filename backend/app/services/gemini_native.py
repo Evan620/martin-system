@@ -127,18 +127,22 @@ class GeminiNativeService:
 
             if role == "assistant":
                 parts: List[Dict] = []
-                if content:
-                    parts.append({"text": content})
-                for tc in tool_calls:
-                    fc_part: Dict[str, Any] = {
-                        "functionCall": {
-                            "name": tc["name"],
-                            "args": tc.get("args") or {},
+                if tool_calls:
+                    # Gemini requires functionCall turns to contain ONLY functionCall parts
+                    # (no text before them) — mixing text + functionCall causes 400
+                    for tc in tool_calls:
+                        fc_part: Dict[str, Any] = {
+                            "functionCall": {
+                                "name": tc["name"],
+                                "args": tc.get("args") or {},
+                            }
                         }
-                    }
-                    if tc.get("_thought_sig"):
-                        fc_part["thoughtSignature"] = tc["_thought_sig"]
-                    parts.append(fc_part)
+                        if tc.get("_thought_sig"):
+                            fc_part["thoughtSignature"] = tc["_thought_sig"]
+                        parts.append(fc_part)
+                else:
+                    if content:
+                        parts.append({"text": content})
                 if parts:
                     contents.append({"role": "model", "parts": parts})
                 continue
@@ -146,15 +150,20 @@ class GeminiNativeService:
             if role == "tool":
                 tool_call_id = msg.get("tool_call_id", "")
                 fn_name = tc_name_by_id.get(tool_call_id, tool_call_id)
-                contents.append({
-                    "role": "user",
-                    "parts": [{
-                        "functionResponse": {
-                            "name": fn_name,
-                            "response": {"result": content},
-                        }
-                    }]
-                })
+                fn_response_part = {
+                    "functionResponse": {
+                        "name": fn_name,
+                        "response": {"result": content},
+                    }
+                }
+                # Gemini requires ALL function responses for a single model turn
+                # to arrive in ONE user message. Merge consecutive tool messages.
+                if contents and contents[-1]["role"] == "user" and any(
+                    "functionResponse" in p for p in contents[-1]["parts"]
+                ):
+                    contents[-1]["parts"].append(fn_response_part)
+                else:
+                    contents.append({"role": "user", "parts": [fn_response_part]})
                 continue
 
             parts_list: List[Dict] = []
@@ -218,5 +227,7 @@ class GeminiNativeService:
             )
             if resp.status_code == 429:
                 raise RuntimeError(f"Gemini rate limit (429): {resp.text[:200]}")
+            if not resp.is_success:
+                logger.error(f"[Gemini] {resp.status_code} error body: {resp.text[:500]}")
             resp.raise_for_status()
             return resp.json()

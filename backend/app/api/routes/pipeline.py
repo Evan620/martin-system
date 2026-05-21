@@ -17,9 +17,10 @@ from app.models.models import User, Project, ProjectStatus
 from app.services.project_pipeline_service import ProjectPipelineService
 from app.services.investor_matching_service import get_investor_matching_service
 from app.schemas.pipeline_schemas import (
-    ProjectIngest, ProjectUpdate, ProjectPipelineRead, ProjectAdvanceStage, 
+    ProjectIngest, ProjectUpdate, ProjectPipelineRead, ProjectAdvanceStage,
     InvestorMatchRead, PipelineStats, InvestorMatchUpdate, InvestorRead,
-    ProjectScoreDetailRead, ScoringCriteriaRead, ScoringCriteriaWeightUpdate
+    ProjectScoreDetailRead, ScoringCriteriaRead, ScoringCriteriaWeightUpdate,
+    ReadinessGapRead, ReadinessGapItem,
 )
 from app.models.models import ProjectScoreDetail, ScoringCriteria
 from app.services.lifecycle_service import LifecycleService
@@ -99,6 +100,11 @@ async def list_pipeline_projects(
     """
     query = select(Project)
 
+    # Investors never see incubation projects
+    from app.models.models import UserRole as _Role
+    if current_user.role == _Role.INVESTOR:
+        query = query.where(Project.status != ProjectStatus.INCUBATION)
+
     if stage:
         query = query.where(Project.status == stage)
     if pillar:
@@ -124,8 +130,9 @@ async def ingest_project(
     service = ProjectPipelineService(db)
     
     result = await service.ingest_project_proposal(
-        data=data.model_dump(),
-        submitted_by_user_id=current_user.id
+        data=data.model_dump(exclude={"start_in_incubation"}),
+        submitted_by_user_id=current_user.id,
+        start_in_incubation=data.start_in_incubation,
     )
     
     p = result["project"]
@@ -493,6 +500,119 @@ async def rescore_project(
         )
 
 
+@router.get("/{project_id}/readiness-gap", response_model=ReadinessGapRead)
+async def get_readiness_gap(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_facilitator),
+):
+    """Generate (or return cached) Martin gap report for an Incubation project."""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.status != ProjectStatus.INCUBATION:
+        raise HTTPException(status_code=400, detail="Readiness gap report is only available for Incubation projects")
+
+    from app.models.models import PlatformSetting
+    thresh_res = await db.execute(
+        select(PlatformSetting).where(PlatformSetting.key == "incubation_graduation_threshold")
+    )
+    thresh_setting = thresh_res.scalars().first()
+    threshold = float(thresh_setting.value) if thresh_setting else 40.0
+    current_score = float(project.afcen_score or 0)
+
+    # Return cached report if available
+    meta = project.metadata_json or {}
+    cached_report = meta.get("readiness_gap_report")
+    if cached_report:
+        return ReadinessGapRead(
+            gaps=[ReadinessGapItem(**g) for g in cached_report["gaps"]],
+            current_score=current_score,
+            threshold=threshold,
+            cached=True,
+        )
+
+    # Fetch per-criterion scores
+    from app.models.models import ProjectScoreDetail as _PSD, ScoringCriteria as _SC
+    score_rows_result = await db.execute(
+        select(_PSD, _SC)
+        .join(_SC, _PSD.criterion_id == _SC.id)
+        .where(_PSD.project_id == project_id)
+    )
+    criterion_scores = {
+        row[1].criterion_name: {
+            "score": float(row[0].score),
+            "weight_pct": float(row[1].weight) * 10,
+            "notes": row[0].notes or "",
+        }
+        for row in score_rows_result
+    }
+
+    project_fields = {
+        "name": project.name,
+        "description": project.description,
+        "investment_size": str(project.investment_size),
+        "lead_country": project.lead_country,
+        "pillar": project.pillar,
+        "project_sponsor": project.project_sponsor,
+        "key_contact_name": project.key_contact_name,
+        "financing_structure": project.financing_structure,
+        "revenue_model": project.revenue_model,
+        "technical_studies": project.technical_studies,
+        "permits_licences": project.permits_licences,
+        "land_status": project.land_status,
+        "climate_impact": project.climate_impact,
+        "esg_compliance": project.esg_compliance,
+        "women_employment_pct": project.women_employment_pct,
+        "youth_employment_pct": project.youth_employment_pct,
+        "value_chain_stages": project.value_chain_stages,
+        "is_cross_border": project.is_cross_border,
+    }
+
+    import json as _json
+    prompt = (
+        f"You are analysing an investment project for the ECOWAS Summit deal pipeline.\n"
+        f"The project is in Incubation (pre-pipeline stage). Identify the 3-4 highest-impact gaps "
+        f"preventing this project from reaching the graduation threshold of {threshold:.0f}/100.\n\n"
+        f"Project data: {_json.dumps(project_fields, default=str)}\n"
+        f"Current WAIIS scores per criterion: {_json.dumps(criterion_scores)}\n"
+        f"Graduation threshold: {threshold:.0f}\nCurrent score: {current_score:.1f}\n\n"
+        f"For each gap: criterion name, weight as percentage string (e.g. '18%'), "
+        f"what is missing, and one concrete action referencing actual field names.\n"
+        f"Output ONLY valid JSON: {{\"gaps\": [{{\"criterion\": \"...\", \"weight\": \"...\", \"issue\": \"...\", \"action\": \"...\"}}]}}"
+    )
+
+    from app.services.llm_service import llm_service
+    gaps: list[ReadinessGapItem] = []
+    try:
+        raw = llm_service.chat(prompt, max_tokens=800)
+        raw = raw.strip()
+        if raw.startswith("```"):
+            parts = raw.split("```")
+            raw = parts[1] if len(parts) > 1 else raw
+            if raw.startswith("json"):
+                raw = raw[4:]
+        parsed = _json.loads(raw.strip())
+        gaps = [ReadinessGapItem(**g) for g in parsed["gaps"]]
+    except Exception:
+        for name, data in criterion_scores.items():
+            if data["score"] == 0 and len(gaps) < 4:
+                gaps.append(ReadinessGapItem(
+                    criterion=name,
+                    weight=f"{data['weight_pct']:.0f}%",
+                    issue=f"{name} score is 0 — no relevant data provided",
+                    action=f"Fill in {name.lower()} fields or upload supporting documents",
+                ))
+
+    # Cache
+    meta["readiness_gap_report"] = {"gaps": [g.model_dump() for g in gaps]}
+    project.metadata_json = meta
+    await db.commit()
+
+    return ReadinessGapRead(gaps=gaps, current_score=current_score, threshold=threshold, cached=False)
+
+
 # ---------------------------------------------------------------------------
 # Platform Settings endpoints (admin-configurable thresholds)
 # ---------------------------------------------------------------------------
@@ -517,7 +637,7 @@ async def update_platform_settings(
 ):
     """Update one or more platform settings. Admin only."""
     from app.models.models import PlatformSetting
-    ALLOWED_KEYS = {"gender_threshold_pct", "youth_threshold_pct"}
+    ALLOWED_KEYS = {"gender_threshold_pct", "youth_threshold_pct", "incubation_graduation_threshold"}
     for key, value in payload.items():
         if key not in ALLOWED_KEYS:
             raise HTTPException(status_code=400, detail=f"Unknown setting key: {key}")

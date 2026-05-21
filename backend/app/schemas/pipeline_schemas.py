@@ -25,6 +25,7 @@ class ProjectIngest(BaseModel):
     assigned_agent: Optional[str] = None
     metadata_json: Optional[Dict[str, Any]] = None
     status: Optional[str] = None # Optional override, otherwise defaults to DRAFT
+    start_in_incubation: bool = True
 
 class ProjectUpdate(BaseModel):
     """Schema for updating a project"""
@@ -209,3 +210,15 @@ class PipelineStats(BaseModel):
     stalled_projects: List[Any]
     by_stage: Dict[str, Any]
     checked_at: datetime
+
+class ReadinessGapItem(BaseModel):
+    criterion: str
+    weight: str
+    issue: str
+    action: str
+
+class ReadinessGapRead(BaseModel):
+    gaps: List[ReadinessGapItem]
+    current_score: float
+    threshold: float
+    cached: bool = False

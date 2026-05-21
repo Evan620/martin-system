@@ -59,6 +59,9 @@ class ActionItemPriority(str, enum.Enum):
     URGENT = "urgent"
 
 class ProjectStatus(str, enum.Enum):
+    # Pre-Pipeline
+    INCUBATION = "INCUBATION"
+
     # Submission Phase
     DRAFT = "DRAFT"
     PIPELINE = "PIPELINE"

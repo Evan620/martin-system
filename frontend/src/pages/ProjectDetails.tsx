@@ -8,11 +8,12 @@ import { ProjectLifecycleTimeline } from '../components/pipeline/ProjectLifecycl
 import { ProjectHistoryTimeline } from '../components/pipeline/ProjectHistoryTimeline';
 import { UserRole } from '../types/auth';
 import api from '../services/api';
+import ReadinessTab from '../components/pipeline/ReadinessTab';
 
 const ProjectDetails: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'documents' | 'history' | 'matches'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'documents' | 'history' | 'matches' | 'readiness'>('overview');
   const [project, setProject] = useState<Project | null>(null);
   const [matches, setMatches] = useState<InvestorMatch[]>([]);
   const [scoreDetails, setScoreDetails] = useState<ProjectScoreDetail[]>([]);
@@ -246,112 +247,148 @@ const ProjectDetails: React.FC = () => {
   };
 
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-        case 'DRAFT':              return 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600';
-        case 'PIPELINE':           return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200 border-blue-200 dark:border-blue-800';
-        case 'UNDER_REVIEW':       return 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-200 border-violet-200 dark:border-violet-800';
-        case 'SUMMIT_READY':       return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 border-green-200 dark:border-green-800';
-        case 'DEAL_ROOM_FEATURED': return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200 border-orange-200 dark:border-orange-800';
-        case 'IN_NEGOTIATION':     return 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-200 border-pink-200 dark:border-pink-800';
-        case 'COMMITTED':          return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800';
-        case 'IMPLEMENTED':        return 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-200 border-teal-200 dark:border-teal-800';
-        case 'DECLINED':           return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200 border-red-200 dark:border-red-800';
-        case 'NEEDS_REVISION':     return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 border-amber-200 dark:border-amber-800';
-        case 'ON_HOLD':            return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700';
-        default:                   return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700';
-    }
-  };
-
-  const getProgressColor = (score: number) => {
-    if (score >= 80) return 'bg-green-500';
-    if (score >= 60) return 'bg-primary';
-    return 'bg-orange-500';
-  };
-
-  const formatCurrency = (amount?: number) => {
+  const fmtMoney = (amount?: number) => {
     if (!amount) return 'N/A';
-    if (amount >= 1000000000) return `$${(amount / 1000000000).toFixed(1)}B`;
-    if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
+    if (amount >= 1e9) return `$${(amount / 1e9).toFixed(1)}B`;
+    if (amount >= 1e6) return `$${(amount / 1e6).toFixed(0)}M`;
     return `$${amount.toLocaleString()}`;
   };
 
+  const STATUS_DOT: Record<string, string> = {
+    UNDER_REVIEW: 'var(--amber)', PIPELINE: 'var(--ink-400)',
+    DEAL_ROOM_FEATURED: 'var(--accent)', IN_NEGOTIATION: 'var(--navy)',
+    SUMMIT_READY: 'var(--sage)', COMMITTED: 'var(--sage)',
+    IMPLEMENTED: 'var(--sage)', NEEDS_REVISION: 'var(--terra)',
+    DECLINED: 'var(--terra)', ON_HOLD: 'var(--ink-400)', DRAFT: 'var(--ink-400)',
+  };
+  const STATUS_LABEL: Record<string, string> = {
+    DRAFT: 'Draft', PIPELINE: 'Pipeline', UNDER_REVIEW: 'Under review',
+    SUMMIT_READY: 'Summit ready', DEAL_ROOM_FEATURED: 'Deal room',
+    IN_NEGOTIATION: 'In negotiation', COMMITTED: 'Committed',
+    IMPLEMENTED: 'Implemented', DECLINED: 'Declined',
+    NEEDS_REVISION: 'Needs revision', ON_HOLD: 'On hold',
+  };
+
   if (loading || !project) {
-    return <div className="p-12 text-center">Loading Project...</div>;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div className="size-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+          <p style={{ fontSize: 12, color: 'var(--ink-500)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Loading project…</p>
+        </div>
+      </div>
+    );
   }
 
+  const blockStyle: React.CSSProperties = {
+    background: 'var(--surface)', border: '1px solid var(--border)', padding: '24px 28px',
+  };
+  const sectionHeadStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14,
+  };
+  const sectionTitleStyle: React.CSSProperties = {
+    fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 18,
+    letterSpacing: '-0.01em', color: 'var(--ink-900)', margin: 0,
+  };
+
   return (
-    <div className="max-w-[1200px] mx-auto space-y-6 relative">
+    <div style={{ maxWidth: 1180, margin: '0 auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+
       {/* Breadcrumbs */}
-      <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-        <button onClick={() => navigate('/dashboard')} className="hover:text-primary transition-colors">
-          Home
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--ink-500)', marginBottom: 18 }}>
+        <button onClick={() => navigate('/dashboard')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, fontSize: 11 }}>
+          Dashboard
         </button>
-        <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-        <button onClick={() => navigate('/deal-pipeline')} className="hover:text-primary transition-colors">
-          Deal Pipeline
+        <span style={{ color: 'var(--ink-300)' }}>/</span>
+        <button onClick={() => navigate('/deal-pipeline')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, fontSize: 11 }}>
+          Deal pipeline
         </button>
-        <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-        <span className="text-slate-900 dark:text-white font-medium">{project.name}</span>
+        <span style={{ color: 'var(--ink-300)' }}>/</span>
+        <span style={{ color: 'var(--ink-900)' }}>{project.name}</span>
       </div>
 
       {/* Page Header */}
-      <div className="flex flex-wrap justify-between items-start gap-3">
-        <div className="flex flex-col gap-2 min-w-72">
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">
-              {project.name}
-            </h1>
-            <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider border ${getStatusColor(project.status)}`}>
-              {project.status.replace('_', ' ')}
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr auto', gap: 24, alignItems: 'flex-end',
+        paddingBottom: 22, borderBottom: '1px solid var(--border)', marginBottom: 28,
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            {project.is_flagship && (
+              <span style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600 }}>
+                ★ Flagship project
+              </span>
+            )}
+            <div style={{ width: 16, height: 1, background: 'var(--border)' }} />
+            <span style={{ fontSize: 10, color: 'var(--ink-500)', fontFamily: "'Geist Mono', monospace" }}>
+              {project.id}
             </span>
           </div>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">
-            Project ID: {project.id} • Lead: {project.lead_country || 'Regional'} •{' '}
-            <span className="inline-flex items-center gap-1 font-medium text-primary">
-              <span className="material-symbols-outlined text-[16px]">smart_toy</span>
-              AI Agent
+          <h1 style={{
+            fontFamily: "'Source Serif 4', serif", fontWeight: 400,
+            fontSize: 42, letterSpacing: '-0.025em', color: 'var(--ink-900)',
+            margin: 0, lineHeight: 1.05,
+          }}>{project.name}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginTop: 14, fontSize: 13, color: 'var(--ink-600)' }}>
+            {project.pillar && <span>{project.pillar}</span>}
+            {project.lead_country && <><span style={{ color: 'var(--ink-300)' }}>·</span><span>{project.lead_country}</span></>}
+            {project.project_sponsor && <><span style={{ color: 'var(--ink-300)' }}>·</span><span>{project.project_sponsor}</span></>}
+            <span style={{ color: 'var(--ink-300)' }}>·</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 6, height: 6, borderRadius: 6, background: STATUS_DOT[project.status] ?? 'var(--ink-400)', display: 'inline-block' }} />
+              {STATUS_LABEL[project.status] ?? project.status}
             </span>
-          </p>
+          </div>
         </div>
-        <div className="flex gap-3">
+
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
           {canEdit && (
             <>
-              <button
-                onClick={toggleFlagship}
-                disabled={togglingFlagship}
-                className={`flex items-center justify-center gap-2 px-4 py-2 border text-sm font-bold rounded-lg transition-colors ${project.is_flagship
-                  ? 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                  }`}
-              >
-                <span className="material-symbols-outlined text-[18px]">
+              <button onClick={toggleFlagship} disabled={togglingFlagship} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: 'transparent', border: '1px solid var(--border)',
+                color: project.is_flagship ? 'var(--amber)' : 'var(--ink-700)',
+                padding: '9px 14px', fontSize: 12, fontWeight: 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                   {project.is_flagship ? 'star' : 'star_outline'}
                 </span>
-                <span>{project.is_flagship ? 'Flagship Project' : 'Mark as Flagship'}</span>
+                {project.is_flagship ? 'Flagship' : 'Mark flagship'}
               </button>
-
-              <button
-                onClick={() => navigate(`/deal-pipeline/${project.id}/edit`)}
-                className="flex items-center justify-center px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                <span>Edit Project</span>
+              <button onClick={() => navigate(`/deal-pipeline/${project.id}/edit`)} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: 'transparent', border: '1px solid var(--border)',
+                color: 'var(--ink-700)', padding: '9px 14px', fontSize: 12, fontWeight: 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
+                Edit
               </button>
-
-              {/* Transition Actions */}
               {project.allowed_transitions && project.allowed_transitions.length > 0 && (
                 <div className="relative group">
-                  <button className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors">
-                    <span>Advance Stage</span>
-                    <span className="material-symbols-outlined text-[18px]">expand_more</span>
-                  </button>
-                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-1 z-50 hidden group-hover:block">
+                  <div style={{ display: 'flex' }}>
+                    <button onClick={() => handleStageTransition(project.allowed_transitions![0])} style={{
+                      background: 'var(--accent)', color: 'var(--accent-ink)', border: '1px solid var(--accent)',
+                      padding: '10px 18px 10px 16px', fontSize: 12, fontWeight: 500,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      display: 'inline-flex', alignItems: 'center', gap: 8,
+                    }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_forward</span>
+                      Advance stage
+                    </button>
+                  </div>
+                  <div className="absolute right-0 mt-2 w-48 z-50 hidden group-hover:block" style={{
+                    background: 'var(--surface)', border: '1px solid var(--border)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,.12)',
+                  }}>
                     {project.allowed_transitions.map(stage => (
-                      <button
-                        key={stage}
-                        onClick={() => handleStageTransition(stage)}
-                        className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md capitalize"
-                      >
+                      <button key={stage} onClick={() => handleStageTransition(stage)} style={{
+                        width: '100%', textAlign: 'left', padding: '10px 14px',
+                        fontSize: 12, color: 'var(--ink-700)', cursor: 'pointer',
+                        background: 'none', border: 'none', borderBottom: '1px solid var(--border)',
+                        fontFamily: 'inherit',
+                      }}>
                         Move to {stage.replace(/_/g, ' ')}
                       </button>
                     ))}
@@ -360,444 +397,524 @@ const ProjectDetails: React.FC = () => {
               )}
             </>
           )}
-          <button
-            onClick={() => navigate(`/deal-pipeline/${encodeURIComponent(project.id)}/memo`)}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-blue-700 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
-            <span>Generate Memo</span>
+          <button onClick={() => navigate(`/deal-pipeline/${encodeURIComponent(project.id)}/memo`)} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: 'var(--accent)', border: '1px solid var(--accent)',
+            color: 'var(--accent-ink)', padding: '10px 16px', fontSize: 12, fontWeight: 500,
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>auto_awesome</span>
+            Generate memo
           </button>
         </div>
       </div>
 
-
       {/* Lifecycle Timeline */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: 24 }}>
         <ProjectLifecycleTimeline project={project} />
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Funding Ask */}
-        <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="flex justify-between items-start">
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Investment Size</p>
-            <span className="material-symbols-outlined text-slate-400">payments</span>
+      {/* KPI strip */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        padding: '22px 32px', marginBottom: 28,
+      }}>
+        {[
+          { label: 'Investment ask', value: fmtMoney(project.investment_size), sub: 'USD · estimated' },
+          { label: 'Readiness score', value: project.readiness_score ? `${project.readiness_score}/100` : 'N/A', sub: 'WAIIS assessment' },
+          { label: 'AfCEN score', value: project.afcen_score ? Number(project.afcen_score).toFixed(1) : 'N/A', sub: 'AI-calculated', accent: true },
+          { label: 'Pillar', value: (project.pillar || 'General').split(',')[0].split('&')[0].trim(), sub: project.lead_country || 'Regional', last: true },
+        ].map(({ label, value, sub, accent, last }) => (
+          <div key={label} style={{ paddingRight: 24, borderRight: last ? 'none' : '1px solid var(--border)' }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{label}</div>
+            <div style={{
+              fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 28,
+              color: accent ? 'var(--accent)' : 'var(--ink-900)', letterSpacing: '-0.02em',
+              marginTop: 4, lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+            }}>{value}</div>
+            <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 6 }}>{sub}</div>
           </div>
-          <p className="text-slate-900 dark:text-white text-2xl font-bold">
-            {formatCurrency(project.investment_size)} <span className="text-base font-medium text-slate-400">USD</span>
-          </p>
-          <p className="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded w-fit">
-            Estimated
-          </p>
-        </div>
-
-        {/* Readiness Score */}
-        <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-            <span className="material-symbols-outlined text-6xl text-primary">speed</span>
-          </div>
-          <div className="flex justify-between items-start z-10">
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Readiness Score</p>
-            <span className="material-symbols-outlined text-primary">check_circle</span>
-          </div>
-          <p className="text-slate-900 dark:text-white text-2xl font-bold">
-            {project.readiness_score}
-            <span className="text-slate-400 text-lg">/100</span>
-          </p>
-          <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 mt-2">
-            <div
-              className={`${getProgressColor(project.readiness_score)} h-1.5 rounded-full`}
-              style={{ width: `${project.readiness_score}%` }}
-            ></div>
-          </div>
-        </div>
-
-        {/* AfCEN Score (New) */}
-        <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="flex justify-between items-start">
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">AfCEN Score</p>
-            <span className="material-symbols-outlined text-purple-400">stars</span>
-          </div>
-          <p className="text-slate-900 dark:text-white text-2xl font-bold">{project.afcen_score ? Number(project.afcen_score).toFixed(1) : 'N/A'}</p>
-          <button
-            onClick={handleRescore}
-            disabled={rescoring}
-            className="mt-2 w-full py-1.5 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 text-purple-600 dark:text-purple-400 text-xs font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
-            title="Manually trigger AfCEN scoring assessment"
-          >
-            <span className="material-symbols-outlined text-[14px]">{rescoring ? 'hourglass_empty' : 'refresh'}</span>
-            {rescoring ? 'Scoring...' : 'Rescore Project'}
-          </button>
-        </div>
-
-        {/* Pillar */}
-        <div className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="flex justify-between items-start">
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Pillar</p>
-            <span className="material-symbols-outlined text-slate-400">category</span>
-          </div>
-          <p className="text-slate-900 dark:text-white text-xl font-bold truncate" title={project.pillar}>
-            {project.pillar || 'General'}
-          </p>
-        </div>
+        ))}
       </div>
 
       {/* Tabs */}
-      <div className="sticky top-[72px] bg-background-light dark:bg-background-dark z-40 pt-2 pb-0 mb-6">
-        <div className="flex border-b border-slate-200 dark:border-slate-700 gap-8 overflow-x-auto">
-          {['overview', 'matches', 'financials', 'documents', 'history'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab as any)}
-              className={`flex items-center justify-center border-b-[3px] pb-3 pt-2 min-w-fit transition-colors capitalize ${activeTab === tab
-                ? 'border-primary text-slate-900 dark:text-white'
-                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                }`}
-            >
-              <span className="text-sm font-bold">
-                {tab === 'matches' ? 'Deal Room / Investors' : tab}
-              </span>
-              {tab === 'matches' && matches.length > 0 && (
-                <span className="ml-2 bg-primary text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                  {matches.length}
-                </span>
-              )}
-            </button>
-          ))}
+      <div style={{ position: 'sticky', top: 56, background: 'var(--bg)', zIndex: 40, paddingTop: 8 }}>
+        <div style={{ display: 'flex', gap: 28, borderBottom: '1px solid var(--border)', marginBottom: 28 }}>
+          {[
+            { key: 'overview', label: 'Overview' },
+            { key: 'matches', label: 'Investor matches' },
+            { key: 'financials', label: 'Financials' },
+            { key: 'documents', label: 'Documents' },
+            { key: 'history', label: 'History' },
+            ...(project?.status === ProjectStatus.INCUBATION
+              ? [{ key: 'readiness', label: '⚗ Readiness' }]
+              : []),
+          ].map(({ key, label }) => {
+            const on = activeTab === (key as any);
+            return (
+              <button key={key} onClick={() => setActiveTab(key as any)} style={{
+                fontSize: 13,
+                color: on ? (key === 'readiness' ? '#7c3aed' : 'var(--ink-900)') : 'var(--ink-500)',
+                fontWeight: on ? 500 : 400, padding: '10px 0',
+                borderTop: 'none', borderLeft: 'none', borderRight: 'none',
+                borderBottom: on ? `2px solid ${key === 'readiness' ? '#7c3aed' : 'var(--accent)'}` : '2px solid transparent',
+                marginBottom: -1, cursor: 'pointer',
+                background: 'none',
+                fontFamily: 'inherit',
+              }}>
+                {label}
+                {key === 'matches' && matches.length > 0 && (
+                  <span style={{
+                    marginLeft: 6, fontSize: 10, padding: '1px 6px',
+                    background: 'var(--ink-100)', color: 'var(--ink-600)',
+                    fontFamily: "'Geist Mono', monospace",
+                  }}>{matches.length}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-12">
-        {/* Left Column (Primary Content) */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 32, paddingBottom: 48 }}>
+        {/* Left Column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
 
           {/* Overview Tab Content */}
           {activeTab === 'overview' && (
             <>
               {/* Executive Summary */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Description</h3>
-                <div className="prose prose-slate dark:prose-invert max-w-none text-slate-600 dark:text-slate-300">
-                  <p className="mb-4">{project.description || 'No description provided.'}</p>
+              <section>
+                <div style={sectionHeadStyle}>
+                  <h2 style={sectionTitleStyle}>Executive summary</h2>
                 </div>
-              </div>
+                <div style={blockStyle}>
+                  <p style={{
+                    fontFamily: "'Source Serif 4', serif", fontSize: 17, color: 'var(--ink-800)',
+                    lineHeight: 1.55, margin: 0, letterSpacing: '-0.005em',
+                  }}>{project.description || 'No description provided.'}</p>
+                </div>
+              </section>
 
-              {/* Investment Template Fields */}
+              {/* Project Particulars */}
               {(project.subsector || project.project_sponsor || project.land_status || project.revenue_model || project.climate_impact || project.esg_compliance || project.is_cross_border) && (
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Project Details</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-                    {project.subsector && (
-                      <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Subsector</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.subsector}</p>
-                      </div>
-                    )}
-                    {project.project_sponsor && (
-                      <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Project Sponsor</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.project_sponsor}</p>
-                      </div>
-                    )}
-                    {project.lead_country && (
-                      <div>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Country / Region</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.lead_country}</p>
-                      </div>
-                    )}
-                    <div>
-                      <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Regional Dimension</span>
-                      <p className="text-slate-900 dark:text-white mt-1">{project.is_cross_border ? 'Cross-border / Multi-country' : 'National'}</p>
+                <section>
+                  <div style={sectionHeadStyle}><h2 style={sectionTitleStyle}>Project particulars</h2></div>
+                  <div style={blockStyle}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 40, rowGap: 18 }}>
+                      {[
+                        project.subsector && { label: 'Subsector', value: project.subsector },
+                        project.project_sponsor && { label: 'Project sponsor', value: project.project_sponsor },
+                        project.lead_country && { label: 'Country / region', value: project.lead_country },
+                        { label: 'Regional dimension', value: project.is_cross_border ? 'Cross-border · multi-country' : 'National' },
+                        project.land_status && { label: 'Land status', value: project.land_status, span: true },
+                        project.revenue_model && { label: 'Revenue model', value: project.revenue_model, span: true },
+                        project.climate_impact && { label: 'Climate impact', value: project.climate_impact, span: true },
+                        project.esg_compliance && { label: 'ESG / safeguards', value: project.esg_compliance, span: true },
+                      ].filter(Boolean).map((item: any) => (
+                        <div key={item.label} style={item.span ? { gridColumn: 'span 2' } : {}}>
+                          <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 6 }}>
+                            {item.label}
+                          </div>
+                          <div style={{ fontSize: 13, color: 'var(--ink-800)', lineHeight: 1.5 }}>{item.value}</div>
+                        </div>
+                      ))}
                     </div>
-                    {project.land_status && (
-                      <div className="md:col-span-2">
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Land Status</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.land_status}</p>
-                      </div>
-                    )}
-                    {project.revenue_model && (
-                      <div className="md:col-span-2">
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Revenue Model</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.revenue_model}</p>
-                      </div>
-                    )}
-                    {project.climate_impact && (
-                      <div className="md:col-span-2">
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">Climate Impact</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.climate_impact}</p>
-                      </div>
-                    )}
-                    {project.esg_compliance && (
-                      <div className="md:col-span-2">
-                        <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-xs">ESG Notes</span>
-                        <p className="text-slate-900 dark:text-white mt-1">{project.esg_compliance}</p>
-                      </div>
-                    )}
                   </div>
-                </div>
+                </section>
               )}
 
-              {/* WAIIS Scoring Breakdown */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
-                  AfCEN Score Breakdown
-                </h3>
-                {scoreDetails.length === 0 ? (
-                  <div className="text-sm text-slate-400 italic">No score details available. Click "Rescore Project" to run the WAIIS assessment.</div>
-                ) : (
-                  <div className="space-y-4">
-                    {scoreDetails.map(d => {
-                      const pct = Math.min(100, Math.max(0, Number(d.score)));
-                      const barColor = pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-primary' : 'bg-amber-400';
+              {/* AfCEN Score Breakdown */}
+              <section>
+                <div style={sectionHeadStyle}>
+                  <h2 style={sectionTitleStyle}>AfCEN score breakdown</h2>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--ink-500)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 5, height: 5, borderRadius: 5, background: 'var(--navy)', display: 'inline-block' }} />Core
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 5, height: 5, borderRadius: 5, background: 'var(--accent)', display: 'inline-block' }} />Impact
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 5, height: 5, borderRadius: 5, background: 'var(--gold)', display: 'inline-block' }} />Regional
+                    </span>
+                  </div>
+                </div>
+                <div style={blockStyle}>
+                  {scoreDetails.length === 0 ? (
+                    <div style={{ fontSize: 13, color: 'var(--ink-400)', fontStyle: 'italic' }}>
+                      No score details available. Use "Rescore" to run the WAIIS assessment.
+                    </div>
+                  ) : (
+                    (() => {
+                      const GROUPS: Record<string, { label: string; color: string }> = {
+                        core: { label: 'Core', color: 'var(--navy)' },
+                        impact: { label: 'Impact', color: 'var(--accent)' },
+                        regional: { label: 'Regional', color: 'var(--gold)' },
+                      };
+                      const IMPACT_NAMES = ['Climate Impact', 'Social Impact', 'Economic Impact'];
+                      const REGIONAL_NAMES = ['ECOWAS Integration'];
+                      const getGroup = (name: string) => {
+                        if (REGIONAL_NAMES.some(n => name.includes(n.split(' ')[0]))) return 'regional';
+                        if (IMPACT_NAMES.some(n => name.includes(n.split(' ')[0]))) return 'impact';
+                        return 'core';
+                      };
+                      const grouped: Record<string, typeof scoreDetails> = { core: [], impact: [], regional: [] };
+                      scoreDetails.forEach(d => {
+                        const g = getGroup(d.criterion.criterion_name);
+                        grouped[g].push(d);
+                      });
                       return (
-                        <div key={d.id}>
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{d.criterion.criterion_name}</span>
-                            <span className={`text-sm font-bold ${pct >= 70 ? 'text-green-600' : pct >= 40 ? 'text-primary' : 'text-amber-500'}`}>
-                              {pct.toFixed(0)}/100
-                            </span>
-                          </div>
-                          <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2">
-                            <div className={`${barColor} h-2 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
-                          </div>
-                          {d.notes && d.notes !== `Score: ${pct.toFixed(0)}/100` && (
-                            <p className="text-xs text-slate-400 mt-0.5 truncate" title={d.notes}>{d.notes}</p>
-                          )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+                          {(['core', 'impact', 'regional'] as const).filter(g => grouped[g].length > 0).map(g => (
+                            <div key={g}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                <span style={{ width: 5, height: 5, borderRadius: 5, background: GROUPS[g].color, display: 'inline-block' }} />
+                                <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-700)', fontWeight: 500 }}>
+                                  {GROUPS[g].label}
+                                </span>
+                                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                                <span style={{ fontSize: 10, color: 'var(--ink-500)', fontFamily: "'Geist Mono', monospace" }}>
+                                  {grouped[g].reduce((s, d) => s + Number(d.criterion.weight ?? 0), 0).toFixed(0)} weight
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {grouped[g].map(d => {
+                                  const pct = Math.min(100, Math.max(0, Number(d.score)));
+                                  const weightPct = d.criterion.weight != null ? `${(Number(d.criterion.weight) * 100).toFixed(0)}%` : '';
+                                  return (
+                                    <div key={d.id} style={{ display: 'grid', gridTemplateColumns: '200px 1fr 50px 40px', gap: 16, alignItems: 'center' }}>
+                                      <div style={{ fontSize: 12, color: 'var(--ink-800)' }}>{d.criterion.criterion_name}</div>
+                                      <div style={{ height: 4, background: 'var(--ink-100)', position: 'relative' }}>
+                                        <div style={{ position: 'absolute', inset: 0, width: `${pct}%`, background: GROUPS[g].color, opacity: 0.85 }} />
+                                      </div>
+                                      <div style={{ fontSize: 12, fontFamily: "'Geist Mono', monospace", color: 'var(--ink-900)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                        {Math.round(pct)}
+                                      </div>
+                                      {weightPct && (
+                                        <div style={{ fontSize: 11, color: 'var(--ink-400)', textAlign: 'right' }}>{weightPct}</div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       );
-                    })}
-                  </div>
-                )}
-              </div>
+                    })()
+                  )}
+                  <button onClick={handleRescore} disabled={rescoring} style={{
+                    marginTop: 16, width: '100%', padding: '8px 10px', justifyContent: 'center',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: 'transparent', border: '1px solid var(--border)',
+                    color: 'var(--ink-700)', fontSize: 12, fontWeight: 500,
+                    cursor: rescoring ? 'default' : 'pointer', fontFamily: 'inherit',
+                    opacity: rescoring ? 0.6 : 1,
+                  }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                      {rescoring ? 'hourglass_empty' : 'refresh'}
+                    </span>
+                    {rescoring ? 'Scoring…' : 'Rescore project'}
+                  </button>
+                </div>
+              </section>
             </>
           )}
 
-          {/* Matches Tab */}
+          {/* Investor Matches Tab */}
           {activeTab === 'matches' && (
-            <div className="space-y-6">
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Investor Matching</h3>
-                  <button
-                    onClick={handleTriggerMatching}
-                    disabled={triggeringMatch}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-md hover:bg-primary-hover disabled:opacity-50">
-                    <span className="material-symbols-outlined">restart_alt</span>
-                    {triggeringMatch ? 'Running Engine...' : 'Run Matching Engine'}
-                  </button>
-                </div>
-
-                {loadingMatches ? (
-                  <div className="text-center py-8 text-slate-500">Loading matches...</div>
-                ) : matches.length === 0 ? (
-                  <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-300">
-                    <span className="material-symbols-outlined text-4xl mb-2">person_search</span>
-                    <p>No investors matched yet. Run the matching engine to find potential investors.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {matches.map((match) => (
-                      <div key={match.match_id} className="flex flex-col md:flex-row gap-4 p-4 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="text-base font-bold text-slate-900 dark:text-white">{match.investor?.name || 'Unknown Investor'}</h4>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${match.status === InvestorMatchStatus.INTERESTED ? 'bg-green-100 text-green-700' :
-                              match.status === InvestorMatchStatus.CONTACTED ? 'bg-blue-100 text-blue-700' :
-                                'bg-slate-100 text-slate-600'
-                              }`}>
-                              {match.status}
-                            </span>
-                          </div>
-                          <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
-                            {/* Use sector preferences or investment instruments */}
-                            {match.investor?.sector_preferences?.join(', ') || 'No specific strategy'}
-                          </p>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            <span className="font-medium">Ticket:</span> {match.investor?.ticket_size_min ? `$${match.investor.ticket_size_min}M - $${match.investor.ticket_size_max}M` : 'N/A'}
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            <span className="font-medium">Focus:</span> {match.investor?.geographic_focus?.join(', ') || 'N/A'}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-4 min-w-[140px]">
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-primary">{Math.round(match.score)}%</div>
-                            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Match Score</div>
-                          </div>
-
-                          <div className="relative group">
-                            <select
-                              value={match.status}
-                              onChange={(e) => handleUpdateMatchStatus(match.match_id, e.target.value as InvestorMatchStatus)}
-                              className="appearance-none bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold py-2 pl-3 pr-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer hover:bg-slate-50"
-                            >
-                              <option value={InvestorMatchStatus.DETECTED}>Detected</option>
-                              <option value={InvestorMatchStatus.CONTACTED}>Contacted</option>
-                              <option value={InvestorMatchStatus.INTERESTED}>Interested</option>
-                              <option value={InvestorMatchStatus.COMMITTED}>Committed</option>
-                              <option value={InvestorMatchStatus.DECLINED}>Declined</option>
-                            </select>
-                            <span className="material-symbols-outlined absolute right-2 top-1.5 text-[18px] pointer-events-none text-slate-500">expand_more</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Matches Tab as "Financials" */}
-          {activeTab === 'financials' && (
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm space-y-6">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Financial Structure</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
-                  <div className="text-sm text-slate-500 mb-1">Total Investment</div>
-                  <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {formatCurrency(project.investment_size)}
-                  </div>
-                </div>
-                <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800">
-                  <div className="text-sm text-slate-500 mb-1">Funding Secured</div>
-                  <div className="text-2xl font-bold text-green-700 dark:text-green-400">
-                    {formatCurrency(project.funding_secured_usd)}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">
-                    {((project.funding_secured_usd || 0) / project.investment_size * 100).toFixed(1)}% of total
-                  </div>
-                </div>
-                <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800">
-                  <div className="text-sm text-slate-500 mb-1">Funding Gap</div>
-                  <div className="text-2xl font-bold text-orange-700 dark:text-orange-400">
-                    {formatCurrency(project.investment_size - (project.funding_secured_usd || 0))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'documents' && (
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Project Documents</h3>
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[18px]">upload_file</span>
-                  Upload Document
+            <section>
+              <div style={sectionHeadStyle}>
+                <h2 style={sectionTitleStyle}>Investor matches</h2>
+                <button onClick={handleTriggerMatching} disabled={triggeringMatch} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  background: 'var(--accent)', border: 'none', color: 'var(--accent-ink)',
+                  padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                  cursor: triggeringMatch ? 'default' : 'pointer', fontFamily: 'inherit',
+                  opacity: triggeringMatch ? 0.7 : 1,
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>restart_alt</span>
+                  {triggeringMatch ? 'Running…' : 'Run matching engine'}
                 </button>
               </div>
-              {documents.length === 0 ? (
-                <div className="text-center py-8 text-slate-500 italic">No documents found.</div>
-              ) : (
-                <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {documents.map(doc => (
-                    <div key={doc.id} className="py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="material-symbols-outlined text-slate-400">description</span>
-                        <div>
-                          <div className="font-medium text-slate-900 dark:text-white text-sm">{doc.file_name}</div>
-                          <div className="text-xs text-slate-500">{new Date(doc.created_at).toLocaleDateString()}</div>
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                {loadingMatches ? (
+                  <div style={{ padding: '32px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-500)' }}>Loading matches…</div>
+                ) : matches.length === 0 ? (
+                  <div style={{ padding: '48px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-400)' }}>
+                    No investors matched yet. Run the matching engine to find potential investors.
+                  </div>
+                ) : matches.map((match, i) => {
+                  const MATCH_STATUS_COLOR: Record<string, string> = {
+                    INTERESTED: 'var(--sage)', CONTACTED: 'var(--navy)', DETECTED: 'var(--ink-500)',
+                    COMMITTED: 'var(--accent)', DECLINED: 'var(--terra)',
+                  };
+                  return (
+                    <div key={match.match_id} style={{
+                      display: 'grid', gridTemplateColumns: '1fr 80px 160px',
+                      gap: 16, alignItems: 'center',
+                      padding: '16px 24px',
+                      borderBottom: i < matches.length - 1 ? '1px solid var(--border)' : 'none',
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500, marginBottom: 4 }}>
+                          {match.investor?.name || 'Unknown Investor'}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-500)', lineHeight: 1.45 }}>
+                          {match.investor?.sector_preferences?.join(', ') || 'No specific strategy'}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-600)', marginTop: 6, fontFamily: "'Geist Mono', monospace" }}>
+                          {match.investor?.ticket_size_min ? `$${match.investor.ticket_size_min}M – $${match.investor.ticket_size_max}M` : 'N/A'}
+                          {match.investor?.geographic_focus?.length ? ` · ${match.investor.geographic_focus[0]}` : ''}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => documentService.downloadDocument(doc.id)}
-                          className="text-slate-400 hover:text-primary"
-                          title="Download"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">download</span>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteDocument(doc.id, doc.file_name)}
-                          className="text-slate-400 hover:text-red-600"
-                          title="Delete"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">delete</span>
-                        </button>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{
+                          fontFamily: "'Source Serif 4', serif", fontSize: 24,
+                          color: 'var(--ink-900)', lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+                        }}>{Math.round(match.score)}<span style={{ fontSize: 13, color: 'var(--ink-400)' }}>%</span></div>
+                        <div style={{ fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-400)', marginTop: 4 }}>Match</div>
                       </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: 6, background: MATCH_STATUS_COLOR[match.status] ?? 'var(--ink-400)', display: 'inline-block', flexShrink: 0 }} />
+                        <select
+                          value={match.status}
+                          onChange={(e) => handleUpdateMatchStatus(match.match_id, e.target.value as InvestorMatchStatus)}
+                          style={{
+                            background: 'var(--surface)', border: '1px solid var(--border)',
+                            color: 'var(--ink-700)', padding: '5px 8px', fontSize: 11,
+                            fontFamily: 'inherit', cursor: 'pointer', outline: 'none', flex: 1,
+                          }}
+                        >
+                          <option value={InvestorMatchStatus.DETECTED}>Detected</option>
+                          <option value={InvestorMatchStatus.CONTACTED}>Contacted</option>
+                          <option value={InvestorMatchStatus.INTERESTED}>Interested</option>
+                          <option value={InvestorMatchStatus.COMMITTED}>Committed</option>
+                          <option value={InvestorMatchStatus.DECLINED}>Declined</option>
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Financials Tab */}
+          {activeTab === 'financials' && (
+            <section>
+              <div style={sectionHeadStyle}><h2 style={sectionTitleStyle}>Financial structure</h2></div>
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+                  {[
+                    { label: 'Total ask', value: fmtMoney(project.investment_size) },
+                    { label: 'Funding secured', value: fmtMoney(project.funding_secured_usd), sub: `${((project.funding_secured_usd || 0) / project.investment_size * 100).toFixed(0)}% committed`, color: 'var(--sage)' },
+                    { label: 'Funding gap', value: fmtMoney(project.investment_size - (project.funding_secured_usd || 0)), color: 'var(--amber)' },
+                  ].map((item, i) => (
+                    <div key={item.label} style={{ padding: '20px 22px', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
+                      <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{item.label}</div>
+                      <div style={{
+                        fontFamily: "'Source Serif 4', serif", fontSize: 22,
+                        color: item.color || 'var(--ink-900)', marginTop: 6, lineHeight: 1.15, letterSpacing: '-0.01em',
+                      }}>{item.value}</div>
+                      {item.sub && <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 6 }}>{item.sub}</div>}
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
+                {project.investment_size > 0 && (
+                  <div style={{ padding: '0 22px 20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--ink-500)', marginBottom: 6 }}>
+                      <span>Funding progress</span>
+                      <span style={{ fontFamily: "'Geist Mono', monospace" }}>
+                        {((project.funding_secured_usd || 0) / project.investment_size * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <div style={{ height: 4, background: 'var(--ink-100)', position: 'relative' }}>
+                      <div style={{
+                        position: 'absolute', inset: 0,
+                        width: `${Math.min(100, (project.funding_secured_usd || 0) / project.investment_size * 100)}%`,
+                        background: 'var(--accent)',
+                      }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
           )}
 
+          {/* Documents Tab */}
+          {activeTab === 'documents' && (
+            <section>
+              <div style={sectionHeadStyle}>
+                <h2 style={sectionTitleStyle}>Project documents</h2>
+                <button onClick={() => setShowUploadModal(true)} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  background: 'var(--accent)', border: 'none', color: 'var(--accent-ink)',
+                  padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>upload_file</span>
+                  Upload document
+                </button>
+              </div>
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                {documents.length === 0 ? (
+                  <div style={{ padding: '32px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-400)', fontStyle: 'italic' }}>No documents found.</div>
+                ) : documents.map((doc, i) => (
+                  <div key={doc.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '14px 24px',
+                    borderBottom: i < documents.length - 1 ? '1px solid var(--border)' : 'none',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--ink-400)' }}>description</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-900)' }}>{doc.file_name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 2 }}>
+                          {new Date(doc.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button onClick={() => documentService.downloadDocument(doc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)', padding: 4 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>download</span>
+                      </button>
+                      <button onClick={() => handleDeleteDocument(doc.id, doc.file_name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)', padding: 4 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* History Tab */}
           {activeTab === 'history' && (
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
-              <ProjectHistoryTimeline projectId={projectId!} />
-            </div>
+            <section>
+              <div style={sectionHeadStyle}><h2 style={sectionTitleStyle}>History</h2></div>
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '24px 28px' }}>
+                <ProjectHistoryTimeline projectId={projectId!} />
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'readiness' && project && (
+            <ReadinessTab
+              project={project}
+              scoreDetails={scoreDetails}
+              canEdit={!!canEdit}
+              onGraduate={() => {
+                if (projectId) {
+                  pipelineService.getProject(projectId).then(setProject);
+                  setActiveTab('overview');
+                }
+              }}
+            />
           )}
 
         </div>
 
-        {/* Right Column (Sidebar) */}
-        <div className="flex flex-col gap-6">
-          {/* AI Insight Card */}
-          <div className="rounded-xl p-5 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/20 border border-blue-100 dark:border-blue-900 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-3 opacity-10">
-              <span className="material-symbols-outlined text-6xl text-primary">psychology</span>
-            </div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="material-symbols-outlined text-primary">auto_awesome</span>
-              <h4 className="text-sm font-bold text-primary">AI Agent Insight</h4>
+        {/* Right Sidebar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+          {/* Martin's read — pull quote */}
+          <div style={{
+            padding: '24px 24px 22px',
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderTop: '2px solid var(--accent)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <span style={{ fontFamily: "'Source Serif 4', serif", fontStyle: 'italic', fontSize: 13, color: 'var(--accent)' }}>
+                Martin's read
+              </span>
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
             </div>
             {isLoadingInsight ? (
-              <div className="flex flex-col items-center justify-center py-4">
-                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Analyzing project...</p>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0' }}>
+                <div className="size-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+                <p style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 8 }}>Analyzing project…</p>
               </div>
             ) : (
               <>
-                <p className="text-sm text-slate-700 dark:text-slate-300 mb-3 font-medium">
-                  {aiInsight || 'No insights available yet.'}
-                </p>
-                <div className="bg-white/60 dark:bg-black/20 rounded-lg p-3 text-xs text-slate-600 dark:text-slate-400 backdrop-blur-sm border border-white/50 dark:border-white/10">
-                  <strong>Recommendation:</strong> {aiRecommendation || 'Review matches.'}
-                </div>
+                <p style={{
+                  fontFamily: "'Source Serif 4', serif", fontSize: 16,
+                  color: 'var(--ink-800)', lineHeight: 1.5, margin: 0,
+                }}>{aiInsight || 'No insights available yet.'}</p>
+                {aiRecommendation && (
+                  <div style={{
+                    marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--border)',
+                    fontSize: 11, color: 'var(--ink-500)',
+                  }}>
+                    <div style={{ marginBottom: 6, fontWeight: 500, color: 'var(--ink-700)' }}>Recommended next step</div>
+                    {aiRecommendation}
+                  </div>
+                )}
               </>
             )}
-            <button
-              onClick={fetchAIInsights}
-              disabled={isLoadingInsight}
-              className="mt-3 w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="material-symbols-outlined text-[16px]">psychology</span>
-              {isLoadingInsight ? 'Analyzing...' : 'Refresh AI Insight'}
+            <button onClick={fetchAIInsights} disabled={isLoadingInsight} style={{
+              marginTop: 16, width: '100%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              background: 'transparent', border: '1px solid var(--border)',
+              color: 'var(--ink-700)', fontSize: 12, fontWeight: 500, padding: '7px 10px',
+              cursor: isLoadingInsight ? 'default' : 'pointer', fontFamily: 'inherit',
+              opacity: isLoadingInsight ? 0.6 : 1,
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>psychology</span>
+              {isLoadingInsight ? 'Analyzing…' : 'Refresh insight'}
             </button>
           </div>
+
+          {/* Quick facts */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '18px 24px' }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)' }}>
+              Quick facts
+            </div>
+            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column' }}>
+              {[
+                ['Pillar', (project.pillar || 'General').split(',')[0]],
+                ['Geography', project.lead_country || 'Regional'],
+                ['Sponsor', project.project_sponsor || '—'],
+                ['Stage', STATUS_LABEL[project.status] ?? project.status],
+                ['Cross-border', project.is_cross_border ? 'Yes' : 'No'],
+              ].map(([k, v], i, arr) => (
+                <div key={k} style={{
+                  display: 'grid', gridTemplateColumns: '90px 1fr', gap: 12,
+                  padding: '10px 0', fontSize: 12,
+                  borderBottom: i === arr.length - 1 ? 'none' : '1px solid var(--border)',
+                }}>
+                  <span style={{ color: 'var(--ink-500)' }}>{k}</span>
+                  <span style={{ color: 'var(--ink-900)' }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       </div>
 
       {/* Upload Document Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Upload Document</h3>
-              <button
-                onClick={() => setShowUploadModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: '100%', maxWidth: 480, margin: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink-900)', margin: 0 }}>Upload document</h3>
+              <button onClick={() => setShowUploadModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)', padding: 4 }}>
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-
-            <div className="space-y-4">
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Document Type
+                <label style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, display: 'block', marginBottom: 8 }}>
+                  Document type
                 </label>
                 <select
                   value={documentType}
                   onChange={(e) => setDocumentType(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                  style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
                 >
                   <option value="feasibility_study">Feasibility Study</option>
                   <option value="esia">ESIA Report</option>
@@ -808,39 +925,34 @@ const ProjectDetails: React.FC = () => {
                   <option value="other">Other</option>
                 </select>
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Select File
+                <label style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, display: 'block', marginBottom: 8 }}>
+                  Select file
                 </label>
                 <input
                   type="file"
                   onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-blue-700"
+                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:border-0 file:text-sm file:font-medium"
+                  style={{ fontSize: 13 }}
                 />
                 {selectedFile && (
-                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                    Selected: {selectedFile.name}
-                  </p>
+                  <p style={{ marginTop: 8, fontSize: 12, color: 'var(--ink-600)' }}>Selected: {selectedFile.name}</p>
                 )}
               </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setShowUploadModal(false)}
-                  className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUploadDocument}
-                  disabled={!selectedFile || uploadingDoc}
-                  className="flex-1 px-4 py-2 bg-primary text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {uploadingDoc ? 'Uploading...' : 'Upload'}
-                </button>
-              </div>
+            </div>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+              <button onClick={() => setShowUploadModal(false)} style={{
+                flex: 1, padding: '8px 16px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', fontFamily: 'inherit',
+              }}>Cancel</button>
+              <button onClick={handleUploadDocument} disabled={!selectedFile || uploadingDoc} style={{
+                flex: 1, padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: !selectedFile || uploadingDoc ? 'default' : 'pointer',
+                background: 'var(--accent)', border: 'none', color: 'var(--accent-ink)', fontFamily: 'inherit',
+                opacity: !selectedFile || uploadingDoc ? 0.6 : 1,
+              }}>
+                {uploadingDoc ? 'Uploading…' : 'Upload'}
+              </button>
             </div>
           </div>
         </div>

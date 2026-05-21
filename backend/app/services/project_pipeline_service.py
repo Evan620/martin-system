@@ -49,22 +49,25 @@ class ProjectPipelineService:
         self.doc_intelligence = DocumentIntelligenceService()
 
     async def _ensure_default_criteria(self):
-        """Seed WAIIS scoring criteria; migrate from legacy 7-criteria set if needed."""
+        """Seed 9 WAIIS scoring criteria (Phase 1). Create-if-not-exists only —
+        never overwrites weights an admin has already set."""
         from sqlalchemy import delete as sa_delete
 
         result = await self.db.execute(select(ScoringCriteria))
         existing = result.scalars().all()
-
-        waiis_names = {
-            "Readiness", "Scale of Impact", "Country & Political Enablement",
-            "Bankability", "Additionality", "Scalability/Replicability"
-        }
         existing_names = {c.criterion_name for c in existing}
 
-        if waiis_names.issubset(existing_names):
-            return  # already on current criteria set
+        TARGET_NAMES = {
+            "Readiness", "Scale of Impact", "Country & Political Enablement",
+            "Bankability", "Climate Impact", "Social Impact",
+            "Economic Impact", "ECOWAS Integration", "Scalability/Replicability"
+        }
 
-        # Clear stale criteria and linked score details before re-seeding
+        # Already on the 9-criteria set — nothing to do
+        if TARGET_NAMES.issubset(existing_names):
+            return
+
+        # Remove stale criteria (includes legacy "Additionality" if present)
         if existing:
             for c in existing:
                 await self.db.execute(
@@ -72,21 +75,27 @@ class ProjectPipelineService:
                 )
             await self.db.execute(sa_delete(ScoringCriteria))
             await self.db.commit()
-            logger.info("Cleared legacy scoring criteria; re-seeding with WAIIS criteria")
+            logger.info("Cleared legacy scoring criteria; re-seeding with 9-criteria WAIIS set")
 
         defaults = [
-            {"name": "Readiness", "type": "readiness", "weight": 1.0,
+            {"name": "Readiness",                      "type": "readiness",    "weight": 0.18,
              "desc": "Technical and regulatory readiness (feasibility, ESIA, permits, site control)"},
-            {"name": "Scale of Impact", "type": "impact", "weight": 1.0,
+            {"name": "Scale of Impact",                "type": "impact",       "weight": 0.13,
              "desc": "Investment size and cross-border reach"},
-            {"name": "Country & Political Enablement", "type": "political", "weight": 1.0,
+            {"name": "Country & Political Enablement", "type": "political",    "weight": 0.10,
              "desc": "Government support and policy/land enablement"},
-            {"name": "Bankability", "type": "bankability", "weight": 1.0,
+            {"name": "Bankability",                    "type": "bankability",  "weight": 0.18,
              "desc": "Financial model quality, IRR, and revenue structure"},
-            {"name": "Additionality", "type": "additionality", "weight": 1.0,
-             "desc": "ESG compliance, climate impact, and concessional/blended finance"},
-            {"name": "Scalability/Replicability", "type": "scalability", "weight": 1.0,
-             "desc": "Cross-border potential and investment scale ceiling"},
+            {"name": "Climate Impact",                 "type": "impact",       "weight": 0.10,
+             "desc": "GHG reduction, renewable energy, climate resilience"},
+            {"name": "Social Impact",                  "type": "impact",       "weight": 0.10,
+             "desc": "Jobs, smallholder reach, gender and youth inclusion"},
+            {"name": "Economic Impact",                "type": "impact",       "weight": 0.08,
+             "desc": "ROI, revenue model, macroeconomic contribution"},
+            {"name": "ECOWAS Integration",             "type": "regional",     "weight": 0.10,
+             "desc": "Cross-border integration and ECOWAS regional footprint"},
+            {"name": "Scalability/Replicability",      "type": "scalability",  "weight": 0.03,
+             "desc": "Potential to scale or replicate across the region"},
         ]
 
         for d in defaults:
@@ -98,7 +107,7 @@ class ProjectPipelineService:
             ))
 
         await self.db.commit()
-        logger.info("✓ Seeded 6 WAIIS scoring criteria")
+        logger.info("✓ Seeded 9 WAIIS scoring criteria (Phase 1 set)")
 
     async def assess_project_readiness(self, project_id: uuid.UUID) -> Decimal:
         """
@@ -233,71 +242,132 @@ class ProjectPipelineService:
         
         return aggregated
 
+    _ECOWAS_MEMBERS = {
+        "benin", "burkina faso", "cabo verde", "cape verde", "cote d'ivoire",
+        "côte d'ivoire", "ivory coast", "gambia", "ghana", "guinea",
+        "guinea-bissau", "liberia", "mali", "mauritania", "niger",
+        "nigeria", "senegal", "sierra leone", "togo"
+    }
+
     def _compute_waiis_sub_scores(self, project, agg: dict) -> dict:
-        """Compute 6 WAIIS sub-scores (0-100) from hybrid field + document signals."""
-        # 1. READINESS: technical and regulatory completeness
-        doc_r = 0.0
-        if agg.get("has_feasibility_study"): doc_r += 25
-        if agg.get("has_esia"):              doc_r += 25
-        if agg.get("has_permits"):           doc_r += 25
-        if agg.get("has_site_control"):      doc_r += 25
-        field_r = 0.0
-        if project.permits_licences and str(project.permits_licences).strip(): field_r += 34
-        if project.land_status and str(project.land_status).strip():           field_r += 33
-        if project.technical_studies and str(project.technical_studies).strip(): field_r += 33
+        """Compute 9 WAIIS sub-scores (0-100) from hybrid field + document signals."""
+
+        # 1. READINESS
+        doc_r = sum([
+            25 if agg.get("has_feasibility_study") else 0,
+            25 if agg.get("has_esia") else 0,
+            25 if agg.get("has_permits") else 0,
+            25 if agg.get("has_site_control") else 0,
+        ])
+        field_r = sum([
+            34 if project.permits_licences and str(project.permits_licences).strip() else 0,
+            33 if project.land_status and str(project.land_status).strip() else 0,
+            33 if project.technical_studies and str(project.technical_studies).strip() else 0,
+        ])
         readiness = (doc_r * 0.5) + (field_r * 0.5)
 
-        # 2. SCALE OF IMPACT: investment size + cross-border reach
+        # 2. SCALE OF IMPACT
         inv = float(project.investment_size or 0)
         scale = 75.0 if inv >= 50_000_000 else (50.0 if inv >= 8_000_000 else (25.0 if inv > 0 else 0.0))
-        if project.is_cross_border: scale += 25
+        if project.is_cross_border:
+            scale += 25
         scale = min(100.0, scale)
 
         # 3. COUNTRY & POLITICAL ENABLEMENT
         doc_p = 50.0 if agg.get("has_government_support") else 0.0
         sponsor = str(project.project_sponsor or "").lower()
         land = str(project.land_status or "").lower()
-        field_p = 0.0
-        if any(w in sponsor for w in ["government", "ministry", "public", "state", "federal"]):
-            field_p += 25
-        if any(w in land for w in ["government", "approved", "secured", "acquired", "granted"]):
-            field_p += 25
+        field_p = sum([
+            25 if any(w in sponsor for w in ["government", "ministry", "public", "state", "federal"]) else 0,
+            25 if any(w in land for w in ["government", "approved", "secured", "acquired", "granted"]) else 0,
+        ])
         political = min(100.0, doc_p + field_p)
 
-        # 4. BANKABILITY: financial model quality and returns
+        # 4. BANKABILITY
         doc_b = 25.0 if agg.get("has_financial_model") else 0.0
         irr = agg.get("irr_percentage")
         if irr is not None:
             irr_f = float(irr)
             doc_b += 50 if irr_f >= 15 else (25 if irr_f >= 8 else 0)
-        field_b = 0.0
-        if project.revenue_model and str(project.revenue_model).strip():            field_b += 25
-        if project.financing_structure and str(project.financing_structure).strip(): field_b += 25
+        field_b = sum([
+            25 if project.revenue_model and str(project.revenue_model).strip() else 0,
+            25 if project.financing_structure and str(project.financing_structure).strip() else 0,
+        ])
         bankability = min(100.0, doc_b + field_b)
 
-        # 5. ADDITIONALITY: ESG, climate, concessional finance
-        add = 34.0 if agg.get("esg_compliant") else 0.0
-        if project.esg_compliance and str(project.esg_compliance).strip(): add += 33
-        if project.climate_impact and str(project.climate_impact).strip():  add += 17
-        financing = str(project.financing_structure or "").lower()
-        if any(w in financing for w in ["concessional", "blended", "dfi", "grant", "oda"]):
-            add += 16
-        additionality = min(100.0, add)
+        # 5. CLIMATE IMPACT (replaces Additionality)
+        climate_text = str(project.climate_impact or "").lower()
+        ghg_text = str(project.ghg_avoided_target or "").lower()
+        climate_keywords = ["solar", "wind", "renewable", "ghg", "carbon", "green", "climate",
+                            "emissions", "photovoltaic", "biogas", "hydropower"]
+        doc_climate = 40.0 if agg.get("esg_compliant") else 0.0
+        field_climate = sum([
+            30 if ghg_text.strip() else 0,
+            30 if any(kw in climate_text for kw in climate_keywords) else 0,
+        ])
+        climate_impact = min(100.0, doc_climate + field_climate)
 
-        # 6. SCALABILITY / REPLICABILITY
-        scal = 0.0
-        if project.is_cross_border: scal += 34
-        if project.climate_impact and str(project.climate_impact).strip(): scal += 33
-        if inv >= 50_000_000:   scal += 33
-        elif inv >= 20_000_000: scal += 17
-        scalability = min(100.0, scal)
+        # 6. SOCIAL IMPACT (replaces Additionality)
+        import re
+        jobs_text = str(project.jobs_construction or "") + " " + str(project.jobs_om or "")
+        job_nums = re.findall(r'\d+', jobs_text)
+        total_jobs = sum(int(n) for n in job_nums) if job_nums else 0
+
+        smallholder_text = str(project.smallholder_farmers_reached or "")
+        sh_nums = re.findall(r'\d+', smallholder_text)
+        total_sh = sum(int(n) for n in sh_nums) if sh_nums else 0
+
+        women_pct = project.women_employment_pct or 0.0
+        youth_pct = project.youth_employment_pct or 0.0
+
+        social_impact = sum([
+            25 if total_jobs >= 100 else (12 if total_jobs > 0 else 0),
+            25 if total_sh >= 500 else (12 if total_sh > 0 else 0),
+            25 if women_pct >= 30 else (12 if women_pct > 0 else 0),
+            25 if youth_pct >= 25 else (12 if youth_pct > 0 else 0),
+        ])
+        social_impact = min(100.0, float(social_impact))
+
+        # 7. ECONOMIC IMPACT (replaces Additionality)
+        roi_text = str(project.macroeconomic_roi or "").strip()
+        economic_impact = sum([
+            40 if agg.get("has_financial_model") else 0,
+            30 if roi_text else 0,
+            30 if inv >= 5_000_000 else (15 if inv > 0 else 0),
+        ])
+        economic_impact = min(100.0, float(economic_impact))
+
+        # 8. ECOWAS INTEGRATION
+        lead = str(project.lead_country or "").lower().strip()
+        is_ecowas_country = lead in self._ECOWAS_MEMBERS
+        # Base 20 pts for any lead country (project has regional presence)
+        # Additional pts for ECOWAS membership, cross-border ops, doc evidence
+        ecowas_score = sum([
+            20 if lead else 0,
+            20 if is_ecowas_country else 0,
+            40 if project.is_cross_border else 0,
+            25 if agg.get("cross_border_impact") else 0,
+            15 if project.is_cross_border and is_ecowas_country else 0,
+        ])
+        ecowas_score = min(100.0, float(ecowas_score))
+
+        # 9. SCALABILITY / REPLICABILITY
+        scal = sum([
+            34 if project.is_cross_border else 0,
+            33 if project.climate_impact and str(project.climate_impact).strip() else 0,
+            33 if inv >= 50_000_000 else (17 if inv >= 20_000_000 else 0),
+        ])
+        scalability = min(100.0, float(scal))
 
         return {
             "Readiness": readiness,
             "Scale of Impact": scale,
             "Country & Political Enablement": political,
             "Bankability": bankability,
-            "Additionality": additionality,
+            "Climate Impact": climate_impact,
+            "Social Impact": social_impact,
+            "Economic Impact": economic_impact,
+            "ECOWAS Integration": ecowas_score,
             "Scalability/Replicability": scalability,
         }
 
@@ -326,10 +396,24 @@ class ProjectPipelineService:
             if irr:                            notes.append(f"IRR: {irr}%")
             if project.revenue_model:          notes.append("revenue model ✓")
             if project.financing_structure:    notes.append("financing structure ✓")
-        elif criterion == "Additionality":
-            if agg.get("esg_compliant"):   notes.append("ESG compliant (doc) ✓")
-            if project.esg_compliance:     notes.append("ESG field ✓")
-            if project.climate_impact:     notes.append("climate impact ✓")
+        elif criterion == "Climate Impact":
+            if agg.get("esg_compliant"):          notes.append("ESG compliant (doc) ✓")
+            if project.ghg_avoided_target:        notes.append(f"GHG target: {str(project.ghg_avoided_target)[:30]}")
+            if project.climate_impact:            notes.append("climate impact ✓")
+        elif criterion == "Social Impact":
+            if project.jobs_construction or project.jobs_om: notes.append("jobs data ✓")
+            if project.smallholder_farmers_reached:           notes.append("smallholders ✓")
+            if project.women_employment_pct:                  notes.append(f"women: {project.women_employment_pct:.0f}%")
+            if project.youth_employment_pct:                  notes.append(f"youth: {project.youth_employment_pct:.0f}%")
+        elif criterion == "Economic Impact":
+            if agg.get("has_financial_model"): notes.append("financial model ✓")
+            if project.macroeconomic_roi:      notes.append("ROI data ✓")
+            inv = float(project.investment_size or 0)
+            if inv > 0: notes.append(f"${inv/1e6:.0f}M investment")
+        elif criterion == "ECOWAS Integration":
+            if project.is_cross_border: notes.append("cross-border ✓")
+            if project.lead_country:    notes.append(f"country: {project.lead_country}")
+            if agg.get("cross_border_impact"): notes.append("cross-border impact (doc) ✓")
         elif criterion == "Scalability/Replicability":
             if project.is_cross_border: notes.append("cross-border ✓")
             if project.climate_impact:  notes.append("climate impact ✓")
@@ -639,7 +723,8 @@ class ProjectPipelineService:
     async def ingest_project_proposal(
         self,
         data: Dict[str, Any],
-        submitted_by_user_id: Optional[uuid.UUID] = None
+        submitted_by_user_id: Optional[uuid.UUID] = None,
+        start_in_incubation: bool = True,
     ) -> Dict[str, Any]:
         """
         Ingest a new project proposal and auto-calculate initial scores.
@@ -660,6 +745,17 @@ class ProjectPipelineService:
             strategic_alignment_score=strategic_align
         )
         
+        # Determine initial status
+        if data.get("status") and data["status"] not in ("identified", "DRAFT"):
+            try:
+                initial_status = ProjectStatus(data["status"])
+            except ValueError:
+                initial_status = ProjectStatus.INCUBATION if start_in_incubation else ProjectStatus.DRAFT
+        elif start_in_incubation:
+            initial_status = ProjectStatus.INCUBATION
+        else:
+            initial_status = ProjectStatus.DRAFT
+
         # Create Project
         project = Project(
             twg_id=uuid.UUID(data["twg_id"]),
@@ -668,13 +764,22 @@ class ProjectPipelineService:
             investment_size=data["investment_size"],
             currency=data.get("currency", "USD"),
             readiness_score=readiness,
-            status=ProjectStatus.DRAFT, # Initial status
+            status=initial_status,
             pillar=data.get("pillar"),
             lead_country=data.get("lead_country"),
             afcen_score=afcen_score,
             strategic_alignment_score=Decimal(str(strategic_align)),
             assigned_agent=data.get("assigned_agent"),
-            is_flagship=data.get("is_flagship", False), # New field
+            is_flagship=data.get("is_flagship", False),
+            # Phase 1 classification fields
+            value_chain_stages=data.get("value_chain_stages"),
+            women_employment_pct=data.get("women_employment_pct"),
+            youth_employment_pct=data.get("youth_employment_pct"),
+            # R2 — Gender & Youth intentional design flags
+            gender_intentional=data.get("gender_intentional"),
+            gender_justification=data.get("gender_justification"),
+            youth_focused=data.get("youth_focused"),
+            youth_justification=data.get("youth_justification"),
             metadata_json={
                 **(data.get("metadata_json") or {}), # Merge payload metadata
                 "source": "ingestion_api",
@@ -756,6 +861,10 @@ class ProjectPipelineService:
             "climate_impact", "esg_compliance", "ghg_avoided_target",
             "jobs_construction", "jobs_om", "electricity_connections",
             "digital_connections", "smallholder_farmers_reached",
+            # Phase 1 classification fields
+            "value_chain_stages", "women_employment_pct", "youth_employment_pct",
+            # R2 — Gender & Youth intentional design flags
+            "gender_intentional", "gender_justification", "youth_focused", "youth_justification",
         }
         for field in _UPDATABLE:
             if field in data and data[field] is not None:
@@ -768,7 +877,13 @@ class ProjectPipelineService:
             
         if updated_by_user_id:
             project.updated_by = updated_by_user_id
-            
+
+        # Invalidate readiness gap cache when project is updated
+        if project.metadata_json and "readiness_gap_report" in project.metadata_json:
+            meta = dict(project.metadata_json)
+            del meta["readiness_gap_report"]
+            project.metadata_json = meta
+
         await self.db.commit()
         await self.db.refresh(project)
         

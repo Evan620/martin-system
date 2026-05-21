@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { pipelineService } from '../services/pipelineService';
+import api from '../services/api';
 import { Project, PipelineStats, ProjectStatus } from '../types/pipeline';
 import { useAppSelector } from '../hooks/useRedux';
 import { UserRole } from '../types/auth';
@@ -10,6 +11,7 @@ import InvestorDatabase from './InvestorDatabase';
 // ─── status helpers ───────────────────────────────────────────
 
 const STATUS_LABEL: Record<string, string> = {
+  INCUBATION: '⚗ Incubation',
   DRAFT: 'Draft', PIPELINE: 'Pipeline', UNDER_REVIEW: 'Under review',
   SUMMIT_READY: 'Summit ready', DEAL_ROOM_FEATURED: 'Deal room',
   IN_NEGOTIATION: 'In negotiation', COMMITTED: 'Committed',
@@ -18,6 +20,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_DOT: Record<string, string> = {
+  INCUBATION: '#7c3aed',
   UNDER_REVIEW: 'var(--amber)', PIPELINE: 'var(--ink-400)',
   DEAL_ROOM_FEATURED: 'var(--accent)', IN_NEGOTIATION: 'var(--navy)',
   SUMMIT_READY: 'var(--sage)', COMMITTED: 'var(--sage)',
@@ -72,6 +75,8 @@ const DealPipeline: React.FC = () => {
   const [weightsToast, setWeightsToast] = useState<string | null>(null);
   const [valueChainFilter, setValueChainFilter] = useState('');
   const [genderYouthFilter, setGenderYouthFilter] = useState<'all' | 'gender' | 'youth' | 'both'>('all');
+  const [showIncubation, setShowIncubation] = useState(true);
+  const [threshold, setThreshold] = useState<number>(40);
 
   const { user } = useAppSelector((state) => state.auth);
   const canEdit = user?.role && [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD, UserRole.FACILITATOR].includes(user.role);
@@ -101,6 +106,13 @@ const DealPipeline: React.FC = () => {
     };
     fetchData();
   }, [activeTab, statusFilter, valueChainFilter]);
+
+  useEffect(() => {
+    api.get('/pipeline/settings').then((r: any) => {
+      const t = Number(r.data?.incubation_graduation_threshold);
+      if (!isNaN(t) && t > 0) setThreshold(t);
+    }).catch(() => {});
+  }, []);
 
   const totalPipelineValue = projects.reduce((sum, p) => sum + (Number(p.investment_size) || 0), 0);
   const pendingAIReview = projects.filter(p => p.afcen_score == null).length;
@@ -171,6 +183,8 @@ const DealPipeline: React.FC = () => {
           pipelineService.updateCriterionWeight(c.id, parseFloat(weightEdits[c.id] ?? c.weight))
         )
       );
+      // Save graduation threshold alongside weights
+      await api.patch('/pipeline/settings', { incubation_graduation_threshold: threshold });
       setShowWeightsModal(false);
       setWeightsToast('Weights saved. Rescore projects to apply.');
       setTimeout(() => setWeightsToast(null), 5000);
@@ -186,6 +200,7 @@ const DealPipeline: React.FC = () => {
 
   const itemsPerPage = 10;
   const filteredProjects = projects.filter(p => {
+    if (!showIncubation && p.status === ProjectStatus.INCUBATION) return false;
     if (genderYouthFilter === 'gender') return p.gender_intentional === true;
     if (genderYouthFilter === 'youth') return p.youth_focused === true;
     if (genderYouthFilter === 'both') return p.gender_intentional === true && p.youth_focused === true;
@@ -294,6 +309,20 @@ const DealPipeline: React.FC = () => {
                   </div>
                 );
               })}
+            </div>
+            {/* Graduation threshold */}
+            <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', background: '#faf5ff' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#7c3aed', marginBottom: 4 }}>⚗ Incubation Graduation Threshold</div>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8 }}>Minimum AfCEN score (0–100) required to graduate a project from Incubation to Draft.</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input
+                  type="number" min={0} max={100}
+                  value={threshold}
+                  onChange={e => setThreshold(Number(e.target.value))}
+                  style={{ width: 72, padding: '6px 8px', border: '1px solid #e9d5ff', fontSize: 13, fontWeight: 700, color: '#7c3aed', background: 'white', outline: 'none', textAlign: 'center', fontFamily: "'Geist Mono', monospace" }}
+                />
+                <span style={{ fontSize: 11, color: '#6b7280' }}>/ 100</span>
+              </div>
             </div>
             <div style={{
               padding: '16px 24px', borderTop: '1px solid var(--border)',
@@ -491,6 +520,22 @@ const DealPipeline: React.FC = () => {
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
+        {/* Incubation visibility filter */}
+        <select
+          value={showIncubation ? 'show' : 'hide'}
+          onChange={e => { setShowIncubation(e.target.value === 'show'); setCurrentPage(1); }}
+          style={{
+            background: showIncubation ? '#f5f3ff' : 'var(--surface)',
+            border: `1px solid ${showIncubation ? '#e9d5ff' : 'var(--border)'}`,
+            color: showIncubation ? '#7c3aed' : 'var(--ink-700)',
+            padding: '6px 10px', fontSize: 12,
+            fontFamily: 'inherit', cursor: 'pointer', outline: 'none',
+            fontWeight: showIncubation ? 600 : 400,
+          }}
+        >
+          <option value="show">⚗ Show Incubation</option>
+          <option value="hide">Hide Incubation</option>
+        </select>
         {/* Gender & Youth filter */}
         <select
           value={genderYouthFilter}
@@ -556,6 +601,7 @@ const DealPipeline: React.FC = () => {
           const isAIScored = project.afcen_score != null;
           const last = i === paginatedProjects.length - 1;
           const statusColor = STATUS_DOT[project.status] ?? 'var(--ink-400)';
+          const isIncubation = project.status === ProjectStatus.INCUBATION;
 
           return (
             <div
@@ -565,12 +611,13 @@ const DealPipeline: React.FC = () => {
                 display: 'grid',
                 gridTemplateColumns: 'minmax(0, 2.4fr) 0.8fr 1.2fr 0.9fr 1.1fr 0.9fr',
                 padding: '16px 24px',
-                borderBottom: last ? 'none' : '1px solid var(--border)',
+                borderBottom: last ? 'none' : `1px solid ${isIncubation ? '#f3e8ff' : 'var(--border)'}`,
+                background: isIncubation ? '#faf5ff' : 'var(--surface)',
                 alignItems: 'center',
                 cursor: 'pointer',
               }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--ink-50)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              onMouseLeave={e => (e.currentTarget.style.background = isIncubation ? '#faf5ff' : 'transparent')}
             >
               {/* Project */}
               <div style={{ minWidth: 0, paddingRight: 16 }}>
@@ -580,9 +627,13 @@ const DealPipeline: React.FC = () => {
                       ★ Flagship
                     </span>
                   )}
-                  <span style={{ fontSize: 10, color: 'var(--ink-400)', fontFamily: "'Geist Mono', monospace" }}>
-                    #{project.id.slice(0, 8)}
-                  </span>
+                  {isIncubation ? (
+                    <div style={{ fontSize: 9, color: '#7c3aed', fontWeight: 700, marginBottom: 2, letterSpacing: '0.05em' }}>⚗ INCUBATION</div>
+                  ) : (
+                    <span style={{ fontSize: 10, color: 'var(--ink-400)', fontFamily: "'Geist Mono', monospace" }}>
+                      #{project.id.slice(0, 8)}
+                    </span>
+                  )}
                   {isAIScored && (
                     <span style={{ fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600, opacity: 0.7 }}>
                       AI scored
@@ -636,6 +687,21 @@ const DealPipeline: React.FC = () => {
                     )}
                   </div>
                 )}
+                {isIncubation && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <div style={{ width: 70, height: 3, background: '#e9d5ff', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${Math.min(100, (score / threshold) * 100)}%`,
+                        height: '100%',
+                        background: score >= threshold ? '#16a34a' : '#7c3aed',
+                        borderRadius: 2,
+                      }} />
+                    </div>
+                    <span style={{ fontSize: 9, color: score >= threshold ? '#059669' : '#7c3aed', fontWeight: 600 }}>
+                      {score >= threshold ? '✓ Ready to graduate' : `${score.toFixed(0)}/${threshold} needed`}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Pillar */}
@@ -675,9 +741,19 @@ const DealPipeline: React.FC = () => {
               </div>
 
               {/* Status */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ width: 6, height: 6, borderRadius: 6, background: statusColor, display: 'inline-block', flexShrink: 0 }} />
                 <span style={{ fontSize: 12, color: 'var(--ink-700)' }}>{STATUS_LABEL[project.status] ?? project.status}</span>
+                {isIncubation && score >= threshold && (
+                  <span
+                    onClick={e => { e.stopPropagation(); navigate(`/deal-pipeline/${project.id}`); }}
+                    style={{
+                      fontSize: 9, background: '#dcfce7', color: '#16a34a',
+                      padding: '1px 6px', borderRadius: 10, fontWeight: 700, cursor: 'pointer',
+                      marginLeft: 4, whiteSpace: 'nowrap',
+                    }}
+                  >↑ Graduate</span>
+                )}
               </div>
             </div>
           );

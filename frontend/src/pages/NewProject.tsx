@@ -8,6 +8,8 @@ const NewProject: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
 
+  const [startInIncubation, setStartInIncubation] = useState(true);
+
   const [formData, setFormData] = useState({
     name: '',
     pillar: 'Infrastructure',
@@ -179,6 +181,7 @@ const NewProject: React.FC = () => {
         gender_justification: formData.gender_justification,
         youth_focused: formData.youth_focused,
         youth_justification: formData.youth_justification,
+        start_in_incubation: startInIncubation,
       };
 
       // Add investment memo ID if document was uploaded
@@ -274,6 +277,36 @@ const NewProject: React.FC = () => {
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm">
+        {/* Incubation stage toggle */}
+        <div style={{
+          padding: '14px 20px',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: startInIncubation ? '#faf5ff' : undefined,
+          gap: 16,
+        }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: startInIncubation ? '#7c3aed' : 'var(--ink-900)' }}>
+              {startInIncubation ? '⚗ Start in Incubation (Stage 0)' : '✏ Start as Draft'}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 2 }}>
+              {startInIncubation
+                ? 'Project will be hidden from investors until AfCEN score reaches the graduation threshold.'
+                : 'Project enters the pipeline immediately as a Draft.'}
+            </div>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flexShrink: 0 }}>
+            <span style={{ fontSize: 11, color: 'var(--ink-500)' }}>
+              {startInIncubation ? 'On' : 'Off'}
+            </span>
+            <input
+              type="checkbox"
+              checked={startInIncubation}
+              onChange={e => setStartInIncubation(e.target.checked)}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#7c3aed' }}
+            />
+          </label>
+        </div>
         <div className="p-6 space-y-6">
           {/* Project Name */}
           <div>

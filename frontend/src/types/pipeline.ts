@@ -1,6 +1,9 @@
 
 // Project Status Enum
 export enum ProjectStatus {
+    // Pre-Pipeline
+    INCUBATION = "INCUBATION",
+
     // Submission Phase
     DRAFT = "DRAFT",
     PIPELINE = "PIPELINE",

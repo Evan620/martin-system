@@ -15,6 +15,11 @@ class LifecycleService:
     """
 
     ALLOWED_TRANSITIONS = {
+        (ProjectStatus.INCUBATION, ProjectStatus.DRAFT): {
+            "roles": [UserRole.TWG_FACILITATOR, UserRole.ADMIN, UserRole.SECRETARIAT_LEAD],
+            "description": "Graduate from Incubation to Draft",
+            "uses_graduation_threshold": True,
+        },
         (ProjectStatus.DRAFT, ProjectStatus.PIPELINE): {
             "roles": [UserRole.TWG_FACILITATOR, UserRole.ADMIN, UserRole.SECRETARIAT_LEAD],
             "description": "Submit for early studies"
@@ -61,6 +66,7 @@ class LifecycleService:
     TRANSITION_RULES = ALLOWED_TRANSITIONS
 
     STAGE_DURATION_THRESHOLDS = {
+        ProjectStatus.INCUBATION: 90,
         ProjectStatus.DRAFT: 14,
         ProjectStatus.PIPELINE: 30,
         ProjectStatus.UNDER_REVIEW: 30,
@@ -135,6 +141,50 @@ class LifecycleService:
                 current_score = project.afcen_score or 0
                 if current_score < min_score:
                      raise HTTPException(status_code=400, detail=f"Project score {current_score} is below minimum {min_score} required for {new_status}")
+
+            if rule.get("uses_graduation_threshold"):
+                from app.models.models import PlatformSetting
+                thresh_res = await db.execute(
+                    select(PlatformSetting).where(PlatformSetting.key == "incubation_graduation_threshold")
+                )
+                thresh_setting = thresh_res.scalars().first()
+                threshold = float(thresh_setting.value) if thresh_setting else 40.0
+                current_score = float(project.afcen_score or 0)
+                if current_score < threshold:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Project score {current_score:.1f} is below graduation threshold {threshold:.0f}. "
+                               f"Need {threshold - current_score:.1f} more points."
+                    )
+
+            # Gender/youth gate: UNDER_REVIEW → SUMMIT_READY requires fields filled and above threshold
+            if current_status == ProjectStatus.UNDER_REVIEW and new_status == ProjectStatus.SUMMIT_READY:
+                GENDER_THRESHOLD = 30.0
+                YOUTH_THRESHOLD = 25.0
+
+                women_pct = project.women_employment_pct
+                youth_pct = project.youth_employment_pct
+
+                if women_pct is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Cannot advance to Summit Ready: women employment % is required (field: women_employment_pct)"
+                    )
+                if youth_pct is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Cannot advance to Summit Ready: youth employment % is required (field: youth_employment_pct)"
+                    )
+                if women_pct < GENDER_THRESHOLD:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Cannot advance to Summit Ready: women employment {women_pct:.0f}% is below required 30%"
+                    )
+                if youth_pct < YOUTH_THRESHOLD:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Cannot advance to Summit Ready: youth employment {youth_pct:.0f}% is below required 25%"
+                    )
 
         # 3. Apply Change
         project.status = new_status

@@ -27,26 +27,8 @@ AVAILABLE_AGENTS = [
 def get_prompt(agent_id: str) -> str:
     """
     Get the system prompt for a specific agent.
-
-    Prompts are loaded from individual .txt files in the prompts/ directory.
-    Results are cached for performance.
-
-    Args:
-        agent_id: Agent identifier (supervisor, energy, agriculture, etc.)
-
-    Returns:
-        str: System prompt for the agent
-
-    Raises:
-        ValueError: If agent_id is not found
-        FileNotFoundError: If prompt file doesn't exist
-
-    Example:
-        >>> prompt = get_prompt("energy")
-        >>> print(prompt[:50])
-        You are Energy Martin, the Energy Trade and...
+    For 'supervisor', appends platform_guide.txt if present.
     """
-    # Check if agent exists
     if agent_id not in AVAILABLE_AGENTS:
         available = ", ".join(AVAILABLE_AGENTS)
         raise ValueError(
@@ -54,11 +36,9 @@ def get_prompt(agent_id: str) -> str:
             f"Available agents: {available}"
         )
 
-    # Check cache first
     if agent_id in _PROMPT_CACHE:
         return _PROMPT_CACHE[agent_id]
 
-    # Load from file
     prompts_dir = Path(__file__).parent / "prompts"
     prompt_file = prompts_dir / f"{agent_id}.txt"
 
@@ -67,12 +47,17 @@ def get_prompt(agent_id: str) -> str:
             f"Prompt file not found for agent '{agent_id}': {prompt_file}"
         )
 
-    # Read and cache
     with open(prompt_file, 'r', encoding='utf-8') as f:
         prompt = f.read().strip()
 
-    _PROMPT_CACHE[agent_id] = prompt
+    if agent_id == "supervisor":
+        guide_file = prompts_dir / "platform_guide.txt"
+        if guide_file.exists():
+            with open(guide_file, 'r', encoding='utf-8') as f:
+                guide = f.read().strip()
+            prompt = prompt + "\n\n" + guide
 
+    _PROMPT_CACHE[agent_id] = prompt
     return prompt
 
 

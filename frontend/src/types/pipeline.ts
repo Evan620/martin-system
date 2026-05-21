@@ -85,6 +85,17 @@ export interface Project {
     // Submission
     submitted_by?: string;
 
+    // Section A — Classification (Phase 1)
+    value_chain_stages?: string[];
+    women_employment_pct?: number;
+    youth_employment_pct?: number;
+
+    // R2 — Gender & Youth intentional design flags
+    gender_intentional?: boolean;
+    gender_justification?: string;
+    youth_focused?: boolean;
+    youth_justification?: string;
+
     // Metadata from backend API
     days_in_stage?: number;
     is_stalled?: boolean;

@@ -72,6 +72,15 @@ def _project_to_read(p: "Project", current_user: "User") -> ProjectPipelineRead:
         digital_connections=p.digital_connections,
         smallholder_farmers_reached=p.smallholder_farmers_reached,
         submitted_by=p.submitted_by,
+        # Phase 1 — Classification fields
+        value_chain_stages=p.value_chain_stages,
+        women_employment_pct=p.women_employment_pct,
+        youth_employment_pct=p.youth_employment_pct,
+        # R2 — Gender & Youth intentional design flags
+        gender_intentional=p.gender_intentional,
+        gender_justification=p.gender_justification,
+        youth_focused=p.youth_focused,
+        youth_justification=p.youth_justification,
         allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role),
     )
 
@@ -80,23 +89,27 @@ def _project_to_read(p: "Project", current_user: "User") -> ProjectPipelineRead:
 async def list_pipeline_projects(
     stage: Optional[ProjectStatus] = None,
     pillar: Optional[str] = None,
+    value_chain_stage: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     List projects in the deal pipeline with optional filtering.
+    value_chain_stage: filter to projects that include this stage, e.g. 'INPUTS'
     """
     query = select(Project)
-    
+
     if stage:
         query = query.where(Project.status == stage)
     if pillar:
         # Case-insensitive pillar filter
         query = query.where(Project.pillar.ilike(f"%{pillar}%"))
-        
+    if value_chain_stage:
+        query = query.where(Project.value_chain_stages.contains([value_chain_stage]))
+
     result = await db.execute(query)
     projects = result.scalars().all()
-    
+
     return [_project_to_read(p, current_user) for p in projects]
 
 @router.post("/ingest", response_model=ProjectPipelineRead)
@@ -478,6 +491,44 @@ async def rescore_project(
             status_code=500,
             detail=f"Scoring failed: {str(e)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Platform Settings endpoints (admin-configurable thresholds)
+# ---------------------------------------------------------------------------
+
+@router.get("/settings")
+async def get_platform_settings(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """Return all platform settings as key/value pairs. Admin only."""
+    from app.models.models import PlatformSetting
+    result = await db.execute(select(PlatformSetting))
+    settings = result.scalars().all()
+    return {s.key: s.value for s in settings}
+
+
+@router.patch("/settings")
+async def update_platform_settings(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """Update one or more platform settings. Admin only."""
+    from app.models.models import PlatformSetting
+    ALLOWED_KEYS = {"gender_threshold_pct", "youth_threshold_pct"}
+    for key, value in payload.items():
+        if key not in ALLOWED_KEYS:
+            raise HTTPException(status_code=400, detail=f"Unknown setting key: {key}")
+        result = await db.execute(select(PlatformSetting).where(PlatformSetting.key == key))
+        setting = result.scalars().first()
+        if setting:
+            setting.value = str(value)
+        else:
+            db.add(PlatformSetting(key=key, value=str(value)))
+    await db.commit()
+    return {"updated": list(payload.keys())}
 
 
 # ---------------------------------------------------------------------------

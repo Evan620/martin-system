@@ -67,6 +67,17 @@ class ProjectUpdate(BaseModel):
     digital_connections: Optional[str] = None
     smallholder_farmers_reached: Optional[str] = None
 
+    # Section A — Classification (Phase 1)
+    value_chain_stages: Optional[List[str]] = None
+    women_employment_pct: Optional[float] = None
+    youth_employment_pct: Optional[float] = None
+
+    # R2 — Gender & Youth intentional design flags
+    gender_intentional: Optional[bool] = None
+    gender_justification: Optional[str] = None
+    youth_focused: Optional[bool] = None
+    youth_justification: Optional[str] = None
+
 class ProjectAdvanceStage(BaseModel):
     """Schema for advancing a project stage"""
     new_stage: ProjectStatus
@@ -159,6 +170,17 @@ class ProjectPipelineRead(BaseModel):
 
     # Submission metadata
     submitted_by: Optional[str] = None
+
+    # Phase 1 — Classification fields
+    value_chain_stages: Optional[List[str]] = None
+    women_employment_pct: Optional[float] = None
+    youth_employment_pct: Optional[float] = None
+
+    # R2 — Gender & Youth intentional design flags
+    gender_intentional: Optional[bool] = None
+    gender_justification: Optional[str] = None
+    youth_focused: Optional[bool] = None
+    youth_justification: Optional[str] = None
 
     # Lifecycle Config
     allowed_transitions: List[str] = []

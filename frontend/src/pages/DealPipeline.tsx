@@ -7,6 +7,52 @@ import { UserRole } from '../types/auth';
 import DealRoomDashboard from './DealRoomDashboard';
 import InvestorDatabase from './InvestorDatabase';
 
+// ─── status helpers ───────────────────────────────────────────
+
+const STATUS_LABEL: Record<string, string> = {
+  DRAFT: 'Draft', PIPELINE: 'Pipeline', UNDER_REVIEW: 'Under review',
+  SUMMIT_READY: 'Summit ready', DEAL_ROOM_FEATURED: 'Deal room',
+  IN_NEGOTIATION: 'In negotiation', COMMITTED: 'Committed',
+  IMPLEMENTED: 'Implemented', DECLINED: 'Declined',
+  NEEDS_REVISION: 'Needs revision', ON_HOLD: 'On hold',
+};
+
+const STATUS_DOT: Record<string, string> = {
+  UNDER_REVIEW: 'var(--amber)', PIPELINE: 'var(--ink-400)',
+  DEAL_ROOM_FEATURED: 'var(--accent)', IN_NEGOTIATION: 'var(--navy)',
+  SUMMIT_READY: 'var(--sage)', COMMITTED: 'var(--sage)',
+  IMPLEMENTED: 'var(--sage)', NEEDS_REVISION: 'var(--terra)',
+  DECLINED: 'var(--terra)', ON_HOLD: 'var(--ink-400)', DRAFT: 'var(--ink-400)',
+};
+
+function fmtMoney(n: number) {
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
+  return `$${n.toLocaleString()}`;
+}
+
+// ─── sub-components ───────────────────────────────────────────
+
+function LedgerStat({ label, value, sub, accent = false, last = false }: {
+  label: string; value: string | number; sub: string; accent?: boolean; last?: boolean;
+}) {
+  return (
+    <div style={{ paddingRight: 24, borderRight: last ? 'none' : '1px solid var(--border)' }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>
+        {label}
+      </div>
+      <div style={{
+        fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 28,
+        color: accent ? 'var(--accent)' : 'var(--ink-900)', letterSpacing: '-0.02em',
+        marginTop: 4, lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+      }}>{value}</div>
+      <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 6 }}>{sub}</div>
+    </div>
+  );
+}
+
+// ─── main component ───────────────────────────────────────────
+
 const DealPipeline: React.FC = () => {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'pipeline' | 'deal_room' | 'investors'>('pipeline');
@@ -24,6 +70,8 @@ const DealPipeline: React.FC = () => {
   const [weightEdits, setWeightEdits] = useState<Record<string, string>>({});
   const [weightsSaving, setWeightsSaving] = useState(false);
   const [weightsToast, setWeightsToast] = useState<string | null>(null);
+  const [valueChainFilter, setValueChainFilter] = useState('');
+  const [genderYouthFilter, setGenderYouthFilter] = useState<'all' | 'gender' | 'youth' | 'both'>('all');
 
   const { user } = useAppSelector((state) => state.auth);
   const canEdit = user?.role && [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD, UserRole.FACILITATOR].includes(user.role);
@@ -37,7 +85,8 @@ const DealPipeline: React.FC = () => {
         const [projectsData, statsData] = await Promise.all([
           pipelineService.listProjects(
             statusFilter !== '' ? (statusFilter as ProjectStatus) : undefined,
-            activeTab !== 'all' ? activeTab : undefined
+            activeTab !== 'all' ? activeTab : undefined,
+            valueChainFilter || undefined
           ),
           pipelineService.getStats()
         ]);
@@ -51,65 +100,7 @@ const DealPipeline: React.FC = () => {
       }
     };
     fetchData();
-  }, [activeTab, statusFilter]);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'DRAFT':              return 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
-      case 'PIPELINE':           return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
-      case 'UNDER_REVIEW':       return 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300';
-      case 'SUMMIT_READY':       return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
-      case 'DEAL_ROOM_FEATURED': return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300';
-      case 'IN_NEGOTIATION':     return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300';
-      case 'COMMITTED':          return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300';
-      case 'IMPLEMENTED':        return 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300';
-      case 'DECLINED':           return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
-      case 'NEEDS_REVISION':     return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
-      case 'ON_HOLD':            return 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
-      default:                   return 'bg-slate-100 text-slate-800';
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      DRAFT: 'Draft', PIPELINE: 'Pipeline', UNDER_REVIEW: 'Under Review',
-      SUMMIT_READY: 'Summit Ready', DEAL_ROOM_FEATURED: 'Deal Room Featured',
-      IN_NEGOTIATION: 'In Negotiation', COMMITTED: 'Committed',
-      IMPLEMENTED: 'Implemented', DECLINED: 'Declined',
-      NEEDS_REVISION: 'Needs Revision', ON_HOLD: 'On Hold',
-    };
-    return labels[status] || status;
-  };
-
-  const getPillarIcon = (pillar?: string) => {
-    const p = pillar?.toLowerCase() || '';
-    if (p.includes('infra')) return 'train';
-    if (p.includes('energy')) return 'solar_power';
-    if (p.includes('agri')) return 'agriculture';
-    if (p.includes('tech') || p.includes('digital')) return 'computer';
-    return 'business';
-  };
-
-  const getIconColorClasses = (pillar?: string) => {
-    const p = pillar?.toLowerCase() || '';
-    if (p.includes('infra')) return 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400';
-    if (p.includes('energy')) return 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400';
-    if (p.includes('agri')) return 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400';
-    if (p.includes('tech') || p.includes('digital')) return 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400';
-    return 'bg-slate-100 dark:bg-slate-900/30 text-slate-600 dark:text-slate-400';
-  };
-
-  const getProgressColor = (score: number) => {
-    if (score >= 80) return 'bg-green-500';
-    if (score >= 60) return 'bg-primary';
-    return 'bg-yellow-500';
-  };
-
-  const formatCurrency = (amount: number) => {
-    if (amount >= 1_000_000_000) return `$${(amount / 1_000_000_000).toFixed(1)}B`;
-    if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(1)}M`;
-    return `$${amount.toLocaleString()}`;
-  };
+  }, [activeTab, statusFilter, valueChainFilter]);
 
   const totalPipelineValue = projects.reduce((sum, p) => sum + (Number(p.investment_size) || 0), 0);
   const pendingAIReview = projects.filter(p => p.afcen_score == null).length;
@@ -193,89 +184,138 @@ const DealPipeline: React.FC = () => {
 
   const totalWeight = criteria.reduce((s, c) => s + parseFloat(weightEdits[c.id] ?? c.weight), 0);
 
-  const handleNewProject = () => navigate('/deal-pipeline/new');
-
   const itemsPerPage = 10;
-  const totalPages = Math.ceil(projects.length / itemsPerPage);
-  const paginatedProjects = projects.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const filteredProjects = projects.filter(p => {
+    if (genderYouthFilter === 'gender') return p.gender_intentional === true;
+    if (genderYouthFilter === 'youth') return p.youth_focused === true;
+    if (genderYouthFilter === 'both') return p.gender_intentional === true && p.youth_focused === true;
+    return true;
+  });
+  const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
+  const paginatedProjects = filteredProjects.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const vm = viewMode as string;
   if (vm === 'deal_room') return <DealRoomDashboard />;
   if (vm === 'investors' && canAccessInvestorDB) return <InvestorDatabase />;
 
+  const toastStyle = (isError: boolean): React.CSSProperties => ({
+    position: 'fixed', bottom: 24, right: 24, zIndex: 50,
+    display: 'flex', alignItems: 'center', gap: 12,
+    padding: '12px 16px', fontSize: 13, fontWeight: 500,
+    background: isError ? '#dc2626' : '#16a34a', color: '#fff',
+    borderRadius: 6, boxShadow: '0 4px 20px rgba(0,0,0,.2)',
+    fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
+  });
+
+  const PILLAR_TABS = [
+    { key: 'all', label: 'All projects' },
+    { key: 'infrastructure', label: 'Infrastructure' },
+    { key: 'energy', label: 'Energy' },
+    { key: 'agriculture', label: 'Agriculture' },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Import Toast */}
+    <div style={{ maxWidth: 1180, margin: '0 auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+
+      {/* Toasts */}
       {importToast && (
-        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all ${importToast.startsWith('Error') ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
-          <span className="material-symbols-outlined text-[20px]">
+        <div style={toastStyle(importToast.startsWith('Error'))}>
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
             {importToast.startsWith('Error') ? 'error' : 'check_circle'}
           </span>
           {importToast}
-          <button onClick={() => setImportToast(null)} className="ml-2 opacity-75 hover:opacity-100">
-            <span className="material-symbols-outlined text-[18px]">close</span>
+          <button onClick={() => setImportToast(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', marginLeft: 8, opacity: 0.7 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
           </button>
         </div>
       )}
-
-      {/* Weights Toast */}
       {weightsToast && (
-        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${weightsToast.startsWith('Error') ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
-          <span className="material-symbols-outlined text-[20px]">{weightsToast.startsWith('Error') ? 'error' : 'check_circle'}</span>
+        <div style={toastStyle(weightsToast.startsWith('Error'))}>
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
+            {weightsToast.startsWith('Error') ? 'error' : 'check_circle'}
+          </span>
           {weightsToast}
-          <button onClick={() => setWeightsToast(null)} className="ml-2 opacity-75 hover:opacity-100">
-            <span className="material-symbols-outlined text-[18px]">close</span>
+          <button onClick={() => setWeightsToast(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', marginLeft: 8, opacity: 0.7 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
           </button>
         </div>
       )}
 
-      {/* Scoring Weights Modal */}
+      {/* Weights Modal */}
       {showWeightsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 50,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.5)',
+        }}>
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            width: '100%', maxWidth: 520, margin: 16, overflow: 'hidden',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '20px 24px', borderBottom: '1px solid var(--border)',
+            }}>
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">WAIIS Scoring Weights</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Adjust how each criterion contributes to the AfCEN score. Weights are relative — higher weight = more influence.</p>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink-900)', margin: 0 }}>WAIIS Scoring Weights</h3>
+                <p style={{ fontSize: 11, color: 'var(--ink-500)', margin: '4px 0 0' }}>
+                  Adjust how each criterion contributes to the AfCEN score.
+                </p>
               </div>
-              <button onClick={() => setShowWeightsModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+              <button onClick={() => setShowWeightsModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)', padding: 4 }}>
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            <div className="px-6 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
+            <div style={{ padding: '16px 24px', maxHeight: '60vh', overflowY: 'auto' }}>
               {criteria.map((c: any) => {
                 const w = parseFloat(weightEdits[c.id] ?? c.weight);
                 const pct = totalWeight > 0 ? ((w / totalWeight) * 100).toFixed(1) : '0';
                 return (
-                  <div key={c.id} className="flex items-center gap-4">
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{c.criterion_name}</div>
-                      <div className="text-xs text-slate-400 mt-0.5">{pct}% of AfCEN score</div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 mt-1">
-                        <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-900)' }}>{c.criterion_name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--ink-500)', margin: '2px 0 6px' }}>{pct}% of AfCEN score</div>
+                      <div style={{ height: 2, background: 'var(--ink-100)', position: 'relative' }}>
+                        <div style={{ position: 'absolute', inset: 0, width: `${pct}%`, background: 'var(--accent)' }} />
                       </div>
                     </div>
                     <input
-                      type="number"
-                      min="0"
-                      max="9.99"
-                      step="0.1"
+                      type="number" min="0" max="9.99" step="0.1"
                       value={weightEdits[c.id] ?? c.weight}
                       onChange={e => setWeightEdits(prev => ({ ...prev, [c.id]: e.target.value }))}
-                      className="w-20 text-center border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-sm font-bold text-slate-900 dark:text-white bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-primary"
+                      style={{
+                        width: 72, textAlign: 'center',
+                        border: '1px solid var(--border)', padding: '6px 8px',
+                        fontSize: 13, fontWeight: 600, color: 'var(--ink-900)',
+                        background: 'var(--surface)', outline: 'none',
+                        fontFamily: "'Geist Mono', monospace",
+                      }}
                     />
                   </div>
                 );
               })}
             </div>
-            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <span className="text-xs text-slate-400">Total weight: <strong className="text-slate-700 dark:text-slate-200">{totalWeight.toFixed(2)}</strong></span>
-              <div className="flex gap-2">
-                <button onClick={() => setShowWeightsModal(false)} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+            <div style={{
+              padding: '16px 24px', borderTop: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <span style={{ fontSize: 11, color: 'var(--ink-500)' }}>
+                Total weight: <strong style={{ color: 'var(--ink-900)' }}>{totalWeight.toFixed(2)}</strong>
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setShowWeightsModal(false)} style={{
+                  padding: '8px 16px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                  background: 'transparent', border: '1px solid var(--border)',
+                  color: 'var(--ink-700)', fontFamily: 'inherit',
+                }}>
                   Cancel
                 </button>
-                <button onClick={handleSaveWeights} disabled={weightsSaving} className="px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60">
-                  {weightsSaving ? 'Saving...' : 'Save Weights'}
+                <button onClick={handleSaveWeights} disabled={weightsSaving} style={{
+                  padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: weightsSaving ? 'default' : 'pointer',
+                  background: 'var(--accent)', border: 'none', color: 'var(--accent-ink)',
+                  fontFamily: 'inherit', opacity: weightsSaving ? 0.6 : 1,
+                }}>
+                  {weightsSaving ? 'Saving…' : 'Save weights'}
                 </button>
               </div>
             </div>
@@ -283,368 +323,393 @@ const DealPipeline: React.FC = () => {
         </div>
       )}
 
-      {/* Breadcrumbs */}
-      <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-        <a href="/dashboard" className="hover:text-primary transition-colors">Dashboard</a>
-        <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-        <span className="text-slate-900 dark:text-white font-medium">Deal Pipeline</span>
-      </div>
-
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            Deal Pipeline - Investment Opportunities
-          </h2>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">
-            Manage and evaluate regional investment opportunities.
-          </p>
+      {/* ── Page header ─────────────────────────────────────── */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)' }}>
+            Deal pipeline
+          </div>
+          <div style={{ width: 16, height: 1, background: 'var(--border)' }} />
+          <span style={{ fontSize: 10, color: 'var(--ink-400)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            Q2 2026 · Updated {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} GMT
+          </span>
         </div>
-        <div className="flex items-center gap-2">
-          {/* View mode tabs */}
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-            <button
-              onClick={() => setViewMode('pipeline')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'pipeline' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              All Projects
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24 }}>
+          <h1 style={{
+            fontFamily: "'Source Serif 4', serif", fontWeight: 400,
+            fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)',
+            margin: 0, lineHeight: 1.1, maxWidth: 720,
+          }}>
+            Regional investment opportunities, ranked and tracked.
+          </h1>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            {/* View mode switcher */}
+            <div style={{ display: 'flex', border: '1px solid var(--border)', overflow: 'hidden' }}>
+              {[
+                { key: 'pipeline', label: 'All projects' },
+                { key: 'deal_room', label: 'Deal room' },
+                ...(canAccessInvestorDB ? [{ key: 'investors', label: 'Investors' }] : []),
+              ].map(({ key, label }) => (
+                <button key={key} onClick={() => setViewMode(key as any)} style={{
+                  padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                  background: viewMode === key ? 'var(--accent)' : 'transparent',
+                  border: 'none', color: viewMode === key ? 'var(--accent-ink)' : 'var(--ink-700)',
+                  fontFamily: 'inherit', borderRight: key !== 'investors' ? '1px solid var(--border)' : 'none',
+                }}>{label}</button>
+              ))}
+            </div>
+            <button onClick={handleExport} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: 'transparent', border: '1px solid var(--border)',
+              color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span>
+              Export
             </button>
-            <button
-              onClick={() => setViewMode('deal_room')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${'deal_room' === vm ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              Deal Room
-            </button>
-            {canAccessInvestorDB && (
-              <button
-                onClick={() => setViewMode('investors')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${'investors' === vm ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                Investor DB
+            {canEdit && (
+              <button onClick={handleImportExcel} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: 'transparent', border: '1px solid var(--border)',
+                color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>upload_file</span>
+                Import
+              </button>
+            )}
+            {canEdit && (
+              <button onClick={() => navigate('/deal-pipeline/new')} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: 'var(--accent)', border: '1px solid var(--accent)',
+                color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+                New project
               </button>
             )}
           </div>
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
-          >
-            <span className="material-symbols-outlined text-[20px]">download</span>
-            Export
-          </button>
-          {canEdit && (
-            <button
-              onClick={handleImportExcel}
-              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
-            >
-              <span className="material-symbols-outlined text-[20px]">upload_file</span>
-              Import from Excel
-            </button>
-          )}
-          {canEdit && (
-            <button
-              onClick={handleNewProject}
-              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 transition-all"
-            >
-              <span className="material-symbols-outlined text-[20px]">add</span>
-              New Project
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Pipeline Value</p>
-            <span className="material-symbols-outlined text-green-600 bg-green-100 dark:bg-green-900/30 p-1 rounded">trending_up</span>
-          </div>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white mt-2">
-            {loading ? '—' : formatCurrency(totalPipelineValue)}
-          </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-            Across {stats?.total_projects ?? projects.length} projects
-          </p>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">High Readiness Projects</p>
-            <span className="material-symbols-outlined text-primary bg-primary/10 dark:bg-primary/20 p-1 rounded">verified</span>
-          </div>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white mt-2">
-            {loading ? '—' : (stats?.healthy_projects ?? 0)}
-          </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-            Ready for immediate investment
-          </p>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Pending AI Review</p>
-            <span className="material-symbols-outlined text-purple-600 bg-purple-100 dark:bg-purple-900/30 p-1 rounded">smart_toy</span>
-          </div>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white mt-2">
-            {loading ? '—' : pendingAIReview}
-          </p>
-          <p className="text-xs text-purple-600 font-medium mt-1">Awaiting agent analysis</p>
-        </div>
+      {/* ── KPI strip ───────────────────────────────────────── */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        padding: '22px 32px', marginBottom: 24,
+      }}>
+        <LedgerStat label="Total pipeline value" value={loading ? '—' : fmtMoney(totalPipelineValue)} sub={`across ${stats?.total_projects ?? projects.length} projects`} />
+        <LedgerStat label="High readiness" value={loading ? '—' : (stats?.healthy_projects ?? 0)} sub="score ≥ 75" />
+        <LedgerStat label="Pending AI review" value={loading ? '—' : pendingAIReview} sub="awaiting agent analysis" accent />
+        <LedgerStat label="Avg. AfCEN score" value={
+          loading ? '—' : projects.length > 0
+            ? `${(projects.filter(p => p.afcen_score != null).reduce((s, p) => s + Number(p.afcen_score), 0) / Math.max(projects.filter(p => p.afcen_score != null).length, 1)).toFixed(1)}`
+            : '—'
+        } sub="scored projects" last />
       </div>
 
-      {/* AI Insight Widget */}
+      {/* ── Martin notes strip ──────────────────────────────── */}
       {showAIInsight && (
-        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-xl p-4 flex items-start gap-4 shadow-sm relative overflow-hidden">
-          <div className="absolute -right-10 -top-10 h-32 w-32 bg-indigo-200 dark:bg-indigo-800 rounded-full blur-3xl opacity-20"></div>
-          <div className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm shrink-0 text-indigo-600 dark:text-indigo-400">
-            <span className="material-symbols-outlined">auto_awesome</span>
-          </div>
-          <div className="flex-1 z-10">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">AfCEN AI Agent Insight</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-              {pendingAIReview > 0
-                ? `${pendingAIReview} project${pendingAIReview > 1 ? 's' : ''} ${pendingAIReview > 1 ? 'are' : 'is'} awaiting AfCEN algorithm scoring. Completing financial data submissions could significantly improve overall readiness.`
-                : 'All projects have been scored by the AfCEN algorithm. Review individual projects for detailed investment insights.'}
-            </p>
-          </div>
-          <button
-            onClick={() => setShowAIInsight(false)}
-            className="absolute top-2 right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 z-10"
-          >
-            <span className="material-symbols-outlined text-[18px]">close</span>
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderLeft: '2px solid var(--accent)',
+          padding: '16px 24px', marginBottom: 20,
+          display: 'flex', alignItems: 'flex-start', gap: 16,
+        }}>
+          <span style={{
+            fontFamily: "'Source Serif 4', serif", fontStyle: 'italic',
+            fontSize: 13, color: 'var(--accent)', paddingTop: 2, flexShrink: 0,
+          }}>Martin notes</span>
+          <p style={{
+            margin: 0, fontFamily: "'Source Serif 4', serif", fontSize: 15,
+            color: 'var(--ink-700)', lineHeight: 1.5, flex: 1,
+          }}>
+            {pendingAIReview > 0
+              ? `${pendingAIReview} project${pendingAIReview > 1 ? 's' : ''} ${pendingAIReview > 1 ? 'are' : 'is'} awaiting AfCEN algorithm scoring. Completing financial data submissions could significantly improve overall readiness.`
+              : 'All projects have been scored by the AfCEN algorithm. Review individual projects for detailed investment insights.'}
+          </p>
+          <button onClick={() => setShowAIInsight(false)} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--ink-400)', padding: 0, flexShrink: 0,
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
           </button>
         </div>
       )}
 
-      {/* Filters & Toolbar */}
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-        {/* Pillar Tabs */}
-        <div className="flex p-1 bg-slate-100 dark:bg-slate-700 rounded-lg w-full sm:w-auto overflow-x-auto">
-          {['all', 'infrastructure', 'energy', 'agriculture'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => { setActiveTab(tab); setCurrentPage(1); }}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all whitespace-nowrap capitalize ${
-                activeTab === tab
-                  ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              {tab === 'all' ? 'All Projects' : tab === 'energy' ? 'Energy Trade and Industrial Growth' : tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
+      {/* ── Filters bar ─────────────────────────────────────── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,
+        paddingBottom: 14, borderBottom: '1px solid var(--border)',
+      }}>
+        {/* Pillar tabs */}
+        <div style={{ display: 'flex', gap: 0 }}>
+          {PILLAR_TABS.map(({ key, label }) => {
+            const on = activeTab === key;
+            return (
+              <button key={key} onClick={() => { setActiveTab(key); setCurrentPage(1); }} style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                padding: '6px 12px', fontSize: 12, fontWeight: on ? 500 : 400,
+                color: on ? 'var(--ink-900)' : 'var(--ink-500)',
+                borderBottom: on ? '2px solid var(--accent)' : '2px solid transparent',
+                fontFamily: 'inherit', marginBottom: -15,
+              }}>{label}</button>
+            );
+          })}
+        </div>
+        <div style={{ flex: 1 }} />
+        {/* Value chain filter */}
+        <select
+          value={valueChainFilter}
+          onChange={(e) => { setValueChainFilter(e.target.value); setCurrentPage(1); }}
+          style={{
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            color: 'var(--ink-700)', padding: '6px 10px', fontSize: 12,
+            fontFamily: 'inherit', cursor: 'pointer', outline: 'none',
+          }}
+        >
+          <option value="">All value chains</option>
+          <option value="INPUTS">Inputs</option>
+          <option value="PRODUCTION">Production</option>
+          <option value="PROCESSING">Processing</option>
+          <option value="LOGISTICS">Logistics</option>
+          <option value="RETAIL">Retail / Market</option>
+        </select>
+        {/* Status filter */}
+        <select
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+          style={{
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            color: 'var(--ink-700)', padding: '6px 10px', fontSize: 12,
+            fontFamily: 'inherit', cursor: 'pointer', outline: 'none',
+          }}
+        >
+          <option value="">Any status</option>
+          {Object.entries(STATUS_LABEL).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </select>
+        {/* Gender & Youth filter */}
+        <select
+          value={genderYouthFilter}
+          onChange={e => { setGenderYouthFilter(e.target.value as typeof genderYouthFilter); setCurrentPage(1); }}
+          style={{
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            color: 'var(--ink-700)', padding: '6px 10px', fontSize: 12,
+            fontFamily: 'inherit', cursor: 'pointer', outline: 'none',
+          }}
+        >
+          <option value="all">All Projects</option>
+          <option value="gender">Gender-Intentional</option>
+          <option value="youth">Youth-Focused</option>
+          <option value="both">Gender &amp; Youth</option>
+        </select>
+        {canAccessInvestorDB && (
+          <button onClick={handleOpenWeights} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            background: 'transparent', border: '1px solid var(--border)',
+            color: 'var(--ink-600)', padding: '6px 8px', fontSize: 12,
+            cursor: 'pointer', fontFamily: 'inherit',
+          }} title="Configure WAIIS scoring weights">
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>tune</span>
+          </button>
+        )}
+      </div>
+
+      {/* ── Table ───────────────────────────────────────────── */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        {/* Column headers */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 2.4fr) 0.8fr 1.2fr 0.9fr 1.1fr 0.9fr',
+          padding: '12px 24px', borderBottom: '1px solid var(--border)',
+          background: 'var(--ink-50)',
+        }}>
+          {['Project', 'Pillar', 'Lead / Co.', 'Investment', 'AfCEN score', 'Status'].map(h => (
+            <div key={h} style={{
+              fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
+              color: 'var(--ink-500)', fontWeight: 500,
+            }}>{h}</div>
           ))}
         </div>
 
-        {/* Status Filter */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="relative w-full sm:w-52">
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-              className="w-full appearance-none bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-sm rounded-lg focus:ring-primary focus:border-primary block px-3 py-2 pr-8"
-            >
-              <option value="">Status: All</option>
-              <option value={ProjectStatus.DRAFT}>Draft</option>
-              <option value={ProjectStatus.PIPELINE}>Pipeline</option>
-              <option value={ProjectStatus.UNDER_REVIEW}>Under Review</option>
-              <option value={ProjectStatus.SUMMIT_READY}>Summit Ready</option>
-              <option value={ProjectStatus.DEAL_ROOM_FEATURED}>Deal Room Featured</option>
-              <option value={ProjectStatus.IN_NEGOTIATION}>In Negotiation</option>
-              <option value={ProjectStatus.COMMITTED}>Committed</option>
-              <option value={ProjectStatus.IMPLEMENTED}>Implemented</option>
-              <option value={ProjectStatus.ON_HOLD}>On Hold</option>
-              <option value={ProjectStatus.DECLINED}>Declined</option>
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
-              <span className="material-symbols-outlined text-[20px]">expand_more</span>
-            </div>
-          </div>
-          <button className="p-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600">
-            <span className="material-symbols-outlined text-[20px]">filter_list</span>
-          </button>
-          {canAccessInvestorDB && (
-            <button
-              onClick={handleOpenWeights}
-              className="p-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600"
-              title="Configure WAIIS scoring weights"
-            >
-              <span className="material-symbols-outlined text-[20px]">tune</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Data Table */}
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
         {error ? (
-          <div className="p-12 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
-              <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-4xl">error</span>
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Failed to Load Pipeline</h3>
-            <p className="text-slate-600 dark:text-slate-400 mb-6 max-w-md mx-auto">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors"
-            >
-              <span className="material-symbols-outlined text-[20px]">refresh</span>
-              Retry
-            </button>
+          <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+            <div style={{ fontSize: 13, color: 'var(--terra)', marginBottom: 12 }}>{error}</div>
+            <button onClick={() => window.location.reload()} style={{
+              background: 'var(--accent)', color: 'var(--accent-ink)', border: 'none',
+              padding: '8px 18px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+            }}>Retry</button>
           </div>
         ) : loading ? (
-          <div className="p-8 text-center text-slate-500">Loading projects...</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
-                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Project Name</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Pillar</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Lead Country/Co.</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Investment</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Readiness Score</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {paginatedProjects.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
-                      No projects found.
-                    </td>
-                  </tr>
-                ) : paginatedProjects.map((project) => {
-                  const score = Number(project.afcen_score ?? project.readiness_score ?? 0);
-                  const isAIScored = project.afcen_score != null;
-                  return (
-                    <tr
-                      key={project.id}
-                      onClick={() => navigate(`/deal-pipeline/${encodeURIComponent(project.id)}`)}
-                      className="group hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
-                    >
-                      {/* Project Name */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${getIconColorClasses(project.pillar)}`}>
-                            <span className="material-symbols-outlined">{getPillarIcon(project.pillar)}</span>
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{project.name}</p>
-                            <p className="text-xs text-slate-500">ID: {project.id.slice(0, 8)}</p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Pillar */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
-                          {project.pillar || '—'}
-                        </span>
-                      </td>
-
-                      {/* Lead Country/Co. */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex flex-col">
-                          <span className="text-sm text-slate-900 dark:text-white">{project.lead_country || '—'}</span>
-                          <span className="text-xs text-slate-500">{project.project_sponsor || ''}</span>
-                        </div>
-                      </td>
-
-                      {/* Investment */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-medium text-slate-900 dark:text-white">
-                          {project.investment_size ? formatCurrency(project.investment_size) : '—'}
-                        </span>
-                      </td>
-
-                      {/* Readiness Score */}
-                      <td className="px-6 py-4 whitespace-nowrap min-w-[180px]">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-medium text-slate-700 dark:text-slate-200">{score.toFixed(0)}%</span>
-                            {isAIScored && (
-                              <div className="flex items-center gap-1 text-purple-600 dark:text-purple-400" title="AI Calculated Score">
-                                <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
-                                <span className="text-[10px] font-bold">AI SCORED</span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                            <div
-                              className={`${getProgressColor(score)} h-2 rounded-full`}
-                              style={{ width: `${score}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
-                          {getStatusLabel(project.status)}
-                        </span>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); navigate(`/deal-pipeline/${encodeURIComponent(project.id)}`); }}
-                          className="text-slate-400 hover:text-primary transition-colors p-1"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">visibility</span>
-                        </button>
-                        <button
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-slate-400 hover:text-primary transition-colors p-1 ml-2"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">more_vert</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div style={{ padding: '48px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-500)' }}>
+            Loading projects…
           </div>
-        )}
-
-        {/* Pagination */}
-        {!loading && !error && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-            <div className="text-sm text-slate-500 dark:text-slate-400">
-              Showing{' '}
-              <span className="font-medium text-slate-900 dark:text-white">
-                {Math.min((currentPage - 1) * itemsPerPage + 1, projects.length)}
-              </span>
-              {' '}to{' '}
-              <span className="font-medium text-slate-900 dark:text-white">
-                {Math.min(currentPage * itemsPerPage, projects.length)}
-              </span>
-              {' '}of{' '}
-              <span className="font-medium text-slate-900 dark:text-white">{projects.length}</span> results
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-600"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage >= totalPages}
-                className="px-3 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-600"
-              >
-                Next
-              </button>
-            </div>
+        ) : paginatedProjects.length === 0 ? (
+          <div style={{ padding: '48px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-400)' }}>
+            No projects found.
           </div>
-        )}
+        ) : paginatedProjects.map((project, i) => {
+          const score = Number(project.afcen_score ?? project.readiness_score ?? 0);
+          const isAIScored = project.afcen_score != null;
+          const last = i === paginatedProjects.length - 1;
+          const statusColor = STATUS_DOT[project.status] ?? 'var(--ink-400)';
+
+          return (
+            <div
+              key={project.id}
+              onClick={() => navigate(`/deal-pipeline/${encodeURIComponent(project.id)}`)}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 2.4fr) 0.8fr 1.2fr 0.9fr 1.1fr 0.9fr',
+                padding: '16px 24px',
+                borderBottom: last ? 'none' : '1px solid var(--border)',
+                alignItems: 'center',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--ink-50)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              {/* Project */}
+              <div style={{ minWidth: 0, paddingRight: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  {(project as any).flagship && (
+                    <span style={{ fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600 }}>
+                      ★ Flagship
+                    </span>
+                  )}
+                  <span style={{ fontSize: 10, color: 'var(--ink-400)', fontFamily: "'Geist Mono', monospace" }}>
+                    #{project.id.slice(0, 8)}
+                  </span>
+                  {isAIScored && (
+                    <span style={{ fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600, opacity: 0.7 }}>
+                      AI scored
+                    </span>
+                  )}
+                </div>
+                <div style={{
+                  fontSize: 14, color: 'var(--ink-900)', fontWeight: 500,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>{project.name}</div>
+                {project.value_chain_stages && project.value_chain_stages.length > 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 3 }}>
+                    {project.value_chain_stages.map(s => s.charAt(0) + s.slice(1).toLowerCase()).join(' · ')}
+                  </div>
+                )}
+                {/* Gender & Youth intentional design badges */}
+                {(project.gender_intentional || project.youth_focused) && (
+                  <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                    {project.gender_intentional && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 2,
+                        padding: '1px 6px', borderRadius: 4, fontSize: 9,
+                        fontWeight: 600, letterSpacing: '0.06em',
+                        background: 'var(--green-50, #f0fdf4)', color: 'var(--green-700, #15803d)',
+                        border: '1px solid var(--green-200, #bbf7d0)',
+                      }}>
+                        &#9792; Gender &#10003;
+                      </span>
+                    )}
+                    {project.youth_focused && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 2,
+                        padding: '1px 6px', borderRadius: 4, fontSize: 9,
+                        fontWeight: 600, letterSpacing: '0.06em',
+                        background: 'var(--blue-50, #eff6ff)', color: 'var(--blue-700, #1d4ed8)',
+                        border: '1px solid var(--blue-200, #bfdbfe)',
+                      }}>
+                        &#9675; Youth &#10003;
+                      </span>
+                    )}
+                    {project.gender_intentional && project.youth_focused && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 2,
+                        padding: '1px 6px', borderRadius: 4, fontSize: 9,
+                        fontWeight: 600, letterSpacing: '0.06em',
+                        background: 'var(--amber-50, #fffbeb)', color: 'var(--amber-700, #b45309)',
+                        border: '1px solid var(--amber-200, #fde68a)',
+                      }}>
+                        &#9733; Gender &amp; Youth
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Pillar */}
+              <div style={{ fontSize: 12, color: 'var(--ink-700)' }}>{project.pillar || '—'}</div>
+
+              {/* Lead */}
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--ink-900)' }}>{project.lead_country || '—'}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 2 }}>{project.project_sponsor || ''}</div>
+              </div>
+
+              {/* Investment */}
+              <div style={{
+                fontSize: 14, fontFamily: "'Geist Mono', monospace",
+                color: 'var(--ink-900)', fontVariantNumeric: 'tabular-nums',
+              }}>
+                {project.investment_size ? fmtMoney(Number(project.investment_size)) : '—'}
+              </div>
+
+              {/* Score */}
+              <div style={{ paddingRight: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{
+                    fontSize: 13, fontFamily: "'Geist Mono', monospace",
+                    color: 'var(--ink-900)', fontWeight: 500,
+                  }}>{score.toFixed(0)}</span>
+                  <span style={{ fontSize: 10, color: 'var(--ink-400)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    {score >= 75 ? 'Strong' : score >= 60 ? 'Moderate' : 'Weak'}
+                  </span>
+                </div>
+                <div style={{ height: 2, background: 'var(--ink-100)', position: 'relative' }}>
+                  <div style={{
+                    position: 'absolute', inset: 0, width: `${score}%`,
+                    background: score >= 75 ? 'var(--accent)' : score >= 60 ? 'var(--amber)' : 'var(--terra)',
+                  }} />
+                </div>
+              </div>
+
+              {/* Status */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 6, height: 6, borderRadius: 6, background: statusColor, display: 'inline-block', flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: 'var(--ink-700)' }}>{STATUS_LABEL[project.status] ?? project.status}</span>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      <div className="h-10"></div>
+      {/* ── Footer / pagination ─────────────────────────────── */}
+      {!loading && !error && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 4px', fontSize: 11, color: 'var(--ink-500)',
+        }}>
+          <span style={{ fontFamily: "'Geist Mono', monospace" }}>
+            Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredProjects.length)}–
+            {Math.min(currentPage * itemsPerPage, filteredProjects.length)} of {filteredProjects.length} · {fmtMoney(totalPipelineValue)} total
+          </span>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[{ label: '‹ Prev', enabled: currentPage > 1, action: () => setCurrentPage(p => Math.max(1, p - 1)) },
+              { label: 'Next ›', enabled: currentPage < totalPages, action: () => setCurrentPage(p => Math.min(totalPages, p + 1)) }
+            ].map(({ label, enabled, action }) => (
+              <button key={label} onClick={action} disabled={!enabled} style={{
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                color: enabled ? 'var(--ink-700)' : 'var(--ink-400)',
+                padding: '5px 10px', fontSize: 11, fontFamily: 'inherit',
+                cursor: enabled ? 'pointer' : 'default',
+              }}>{label}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ height: 32 }} />
     </div>
   );
 };

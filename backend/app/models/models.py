@@ -3,7 +3,7 @@ import enum
 from datetime import datetime
 from typing import List, Optional
 from decimal import Decimal
-from sqlalchemy import String, DateTime, Enum, ForeignKey, Column, Table, Text, Numeric, Float, Boolean, JSON, Uuid, Integer
+from sqlalchemy import String, DateTime, Enum, ForeignKey, Column, Table, Text, Numeric, Float, Boolean, JSON, Uuid, Integer, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 try:
@@ -610,6 +610,17 @@ class Project(Base):
     digital_connections: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     smallholder_farmers_reached: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Investment Template Fields — Section A (Classification — Phase 1)
+    value_chain_stages: Mapped[Optional[List[str]]] = mapped_column(ARRAY(Text), nullable=True)
+    women_employment_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    youth_employment_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Gender & Youth intentional design flags (R2 — Carren benchmark)
+    gender_intentional: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    gender_justification: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    youth_focused: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    youth_justification: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Submission metadata
     submitted_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
@@ -921,6 +932,17 @@ class TwgSettings(Base):
 
     # Relationships
     twg: Mapped["TWG"] = relationship("TWG")
+
+
+class PlatformSetting(Base):
+    """Key/value store for admin-configurable platform settings (e.g. gender/youth thresholds)."""
+    __tablename__ = "platform_settings"
+    __table_args__ = {'extend_existing': True}
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    value: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 
 class OrganizationInvitation(Base):
     """

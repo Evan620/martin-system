@@ -1,14 +1,17 @@
 import { useLocation } from 'react-router-dom';
+import { BriefingData } from '../../services/martinService';
 
 interface ActionChip {
     emoji: string;
     label: string;
     template: string;
+    color?: 'red' | 'blue' | 'amber' | 'default';
 }
 
 interface SuggestedActionsProps {
     onFillInput: (text: string) => void;
     onSubmit: (text: string) => void;
+    briefing?: BriefingData | null;
 }
 
 const SUGGESTED_ACTIONS: Record<string, ActionChip[]> = {
@@ -32,27 +35,75 @@ const SUGGESTED_ACTIONS: Record<string, ActionChip[]> = {
     ],
 };
 
-const DEFAULT_CHIPS: ActionChip[] = [
-    { emoji: '💬', label: 'Ask a question', template: 'What is the status of [topic]?' },
-    { emoji: '📝', label: 'Draft report', template: 'Draft a report on [topic] for [TWG]' },
-    { emoji: '📅', label: 'Check schedule', template: 'What meetings are scheduled this week?' },
-    { emoji: '✅', label: 'Add task', template: 'Create an action item: [task] assigned to [person] due [date]' },
+const FALLBACK_CHIPS: ActionChip[] = [
+    { emoji: '📅', label: "What's on today?", template: "What's on my schedule today?" },
+    { emoji: '📁', label: 'Show my projects', template: 'Show me the projects in the pipeline' },
+    { emoji: '❓', label: 'Help me navigate', template: 'How do I use the Deal Pipeline?' },
 ];
 
 function hasPlaceholder(template: string): boolean {
     return /\[.+?\]/.test(template);
 }
 
-function getChipsForPath(pathname: string): ActionChip[] {
+function getPageChips(pathname: string): ActionChip[] | null {
     for (const [pattern, chips] of Object.entries(SUGGESTED_ACTIONS)) {
         if (pathname.startsWith(pattern)) return chips;
     }
-    return DEFAULT_CHIPS;
+    return null;
 }
 
-export default function SuggestedActions({ onFillInput, onSubmit }: SuggestedActionsProps) {
+function getBriefingChips(briefing: BriefingData): ActionChip[] {
+    const chips: ActionChip[] = [];
+
+    if (briefing.threshold_alerts.length > 0) {
+        const count = briefing.threshold_alerts.length;
+        chips.push({
+            emoji: '⚠️',
+            label: `Fix ${count} gap${count > 1 ? 's' : ''}`,
+            template: 'Show me the projects below the gender and youth employment threshold',
+            color: 'red',
+        });
+    }
+
+    if (briefing.upcoming_meetings.length > 0) {
+        const m = briefing.upcoming_meetings[0];
+        chips.push({
+            emoji: '📅',
+            label: 'Prep for meeting',
+            template: `Help me prepare for the ${m.title} meeting`,
+            color: 'blue',
+        });
+    }
+
+    if (briefing.overdue_items.length > 0) {
+        chips.push({
+            emoji: '📋',
+            label: 'Review notifications',
+            template: 'Show me my unread notifications',
+            color: 'amber',
+        });
+    }
+
+    return chips.length > 0 ? chips : FALLBACK_CHIPS;
+}
+
+const COLOR_CLASSES: Record<string, string> = {
+    red: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300',
+    blue: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+    default: 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300',
+};
+
+export default function SuggestedActions({ onFillInput, onSubmit, briefing }: SuggestedActionsProps) {
     const { pathname } = useLocation();
-    const chips = getChipsForPath(pathname);
+
+    // Priority: page-specific > briefing-driven > fallback
+    const pageChips = getPageChips(pathname);
+    const chips: ActionChip[] = pageChips
+        ? pageChips
+        : briefing
+        ? getBriefingChips(briefing)
+        : FALLBACK_CHIPS;
 
     const handleChip = (chip: ActionChip) => {
         if (hasPlaceholder(chip.template)) {
@@ -64,16 +115,19 @@ export default function SuggestedActions({ onFillInput, onSubmit }: SuggestedAct
 
     return (
         <div className="px-3 py-2 flex gap-1.5 flex-wrap border-b border-slate-100 dark:border-slate-700/60">
-            {chips.map(chip => (
-                <button
-                    key={chip.label}
-                    onClick={() => handleChip(chip)}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 text-xs font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                >
-                    <span>{chip.emoji}</span>
-                    <span>{chip.label}</span>
-                </button>
-            ))}
+            {chips.map(chip => {
+                const colorClass = COLOR_CLASSES[chip.color ?? 'default'];
+                return (
+                    <button
+                        key={chip.label}
+                        onClick={() => handleChip(chip)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${colorClass}`}
+                    >
+                        <span>{chip.emoji}</span>
+                        <span>{chip.label}</span>
+                    </button>
+                );
+            })}
         </div>
     );
 }

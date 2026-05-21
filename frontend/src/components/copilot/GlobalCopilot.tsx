@@ -5,13 +5,11 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { RootState } from '../../store';
 import { UserRole } from '../../types/auth';
-import { useAgentStream, StreamMessage, NavigateEvent } from '../../hooks/useAgentStream';
-import { API_URL } from '../../services/api';
+import { useAgentStream, NavigateEvent } from '../../hooks/useAgentStream';
 import CopilotHeader from './CopilotHeader';
 import SuggestedActions from './SuggestedActions';
-import ToolStepRow from './ToolStepRow';
-import ActionConfirmCard, { ActionRequiredEvent } from './ActionConfirmCard';
 import CopilotInput from './CopilotInput';
+import { getBriefing, BriefingData } from '../../services/martinService';
 
 interface GlobalCopilotProps {
     onClose: () => void;
@@ -37,16 +35,6 @@ interface AgentMessage {
 }
 
 type LocalMessage = UserMessage | AgentMessage;
-
-const STEP_TYPES = new Set(['routing', 'agent', 'tool_call', 'tool_result']);
-
-function isStepEvent(msg: StreamMessage): boolean {
-    return STEP_TYPES.has(msg.event.type);
-}
-
-function isActionRequired(msg: StreamMessage): msg is StreamMessage & { event: ActionRequiredEvent } {
-    return (msg.event as ActionRequiredEvent).type === 'action_required';
-}
 
 // ---------------------------------------------------------------------------
 // Context resolution helpers
@@ -90,7 +78,6 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
     const {
         messages: streamEvents,
         isStreaming,
-        streamingText,
         conversationId: streamConvId,
         sendMessage: sendStreamMessage,
         cancel,
@@ -102,6 +89,8 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
 
     // Input
     const [input, setInput] = useState('');
+    const [briefing, setBriefing] = useState<BriefingData | null>(null);
+    const [isBriefingLoading, setIsBriefingLoading] = useState(true);
 
     // Scroll ref
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -148,7 +137,7 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [localMessages, isStreaming, streamingText]);
+    }, [localMessages, isStreaming]);
 
     // Handle navigate events from Martin
     useEffect(() => {
@@ -157,6 +146,61 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
             navigate((navEvent.event as NavigateEvent).path);
         }
     }, [streamEvents, navigate]);
+
+    const buildBriefingMessage = (data: BriefingData): string => {
+        const lines: string[] = [];
+        const hasContent =
+            data.upcoming_meetings.length > 0 ||
+            data.threshold_alerts.length > 0 ||
+            data.overdue_items.length > 0;
+
+        if (!hasContent) {
+            lines.push(`${data.greeting}. Things look good — nothing urgent today.`);
+            lines.push('\nWhat would you like to do?');
+        } else {
+            lines.push(`${data.greeting}. A few things for your attention:\n`);
+            data.threshold_alerts.forEach((a) => {
+                const label = a.gap_type === 'gender' ? 'gender' : 'youth';
+                const current = a.current_pct != null ? `${a.current_pct.toFixed(0)}%` : 'not set';
+                lines.push(`⚠️ **${a.project_name}** — ${label} employment gap (${current} / ${a.required_pct}% required)`);
+            });
+            data.upcoming_meetings.forEach((m) => {
+                const hrs = Math.floor(m.minutes_until / 60);
+                const mins = m.minutes_until % 60;
+                const timeStr = hrs > 0 ? `in ${hrs}h ${mins}m` : `in ${mins} minutes`;
+                lines.push(`📅 **${m.title}** ${timeStr}${m.twg_name ? ` (${m.twg_name})` : ''}`);
+            });
+            data.overdue_items.forEach((o) => {
+                lines.push(`📋 **${o.title}** — unread for ${o.days_overdue} day${o.days_overdue !== 1 ? 's' : ''}`);
+            });
+            lines.push('\nWhat would you like to tackle first?');
+        }
+        return lines.join('\n');
+    };
+
+    // Fetch briefing on mount and inject as first message
+    useEffect(() => {
+        let cancelled = false;
+        setIsBriefingLoading(true);
+        getBriefing()
+            .then((data) => {
+                if (cancelled) return;
+                setBriefing(data);
+                setLocalMessages([{
+                    id: 'briefing',
+                    content: buildBriefingMessage(data),
+                    sender: 'agent',
+                    timestamp: new Date().toISOString(),
+                }]);
+            })
+            .catch(() => {
+                if (cancelled) return;
+            })
+            .finally(() => {
+                if (!cancelled) setIsBriefingLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleSend = () => {
         if (!input.trim() || isStreaming) return;
@@ -184,31 +228,22 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
     const handleClearHistory = () => {
         setLocalMessages([]);
         setConversationId(undefined);
+        setBriefing(null);
+        setIsBriefingLoading(true);
+        getBriefing()
+            .then((data) => {
+                setBriefing(data);
+                setLocalMessages([{
+                    id: 'briefing-refresh',
+                    content: buildBriefingMessage(data),
+                    sender: 'agent',
+                    timestamp: new Date().toISOString(),
+                }]);
+            })
+            .catch(() => {})
+            .finally(() => setIsBriefingLoading(false));
     };
 
-    const handleExecuteAction = async (
-        actionId: string,
-        confirmed: boolean,
-        edits?: Record<string, unknown>,
-    ) => {
-        const token = localStorage.getItem('token');
-        try {
-            await fetch(`${API_URL}/agents/execute`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ action_id: actionId, confirmed, edits: edits ?? {} }),
-            });
-        } catch (err) {
-            console.error('[GlobalCopilot] execute action failed', err);
-        }
-    };
-
-    // Collect stream step events for current streaming cycle
-    const stepEvents = streamEvents.filter(isStepEvent);
-    const actionRequiredEvents = streamEvents.filter(isActionRequired);
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-dark-card">
@@ -223,6 +258,7 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
             />
 
             <SuggestedActions
+                briefing={briefing}
                 onFillInput={handleFillInput}
                 onSubmit={(text) => {
                     setInput(text);
@@ -283,63 +319,30 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
                     </div>
                 ))}
 
-                {/* Streaming: tool steps */}
-                {isStreaming && stepEvents.length > 0 && (
-                    <div className="space-y-1">
-                        {stepEvents.map(msg => {
-                            const event = msg.event;
-                            if (
-                                event.type === 'routing' ||
-                                event.type === 'agent' ||
-                                event.type === 'tool_call' ||
-                                event.type === 'tool_result'
-                            ) {
-                                return (
-                                    <ToolStepRow
-                                        key={msg.id}
-                                        event={event}
-                                        startedAt={Date.now()}
-                                    />
-                                );
-                            }
-                            return null;
-                        })}
-                    </div>
-                )}
-
-                {/* Streaming: action required cards */}
-                {actionRequiredEvents.map(msg => (
-                    <ActionConfirmCard
-                        key={msg.id}
-                        event={msg.event as ActionRequiredEvent}
-                        onExecute={handleExecuteAction}
-                    />
-                ))}
-
-                {/* Streaming: live text bubble */}
-                {isStreaming && streamingText && (
-                    <div className="flex gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-                            <span className="text-white text-[10px] font-bold leading-none">✦</span>
-                        </div>
-                        <div className="p-3 rounded-2xl rounded-tl-none max-w-[90%] text-xs leading-relaxed bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <div className="prose prose-xs dark:prose-invert max-w-none">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Streaming indicator when no text yet */}
-                {isStreaming && !streamingText && stepEvents.length === 0 && (
+                {/* Briefing loading indicator */}
+                {isBriefingLoading && localMessages.length === 0 && (
                     <div className="flex gap-2 items-center">
                         <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-                            <span className="text-white text-[10px] font-bold leading-none">✦</span>
+                            <span className="text-white text-[10px] font-bold leading-none animate-pulse">✦</span>
                         </div>
-                        <div className="flex gap-1 px-3 py-2">
-                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        <div className="flex gap-1 items-center px-1 py-2">
+                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                    </div>
+                )}
+
+                {/* Streaming: animated thinking indicator */}
+                {isStreaming && (
+                    <div className="flex gap-2 items-center">
+                        <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <span className="text-white text-[10px] font-bold leading-none animate-pulse">✦</span>
+                        </div>
+                        <div className="flex gap-1 items-center px-1 py-2">
+                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                         </div>
                     </div>
                 )}

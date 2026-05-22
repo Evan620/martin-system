@@ -100,11 +100,6 @@ async def list_pipeline_projects(
     """
     query = select(Project)
 
-    # Investors never see incubation projects
-    from app.models.models import UserRole as _Role
-    if current_user.role == _Role.INVESTOR:
-        query = query.where(Project.status != ProjectStatus.INCUBATION)
-
     if stage:
         query = query.where(Project.status == stage)
     if pillar:
@@ -184,6 +179,46 @@ async def update_scoring_criterion_weight(
         description=criterion.description
     )
 
+
+# ---------------------------------------------------------------------------
+# Platform Settings endpoints — MUST be before /{project_id} to avoid routing clash
+# ---------------------------------------------------------------------------
+
+@router.get("/settings")
+async def get_platform_settings(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """Return all platform settings as key/value pairs. Admin only."""
+    from app.models.models import PlatformSetting
+    result = await db.execute(select(PlatformSetting))
+    settings = result.scalars().all()
+    return {s.key: s.value for s in settings}
+
+
+@router.patch("/settings")
+async def update_platform_settings(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """Update one or more platform settings. Admin only."""
+    from app.models.models import PlatformSetting
+    ALLOWED_KEYS = {"gender_threshold_pct", "youth_threshold_pct", "incubation_graduation_threshold"}
+    for key, value in payload.items():
+        if key not in ALLOWED_KEYS:
+            raise HTTPException(status_code=400, detail=f"Unknown setting key: {key}")
+        result = await db.execute(select(PlatformSetting).where(PlatformSetting.key == key))
+        setting = result.scalars().first()
+        if setting:
+            setting.value = str(value)
+        else:
+            db.add(PlatformSetting(key=key, value=str(value)))
+    await db.commit()
+    return {"updated": list(payload.keys())}
+
+
+# ---------------------------------------------------------------------------
 
 @router.get("/{project_id}", response_model=ProjectPipelineRead)
 async def get_project_details(
@@ -503,6 +538,7 @@ async def rescore_project(
 @router.get("/{project_id}/readiness-gap", response_model=ReadinessGapRead)
 async def get_readiness_gap(
     project_id: uuid.UUID,
+    refresh: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_facilitator),
 ):
@@ -522,10 +558,10 @@ async def get_readiness_gap(
     threshold = float(thresh_setting.value) if thresh_setting else 40.0
     current_score = float(project.afcen_score or 0)
 
-    # Return cached report if available
+    # Return cached report if available (skip if refresh=true)
     meta = project.metadata_json or {}
     cached_report = meta.get("readiness_gap_report")
-    if cached_report:
+    if cached_report and not refresh:
         return ReadinessGapRead(
             gaps=[ReadinessGapItem(**g) for g in cached_report["gaps"]],
             current_score=current_score,
@@ -611,44 +647,6 @@ async def get_readiness_gap(
     await db.commit()
 
     return ReadinessGapRead(gaps=gaps, current_score=current_score, threshold=threshold, cached=False)
-
-
-# ---------------------------------------------------------------------------
-# Platform Settings endpoints (admin-configurable thresholds)
-# ---------------------------------------------------------------------------
-
-@router.get("/settings")
-async def get_platform_settings(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin)
-):
-    """Return all platform settings as key/value pairs. Admin only."""
-    from app.models.models import PlatformSetting
-    result = await db.execute(select(PlatformSetting))
-    settings = result.scalars().all()
-    return {s.key: s.value for s in settings}
-
-
-@router.patch("/settings")
-async def update_platform_settings(
-    payload: dict,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin)
-):
-    """Update one or more platform settings. Admin only."""
-    from app.models.models import PlatformSetting
-    ALLOWED_KEYS = {"gender_threshold_pct", "youth_threshold_pct", "incubation_graduation_threshold"}
-    for key, value in payload.items():
-        if key not in ALLOWED_KEYS:
-            raise HTTPException(status_code=400, detail=f"Unknown setting key: {key}")
-        result = await db.execute(select(PlatformSetting).where(PlatformSetting.key == key))
-        setting = result.scalars().first()
-        if setting:
-            setting.value = str(value)
-        else:
-            db.add(PlatformSetting(key=key, value=str(value)))
-    await db.commit()
-    return {"updated": list(payload.keys())}
 
 
 # ---------------------------------------------------------------------------

@@ -525,12 +525,12 @@ const DealPipeline: React.FC = () => {
           value={showIncubation ? 'show' : 'hide'}
           onChange={e => { setShowIncubation(e.target.value === 'show'); setCurrentPage(1); }}
           style={{
-            background: showIncubation ? '#f5f3ff' : 'var(--surface)',
-            border: `1px solid ${showIncubation ? '#e9d5ff' : 'var(--border)'}`,
-            color: showIncubation ? '#7c3aed' : 'var(--ink-700)',
+            background: 'var(--surface)',
+            border: `1px solid ${showIncubation ? '#7c3aed' : 'var(--border)'}`,
+            color: 'var(--ink-700)',
             padding: '6px 10px', fontSize: 12,
             fontFamily: 'inherit', cursor: 'pointer', outline: 'none',
-            fontWeight: showIncubation ? 600 : 400,
+            fontWeight: 400,
           }}
         >
           <option value="show">⚗ Show Incubation</option>

@@ -41,6 +41,7 @@ const ReadinessTab: React.FC<Props> = ({ project, scoreDetails, onGraduate, canE
   const [gapError, setGapError] = useState<string | null>(null);
   const [graduating, setGraduating] = useState(false);
   const [threshold, setThreshold] = useState(40);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     api.get('/pipeline/settings').then((r: any) => {
@@ -49,15 +50,20 @@ const ReadinessTab: React.FC<Props> = ({ project, scoreDetails, onGraduate, canE
     }).catch(() => {});
   }, []);
 
-  useEffect(() => {
+  const fetchGapReport = (forceRefresh = false) => {
     if (!project.id) return;
-    setLoadingGap(true);
+    forceRefresh ? setRefreshing(true) : setLoadingGap(true);
     setGapError(null);
-    api.get(`/pipeline/${project.id}/readiness-gap`)
+    const url = `/pipeline/${project.id}/readiness-gap${forceRefresh ? '?refresh=true' : ''}`;
+    api.get(url)
       .then((r: any) => setGapReport(r.data))
       .catch((e: any) => setGapError(e?.response?.data?.detail || 'Failed to load gap report'))
-      .finally(() => setLoadingGap(false));
-  }, [project.id]);
+      .finally(() => { setLoadingGap(false); setRefreshing(false); });
+  };
+
+  useEffect(() => {
+    fetchGapReport();
+  }, [project.id, project.afcen_score]);
 
   const currentScore = Number(project.afcen_score ?? 0);
   const scorePercent = Math.min(100, (currentScore / threshold) * 100);
@@ -166,8 +172,16 @@ const ReadinessTab: React.FC<Props> = ({ project, scoreDetails, onGraduate, canE
             <div style={{ width: 22, height: 22, borderRadius: 6, background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ color: 'white', fontSize: 11, fontWeight: 700 }}>✦</span>
             </div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'white' }}>Martin's Gap Report</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'white', flex: 1 }}>Martin's Gap Report</div>
             {gapReport?.cached && <span style={{ fontSize: 9, color: '#818cf8' }}>(cached)</span>}
+            <button
+              onClick={() => fetchGapReport(true)}
+              disabled={refreshing || loadingGap}
+              title="Regenerate gap report"
+              style={{ background: 'transparent', border: '1px solid #4c1d95', color: '#a78bfa', borderRadius: 4, padding: '2px 7px', fontSize: 9, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              {refreshing ? '…' : '↻ Refresh'}
+            </button>
           </div>
 
           {loadingGap ? (

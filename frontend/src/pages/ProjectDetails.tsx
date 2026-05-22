@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { pipelineService } from '../services/pipelineService';
 import { documentService, Document } from '../services/documentService';
-import { Project, InvestorMatch, InvestorMatchStatus, ProjectScoreDetail, ProjectStatus, BuyerMatch, BuyerMatchStatus } from '../types/pipeline';
+import { Project, InvestorMatch, InvestorMatchStatus, ProjectScoreDetail, ProjectStatus, BuyerMatch, BuyerMatchStatus, DFIMatch, DFIMatchStatus, FinancingMemo } from '../types/pipeline';
 import { useAppSelector } from '../hooks/useRedux';
 import { ProjectLifecycleTimeline } from '../components/pipeline/ProjectLifecycleTimeline';
 import { ProjectHistoryTimeline } from '../components/pipeline/ProjectHistoryTimeline';
@@ -30,7 +30,13 @@ const ProjectDetails: React.FC = () => {
   const [buyerMatches, setBuyerMatches] = useState<BuyerMatch[]>([]);
   const [loadingBuyerMatches, setLoadingBuyerMatches] = useState(false);
   const [triggeringBuyerMatch, setTriggeringBuyerMatch] = useState(false);
-  const [matchSubTab, setMatchSubTab] = useState<'investor' | 'buyer'>('investor');
+  const [matchSubTab, setMatchSubTab] = useState<'investor' | 'buyer' | 'dfi'>('investor');
+  const [dfiMatches, setDFIMatches] = useState<DFIMatch[]>([]);
+  const [loadingDFIMatches, setLoadingDFIMatches] = useState(false);
+  const [triggeringDFIMatch, setTriggeringDFIMatch] = useState(false);
+  const [generatingMemo, setGeneratingMemo] = useState(false);
+  const [financingMemo, setFinancingMemo] = useState<FinancingMemo | null>(null);
+  const [showMemoModal, setShowMemoModal] = useState(false);
 
   // RBAC - Must be at top level before any returns
   const { user } = useAppSelector((state) => state.auth);
@@ -52,6 +58,7 @@ const ProjectDetails: React.FC = () => {
         // Fetch parallel data
         fetchMatches(projectId);
         fetchBuyerMatches(projectId);
+        fetchDFIMatches(projectId);
         fetchScoreDetails(projectId);
         fetchDocuments(projectId);
       } catch (error) {
@@ -234,6 +241,54 @@ const ProjectDetails: React.FC = () => {
     }
   };
 
+  const fetchDFIMatches = async (id: string) => {
+    setLoadingDFIMatches(true);
+    try {
+      const data = await pipelineService.getDFIMatches(id);
+      setDFIMatches(data);
+    } catch (e) {
+      console.error('Failed to load DFI matches', e);
+    } finally {
+      setLoadingDFIMatches(false);
+    }
+  };
+
+  const handleTriggerDFIMatch = async () => {
+    if (!projectId || triggeringDFIMatch) return;
+    setTriggeringDFIMatch(true);
+    try {
+      await pipelineService.triggerDFIMatching(projectId);
+      await fetchDFIMatches(projectId);
+    } catch (e) {
+      console.error('DFI matching failed', e);
+    } finally {
+      setTriggeringDFIMatch(false);
+    }
+  };
+
+  const handleUpdateDFIMatchStatus = async (matchId: string, newStatus: DFIMatchStatus) => {
+    try {
+      await pipelineService.updateDFIMatchStatus(matchId, { status: newStatus });
+      if (projectId) await fetchDFIMatches(projectId);
+    } catch (e) {
+      console.error('Failed to update DFI match status', e);
+    }
+  };
+
+  const handleGenerateMemo = async () => {
+    if (!projectId || generatingMemo) return;
+    setGeneratingMemo(true);
+    try {
+      const memo = await pipelineService.getFinancingMemo(projectId);
+      setFinancingMemo(memo);
+      setShowMemoModal(true);
+    } catch (e) {
+      console.error('Failed to generate financing memo', e);
+    } finally {
+      setGeneratingMemo(false);
+    }
+  };
+
   const handleStageTransition = async (newStage: string) => {
     if (!project) return;
     if (!confirm(`Are you sure you want to move this project to ${newStage.replace('_', ' ')}?`)) return;
@@ -351,26 +406,22 @@ const ProjectDetails: React.FC = () => {
       {/* Page Header */}
       <div style={{
         display: 'grid', gridTemplateColumns: '1fr auto', gap: 24, alignItems: 'flex-end',
-        paddingBottom: 22, borderBottom: '1px solid var(--border)', marginBottom: 28,
+        paddingBottom: 14, borderBottom: '1px solid var(--border)', marginBottom: 16,
       }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            {project.is_flagship && (
+          {project.is_flagship && (
+            <div style={{ marginBottom: 6 }}>
               <span style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600 }}>
                 ★ Flagship project
               </span>
-            )}
-            <div style={{ width: 16, height: 1, background: 'var(--border)' }} />
-            <span style={{ fontSize: 10, color: 'var(--ink-500)', fontFamily: "'Geist Mono', monospace" }}>
-              {project.id}
-            </span>
-          </div>
+            </div>
+          )}
           <h1 style={{
             fontFamily: "'Source Serif 4', serif", fontWeight: 400,
-            fontSize: 42, letterSpacing: '-0.025em', color: 'var(--ink-900)',
-            margin: 0, lineHeight: 1.05,
+            fontSize: 26, letterSpacing: '-0.02em', color: 'var(--ink-900)',
+            margin: 0, lineHeight: 1.1,
           }}>{project.name}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginTop: 14, fontSize: 13, color: 'var(--ink-600)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginTop: 8, fontSize: 12, color: 'var(--ink-600)' }}>
             {project.pillar && <span>{project.pillar}</span>}
             {project.lead_country && <><span style={{ color: 'var(--ink-300)' }}>·</span><span>{project.lead_country}</span></>}
             {project.project_sponsor && <><span style={{ color: 'var(--ink-300)' }}>·</span><span>{project.project_sponsor}</span></>}
@@ -389,7 +440,7 @@ const ProjectDetails: React.FC = () => {
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 background: 'transparent', border: '1px solid var(--border)',
                 color: project.is_flagship ? 'var(--amber)' : 'var(--ink-700)',
-                padding: '9px 14px', fontSize: 12, fontWeight: 500,
+                padding: '6px 11px', fontSize: 11, fontWeight: 500,
                 cursor: 'pointer', fontFamily: 'inherit',
               }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
@@ -400,7 +451,7 @@ const ProjectDetails: React.FC = () => {
               <button onClick={() => navigate(`/deal-pipeline/${project.id}/edit`)} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 background: 'transparent', border: '1px solid var(--border)',
-                color: 'var(--ink-700)', padding: '9px 14px', fontSize: 12, fontWeight: 500,
+                color: 'var(--ink-700)', padding: '6px 11px', fontSize: 11, fontWeight: 500,
                 cursor: 'pointer', fontFamily: 'inherit',
               }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
@@ -411,7 +462,7 @@ const ProjectDetails: React.FC = () => {
                   <div style={{ display: 'flex' }}>
                     <button onClick={() => handleStageTransition(project.allowed_transitions![0])} style={{
                       background: 'var(--accent)', color: 'var(--accent-ink)', border: '1px solid var(--accent)',
-                      padding: '10px 18px 10px 16px', fontSize: 12, fontWeight: 500,
+                      padding: '7px 14px 7px 12px', fontSize: 11, fontWeight: 500,
                       cursor: 'pointer', fontFamily: 'inherit',
                       display: 'inline-flex', alignItems: 'center', gap: 8,
                     }}>
@@ -441,17 +492,17 @@ const ProjectDetails: React.FC = () => {
           <button onClick={() => navigate(`/deal-pipeline/${encodeURIComponent(project.id)}/memo`)} style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             background: 'var(--accent)', border: '1px solid var(--accent)',
-            color: 'var(--accent-ink)', padding: '10px 16px', fontSize: 12, fontWeight: 500,
+            color: 'var(--accent-ink)', padding: '6px 12px', fontSize: 11, fontWeight: 500,
             cursor: 'pointer', fontFamily: 'inherit',
           }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>auto_awesome</span>
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>auto_awesome</span>
             Generate memo
           </button>
         </div>
       </div>
 
       {/* Lifecycle Timeline */}
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: 24 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: 12 }}>
         <ProjectLifecycleTimeline project={project} />
       </div>
 
@@ -459,7 +510,7 @@ const ProjectDetails: React.FC = () => {
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
         background: 'var(--surface)', border: '1px solid var(--border)',
-        padding: '22px 32px', marginBottom: 28,
+        padding: '12px 20px', marginBottom: 16,
       }}>
         {[
           { label: 'Investment ask', value: fmtMoney(project.investment_size), sub: 'USD · estimated' },
@@ -470,11 +521,11 @@ const ProjectDetails: React.FC = () => {
           <div key={label} style={{ paddingRight: 24, borderRight: last ? 'none' : '1px solid var(--border)' }}>
             <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{label}</div>
             <div style={{
-              fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 28,
-              color: accent ? 'var(--accent)' : 'var(--ink-900)', letterSpacing: '-0.02em',
-              marginTop: 4, lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+              fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 20,
+              color: accent ? 'var(--accent)' : 'var(--ink-900)', letterSpacing: '-0.01em',
+              marginTop: 2, lineHeight: 1, fontVariantNumeric: 'tabular-nums',
             }}>{value}</div>
-            <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 6 }}>{sub}</div>
+            <div style={{ fontSize: 10, color: 'var(--ink-500)', marginTop: 3 }}>{sub}</div>
           </div>
         ))}
       </div>
@@ -505,12 +556,12 @@ const ProjectDetails: React.FC = () => {
                 fontFamily: 'inherit',
               }}>
                 {label}
-                {key === 'matches' && (matches.length + buyerMatches.length) > 0 && (
+                {key === 'matches' && (matches.length + buyerMatches.length + dfiMatches.length) > 0 && (
                   <span style={{
                     marginLeft: 6, fontSize: 10, padding: '1px 6px',
                     background: 'var(--ink-100)', color: 'var(--ink-600)',
                     fontFamily: "'Geist Mono', monospace",
-                  }}>{matches.length + buyerMatches.length}</span>
+                  }}>{matches.length + buyerMatches.length + dfiMatches.length}</span>
                 )}
               </button>
             );
@@ -673,6 +724,7 @@ const ProjectDetails: React.FC = () => {
                 {([
                   { key: 'investor' as const, label: 'Investor matches', count: matches.length },
                   { key: 'buyer' as const, label: 'Buyer / Offtake', count: buyerMatches.length },
+                  { key: 'dfi' as const, label: 'DFI Windows', count: dfiMatches.length },
                 ]).map(({ key, label, count }) => {
                   const on = matchSubTab === key;
                   return (
@@ -846,6 +898,123 @@ const ProjectDetails: React.FC = () => {
                               <option value={BuyerMatchStatus.NEGOTIATING}>Negotiating</option>
                               <option value={BuyerMatchStatus.COMMITTED}>Committed</option>
                             </select>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* DFI / Blended Finance Windows */}
+              {matchSubTab === 'dfi' && (
+                <>
+                  <div style={sectionHeadStyle}>
+                    <h2 style={sectionTitleStyle}>DFI / Blended Finance Windows</h2>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={handleGenerateMemo} disabled={generatingMemo} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        background: 'none', border: '1px solid var(--border)', color: 'var(--ink-700)',
+                        padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                        cursor: generatingMemo ? 'default' : 'pointer', fontFamily: 'inherit',
+                        opacity: generatingMemo ? 0.7 : 1,
+                      }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>description</span>
+                        {generatingMemo ? 'Generating…' : 'Financing memo'}
+                      </button>
+                      <button onClick={handleTriggerDFIMatch} disabled={triggeringDFIMatch} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        background: 'var(--accent)', border: 'none', color: 'var(--accent-ink)',
+                        padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                        cursor: triggeringDFIMatch ? 'default' : 'pointer', fontFamily: 'inherit',
+                        opacity: triggeringDFIMatch ? 0.7 : 1,
+                      }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>restart_alt</span>
+                        {triggeringDFIMatch ? 'Running…' : 'Run DFI matching'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                    {loadingDFIMatches ? (
+                      <div style={{ padding: '32px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-500)' }}>
+                        Loading DFI windows…
+                      </div>
+                    ) : dfiMatches.length === 0 ? (
+                      <div style={{ padding: '48px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-400)' }}>
+                        No DFI windows matched yet. Run the matching engine to find suitable instruments.
+                      </div>
+                    ) : dfiMatches.map((match, i) => {
+                      const INSTRUMENT_COLOR: Record<string, string> = {
+                        GRANT: 'var(--sage)',
+                        CONCESSIONAL_LOAN: 'var(--navy)',
+                        BLENDED: 'var(--accent)',
+                        EQUITY: 'var(--terra)',
+                      };
+                      const instrColor = INSTRUMENT_COLOR[match.dfi_window.instrument_type] || 'var(--ink-500)';
+
+                      return (
+                        <div key={match.match_id} style={{
+                          padding: '16px 20px',
+                          borderBottom: i < dfiMatches.length - 1 ? '1px solid var(--border)' : 'none',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-900)' }}>
+                                  {match.dfi_window.name}
+                                </span>
+                                <span style={{
+                                  fontSize: 10, padding: '2px 6px', letterSpacing: '0.08em',
+                                  textTransform: 'uppercase', color: instrColor,
+                                  border: `1px solid ${instrColor}`,
+                                }}>
+                                  {match.dfi_window.instrument_type.replace('_', ' ')}
+                                </span>
+                                {match.dfi_window.gender_focus && (
+                                  <span style={{ fontSize: 10, padding: '2px 6px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--sage)', border: '1px solid var(--sage)' }}>
+                                    Gender
+                                  </span>
+                                )}
+                                {match.dfi_window.climate_focus && (
+                                  <span style={{ fontSize: 10, padding: '2px 6px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--navy)', border: '1px solid var(--navy)' }}>
+                                    Climate
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 4 }}>
+                                {match.dfi_window.institution}
+                              </div>
+                              {match.fit_rationale && (
+                                <div style={{ fontSize: 11, color: 'var(--ink-400)', lineHeight: 1.5 }}>
+                                  {match.fit_rationale}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{
+                                  fontSize: 20, fontWeight: 700, fontFamily: "'Geist Mono', monospace",
+                                  color: match.fit_score >= 70 ? 'var(--sage)' : match.fit_score >= 50 ? 'var(--accent)' : 'var(--ink-500)',
+                                }}>
+                                  {match.fit_score}
+                                </div>
+                                <div style={{ fontSize: 10, color: 'var(--ink-400)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>fit score</div>
+                              </div>
+                              <select
+                                value={match.status}
+                                onChange={(e) => handleUpdateDFIMatchStatus(match.match_id, e.target.value as DFIMatchStatus)}
+                                style={{
+                                  fontSize: 11, padding: '4px 8px',
+                                  background: 'var(--surface)', border: '1px solid var(--border)',
+                                  color: 'var(--ink-700)', fontFamily: 'inherit', cursor: 'pointer',
+                                }}
+                              >
+                                {Object.values(DFIMatchStatus).map(s => (
+                                  <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
                         </div>
                       );
@@ -1106,6 +1275,87 @@ const ProjectDetails: React.FC = () => {
               }}>
                 {uploadingDoc ? 'Uploading…' : 'Upload'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Financing Memo Modal */}
+      {showMemoModal && financingMemo && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50,
+        }}>
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            width: '100%', maxWidth: 640, margin: 16, maxHeight: '90vh', overflowY: 'auto',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '20px 24px', borderBottom: '1px solid var(--border)',
+              position: 'sticky', top: 0, background: 'var(--surface)',
+            }}>
+              <div>
+                <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-400)', marginBottom: 4 }}>
+                  Blended Finance Memo
+                </div>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink-900)', margin: 0 }}>
+                  {financingMemo.project_name}
+                </h3>
+              </div>
+              <button onClick={() => setShowMemoModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)' }}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div style={{ padding: '20px 24px' }}>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', marginBottom: 8 }}>Recommended Capital Structure</div>
+                <div style={{ fontSize: 13, color: 'var(--ink-800)', marginBottom: 12 }}>{financingMemo.recommended_structure}</div>
+                <div style={{ display: 'flex', gap: 0, height: 8, borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ flex: financingMemo.grant_component_pct, background: 'var(--sage)' }} />
+                  <div style={{ flex: financingMemo.concessional_component_pct, background: 'var(--navy)' }} />
+                  <div style={{ flex: financingMemo.commercial_component_pct, background: 'var(--accent)' }} />
+                </div>
+                <div style={{ display: 'flex', gap: 16, marginTop: 6 }}>
+                  {[
+                    { label: 'Grant', pct: financingMemo.grant_component_pct, color: 'var(--sage)' },
+                    { label: 'Concessional', pct: financingMemo.concessional_component_pct, color: 'var(--navy)' },
+                    { label: 'Commercial', pct: financingMemo.commercial_component_pct, color: 'var(--accent)' },
+                  ].map(({ label, pct, color }) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+                      <span style={{ fontSize: 11, color: 'var(--ink-500)' }}>{label}: {pct}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', marginBottom: 8 }}>Priority DFI Windows</div>
+                {financingMemo.priority_windows.map((w, i) => (
+                  <div key={i} style={{ fontSize: 12, color: 'var(--ink-700)', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                    {i + 1}. {w}
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', marginBottom: 8 }}>Key Risks</div>
+                {financingMemo.key_risks.map((r, i) => (
+                  <div key={i} style={{ fontSize: 12, color: 'var(--ink-600)', padding: '3px 0' }}>• {r}</div>
+                ))}
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', marginBottom: 8 }}>Next Steps</div>
+                {financingMemo.next_steps.map((s, i) => (
+                  <div key={i} style={{ fontSize: 12, color: 'var(--ink-700)', padding: '3px 0' }}>
+                    <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'var(--accent)', marginRight: 6 }}>{String(i+1).padStart(2,'0')}</span>
+                    {s}
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', marginBottom: 8 }}>Financing Rationale</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-700)', lineHeight: 1.7 }}>{financingMemo.full_memo}</div>
+              </div>
             </div>
           </div>
         </div>

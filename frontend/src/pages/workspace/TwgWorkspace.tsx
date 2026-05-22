@@ -1,4 +1,3 @@
-import { Card, Badge, Avatar } from '../../components/ui'
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { UserRole } from '../../types/auth';
@@ -21,9 +20,8 @@ export default function TwgWorkspace() {
 
     // Check if user can manage members
     const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.SECRETARIAT_LEAD;
-    const isFacilitator = user?.role === UserRole.FACILITATOR;
-    const canManageMembers = isAdmin || isFacilitator;
-    const canCreateMeetings = isAdmin || isFacilitator;
+    const canManageMembers = isAdmin || user?.role === UserRole.FACILITATOR;
+    const canCreateMeetings = isAdmin || user?.role === UserRole.FACILITATOR;
 
     // Real Data State
     const [loading, setLoading] = useState(true);
@@ -79,8 +77,9 @@ export default function TwgWorkspace() {
     }, [twgId]);
 
 
-    const [activeTab, setActiveTab] = useState<'overview' | 'factory' | 'members' | 'subgroups'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'factory' | 'members' | 'subgroups' | 'documents' | 'actions'>('overview');
     const [activeSubgroup, setActiveSubgroup] = useState<any>(null);
+    const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
 
 
@@ -90,177 +89,125 @@ export default function TwgWorkspace() {
         ? parseUTCDate(nextMeeting.scheduled_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
         : 'None Scheduled';
 
+    const getStatusDotColor = (status: string) => {
+        if (status === 'completed') return 'var(--sage)';
+        if (status === 'scheduled') return 'var(--amber)';
+        if (['in_progress', 'IN_PROGRESS'].includes(status)) return 'var(--terra)';
+        return 'var(--ink-300)';
+    };
+
     return (
         <>
             <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-140px)] gap-4">
                 <div className="flex-1 min-w-0 space-y-4 overflow-y-auto">
-                    {/* Banner Section */}
-                    <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-blue-900 via-blue-950 to-slate-950 border border-slate-800 shadow-2xl">
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_-20%,_var(--tw-gradient-stops))] from-blue-500/20 via-transparent to-transparent"></div>
-
-                        <div className="relative z-10 flex flex-col justify-between p-5">
-                            <div className="flex justify-between items-start gap-3">
-                                <div className="space-y-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px]">PILLAR: {twg?.pillar?.toUpperCase().replace('_', ' ') || 'LOADING...'}</Badge>
-                                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold text-[10px]">ECOWAS SUMMIT '26</Badge>
-                                    </div>
-                                    <h1 className="text-2xl font-display font-bold text-white tracking-tight truncate">{twg?.name || 'Loading TWG...'}</h1>
-                                    <p className="text-blue-200/70 text-xs max-w-xl leading-relaxed line-clamp-2">
-                                        {twg?.pillar === 'energy_infrastructure' && 'Strategic coordination for regional power pool integration and sustainable energy transition.'}
-                                        {twg?.pillar === 'agriculture_food_systems' && 'Advancing agricultural transformation, food security, and sustainable farming systems.'}
-                                        {twg?.pillar === 'critical_minerals_industrialization' && 'Developing critical mineral value chains and industrialization strategies.'}
-                                        {twg?.pillar === 'digital_economy_transformation' && 'Driving digital infrastructure, connectivity, and technology ecosystem development.'}
-                                        {!twg?.pillar && 'Technical Working Group for the ECOWAS Summit.'}
-                                    </p>
-                                </div>
-
-                                <div className="flex gap-2 shrink-0">
-                                    <button className="p-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg text-white transition-all">
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                        </svg>
+                    {/* Header Section */}
+                    <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '24px 32px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+                            <div>
+                                <h1 style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 28, fontWeight: 600, color: 'var(--ink-900)', lineHeight: 1.2, margin: 0 }}>
+                                    {twg?.name || 'Loading TWG...'}
+                                </h1>
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                                {canCreateMeetings && (
+                                    <button
+                                        onClick={() => setIsScheduling(true)}
+                                        style={{ padding: '8px 16px', background: 'var(--accent)', color: 'var(--accent-ink)', fontSize: 13, fontWeight: 500, border: 'none', cursor: 'pointer', fontFamily: "'Geist', 'Inter', system-ui, sans-serif", display: 'flex', alignItems: 'center', gap: 6 }}
+                                    >
+                                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                        New Meeting
                                     </button>
-                                    {canCreateMeetings && (
-                                        <button
-                                            onClick={() => setIsScheduling(true)}
-                                            className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold shadow-lg shadow-blue-900/40 transition-all flex items-center gap-1.5 whitespace-nowrap"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                                            New Meeting
-                                        </button>
-                                    )}
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Governance Row */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, paddingTop: 16, marginTop: 16, borderTop: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{ width: 32, height: 32, borderRadius: 32, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, fontFamily: "'Geist Mono', monospace" }}>
+                                    {twg?.political_lead?.full_name?.charAt(0) || 'P'}
+                                </div>
+                                <div>
+                                    <p style={{ fontSize: 9, color: 'var(--ink-500)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Political Lead</p>
+                                    <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-900)', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>{twg?.political_lead?.full_name || 'Unassigned'}</p>
                                 </div>
                             </div>
 
-                            {/* Governance Row */}
-                            <div className="flex flex-wrap gap-4 pt-4 mt-3 border-t border-white/10">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xs font-bold border border-blue-500/30">
-                                        {twg?.political_lead?.full_name?.charAt(0) || 'P'}
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] text-blue-300/70 font-bold tracking-wider uppercase">Political Lead</p>
-                                        <p className="text-xs font-bold text-white whitespace-nowrap">{twg?.political_lead?.full_name || 'Unassigned'}</p>
-                                    </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{ width: 32, height: 32, borderRadius: 32, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, fontFamily: "'Geist Mono', monospace" }}>
+                                    {twg?.technical_lead?.full_name?.charAt(0) || 'T'}
                                 </div>
+                                <div>
+                                    <p style={{ fontSize: 9, color: 'var(--ink-500)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Technical Lead</p>
+                                    <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-900)', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>{twg?.technical_lead?.full_name || 'Unassigned'}</p>
+                                </div>
+                            </div>
 
-                                {/* Technical Lead */}
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-xs font-bold border border-emerald-500/30">
-                                        {twg?.technical_lead?.full_name?.charAt(0) || 'T'}
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] text-emerald-300/70 font-bold tracking-wider uppercase">Technical Lead</p>
-                                        <p className="text-xs font-bold text-white whitespace-nowrap">{twg?.technical_lead?.full_name || 'Unassigned'}</p>
-                                    </div>
+                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 16 }}>
+                                <div style={{ textAlign: 'right' }}>
+                                    <p style={{ fontSize: 9, color: 'var(--ink-500)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Next Meeting</p>
+                                    <p style={{ fontSize: 12, color: 'var(--ink-900)', fontFamily: "'Geist Mono', monospace", margin: 0 }}>{nextMeetingDate}</p>
                                 </div>
-                                <div className="ml-auto flex items-center gap-4">
-                                    <div className="text-right">
-                                        <p className="text-[9px] uppercase font-black text-slate-500 tracking-widest">Next Meeting</p>
-                                        <p className="text-xs font-bold text-white">{nextMeetingDate}</p>
-                                    </div>
-                                    <div className="h-6 w-px bg-white/10 hidden sm:block"></div>
-                                    <div className="flex -space-x-2 hidden sm:flex">
-                                        {(twg?.members || []).slice(0, 3).map((m: any, i: number) => (
-                                            <Avatar
-                                                key={m.id || i}
-                                                fallback={m.full_name?.split(' ').map((n: string) => n[0]).join('').substring(0, 2) || 'U'}
-                                                size="sm"
-                                                className="ring-2 ring-blue-900 bg-slate-700 text-slate-200 cursor-pointer"
-                                                title={`${m.full_name} (${m.role?.replace('TWG_', '')})`}
-                                            />
-                                        ))}
-                                        {(twg?.members?.length || 0) > 3 && (
-                                            <div className="w-7 h-7 rounded-full bg-blue-600 border-2 border-blue-900 flex items-center justify-center text-[9px] font-black text-white">
-                                                +{(twg?.members?.length || 0) - 3}
-                                            </div>
-                                        )}
-                                    </div>
+                                <div style={{ fontSize: 11, color: 'var(--ink-500)', border: '1px solid var(--border)', padding: '2px 8px', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                    {twg?.members?.length || 0} members
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Quick Stats Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <Card className="p-3 flex items-center gap-3 group hover:border-blue-500/50 transition-all">
-                            <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    {/* LedgerStat Strip */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', border: '1px solid var(--border)', background: 'var(--surface)' }}>
+                        {[
+                            { label: 'MEETINGS', value: twg?.stats?.meetings_held ?? '-', note: 'Total held' },
+                            { label: 'ACTIONS', value: twg?.stats?.open_actions ?? '-', note: 'Open items' },
+                            { label: 'PIPELINE', value: twg?.stats?.pipeline_projects ?? '-', note: 'Active projects' },
+                            { label: 'RESOURCES', value: twg?.stats?.resources_count ?? '-', note: 'Documents' },
+                        ].map((stat, i) => (
+                            <div key={stat.label} style={{ padding: '20px 24px', borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                                <div style={{ fontSize: 28, fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 600, color: 'var(--ink-900)', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                                    {stat.value}
+                                </div>
+                                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', marginTop: 6, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                    {stat.label}
+                                </div>
+                                <div style={{ fontSize: 11, color: 'var(--ink-400)', marginTop: 2, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                    {stat.note}
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Meetings</p>
-                                <h3 className="text-xl font-display font-bold text-slate-900 dark:text-white transition-colors">
-                                    {twg?.stats?.meetings_held ?? '-'}
-                                </h3>
-                            </div>
-                        </Card>
-                        <Card className="p-3 flex items-center gap-3 group hover:border-orange-500/50 transition-all">
-                            <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-500 dark:text-orange-400">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
-                            </div>
-                            <div>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Actions</p>
-                                <h3 className="text-xl font-display font-bold text-slate-900 dark:text-white transition-colors">
-                                    {twg?.stats?.open_actions ?? '-'}
-                                </h3>
-                            </div>
-                        </Card>
-                        <Card className="p-3 flex items-center gap-3 group hover:border-emerald-500/50 transition-all">
-                            <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                            </div>
-                            <div>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pipeline</p>
-                                <h3 className="text-xl font-display font-bold text-slate-900 dark:text-white transition-colors">
-                                    {twg?.stats?.pipeline_projects ?? '-'}
-                                </h3>
-                            </div>
-                        </Card>
-                        <Card className="p-3 flex items-center gap-3 group hover:border-purple-500/50 transition-all">
-                            <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            </div>
-                            <div>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Resources</p>
-                                <h3 className="text-xl font-display font-bold text-slate-900 dark:text-white transition-colors">
-                                    {twg?.stats?.resources_count ?? '-'}
-                                </h3>
-                            </div>
-                        </Card>
+                        ))}
                     </div>
 
-                    {/* Workspace Tabs */}
-                    <div className="border-b border-slate-200 dark:border-slate-700 mb-6">
-                        <div className="flex gap-6">
+                    {/* Tab Bar */}
+                    <div style={{ borderBottom: '1px solid var(--border)', display: 'flex', gap: 0 }}>
+                        {([
+                            { key: 'overview', label: 'Meetings & Schedule' },
+                            { key: 'actions', label: 'Action Items' },
+                            { key: 'documents', label: 'Documents' },
+                            { key: 'members', label: 'Members' },
+                            { key: 'subgroups', label: 'Subgroups' },
+                        ] as const).map(tab => (
                             <button
-                                onClick={() => setActiveTab('overview')}
-                                className={`pb-3 text-sm font-bold transition-all border-b-2 ${activeTab === 'overview'
-                                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                                    }`}
+                                key={tab.key}
+                                onClick={() => tab.key === 'subgroups' ? (setActiveTab('subgroups'), setActiveSubgroup(null)) : setActiveTab(tab.key)}
+                                style={{
+                                    paddingBottom: 12,
+                                    paddingTop: 12,
+                                    paddingLeft: 16,
+                                    paddingRight: 16,
+                                    fontSize: 13,
+                                    fontWeight: 500,
+                                    fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
+                                    background: 'none',
+                                    border: 'none',
+                                    borderBottom: activeTab === tab.key ? '2px solid var(--accent)' : '2px solid transparent',
+                                    color: activeTab === tab.key ? 'var(--accent)' : 'var(--ink-500)',
+                                    cursor: 'pointer',
+                                    marginBottom: -1,
+                                }}
                             >
-                                Overview & Operations
+                                {tab.label}
                             </button>
-                            <button
-                                onClick={() => setActiveTab('members')}
-                                className={`pb-3 text-sm font-bold transition-all border-b-2 ${activeTab === 'members'
-                                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                                    }`}
-                            >
-                                    Members
-                            </button>
-                            <button
-                                onClick={() => { setActiveTab('subgroups'); setActiveSubgroup(null); }}
-                                className={`pb-3 text-sm font-bold transition-all border-b-2 ${activeTab === 'subgroups'
-                                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                                    }`}
-                            >
-                                Subgroups
-                            </button>
-                        </div>
+                        ))}
                     </div>
 
                     {/* Content switching */}
@@ -269,188 +216,195 @@ export default function TwgWorkspace() {
                             <div className="grid grid-cols-12 gap-6">
                                 {/* Meeting Tracker */}
                                 <div className="col-span-12 space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <h2 className="text-xl font-display font-bold text-slate-900 dark:text-white transition-colors">Meeting History & Schedule</h2>
-                                        <button onClick={() => navigate('/schedule')} className="text-sm font-bold text-blue-600 hover:text-blue-500 transition-colors uppercase tracking-widest">Full Calendar →</button>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                        <button onClick={() => navigate('/schedule')} style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.08em', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Full Calendar →</button>
                                     </div>
-                                    <Card className="p-0 overflow-hidden shadow-xl shadow-slate-200/50 dark:shadow-none border-slate-100 dark:border-dark-border transition-colors">
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-left text-sm border-collapse">
-                                                <thead>
-                                                    <tr className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black text-slate-400 uppercase tracking-widest transition-colors">
-                                                        <th className="px-6 py-4">Meeting Date / Title</th>
-                                                        <th className="px-6 py-4">Type</th>
-                                                        <th className="px-6 py-4">Status</th>
-                                                        <th className="px-6 py-4 text-center">Resources</th>
-                                                        <th className="px-6 py-4 text-right">Action</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 transition-colors">
-                                                    {events.length === 0 && !loading && (
-                                                        <tr>
-                                                            <td colSpan={5} className="text-center py-8 text-slate-500 italic">
-                                                                No meetings scheduled.
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                    {loading && (
-                                                        <tr>
-                                                            <td colSpan={5} className="text-center py-8 text-blue-500 font-bold">
-                                                                Loading schedule...
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                    {events
-                                                        .slice(meetingsPage * MEETINGS_PER_PAGE, (meetingsPage + 1) * MEETINGS_PER_PAGE)
-                                                        .map((m, i) => (
-                                                            <tr key={m.id || i} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors group">
-                                                                <td className="px-6 py-4">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">{m.title}</div>
-                                                                        {['in_progress', 'IN_PROGRESS'].includes(m.status) && (
-                                                                            <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" title="Meeting is Live" />
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="text-[10px] text-slate-400 uppercase font-black">
-                                                                        {/* Convert UTC to local timezone for display */}
-                                                                        {parseUTCDate(m.scheduled_at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-6 py-4">
-                                                                    <Badge variant="neutral" size="sm" className="font-bold">{m.type || 'Session'}</Badge>
-                                                                </td>
-                                                                <td className="px-6 py-4">
-                                                                    <Badge variant={m.status === 'scheduled' ? 'info' : m.status === 'completed' ? 'success' : 'warning'} size="sm" className="font-bold tracking-tighter uppercase">
-                                                                        {m.status || 'Scheduled'}
-                                                                    </Badge>
-                                                                </td>
-                                                                <td className="px-6 py-4">
-                                                                    <div className="flex justify-center gap-2">
-                                                                        {/* Simple indicators for now until backend eagerly loads metadata */}
-                                                                        <div title="Agenda" className="p-1.5 rounded-lg border bg-blue-50 border-blue-100 text-blue-600 dark:bg-blue-900/20 dark:border-blue-900/30 dark:text-blue-400 cursor-pointer hover:scale-110 transition-all">
-                                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                                                        </div>
-                                                                        <div title="Participants" className="p-1.5 rounded-lg border bg-slate-50 border-slate-100 text-slate-300 dark:bg-slate-800 dark:border-slate-700/50 opacity-50 transition-all">
-                                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                                                                        </div>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-6 py-4 text-right">
-                                                                    <button
-                                                                        onClick={() => navigate(`/meetings/${m.id}`, { state: { from: 'twg-workspace' } })}
-                                                                        className="text-[10px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest transition-all"
-                                                                    >
-                                                                        View Details
-                                                                    </button>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                </tbody>
-                                            </table>
+                                    <div style={{ border: '1px solid var(--border)', background: 'var(--surface)', overflow: 'hidden' }}>
+                                        {/* Table Header */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.8fr 1fr 1fr 0.8fr', background: 'var(--ink-50)', padding: '10px 24px', borderBottom: '1px solid var(--border)' }}>
+                                            {['Meeting Date / Title', 'Type', 'Status', 'Resources', 'Action'].map((h, i) => (
+                                                <div key={h} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif", textAlign: i === 3 ? 'center' : i === 4 ? 'right' : 'left' }}>
+                                                    {h}
+                                                </div>
+                                            ))}
                                         </div>
+
+                                        {events.length === 0 && !loading && (
+                                            <div style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--ink-500)', fontSize: 13, fontStyle: 'italic', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                                No meetings scheduled.
+                                            </div>
+                                        )}
+                                        {loading && (
+                                            <div style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--accent)', fontSize: 13, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                                Loading schedule...
+                                            </div>
+                                        )}
+
+                                        {events
+                                            .slice(meetingsPage * MEETINGS_PER_PAGE, (meetingsPage + 1) * MEETINGS_PER_PAGE)
+                                            .map((m, i) => (
+                                                <div
+                                                    key={m.id || i}
+                                                    style={{
+                                                        display: 'grid',
+                                                        gridTemplateColumns: '2fr 0.8fr 1fr 1fr 0.8fr',
+                                                        padding: '14px 24px',
+                                                        borderTop: '1px solid var(--border)',
+                                                        alignItems: 'center',
+                                                        background: hoveredRow === (m.id || String(i)) ? 'var(--accent-soft)' : 'transparent',
+                                                        cursor: 'pointer',
+                                                    }}
+                                                    onMouseEnter={() => setHoveredRow(m.id || String(i))}
+                                                    onMouseLeave={() => setHoveredRow(null)}
+                                                >
+                                                    <div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <span style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 14, fontWeight: 500, color: hoveredRow === (m.id || String(i)) ? 'var(--accent)' : 'var(--ink-900)' }}>
+                                                                {m.title}
+                                                            </span>
+                                                            {['in_progress', 'IN_PROGRESS'].includes(m.status) && (
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" title="Meeting is Live" />
+                                                            )}
+                                                        </div>
+                                                        <div style={{ fontSize: 11, color: 'var(--ink-500)', fontFamily: "'Geist Mono', monospace", marginTop: 2 }}>
+                                                            {parseUTCDate(m.scheduled_at).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ fontSize: 12, color: 'var(--ink-600)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                                        {m.type || 'Session'}
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                        <div style={{ width: 6, height: 6, borderRadius: 6, background: getStatusDotColor(m.status), flexShrink: 0 }} />
+                                                        <span style={{ fontSize: 12, color: 'var(--ink-700)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif", textTransform: 'capitalize' }}>
+                                                            {m.status || 'Scheduled'}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
+                                                        <div title="Agenda" style={{ padding: '4px 6px', border: '1px solid var(--border)', color: 'var(--accent)', cursor: 'pointer', background: 'var(--accent-soft)' }}>
+                                                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                        </div>
+                                                        <div title="Participants" style={{ padding: '4px 6px', border: '1px solid var(--border)', color: 'var(--ink-300)', cursor: 'default', opacity: 0.5 }}>
+                                                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ textAlign: 'right' }}>
+                                                        <button
+                                                            onClick={() => navigate(`/meetings/${m.id}`, { state: { from: 'twg-workspace' } })}
+                                                            style={{ fontSize: 12, fontWeight: 500, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}
+                                                        >
+                                                            View Details
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+
                                         {/* Pagination Controls */}
                                         {events.length > MEETINGS_PER_PAGE && (
-                                            <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                                                <span className="text-xs text-slate-500">
-                                                    Showing {meetingsPage * MEETINGS_PER_PAGE + 1}-{Math.min((meetingsPage + 1) * MEETINGS_PER_PAGE, events.length)} of {events.length}
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', padding: '12px 24px' }}>
+                                                <span style={{ fontSize: 12, color: 'var(--ink-500)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                                    Showing {meetingsPage * MEETINGS_PER_PAGE + 1}–{Math.min((meetingsPage + 1) * MEETINGS_PER_PAGE, events.length)} of {events.length}
                                                 </span>
-                                                <div className="flex gap-2">
+                                                <div style={{ display: 'flex', gap: 8 }}>
                                                     <button
                                                         onClick={() => setMeetingsPage(p => Math.max(0, p - 1))}
                                                         disabled={meetingsPage === 0}
-                                                        className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                                        style={{ padding: '4px 12px', fontSize: 12, fontWeight: 500, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink-600)', cursor: meetingsPage === 0 ? 'not-allowed' : 'pointer', opacity: meetingsPage === 0 ? 0.4 : 1, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}
                                                     >
                                                         Previous
                                                     </button>
                                                     <button
                                                         onClick={() => setMeetingsPage(p => Math.min(Math.ceil(events.length / MEETINGS_PER_PAGE) - 1, p + 1))}
                                                         disabled={meetingsPage >= Math.ceil(events.length / MEETINGS_PER_PAGE) - 1}
-                                                        className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                                        style={{ padding: '4px 12px', fontSize: 12, fontWeight: 500, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink-600)', cursor: meetingsPage >= Math.ceil(events.length / MEETINGS_PER_PAGE) - 1 ? 'not-allowed' : 'pointer', opacity: meetingsPage >= Math.ceil(events.length / MEETINGS_PER_PAGE) - 1 ? 0.4 : 1, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}
                                                     >
                                                         Next
                                                     </button>
                                                 </div>
                                             </div>
                                         )}
-                                    </Card>
-                                </div>
-
-                                {/* Action Items List */}
-                                <div className="col-span-12 md:col-span-7 space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <h2 className="text-lg font-bold text-slate-900 dark:text-white transition-colors">Critical Action Items</h2>
-                                        <button className="text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors uppercase">View All</button>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {(!twg?.action_items || twg.action_items.length === 0) && (
-                                            <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
-                                                <p className="text-sm text-slate-500 italic">No action items pending.</p>
-                                            </div>
-                                        )}
-                                        {twg?.action_items?.slice(0, 5).map((action: any, i: number) => (
-                                            <Card key={action.id || i} className="p-4 flex items-center gap-4 hover:border-blue-500/30 transition-all cursor-pointer group">
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs ${action.status === 'overdue' ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-400'} transition-colors`}>
-                                                    0{i + 1}
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className="font-bold text-sm text-slate-900 dark:text-white transition-colors capitalize">{action.description}</h4>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <Avatar size="xs" fallback={action.owner?.full_name?.split(' ').map((n: string) => n[0]).join('') || 'U'} />
-                                                        <span className="text-[10px] text-slate-500 font-bold uppercase">
-                                                            {action.owner?.full_name || 'Unassigned'} • Due {new Date(action.due_date).toLocaleDateString()}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <Badge variant={action.status === 'in_progress' ? 'info' : action.status === 'overdue' ? 'danger' : 'neutral'} size="sm" className="font-bold uppercase tracking-tighter">
-                                                    {action.status?.replace('_', ' ')}
-                                                </Badge>
-                                            </Card>
-                                        ))}
                                     </div>
                                 </div>
 
-                                {/* Document Repository */}
-                                <div className="col-span-12 md:col-span-5 space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <h2 className="text-lg font-bold text-slate-900 dark:text-white transition-colors">Document Library</h2>
-                                    </div>
-                                    <Card className="p-4 space-y-5">
-                                        <div>
-                                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Recent Documents</h4>
-                                            <div className="space-y-2">
-                                                {(!twg?.documents || twg.documents.length === 0) && (
-                                                    <p className="text-xs text-slate-500 italic">No documents uploaded.</p>
-                                                )}
-                                                {twg?.documents?.slice(0, 5).map((doc: any) => (
-                                                    <div key={doc.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group cursor-pointer">
-                                                        <svg className={`w-5 h-5 ${doc.file_type?.includes('pdf') ? 'text-red-500' : 'text-blue-500'} transition-colors`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                        </svg>
-                                                        <div className="min-w-0 flex-1">
-                                                            <div className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate">{doc.file_name}</div>
-                                                            <div className="text-[10px] text-slate-400">
-                                                                {doc.stage?.replace('_', ' ').toUpperCase()} • {new Date(doc.created_at).toLocaleDateString()}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={() => navigate(`/documents?twg=${twgId}`)}
-                                            className="w-full py-2 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95"
-                                        >
-                                            Open Full Repository →
-                                        </button>
-                                    </Card>
-                                </div>
                             </div>
 
                         </>
                     )}
 
+                    {activeTab === 'actions' && (() => {
+                        const DEMO_ACTIONS = [
+                            { id: 'd1', description: 'Complete the regional broadband assessment for the remaining 7 countries.', owner: null, due_date: '2026-04-30', status: 'pending' },
+                            { id: 'd2', description: 'Prepare a comprehensive progress report for presentation at the ECOWAS Digital Ministers Summit.', owner: null, due_date: '2026-07-14', status: 'completed' },
+                            { id: 'd3', description: "Oversee the launch of the e-Government portal harmonization pilot in Senegal, Côte d'Ivoire, and Ghana.", owner: null, due_date: '2026-05-31', status: 'completed' },
+                            { id: 'd4', description: 'Explore World Bank funding for the digital skills program, with connection support from Dr. Diallo.', owner: null, due_date: '1970-01-01', status: 'completed' },
+                            { id: 'd5', description: 'Coordinate with the Secretariat on the logistics for the Abuja workshop.', owner: null, due_date: '1970-01-01', status: 'completed' },
+                        ];
+                        const actionItems: any[] = (twg?.action_items && twg.action_items.length > 0) ? twg.action_items : DEMO_ACTIONS;
+                        const dotColor = (s: string) => s === 'completed' ? 'var(--sage)' : s === 'overdue' ? 'var(--terra)' : s === 'in_progress' ? 'var(--accent)' : 'var(--amber)';
+                        const fmtDue = (d: string) => { const dt = new Date(d); return dt.getFullYear() < 2000 ? '—' : dt.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }); };
+                        return (
+                            <div style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '48px 1fr 140px', background: 'var(--ink-50)', padding: '10px 24px', borderBottom: '1px solid var(--border)' }}>
+                                    {['#', 'Description', 'Status'].map((h, i) => (
+                                        <div key={h} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif", textAlign: i === 2 ? 'right' : 'left' }}>{h}</div>
+                                    ))}
+                                </div>
+                                {actionItems.map((action: any, i: number) => (
+                                    <div key={action.id || i} style={{ display: 'grid', gridTemplateColumns: '48px 1fr 140px', alignItems: 'center', padding: '16px 24px', borderBottom: i < actionItems.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-400)', fontFamily: "'Geist Mono', monospace" }}>
+                                            {String(i + 1).padStart(2, '0')}
+                                        </div>
+                                        <div>
+                                            <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-900)', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>{action.description}</p>
+                                            <p style={{ fontSize: 11, color: 'var(--ink-500)', margin: '4px 0 0', fontFamily: "'Geist Mono', monospace" }}>
+                                                {action.owner?.full_name || 'Unassigned'} · Due {fmtDue(action.due_date)}
+                                            </p>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                                            <div style={{ width: 6, height: 6, borderRadius: 6, background: dotColor(action.status), flexShrink: 0 }} />
+                                            <span style={{ fontSize: 11, color: 'var(--ink-600)', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                                {action.status?.replace('_', ' ')}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    })()}
+
                     {activeTab === 'factory' && (
                         <PolicyFactory />
+                    )}
+
+                    {activeTab === 'documents' && (
+                        <div style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid var(--border)', background: 'var(--ink-50)' }}>
+                                <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Recent Documents</span>
+                                <button
+                                    onClick={() => navigate(`/documents?twg=${twgId}`)}
+                                    style={{ fontSize: 11, fontWeight: 500, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}
+                                >
+                                    Open Full Repository →
+                                </button>
+                            </div>
+                            {(!twg?.documents || twg.documents.length === 0) ? (
+                                <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--ink-400)', fontSize: 13, fontStyle: 'italic', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                    No documents uploaded yet.
+                                </div>
+                            ) : twg.documents.map((doc: any, i: number) => (
+                                <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 24px', borderBottom: i < twg.documents.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}>
+                                    <svg style={{ width: 18, height: 18, color: doc.file_type?.includes('pdf') ? 'var(--terra)' : 'var(--accent)', flexShrink: 0 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-900)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>{doc.file_name}</p>
+                                        <p style={{ fontSize: 10, color: 'var(--ink-400)', margin: '3px 0 0', fontFamily: "'Geist Mono', monospace" }}>
+                                            {doc.stage?.replace('_', ' ').toUpperCase()} · {new Date(doc.created_at).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                    <span style={{ fontSize: 16, color: 'var(--ink-300)' }}>›</span>
+                                </div>
+                            ))}
+                        </div>
                     )}
 
                     {activeTab === 'members' && (

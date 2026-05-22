@@ -3,7 +3,6 @@ import { userService, UserUpdateData } from '../../services/userService'
 import { twgs as twgService } from '../../services/api'
 import api from '../../services/api'
 import { User, UserRole } from '../../types/auth'
-import { Avatar } from '../../components/ui'
 import { toast } from 'react-toastify'
 
 
@@ -15,6 +14,7 @@ export default function TeamManagement() {
     const [isLoading, setIsLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
     const [activeTab, setActiveTab] = useState<'users' | 'governance'>('users')
+    const [hoveredRow, setHoveredRow] = useState<string | null>(null)
 
     // Governance State
     const [twgs, setTwgs] = useState<any[]>([])
@@ -341,7 +341,7 @@ export default function TeamManagement() {
                     const lines = text.split('\n').filter(line => line.trim())
                     const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
 
-                    const users = lines.slice(1).map(line => {
+                    const parsedUsersList = lines.slice(1).map(line => {
                         const values: string[] = []
                         let inQuotes = false
                         let currentValue = ''
@@ -366,7 +366,7 @@ export default function TeamManagement() {
                         return user
                     }).filter(user => user.email && (user.full_name || user['full name']))
 
-                    resolve(users)
+                    resolve(parsedUsersList)
                 } catch (error) {
                     reject(error)
                 }
@@ -392,12 +392,12 @@ export default function TeamManagement() {
         setBulkUploadResults(null)
 
         try {
-            const users = await parseCSV(file)
-            if (users.length === 0) {
+            const parsedList = await parseCSV(file)
+            if (parsedList.length === 0) {
                 setParseError('No valid users found. Each row needs at least an email and full name.')
             } else {
-                setParsedUsers(users)
-                toast.success(`Parsed ${users.length} user(s) from CSV`)
+                setParsedUsers(parsedList)
+                toast.success(`Parsed ${parsedList.length} user(s) from CSV`)
             }
         } catch (error) {
             setParseError('Failed to parse CSV file. Please check the format and try again.')
@@ -430,8 +430,6 @@ export default function TeamManagement() {
                         .filter(twg => twgNames.some((name: string) => {
                             const twgLower = twg.name.toLowerCase()
                             const pillarLower = twg.pillar?.toLowerCase() || ''
-                            // Match if TWG name contains the search term OR search term contains the TWG name
-                            // Also match on first word (e.g. "energy" matches "Energy Trade and Industrial Growth")
                             const nameWords = name.replace(/\btwg\b/gi, '').trim().split(/\s+/).filter(Boolean)
                             return twgLower.includes(name) || name.includes(twgLower) ||
                                    pillarLower.includes(name) || name.includes(pillarLower) ||
@@ -478,352 +476,323 @@ export default function TeamManagement() {
         user.email.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
+    // Compute role counts
+    const secretariatLeads = users.filter(u => u.role === UserRole.SECRETARIAT_LEAD || u.role === UserRole.ADMIN).length
+    const facilitators = users.filter(u => u.role === UserRole.FACILITATOR).length
+    const members = users.filter(u => u.role === UserRole.MEMBER).length
+    const observers = users.filter(u => (u.role as string) === 'OBSERVER').length
+
+    const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="w-8 h-8 border-4 border-[#1152d4] border-t-transparent rounded-full animate-spin"></div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 256 }}>
+                <div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
             </div>
         )
     }
 
+    const inputStyle: React.CSSProperties = {
+        width: '100%', padding: '8px 12px', background: 'var(--surface)',
+        border: '1px solid var(--border)', fontSize: 13, color: 'var(--ink-700)',
+        fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none'
+    }
+    const labelStyle: React.CSSProperties = {
+        display: 'block', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
+        color: 'var(--ink-500)', fontWeight: 500, marginBottom: 6
+    }
+
     return (
-        <>
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-[#0d121b] dark:text-white tracking-tight">Team Management</h1>
-                    <p className="text-[#4c669a] dark:text-[#a0aec0] font-medium">Manage user roles, access permissions, and account status.</p>
+        <div style={{ maxWidth: 1180, margin: '0 auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+            {/* Page header */}
+            <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)', marginBottom: 6 }}>
+                    Management · roster
                 </div>
-                <div className="flex gap-3">
-                    <button
-                        onClick={loadUsers}
-                        className="px-4 py-2 bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg text-sm font-bold text-[#0d121b] dark:text-white hover:bg-gray-50 dark:hover:bg-[#2d3748] transition-colors shadow-sm flex items-center gap-2"
-                    >
-                        <span className="material-symbols-outlined text-sm">refresh</span>
-                        Refresh
-                    </button>
-                    <button
-                        onClick={handleExportAllMembers}
-                        className="px-4 py-2 bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg text-sm font-bold text-[#0d121b] dark:text-white hover:bg-gray-50 dark:hover:bg-[#2d3748] transition-colors shadow-sm flex items-center gap-2"
-                    >
-                        <span className="material-symbols-outlined text-sm">download</span>
-                        Export TWG Members
-                    </button>
-                    <button
-                        onClick={async () => {
-                            if (twgs.length === 0) await loadTwgs();
-                            setIsBulkUploadModalOpen(true);
-                        }}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold transition-all shadow-md shadow-emerald-500/20 flex items-center gap-2"
-                    >
-                        <span className="material-symbols-outlined text-sm">upload</span>
-                        Bulk Upload
-                    </button>
-                    <button
-                        onClick={() => {
-                            if (twgs.length === 0) loadTwgs();
-                            setIsInviteModalOpen(true);
-                        }}
-                        className="px-4 py-2 bg-[#1152d4] hover:bg-[#0e44b1] text-white rounded-lg text-sm font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-2"
-                    >
-                        <span className="material-symbols-outlined text-sm">mail</span>
-                        Invite User
-                    </button>
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                    <h1 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
+                        Team
+                    </h1>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={loadUsers} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>refresh</span>
+                            Refresh
+                        </button>
+                        <button onClick={handleExportAllMembers} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>download</span>
+                            Export
+                        </button>
+                        <button onClick={async () => { if (twgs.length === 0) await loadTwgs(); setIsBulkUploadModalOpen(true); }} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>upload</span>
+                            Bulk Upload
+                        </button>
+                        <button onClick={() => { if (twgs.length === 0) loadTwgs(); setIsInviteModalOpen(true); }} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>mail</span>
+                            Invite User
+                        </button>
+                    </div>
                 </div>
             </div>
 
-
-
-            {/* Tabs */}
-            <div className="flex gap-6 border-b border-[#e7ebf3] dark:border-[#2d3748] mb-6">
-                <button
-                    onClick={() => setActiveTab('users')}
-                    className={`pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'users'
-                        ? 'border-[#1152d4] text-[#1152d4] dark:text-blue-400 dark:border-blue-400'
-                        : 'border-transparent text-[#4c669a] dark:text-[#a0aec0] hover:text-[#0d121b] dark:hover:text-white'
-                        }`}
-                >
-                    Users & Roles
-                </button>
-                <button
-                    onClick={() => setActiveTab('governance')}
-                    className={`pb-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'governance'
-                        ? 'border-[#1152d4] text-[#1152d4] dark:text-blue-400 dark:border-blue-400'
-                        : 'border-transparent text-[#4c669a] dark:text-[#a0aec0] hover:text-[#0d121b] dark:hover:text-white'
-                        }`}
-                >
-                    TWG Governance
-                </button>
+            {/* LedgerStat strip */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', background: 'var(--surface)', border: '1px solid var(--border)', padding: '22px 32px', marginBottom: 24 }}>
+                {[
+                    { label: 'Secretariat Leads', value: secretariatLeads },
+                    { label: 'Facilitators', value: facilitators },
+                    { label: 'Members', value: members },
+                    { label: 'Observers', value: observers },
+                ].map((stat, i, arr) => (
+                    <div key={stat.label} style={{ paddingRight: 24, borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none', paddingLeft: i > 0 ? 24 : 0 }}>
+                        <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{stat.label}</div>
+                        <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 28, color: 'var(--ink-900)', letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{stat.value}</div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 6 }}>active users</div>
+                    </div>
+                ))}
             </div>
 
-            {
-                activeTab === 'users' ? (
-                    <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm overflow-hidden mb-6">
-                        <div className="p-4 border-b border-[#e7ebf3] dark:border-[#2d3748] bg-gray-50/50 dark:bg-gray-800/10">
-                            <div className="relative max-w-md">
-                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#4c669a] text-lg">search</span>
-                                <input
-                                    type="text"
-                                    placeholder="Search members by name or email..."
-                                    className="w-full pl-10 pr-4 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 focus:border-[#1152d4] transition-all"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                            </div>
+            {/* Tab switcher */}
+            <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+                {[{ id: 'users', label: 'Users & Roles' }, { id: 'governance', label: 'TWG Governance' }].map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as 'users' | 'governance')}
+                        style={{
+                            background: 'transparent', border: 'none',
+                            borderBottom: activeTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
+                            color: activeTab === tab.id ? 'var(--accent)' : 'var(--ink-500)',
+                            padding: '10px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            fontFamily: 'inherit', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: -1
+                        }}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            {activeTab === 'users' ? (
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                    {/* Search bar */}
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--ink-50)' }}>
+                        <div style={{ position: 'relative', maxWidth: 400 }}>
+                            <span className="material-symbols-outlined" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 16, color: 'var(--ink-400)' }}>search</span>
+                            <input
+                                type="text"
+                                placeholder="Search by name or email..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                style={{ ...inputStyle, paddingLeft: 34, maxWidth: 400 }}
+                            />
                         </div>
+                    </div>
 
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-gray-50 dark:bg-[#2d3748]/30">
-                                        <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">User Member</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">Role</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">TWG(s)</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">Status</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[#e7ebf3] dark:divide-[#2d3748]">
-                                    {filteredUsers.map((user) => (
-                                        <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-[#2d3748]/30 transition-colors group">
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="relative">
-                                                        <Avatar alt={user.full_name} size="md" />
-                                                        {user.is_active && (
-                                                            <div className="absolute -bottom-0.5 -right-0.5 size-3 bg-green-500 border-2 border-white dark:border-[#1a202c] rounded-full"></div>
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-[#0d121b] dark:text-white text-sm">{user.full_name}</div>
-                                                        <div className="text-xs text-[#4c669a] dark:text-[#a0aec0]">{user.email}</div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <select
-                                                    className="bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] text-xs font-medium rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 text-[#0d121b] dark:text-white"
-                                                    value={user.role}
-                                                    onChange={(e) => handleRoleChange(user, e.target.value as UserRole)}
-                                                >
-                                                    {Object.values(UserRole).map((role) => (
-                                                        <option key={role} value={role}>
-                                                            {role.replace(/_/g, ' ').toUpperCase()}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-wrap gap-1">
-                                                    {user.twgs && user.twgs.length > 0 ? (
-                                                        user.twgs.map((twg) => (
-                                                            <span
-                                                                key={twg.id}
-                                                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[#1152d4]/10 text-[#1152d4] dark:bg-[#1152d4]/20 dark:text-[#6b9aff]"
-                                                            >
-                                                                {twg.name.replace(/ TWG$/i, '')}
-                                                            </span>
-                                                        ))
-                                                    ) : (
-                                                        <span className="text-xs text-[#4c669a]/50 dark:text-[#a0aec0]/50 italic">None</span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-col gap-1">
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${user.is_active
-                                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                                        }`}>
-                                                        {user.is_active ? 'Active' : 'Inactive'}
-                                                    </span>
-                                                    {user.invite_sent_at && !user.invite_accepted_at && (
-                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
-                                                            Invite Pending
-                                                        </span>
-                                                    )}
-                                                    {user.invite_accepted_at && (
-                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                                                            Invite Accepted
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    <button
-                                                        onClick={() => openEditModal(user)}
-                                                        className="p-2 text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors"
-                                                        title="Edit Details"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[20px]">edit</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleUpdateUser(user.id, { is_active: !user.is_active })}
-                                                        disabled={user.id === currentUser?.id}
-                                                        className={`p-2 rounded-lg transition-colors ${user.is_active
-                                                            ? 'text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20'
-                                                            : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
-                                                            } ${user.id === currentUser?.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                        title={user.id === currentUser?.id ? 'You cannot deactivate yourself' : (user.is_active ? 'Deactivate' : 'Activate')}
-                                                    >
-                                                        <span className="material-symbols-outlined text-[20px]">
-                                                            {user.is_active ? 'person_off' : 'person_check'}
-                                                        </span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => openTeamModal(user)}
-                                                        className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                                                        title="Manage Teams"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[20px]">groups</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleResendInvite(user)}
-                                                        disabled={resendingUserId === user.id}
-                                                        className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors disabled:opacity-50"
-                                                        title="Resend Invite"
-                                                    >
-                                                        {resendingUserId === user.id ? (
-                                                            <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                                                        ) : (
-                                                            <span className="material-symbols-outlined text-[20px]">forward_to_inbox</span>
-                                                        )}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteUser(user.id)}
-                                                        disabled={user.id === currentUser?.id}
-                                                        className={`p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ${user.id === currentUser?.id ? 'opacity-50 cursor-not-allowed' : ''
-                                                            }`}
-                                                        title={user.id === currentUser?.id ? 'You cannot delete yourself' : 'Delete User'}
-                                                    >
-                                                        <span className="material-symbols-outlined text-[20px]">delete</span>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
+                    {/* Table */}
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', textAlign: 'left', fontSize: 13, borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ background: 'var(--ink-50)', borderBottom: '1px solid var(--border)' }}>
+                                    {['Member', 'Role', 'TWG(s)', 'Organisation', 'Status', 'Actions'].map(col => (
+                                        <th key={col} style={{ padding: '10px 16px', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{col}</th>
                                     ))}
-                                </tbody>
-                            </table>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredUsers.map((user, idx) => (
+                                    <tr
+                                        key={user.id}
+                                        onMouseEnter={() => setHoveredRow(user.id)}
+                                        onMouseLeave={() => setHoveredRow(null)}
+                                        style={{
+                                            borderBottom: idx < filteredUsers.length - 1 ? '1px solid var(--border)' : 'none',
+                                            background: hoveredRow === user.id ? 'var(--ink-50)' : 'transparent'
+                                        }}
+                                    >
+                                        {/* Member */}
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                <div style={{ position: 'relative', flexShrink: 0 }}>
+                                                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600 }}>
+                                                        {getInitials(user.full_name)}
+                                                    </div>
+                                                    {user.is_active && (
+                                                        <div style={{ position: 'absolute', bottom: -1, right: -1, width: 9, height: 9, borderRadius: '50%', background: 'var(--sage)', border: '2px solid var(--surface)' }}></div>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontWeight: 500, color: 'var(--ink-900)', fontSize: 13 }}>{user.full_name}</div>
+                                                    <div style={{ fontSize: 11, color: 'var(--ink-500)' }}>{user.email}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        {/* Role */}
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <select
+                                                style={{ background: 'var(--surface)', border: '1px solid var(--border)', fontSize: 11, fontWeight: 500, padding: '4px 8px', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--ink-700)', outline: 'none' }}
+                                                value={user.role}
+                                                onChange={(e) => handleRoleChange(user, e.target.value as UserRole)}
+                                            >
+                                                {Object.values(UserRole).map((role) => (
+                                                    <option key={role} value={role}>{role.replace(/_/g, ' ')}</option>
+                                                ))}
+                                            </select>
+                                        </td>
+                                        {/* TWGs */}
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                {user.twgs && user.twgs.length > 0 ? user.twgs.map((twg) => (
+                                                    <span key={twg.id} style={{ fontSize: 10, background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', fontWeight: 500 }}>
+                                                        {twg.name.replace(/ TWG$/i, '')}
+                                                    </span>
+                                                )) : (
+                                                    <span style={{ fontSize: 11, color: 'var(--ink-400)', fontStyle: 'italic' }}>None</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        {/* Organisation */}
+                                        <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--ink-600)' }}>
+                                            {user.organization || '—'}
+                                        </td>
+                                        {/* Status */}
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+                                                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: user.is_active ? 'var(--sage)' : 'var(--amber)', flexShrink: 0 }}></div>
+                                                    <span style={{ color: 'var(--ink-700)' }}>{user.is_active ? 'Active' : 'Inactive'}</span>
+                                                </span>
+                                                {user.invite_sent_at && !user.invite_accepted_at && (
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+                                                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--amber)', flexShrink: 0 }}></div>
+                                                        <span style={{ color: 'var(--ink-500)' }}>Invite pending</span>
+                                                    </span>
+                                                )}
+                                                {user.invite_accepted_at && (
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+                                                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--sage)', flexShrink: 0 }}></div>
+                                                        <span style={{ color: 'var(--ink-500)' }}>Accepted</span>
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        {/* Actions */}
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <div style={{ display: 'flex', gap: 2 }}>
+                                                <button onClick={() => openEditModal(user)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-500)', padding: 5 }} title="Edit">
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
+                                                </button>
+                                                <button onClick={() => handleUpdateUser(user.id, { is_active: !user.is_active })} disabled={user.id === currentUser?.id} style={{ background: 'none', border: 'none', cursor: 'pointer', color: user.is_active ? 'var(--amber)' : 'var(--sage)', padding: 5, opacity: user.id === currentUser?.id ? 0.4 : 1 }} title={user.is_active ? 'Deactivate' : 'Activate'}>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{user.is_active ? 'person_off' : 'person_check'}</span>
+                                                </button>
+                                                <button onClick={() => openTeamModal(user)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 5 }} title="Manage Teams">
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>groups</span>
+                                                </button>
+                                                <button onClick={() => handleResendInvite(user)} disabled={resendingUserId === user.id} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-500)', padding: 5, opacity: resendingUserId === user.id ? 0.5 : 1 }} title="Resend Invite">
+                                                    {resendingUserId === user.id ? (
+                                                        <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
+                                                    ) : (
+                                                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>forward_to_inbox</span>
+                                                    )}
+                                                </button>
+                                                <button onClick={() => handleDeleteUser(user.id)} disabled={user.id === currentUser?.id} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--terra)', padding: 5, opacity: user.id === currentUser?.id ? 0.4 : 1 }} title="Delete">
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {filteredUsers.length === 0 && (
+                        <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--ink-400)' }}>
+                            <p style={{ fontSize: 16, fontWeight: 500, margin: 0 }}>No members found</p>
+                            <p style={{ fontSize: 13, marginTop: 4 }}>Try adjusting your search criteria.</p>
                         </div>
-
-                        {filteredUsers.length === 0 && (
-                            <div className="p-12 text-center">
-                                <div className="size-16 bg-gray-100 dark:bg-[#2d3748] rounded-full flex items-center justify-center mx-auto mb-4 text-[#4c669a]">
-                                    <span className="material-symbols-outlined text-3xl">group_off</span>
+                    )}
+                </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {loadingTwgs && (
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+                            <div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
+                        </div>
+                    )}
+                    {!loadingTwgs && twgs.map((twg) => (
+                        <div key={twg.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 24 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+                                <div>
+                                    <h3 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 18, color: 'var(--ink-900)', margin: '0 0 4px' }}>{twg.name}</h3>
+                                    <p style={{ fontSize: 11, color: 'var(--ink-500)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>
+                                        {twg.pillar?.replace(/_/g, ' ')}
+                                    </p>
                                 </div>
-                                <h3 className="text-lg font-bold text-[#0d121b] dark:text-white">No members found</h3>
-                                <p className="text-[#4c669a] dark:text-[#a0aec0]">Try adjusting your search criteria or add a new member.</p>
+                                <span style={{ fontSize: 10, color: 'var(--sage)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--sage)' }}></div>
+                                    {twg.status}
+                                </span>
                             </div>
-                        )}
-                    </div>
-                ) : (
-                    <div className="space-y-6">
-                        {loadingTwgs && (
-                            <div className="flex justify-center p-12">
-                                <div className="w-8 h-8 border-4 border-[#1152d4] border-t-transparent rounded-full animate-spin"></div>
-                            </div>
-                        )}
-                        {!loadingTwgs && twgs.map((twg) => (
-                            <div key={twg.id} className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] p-6 shadow-sm">
-                                <div className="flex justify-between items-start mb-6">
-                                    <div>
-                                        <h3 className="text-lg font-bold text-[#0d121b] dark:text-white">{twg.name}</h3>
-                                        <p className="text-sm text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider font-bold mt-1">
-                                            Pillar: {twg.pillar?.replace(/_/g, ' ')}
-                                        </p>
-                                    </div>
-                                    <div className="px-3 py-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full text-xs font-bold uppercase">
-                                        {twg.status}
-                                    </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                <div style={{ padding: 16, background: 'var(--ink-50)', border: '1px solid var(--border)' }}>
+                                    <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 8 }}>Political Lead</div>
+                                    <select
+                                        style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', padding: '8px 10px', fontSize: 12, fontFamily: 'inherit', color: 'var(--ink-700)', cursor: 'pointer', outline: 'none' }}
+                                        value={twg.political_lead_id || ''}
+                                        onChange={(e) => handleUpdateTwg(twg.id, { political_lead_id: e.target.value || null })}
+                                    >
+                                        <option value="">Unassigned</option>
+                                        {users.map(u => (<option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>))}
+                                    </select>
                                 </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {/* Political Lead */}
-                                    <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-800/30">
-                                        <h4 className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-3">Political Lead</h4>
-                                        <select
-                                            className="w-full bg-white dark:bg-[#2d3748] border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 text-[#0d121b] dark:text-white"
-                                            value={twg.political_lead_id || ''}
-                                            onChange={(e) => handleUpdateTwg(twg.id, { political_lead_id: e.target.value || null })}
-                                        >
-                                            <option value="">Unassigned</option>
-                                            {users.map(u => (
-                                                <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    {/* Technical Lead */}
-                                    <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100 dark:border-emerald-800/30">
-                                        <h4 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-3">Technical Lead</h4>
-                                        <select
-                                            className="w-full bg-white dark:bg-[#2d3748] border border-emerald-200 dark:border-emerald-800 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500 text-[#0d121b] dark:text-white"
-                                            value={twg.technical_lead_id || ''}
-                                            onChange={(e) => handleUpdateTwg(twg.id, { technical_lead_id: e.target.value || null })}
-                                        >
-                                            <option value="">Unassigned</option>
-                                            {users.map(u => (
-                                                <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                <div style={{ padding: 16, background: 'var(--ink-50)', border: '1px solid var(--border)' }}>
+                                    <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 8 }}>Technical Lead</div>
+                                    <select
+                                        style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', padding: '8px 10px', fontSize: 12, fontFamily: 'inherit', color: 'var(--ink-700)', cursor: 'pointer', outline: 'none' }}
+                                        value={twg.technical_lead_id || ''}
+                                        onChange={(e) => handleUpdateTwg(twg.id, { technical_lead_id: e.target.value || null })}
+                                    >
+                                        <option value="">Unassigned</option>
+                                        {users.map(u => (<option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>))}
+                                    </select>
                                 </div>
                             </div>
-                        ))}
-                        {twgs.length === 0 && (
-                            <div className="p-12 text-center text-slate-400">
-                                No TWGs found. System seed required?
-                            </div>
-                        )}
-                    </div>
-                )
-            }
+                        </div>
+                    ))}
+                    {twgs.length === 0 && !loadingTwgs && (
+                        <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--ink-400)', fontSize: 13 }}>
+                            No TWGs found. System seed required?
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Manage Teams Modal */}
             {isTeamModalOpen && editingUser && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-2xl w-full max-w-md border border-[#e7ebf3] dark:border-[#2d3748] overflow-hidden">
-                        <div className="p-6 border-b border-[#e7ebf3] dark:border-[#2d3748]">
-                            <h3 className="text-xl font-bold text-[#0d121b] dark:text-white">Manage Teams</h3>
-                            <p className="text-sm text-[#4c669a] dark:text-[#a0aec0]">Assign TWGs for {editingUser.full_name}</p>
+                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: '100%', maxWidth: 440, overflow: 'hidden' }}>
+                        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
+                            <h3 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 20, color: 'var(--ink-900)', margin: '0 0 4px' }}>Manage Teams</h3>
+                            <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: 0 }}>Assign TWGs for {editingUser.full_name}</p>
                         </div>
-
-                        <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3">
+                        <div style={{ padding: 24, maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                             {loadingTwgs ? (
-                                <div className="flex justify-center py-8">
-                                    <div className="w-6 h-6 border-2 border-[#1152d4] border-t-transparent rounded-full animate-spin"></div>
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+                                    <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
                                 </div>
-                            ) : (
-                                twgs.map(twg => (
-                                    <label key={twg.id} className="flex items-center gap-3 p-3 rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] hover:bg-gray-50 dark:hover:bg-[#2d3748]/50 cursor-pointer transition-colors">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedTwgs.includes(twg.id)}
-                                            onChange={() => toggleTwgSelection(twg.id)}
-                                            className="w-5 h-5 rounded border-gray-300 text-[#1152d4] focus:ring-[#1152d4]"
-                                        />
-                                        <div>
-                                            <div className="font-bold text-[#0d121b] dark:text-white text-sm">{twg.name}</div>
-                                            <div className="text-xs text-[#4c669a] dark:text-[#a0aec0] uppercase">{twg.pillar?.replace(/_/g, ' ')}</div>
-                                        </div>
-                                    </label>
-                                ))
-                            )}
+                            ) : twgs.map(twg => (
+                                <label key={twg.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', cursor: 'pointer', background: selectedTwgs.includes(twg.id) ? 'var(--accent-soft)' : 'transparent' }}>
+                                    <input type="checkbox" checked={selectedTwgs.includes(twg.id)} onChange={() => toggleTwgSelection(twg.id)} style={{ accentColor: 'var(--accent)' }} />
+                                    <div>
+                                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-900)' }}>{twg.name}</div>
+                                        <div style={{ fontSize: 10, color: 'var(--ink-500)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{twg.pillar?.replace(/_/g, ' ')}</div>
+                                    </div>
+                                </label>
+                            ))}
                         </div>
-
-                        <div className="p-6 bg-gray-50 dark:bg-[#2d3748]/30 flex justify-end gap-3">
-                            <button
-                                onClick={handleCancelTeamModal}
-                                className="px-4 py-2 text-sm font-bold text-[#4c669a] hover:text-[#0d121b] dark:text-[#a0aec0] dark:hover:text-white transition-colors"
-                            >
+                        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                            <button onClick={handleCancelTeamModal} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
                                 {enforceTwgSelection ? 'Cancel (Revert to Member)' : 'Cancel'}
                             </button>
-                            <button
-                                onClick={handleSaveTeams}
-                                disabled={(enforceTwgSelection && selectedTwgs.length === 0) || isSavingTeams}
-                                className="px-4 py-2 bg-[#1152d4] hover:bg-[#0e44b1] text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                            >
-                                {isSavingTeams && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                            <button onClick={handleSaveTeams} disabled={(enforceTwgSelection && selectedTwgs.length === 0) || isSavingTeams} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: (enforceTwgSelection && selectedTwgs.length === 0) || isSavingTeams ? 0.5 : 1 }}>
+                                {isSavingTeams && <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }}></div>}
                                 {enforceTwgSelection && selectedTwgs.length === 0 ? 'Select at least 1 TWG' : 'Save Changes'}
                             </button>
                         </div>
@@ -834,111 +803,48 @@ export default function TeamManagement() {
             {/* Invite User Modal */}
             {isInviteModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-2xl w-full max-w-lg border border-[#e7ebf3] dark:border-[#2d3748] overflow-hidden">
-                        <div className="p-6 border-b border-[#e7ebf3] dark:border-[#2d3748]">
-                            <h3 className="text-xl font-bold text-[#0d121b] dark:text-white">Invite New User</h3>
-                            <p className="text-sm text-[#4c669a] dark:text-[#a0aec0]">Create account and assign access</p>
+                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: '100%', maxWidth: 480, overflow: 'hidden' }}>
+                        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
+                            <h3 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 20, color: 'var(--ink-900)', margin: '0 0 4px' }}>Invite New User</h3>
+                            <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: 0 }}>Create account and assign access</p>
                         </div>
 
                         {tempPassword ? (
-                            <div className="p-6 space-y-4">
-                                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
-                                    <p className="text-sm font-bold text-green-800 dark:text-green-400 mb-2">✓ User Created Successfully!</p>
-                                    <p className="text-xs text-green-700 dark:text-green-500 mb-3">Share this temporary password with the user. They must change it on first login.</p>
-                                    <div className="bg-white dark:bg-[#2d3748] p-3 rounded-lg font-mono text-sm break-all">
-                                        {tempPassword}
-                                    </div>
+                            <div style={{ padding: 24 }}>
+                                <div style={{ background: 'var(--accent-soft)', borderLeft: '2px solid var(--sage)', padding: '12px 16px', marginBottom: 20 }}>
+                                    <p style={{ fontSize: 13, color: 'var(--ink-700)', fontWeight: 500, margin: '0 0 8px' }}>User Created Successfully</p>
+                                    <p style={{ fontSize: 12, color: 'var(--ink-500)', margin: '0 0 12px' }}>Share this temporary password. User must change it on first login.</p>
+                                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '8px 12px', fontFamily: "'Geist Mono', monospace", fontSize: 13, wordBreak: 'break-all' }}>{tempPassword}</div>
                                 </div>
-                                <button
-                                    onClick={resetInviteForm}
-                                    className="w-full px-4 py-2 bg-[#1152d4] hover:bg-[#0e44b1] text-white text-sm font-bold rounded-lg"
-                                >
-                                    Done
-                                </button>
+                                <button onClick={resetInviteForm} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '8px 16px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>Done</button>
                             </div>
                         ) : (
                             <>
-                                <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-                                    <div>
-                                        <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">Email *</label>
-                                        <input
-                                            type="email"
-                                            value={inviteForm.email}
-                                            onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                                            className="w-full px-3 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm"
-                                            placeholder="user@example.com"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">Full Name *</label>
-                                        <input
-                                            type="text"
-                                            value={inviteForm.full_name}
-                                            onChange={(e) => setInviteForm({ ...inviteForm, full_name: e.target.value })}
-                                            className="w-full px-3 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm"
-                                            placeholder="John Doe"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">Role *</label>
-                                        <select
-                                            value={inviteForm.role}
-                                            onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value as UserRole })}
-                                            className="w-full px-3 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm"
-                                        >
-                                            {Object.values(UserRole).map(role => (
-                                                <option key={role} value={role}>{role.replace(/_/g, ' ').toUpperCase()}</option>
-                                            ))}
+                                <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '60vh', overflowY: 'auto' }}>
+                                    <div><label style={labelStyle}>Email *</label><input type="email" value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })} style={inputStyle} placeholder="user@example.com" /></div>
+                                    <div><label style={labelStyle}>Full Name *</label><input type="text" value={inviteForm.full_name} onChange={(e) => setInviteForm({ ...inviteForm, full_name: e.target.value })} style={inputStyle} placeholder="John Doe" /></div>
+                                    <div><label style={labelStyle}>Role *</label>
+                                        <select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value as UserRole })} style={{ ...inputStyle, cursor: 'pointer' }}>
+                                            {Object.values(UserRole).map(role => (<option key={role} value={role}>{role.replace(/_/g, ' ')}</option>))}
                                         </select>
                                     </div>
+                                    <div><label style={labelStyle}>Organization</label><input type="text" value={inviteForm.organization} onChange={(e) => setInviteForm({ ...inviteForm, organization: e.target.value })} style={inputStyle} placeholder="Optional" /></div>
                                     <div>
-                                        <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">Organization</label>
-                                        <input
-                                            type="text"
-                                            value={inviteForm.organization}
-                                            onChange={(e) => setInviteForm({ ...inviteForm, organization: e.target.value })}
-                                            className="w-full px-3 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm"
-                                            placeholder="Optional"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">Assign to TWGs</label>
-                                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                                        <label style={labelStyle}>Assign to TWGs</label>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 160, overflowY: 'auto', border: '1px solid var(--border)', padding: 10 }}>
                                             {twgs.map(twg => (
-                                                <label key={twg.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-[#2d3748]/50 cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={inviteForm.twg_ids.includes(twg.id)}
-                                                        onChange={(e) => {
-                                                            setInviteForm({
-                                                                ...inviteForm,
-                                                                twg_ids: e.target.checked
-                                                                    ? [...inviteForm.twg_ids, twg.id]
-                                                                    : inviteForm.twg_ids.filter(id => id !== twg.id)
-                                                            })
-                                                        }}
-                                                        className="w-4 h-4 rounded border-gray-300 text-[#1152d4]"
-                                                    />
-                                                    <span className="text-sm text-[#0d121b] dark:text-white">{twg.name}</span>
+                                                <label key={twg.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--ink-700)' }}>
+                                                    <input type="checkbox" checked={inviteForm.twg_ids.includes(twg.id)} onChange={(e) => setInviteForm({ ...inviteForm, twg_ids: e.target.checked ? [...inviteForm.twg_ids, twg.id] : inviteForm.twg_ids.filter(id => id !== twg.id) })} style={{ accentColor: 'var(--accent)' }} />
+                                                    {twg.name}
                                                 </label>
                                             ))}
                                         </div>
                                     </div>
                                 </div>
-
-                                <div className="p-6 bg-gray-50 dark:bg-[#2d3748]/30 flex justify-end gap-3">
-                                    <button
-                                        onClick={resetInviteForm}
-                                        className="px-4 py-2 text-sm font-bold text-[#4c669a] hover:text-[#0d121b] dark:text-[#a0aec0] dark:hover:text-white"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleInviteUser}
-                                        disabled={!inviteForm.email || !inviteForm.full_name || isInviting}
-                                        className="px-4 py-2 bg-[#1152d4] hover:bg-[#0e44b1] text-white text-sm font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                                    >
-                                        {isInviting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                                <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                                    <button onClick={resetInviteForm} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                                    <button onClick={handleInviteUser} disabled={!inviteForm.email || !inviteForm.full_name || isInviting} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: !inviteForm.email || !inviteForm.full_name || isInviting ? 0.5 : 1 }}>
+                                        {isInviting && <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }}></div>}
                                         Create & Invite
                                     </button>
                                 </div>
@@ -951,62 +857,20 @@ export default function TeamManagement() {
             {/* Edit User Details Modal */}
             {isEditModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-2xl w-full max-w-md border border-[#e7ebf3] dark:border-[#2d3748] overflow-hidden">
-                        <div className="p-6 border-b border-[#e7ebf3] dark:border-[#2d3748]">
-                            <h3 className="text-xl font-bold text-[#0d121b] dark:text-white">Edit User Details</h3>
-                            <p className="text-sm text-[#4c669a] dark:text-[#a0aec0]">Update user information</p>
+                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: '100%', maxWidth: 420, overflow: 'hidden' }}>
+                        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
+                            <h3 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 20, color: 'var(--ink-900)', margin: '0 0 4px' }}>Edit User Details</h3>
+                            <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: 0 }}>Update user information</p>
                         </div>
-
-                        <div className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">Full Name *</label>
-                                <input
-                                    type="text"
-                                    value={editForm.full_name}
-                                    onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
-                                    className="w-full px-3 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm"
-                                    placeholder="John Doe"
-                                    disabled={isSavingEdit}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">Email *</label>
-                                <input
-                                    type="email"
-                                    value={editForm.email}
-                                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                                    className="w-full px-3 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm"
-                                    placeholder="user@example.com"
-                                    disabled={isSavingEdit}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">Organization</label>
-                                <input
-                                    type="text"
-                                    value={editForm.organization}
-                                    onChange={(e) => setEditForm({ ...editForm, organization: e.target.value })}
-                                    className="w-full px-3 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm"
-                                    placeholder="Organization name"
-                                    disabled={isSavingEdit}
-                                />
-                            </div>
+                        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            <div><label style={labelStyle}>Full Name *</label><input type="text" value={editForm.full_name} onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} style={inputStyle} placeholder="John Doe" disabled={isSavingEdit} /></div>
+                            <div><label style={labelStyle}>Email *</label><input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} style={inputStyle} placeholder="user@example.com" disabled={isSavingEdit} /></div>
+                            <div><label style={labelStyle}>Organization</label><input type="text" value={editForm.organization} onChange={(e) => setEditForm({ ...editForm, organization: e.target.value })} style={inputStyle} placeholder="Organization name" disabled={isSavingEdit} /></div>
                         </div>
-
-                        <div className="p-6 bg-gray-50 dark:bg-[#2d3748]/30 flex justify-end gap-3">
-                            <button
-                                onClick={closeEditModal}
-                                disabled={isSavingEdit}
-                                className="px-4 py-2 text-sm font-bold text-[#4c669a] hover:text-[#0d121b] dark:text-[#a0aec0] dark:hover:text-white transition-colors disabled:opacity-50"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSaveEdit}
-                                disabled={!editForm.full_name.trim() || !editForm.email.trim() || isSavingEdit}
-                                className="px-4 py-2 bg-[#1152d4] hover:bg-[#0e44b1] text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                            >
-                                {isSavingEdit && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                            <button onClick={closeEditModal} disabled={isSavingEdit} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', opacity: isSavingEdit ? 0.5 : 1 }}>Cancel</button>
+                            <button onClick={handleSaveEdit} disabled={!editForm.full_name.trim() || !editForm.email.trim() || isSavingEdit} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: !editForm.full_name.trim() || !editForm.email.trim() || isSavingEdit ? 0.5 : 1 }}>
+                                {isSavingEdit && <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }}></div>}
                                 Save Changes
                             </button>
                         </div>
@@ -1017,96 +881,59 @@ export default function TeamManagement() {
             {/* Bulk Upload Modal */}
             {isBulkUploadModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-2xl w-full max-w-2xl border border-[#e7ebf3] dark:border-[#2d3748] overflow-hidden">
-                        <div className="p-6 border-b border-[#e7ebf3] dark:border-[#2d3748]">
-                            <h3 className="text-xl font-bold text-[#0d121b] dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-emerald-600">upload</span>
-                                Bulk Upload Users
-                            </h3>
-                            <p className="text-sm text-[#4c669a] dark:text-[#a0aec0]">Import multiple users from a CSV file</p>
+                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: '100%', maxWidth: 600, overflow: 'hidden' }}>
+                        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
+                            <h3 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 20, color: 'var(--ink-900)', margin: '0 0 4px' }}>Bulk Upload Users</h3>
+                            <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: 0 }}>Import multiple users from a CSV file</p>
                         </div>
-
-                        <div className="p-6 max-h-[60vh] overflow-y-auto">
+                        <div style={{ padding: 24, maxHeight: '60vh', overflowY: 'auto' }}>
                             {!bulkUploadResults ? (
-                                <>
-                                    {/* Step 1: Download Template */}
-                                    <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-                                        <h4 className="font-bold text-blue-800 dark:text-blue-400 mb-2">Step 1: Download Template</h4>
-                                        <p className="text-sm text-blue-700 dark:text-blue-500 mb-3">Download the CSV template and fill in user details.</p>
-                                        <button
-                                            onClick={downloadTemplate}
-                                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-lg flex items-center gap-2"
-                                        >
-                                            <span className="material-symbols-outlined text-sm">download</span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                    {/* Step 1 */}
+                                    <div style={{ background: 'var(--ink-50)', border: '1px solid var(--border)', padding: 16 }}>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-700)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Step 1: Download Template</div>
+                                        <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: '0 0 12px' }}>Download the CSV template and fill in user details.</p>
+                                        <button onClick={downloadTemplate} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>download</span>
                                             Download Template
                                         </button>
                                     </div>
-
-                                    {/* Step 2: Upload CSV */}
-                                    <div className="mb-6">
-                                        <h4 className="font-bold text-[#0d121b] dark:text-white mb-2">Step 2: Upload CSV File</h4>
-                                        <div className="border-2 border-dashed border-[#e7ebf3] dark:border-[#2d3748] rounded-xl p-6 text-center hover:border-emerald-500 transition-colors">
-                                            <input
-                                                type="file"
-                                                accept=".csv"
-                                                onChange={handleFileSelect}
-                                                disabled={isParsing}
-                                                className="hidden"
-                                                id="csv-upload"
-                                            />
-                                            <label
-                                                htmlFor="csv-upload"
-                                                className="cursor-pointer flex flex-col items-center"
-                                            >
-                                                <span className="material-symbols-outlined text-4xl text-[#4c669a] dark:text-[#a0aec0] mb-2">cloud_upload</span>
-                                                <p className="text-sm font-bold text-[#0d121b] dark:text-white">
-                                                    {isParsing ? 'Parsing...' : csvFile ? csvFile.name : 'Click to upload CSV file'}
-                                                </p>
-                                                <p className="text-xs text-[#4c669a] dark:text-[#a0aec0]">CSV files only</p>
+                                    {/* Step 2 */}
+                                    <div>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-700)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Step 2: Upload CSV File</div>
+                                        <div style={{ border: '1px dashed var(--border)', padding: 32, textAlign: 'center' }}>
+                                            <input type="file" accept=".csv" onChange={handleFileSelect} disabled={isParsing} className="hidden" id="csv-upload" />
+                                            <label htmlFor="csv-upload" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                                                <span className="material-symbols-outlined" style={{ fontSize: 36, color: 'var(--ink-300)' }}>cloud_upload</span>
+                                                <p style={{ fontSize: 13, color: 'var(--ink-700)', margin: 0 }}>{isParsing ? 'Parsing...' : csvFile ? csvFile.name : 'Click to upload CSV'}</p>
+                                                <p style={{ fontSize: 11, color: 'var(--ink-400)', margin: 0 }}>CSV files only</p>
                                             </label>
                                         </div>
                                     </div>
-
-                                    {/* Parse Error Banner */}
+                                    {/* Error */}
                                     {parseError && parsedUsers.length === 0 && (
-                                        <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
-                                            <div className="flex items-center gap-2">
-                                                <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-lg">error</span>
-                                                <p className="text-sm font-medium text-red-700 dark:text-red-400">{parseError}</p>
-                                            </div>
-                                            <p className="text-xs text-red-600 dark:text-red-500 mt-1 ml-7">
-                                                Required columns: <strong>email</strong>, <strong>full name</strong> (or full_name). Optional: role, organization, twg names.
-                                            </p>
+                                        <div style={{ borderLeft: '2px solid var(--terra)', padding: '10px 14px', background: 'var(--ink-50)' }}>
+                                            <p style={{ fontSize: 13, color: 'var(--terra)', margin: 0 }}>{parseError}</p>
                                         </div>
                                     )}
-
-                                    {/* Step 3: Preview */}
+                                    {/* Step 3 */}
                                     {parsedUsers.length > 0 && (
                                         <div>
-                                            <h4 className="font-bold text-[#0d121b] dark:text-white mb-2">Step 3: Preview ({parsedUsers.length} users)</h4>
-                                            <div className="border border-[#e7ebf3] dark:border-[#2d3748] rounded-xl overflow-hidden max-h-48 overflow-y-auto">
-                                                <table className="w-full text-sm text-left">
-                                                    <thead className="bg-gray-50 dark:bg-[#2d3748]/30">
-                                                        <tr>
-                                                            <th className="px-3 py-2 font-bold text-xs">Name</th>
-                                                            <th className="px-3 py-2 font-bold text-xs">Email</th>
-                                                            <th className="px-3 py-2 font-bold text-xs">Role</th>
-                                                            <th className="px-3 py-2 font-bold text-xs">TWGs</th>
+                                            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-700)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Step 3: Preview ({parsedUsers.length} users)</div>
+                                            <div style={{ border: '1px solid var(--border)', overflow: 'hidden', maxHeight: 192, overflowY: 'auto' }}>
+                                                <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', textAlign: 'left' }}>
+                                                    <thead>
+                                                        <tr style={{ background: 'var(--ink-50)', borderBottom: '1px solid var(--border)' }}>
+                                                            {['Name', 'Email', 'Role', 'TWGs'].map(h => <th key={h} style={{ padding: '8px 10px', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{h}</th>)}
                                                         </tr>
                                                     </thead>
-                                                    <tbody className="divide-y divide-[#e7ebf3] dark:divide-[#2d3748]">
+                                                    <tbody>
                                                         {parsedUsers.map((user, idx) => (
-                                                            <tr key={idx}>
-                                                                <td className="px-3 py-2">{user['full name'] || user.full_name}</td>
-                                                                <td className="px-3 py-2 text-[#4c669a]">{user.email}</td>
-                                                                <td className="px-3 py-2">
-                                                                    <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">
-                                                                        {(user.role || 'TWG_MEMBER').replace('_', ' ')}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-3 py-2 text-xs text-[#4c669a]">
-                                                                    {user['twg names (comma-separated)'] || '-'}
-                                                                </td>
+                                                            <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                                <td style={{ padding: '7px 10px', color: 'var(--ink-800)' }}>{user['full name'] || user.full_name}</td>
+                                                                <td style={{ padding: '7px 10px', color: 'var(--ink-500)' }}>{user.email}</td>
+                                                                <td style={{ padding: '7px 10px' }}><span style={{ fontSize: 10, background: 'var(--ink-50)', border: '1px solid var(--border)', padding: '2px 6px' }}>{(user.role || 'TWG_MEMBER').replace('_', ' ')}</span></td>
+                                                                <td style={{ padding: '7px 10px', color: 'var(--ink-500)' }}>{user['twg names (comma-separated)'] || '-'}</td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
@@ -1114,74 +941,52 @@ export default function TeamManagement() {
                                             </div>
                                         </div>
                                     )}
-                                </>
+                                </div>
                             ) : (
-                                /* Results */
                                 <div>
-                                    <h4 className="font-bold text-[#0d121b] dark:text-white mb-4">Upload Complete</h4>
-                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                        <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800">
-                                            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{bulkUploadResults.successful.length}</p>
-                                            <p className="text-sm text-green-700 dark:text-green-500">Successful</p>
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-700)', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Upload Complete</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                                        <div style={{ background: 'var(--ink-50)', border: '1px solid var(--border)', padding: 16 }}>
+                                            <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 28, color: 'var(--sage)' }}>{bulkUploadResults.successful.length}</div>
+                                            <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 4 }}>Successful</div>
                                         </div>
-                                        <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
-                                            <p className="text-2xl font-bold text-red-600 dark:text-red-400">{bulkUploadResults.failed.length}</p>
-                                            <p className="text-sm text-red-700 dark:text-red-500">Failed</p>
+                                        <div style={{ background: 'var(--ink-50)', border: '1px solid var(--border)', padding: 16 }}>
+                                            <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 28, color: 'var(--terra)' }}>{bulkUploadResults.failed.length}</div>
+                                            <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 4 }}>Failed</div>
                                         </div>
                                     </div>
-
-                                            {/* Show temporary passwords for successful users */}
                                     {bulkUploadResults.successful.length > 0 && (
-                                        <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800">
-                                            <h5 className="font-bold text-amber-800 dark:text-amber-400 mb-2 flex items-center gap-2">
-                                                <span className="material-symbols-outlined text-sm">warning</span>
-                                                Important: Save Temporary Passwords
-                                            </h5>
-                                            <p className="text-xs text-amber-700 dark:text-amber-500 mb-3">
-                                                These passwords are shown only once. Copy them now or share with users.
-                                            </p>
-                                            <div className="max-h-32 overflow-y-auto space-y-1">
+                                        <div style={{ borderLeft: '2px solid var(--amber)', padding: '10px 14px', background: 'var(--ink-50)', marginBottom: 12 }}>
+                                            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-700)', marginBottom: 6 }}>Save Temporary Passwords</div>
+                                            <div style={{ maxHeight: 120, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
                                                 {bulkUploadResults.successful.map((user: any) => (
-                                                    <div key={user.user_id} className="text-xs bg-white dark:bg-[#2d3748] p-2 rounded font-mono">
+                                                    <div key={user.user_id} style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 8px' }}>
                                                         {user.email}: {user.temporary_password}
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
-
-                                    {/* Show failed users */}
                                     {bulkUploadResults.failed.length > 0 && (
-                                        <div className="mb-4">
-                                            <h5 className="font-bold text-red-600 dark:text-red-400 mb-2">Failed Users</h5>
-                                            <div className="max-h-32 overflow-y-auto space-y-1">
-                                                {bulkUploadResults.failed.map((user: any, idx: number) => (
-                                                    <div key={idx} className="text-xs bg-red-50 dark:bg-red-900/10 p-2 rounded">
-                                                        {user.email}: {user.error}
-                                                    </div>
-                                                ))}
-                                            </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--terra)', marginBottom: 6 }}>Failed Users</div>
+                                            {bulkUploadResults.failed.map((user: any, idx: number) => (
+                                                <div key={idx} style={{ fontSize: 11, background: 'var(--ink-50)', border: '1px solid var(--border)', padding: '4px 8px', color: 'var(--ink-600)' }}>
+                                                    {user.email}: {user.error}
+                                                </div>
+                                            ))}
                                         </div>
                                     )}
                                 </div>
                             )}
                         </div>
-
-                        <div className="p-6 bg-gray-50 dark:bg-[#2d3748]/30 flex justify-end gap-3">
-                            <button
-                                onClick={resetBulkUpload}
-                                disabled={isUploading}
-                                className="px-4 py-2 text-sm font-bold text-[#4c669a] hover:text-[#0d121b] dark:text-[#a0aec0] dark:hover:text-white transition-colors disabled:opacity-50"
-                            >
+                        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                            <button onClick={resetBulkUpload} disabled={isUploading} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', opacity: isUploading ? 0.5 : 1 }}>
                                 {bulkUploadResults ? 'Close' : 'Cancel'}
                             </button>
                             {!bulkUploadResults && parsedUsers.length > 0 && (
-                                <button
-                                    onClick={handleBulkUpload}
-                                    disabled={isUploading}
-                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                                >
-                                    {isUploading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                                <button onClick={handleBulkUpload} disabled={isUploading} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: isUploading ? 0.5 : 1 }}>
+                                    {isUploading && <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }}></div>}
                                     Upload {parsedUsers.length} User{parsedUsers.length !== 1 ? 's' : ''}
                                 </button>
                             )}
@@ -1189,6 +994,6 @@ export default function TeamManagement() {
                     </div>
                 </div>
             )}
-        </>
+        </div>
     )
 }

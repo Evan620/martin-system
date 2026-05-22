@@ -198,3 +198,62 @@ export interface UpdateBuyerMatchStatusDTO {
     status: BuyerMatchStatus;
     notes?: string;
 }
+
+export enum DFIMatchStatus {
+    IDENTIFIED = "IDENTIFIED",
+    APPROACHED = "APPROACHED",
+    IN_REVIEW = "IN_REVIEW",
+    SUBMITTED = "SUBMITTED",
+    APPROVED = "APPROVED",
+    REJECTED = "REJECTED",
+}
+
+export enum DFIInstrumentType {
+    GRANT = "GRANT",
+    CONCESSIONAL_LOAN = "CONCESSIONAL_LOAN",
+    EQUITY = "EQUITY",
+    BLENDED = "BLENDED",
+}
+
+export interface DFIWindow {
+    id: string;
+    name: string;
+    institution: string;
+    instrument_type: DFIInstrumentType;
+    sectors?: string[];
+    geographies?: string[];
+    min_size_usd?: number;
+    max_size_usd?: number;
+    eligible_stages?: string[];
+    gender_focus: boolean;
+    climate_focus: boolean;
+    description?: string;
+    url?: string;
+}
+
+export interface DFIMatch {
+    match_id: string;
+    dfi_window: DFIWindow;
+    fit_score: number;
+    fit_rationale?: string;
+    status: DFIMatchStatus;
+    notes?: string;
+}
+
+export interface UpdateDFIMatchStatusDTO {
+    status: DFIMatchStatus;
+    notes?: string;
+}
+
+export interface FinancingMemo {
+    project_id: string;
+    project_name: string;
+    recommended_structure: string;
+    grant_component_pct: number;
+    concessional_component_pct: number;
+    commercial_component_pct: number;
+    priority_windows: string[];
+    key_risks: string[];
+    next_steps: string[];
+    full_memo: string;
+}

@@ -34,7 +34,7 @@ export default function SummitSchedule() {
                 type: m.meeting_type === 'virtual' ? 'virtual' : 'in_person',
                 status: m.status,
                 twg_name: m.twg?.name,
-                has_conflicts: false // Individual schedule doesn't explicitly track conflicts yet in same way
+                has_conflicts: false
             }))
             setEvents(meetingData)
         } catch (error) {
@@ -54,20 +54,48 @@ export default function SummitSchedule() {
         navigate(`/meetings/${event.id}`, { state: { from: 'schedule' } })
     }
 
+    const monthLabel = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
     return (
-        <div className="max-w-7xl mx-auto space-y-6 h-[calc(100vh-100px)] flex flex-col">
+        <div style={{ maxWidth: 1180, margin: '0 auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+            {/* Page header */}
+            <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)', marginBottom: 6 }}>
+                    Meetings · {monthLabel}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                    <h1 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
+                        Schedule
+                    </h1>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        {canCreateMeetings && (
+                            <button
+                                onClick={() => setIsCreatingMeeting(true)}
+                                style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                            >
+                                + New meeting
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
 
-
-            {/* Calendar Grid Reused */}
-            <div className="flex-1 overflow-hidden">
-                <CalendarGrid
-                    events={events}
-                    currentDate={currentDate}
-                    onMonthChange={setCurrentDate}
-                    onDateClick={handleDayClick}
-                    onEventClick={handleEventClick}
-                    isLoading={loading}
-                />
+            {/* Calendar */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                {loading ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 320 }}>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--accent)' }}></div>
+                    </div>
+                ) : (
+                    <CalendarGrid
+                        events={events}
+                        currentDate={currentDate}
+                        onMonthChange={setCurrentDate}
+                        onDateClick={handleDayClick}
+                        onEventClick={handleEventClick}
+                        isLoading={loading}
+                    />
+                )}
             </div>
 
             {/* Create Meeting Modal */}
@@ -85,4 +113,3 @@ export default function SummitSchedule() {
         </div>
     )
 }
-

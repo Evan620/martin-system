@@ -49,8 +49,8 @@ export const ProjectLifecycleTimeline: React.FC<Props> = ({ project }) => {
     }
 
     return (
-        <div className="w-full py-6 overflow-x-auto">
-            <div className="flex items-center justify-between min-w-[800px] px-4">
+        <div className="w-full py-2 overflow-x-auto">
+            <div className="flex items-center justify-between min-w-[600px] px-4">
                 {STAGES.map((stage, index) => {
                     const isCompleted = index < activeIndex;
                     const isActive = index === activeIndex;
@@ -71,33 +71,31 @@ export const ProjectLifecycleTimeline: React.FC<Props> = ({ project }) => {
                             {/* Connector Line */}
                             {index !== 0 && (
                                 <div
-                                    className={`absolute top-5 right-[50%] w-full h-[2px] -translate-y-1/2 ${index <= activeIndex ? 'bg-green-500' : 'bg-gray-200'
+                                    className={`absolute top-3.5 right-[50%] w-full h-[2px] -translate-y-1/2 ${index <= activeIndex ? 'bg-green-500' : 'bg-gray-200'
                                         } ${isActive && !isCompleted ? 'bg-gray-200' : ''}`}
-                                // Fix line logic: Line fills if NEXT step is reached 
-                                // Actually, strictly: line behind filled if this step reached.
                                 />
                             )}
 
                             {/* Icon Bubble */}
                             <div
-                                className={`relative z-10 flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${statusColor} shadow-sm border-2 border-white`}
+                                className={`relative z-10 flex items-center justify-center w-7 h-7 rounded-full transition-all duration-300 ${statusColor} shadow-sm border border-white`}
                             >
                                 {isActive && isDeclined ? (
-                                    <XCircleIcon className="w-6 h-6" />
+                                    <XCircleIcon className="w-4 h-4" />
                                 ) : isActive && isRevision ? (
-                                    <ExclamationTriangleIcon className="w-6 h-6" />
+                                    <ExclamationTriangleIcon className="w-4 h-4" />
                                 ) : (
-                                    <Icon className="w-5 h-5" />
+                                    <Icon className="w-3.5 h-3.5" />
                                 )}
                             </div>
 
                             {/* Label */}
-                            <div className="mt-3 text-center">
-                                <p className={`text-xs font-semibold ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
+                            <div className="mt-1 text-center">
+                                <p className={`text-[10px] font-semibold ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
                                     {stage.label}
                                 </p>
                                 {isActive && (
-                                    <span className="text-[10px] text-gray-400 font-medium">
+                                    <span className="text-[9px] text-gray-400 font-medium">
                                         {isDeclined ? 'Declined' : isRevision ? 'Needs Revision' : 'Current Stage'}
                                     </span>
                                 )}

@@ -3,7 +3,8 @@ import api from './api';
 import {
     Project, ProjectStatus, PipelineStats,
     ProjectIngestDTO, InvestorMatch, UpdateMatchStatusDTO,
-    Buyer, BuyerMatch, UpdateBuyerMatchStatusDTO
+    Buyer, BuyerMatch, UpdateBuyerMatchStatusDTO,
+    DFIMatch, DFIWindow, UpdateDFIMatchStatusDTO, FinancingMemo
 } from '../types/pipeline';
 
 export const pipelineService = {
@@ -113,6 +114,32 @@ export const pipelineService = {
 
     createBuyer: async (data: Omit<Buyer, 'id'>): Promise<Buyer> => {
         const response = await api.post('/pipeline/buyers/', data);
+        return response.data;
+    },
+
+    // DFI / Blended Finance
+    getDFIMatches: async (projectId: string): Promise<DFIMatch[]> => {
+        const response = await api.get(`/pipeline/${projectId}/dfi-matches`);
+        return response.data;
+    },
+
+    triggerDFIMatching: async (projectId: string): Promise<any> => {
+        const response = await api.post(`/pipeline/${projectId}/dfi-match`);
+        return response.data;
+    },
+
+    updateDFIMatchStatus: async (matchId: string, data: UpdateDFIMatchStatusDTO): Promise<any> => {
+        const response = await api.patch(`/pipeline/dfi-matches/${matchId}`, data);
+        return response.data;
+    },
+
+    getFinancingMemo: async (projectId: string): Promise<FinancingMemo> => {
+        const response = await api.post(`/pipeline/${projectId}/financing-memo`);
+        return response.data;
+    },
+
+    listDFIWindows: async (): Promise<DFIWindow[]> => {
+        const response = await api.get('/pipeline/dfi-windows');
         return response.data;
     },
 };

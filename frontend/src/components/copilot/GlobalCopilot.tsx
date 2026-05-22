@@ -257,14 +257,16 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
                 isAdmin={isAdmin}
             />
 
-            <SuggestedActions
-                briefing={briefing}
-                onFillInput={handleFillInput}
-                onSubmit={(text) => {
-                    setInput(text);
-                    setTimeout(handleSend, 0);
-                }}
-            />
+            {localMessages.length === 0 && (
+                <SuggestedActions
+                    briefing={briefing}
+                    onFillInput={handleFillInput}
+                    onSubmit={(text) => {
+                        setInput(text);
+                        setTimeout(handleSend, 0);
+                    }}
+                />
+            )}
 
             {/* Message list */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3">

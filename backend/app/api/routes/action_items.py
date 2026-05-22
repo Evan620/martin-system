@@ -199,8 +199,8 @@ async def update_action_item(
     )
     db_item = result.scalar_one()
 
-    # Notify owner on status change
-    if item_in.status is not None and item_in.status != old_status:
+    # Notify owner on status change (only if item has an assigned owner)
+    if item_in.status is not None and item_in.status != old_status and db_item.owner_id is not None:
         try:
             await create_notification(
                 db=db,

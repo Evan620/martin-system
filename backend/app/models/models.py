@@ -640,6 +640,7 @@ class Project(Base):
     investment_memo: Mapped[Optional["Document"]] = relationship(foreign_keys=[investment_memo_id])
     investor_matches: Mapped[List["ProjectInvestorMatch"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     buyer_matches: Mapped[List["ProjectBuyerMatch"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    dfi_matches: Mapped[List["ProjectDFIMatch"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     documents: Mapped[List["Document"]] = relationship(foreign_keys="[Document.project_id]", back_populates="project")
     score_details: Mapped[List["ProjectScoreDetail"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     status_history: Mapped[List["ProjectStatusHistory"]] = relationship(back_populates="project", cascade="all, delete-orphan")
@@ -887,6 +888,65 @@ class ProjectBuyerMatch(Base):
 
     project: Mapped["Project"] = relationship(back_populates="buyer_matches")
     buyer: Mapped["Buyer"] = relationship(back_populates="buyer_matches")
+
+
+class DFIMatchStatus(str, enum.Enum):
+    IDENTIFIED = "IDENTIFIED"
+    APPROACHED = "APPROACHED"
+    IN_REVIEW = "IN_REVIEW"
+    SUBMITTED = "SUBMITTED"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class DFIInstrumentType(str, enum.Enum):
+    GRANT = "GRANT"
+    CONCESSIONAL_LOAN = "CONCESSIONAL_LOAN"
+    EQUITY = "EQUITY"
+    BLENDED = "BLENDED"
+
+
+class DFIWindow(Base):
+    __tablename__ = "dfi_windows"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255))
+    institution: Mapped[str] = mapped_column(String(255))
+    instrument_type: Mapped[DFIInstrumentType] = mapped_column(Enum(DFIInstrumentType), default=DFIInstrumentType.BLENDED)
+    sectors: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    geographies: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    min_size_usd: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    max_size_usd: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    eligible_stages: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    gender_focus: Mapped[bool] = mapped_column(Boolean, default=False)
+    climate_focus: Mapped[bool] = mapped_column(Boolean, default=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    dfi_matches: Mapped[List["ProjectDFIMatch"]] = relationship(back_populates="dfi_window", cascade="all, delete-orphan")
+
+
+class ProjectDFIMatch(Base):
+    __tablename__ = "project_dfi_matches"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"))
+    dfi_window_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("dfi_windows.id", ondelete="CASCADE"))
+    fit_score: Mapped[int] = mapped_column(Integer, default=0)
+    fit_rationale: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[DFIMatchStatus] = mapped_column(Enum(DFIMatchStatus), default=DFIMatchStatus.IDENTIFIED)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project: Mapped["Project"] = relationship(back_populates="dfi_matches")
+    dfi_window: Mapped["DFIWindow"] = relationship(back_populates="dfi_matches")
+
 
 class ScoringCriteria(Base):
     __tablename__ = "scoring_criteria"

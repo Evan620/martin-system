@@ -35,8 +35,10 @@ async def _query_briefing_data(
     now: datetime,
 ) -> Tuple[List[Dict], List[Dict], List[Dict]]:
     """Run the three DB queries and return structured lists."""
-    window_end = now + timedelta(hours=48)
-    notif_cutoff = now - timedelta(hours=48)
+    # DB columns are TIMESTAMP WITHOUT TIME ZONE — strip tz for query params
+    now_naive = now.replace(tzinfo=None)
+    window_end = now_naive + timedelta(hours=48)
+    notif_cutoff = now_naive - timedelta(hours=48)
 
     # --- Upcoming meetings (next 48 hours) ---
     mtg_q = (
@@ -44,7 +46,7 @@ async def _query_briefing_data(
         .options(selectinload(Meeting.twg))
         .where(
             and_(
-                Meeting.scheduled_at >= now,
+                Meeting.scheduled_at >= now_naive,
                 Meeting.scheduled_at <= window_end,
                 Meeting.status == MeetingStatus.SCHEDULED,
             )
@@ -133,7 +135,7 @@ async def _query_briefing_data(
             and_(
                 Notification.user_id == user_id,
                 Notification.is_read == False,  # noqa: E712
-                Notification.created_at <= notif_cutoff,
+                Notification.created_at <= notif_cutoff,  # notif_cutoff is naive
             )
         )
         .order_by(Notification.created_at)

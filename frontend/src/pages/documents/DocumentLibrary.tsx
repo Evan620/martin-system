@@ -325,487 +325,420 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
     const [mainTab, setMainTab] = useState<'library' | 'workspace'>('library');
 
     const libraryItems = [
-        { id: 'all', label: 'All Documents', icon: 'folder', count: documents.length },
+        { id: 'all', label: 'All Documents', count: documents.length },
         {
-            id: 'recent', label: 'Recent', icon: 'schedule', count: documents.filter(d => {
+            id: 'recent', label: 'Recent', count: documents.filter(d => {
                 const dDate = new Date(d.created_at);
                 const sevenAgo = new Date();
                 sevenAgo.setDate(sevenAgo.getDate() - 7);
                 return dDate >= sevenAgo;
             }).length
         },
-        { id: 'starred', label: 'Starred', icon: 'star', count: 0 },
+        { id: 'starred', label: 'Starred', count: 0 },
     ];
 
     const documentTypes = ['Meeting Minutes', 'Policy Drafts', 'Reports', 'Legal Documents', 'Presentations'];
     const labels = [
-        { name: 'Confidential', color: 'red' },
-        { name: 'Internal', color: 'amber' },
-        { name: 'Public', color: 'emerald' },
+        { name: 'Confidential', dotColor: 'var(--terra)' },
+        { name: 'Internal', dotColor: 'var(--amber)' },
+        { name: 'Public', dotColor: 'var(--sage)' },
     ];
 
     return (
-        <>
-            {/* Page Header */}
-            <div className="flex items-center justify-between mb-8">
-                <div>
-                    <h1 className="text-3xl font-black text-[#0d121b] dark:text-white tracking-tight">Document Library</h1>
-                    <p className="text-[#4c669a] dark:text-[#a0aec0] font-medium">
-                        {loading ? 'Loading...' : `${documents.length} document${documents.length !== 1 ? 's' : ''} · Manage and search your knowledge base`}
-                    </p>
+        <div style={{ maxWidth: 1180, margin: '0 auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+            {/* Page header */}
+            <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)', marginBottom: 6 }}>
+                    Document library
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                    <h1 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
+                        Documents
+                    </h1>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        {selectedDocs.length > 0 && (
+                            <button
+                                onClick={handleBulkDelete}
+                                style={{ background: 'var(--terra)', border: '1px solid var(--terra)', color: '#fff', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                            >
+                                Delete {selectedDocs.length}
+                            </button>
+                        )}
+                        <button
+                            onClick={() => setShowUploadModal(true)}
+                            style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                        >
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>upload_file</span>
+                            Upload
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-8 h-full pb-12">
-                {/* Left Sidebar Filters */}
-                <aside className="w-full lg:w-64 space-y-4 lg:sticky lg:top-4 lg:self-start">
-                    <div>
-                        <button
-                            onClick={() => setShowUploadModal(true)}
-                            className="w-full h-14 bg-[#1152d4] hover:bg-[#0d3ea8] text-white rounded-xl font-bold flex items-center justify-center gap-3 shadow-lg shadow-blue-500/20 transition-all active:scale-95"
-                        >
-                            <span className="material-symbols-outlined">upload_file</span>
-                            Upload Document
-                        </button>
-                    </div>
+            {/* Tab switcher */}
+            <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 24 }}>
+                {[{ id: 'library', label: 'Document Library' }, { id: 'workspace', label: 'Core Workspace (Shared)' }].map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setMainTab(tab.id as 'library' | 'workspace')}
+                        style={{
+                            background: 'transparent', border: 'none', borderBottom: mainTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
+                            color: mainTab === tab.id ? 'var(--accent)' : 'var(--ink-500)', padding: '10px 16px', fontSize: 12, fontWeight: 600,
+                            cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: -1
+                        }}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
 
-                    <div className="glass-card rounded-2xl p-5 space-y-6">
-                        <section>
-                            <p className="text-[11px] font-black text-[#8a9dbd] uppercase tracking-[0.2em] mb-3">Library</p>
-                            <div className="space-y-0.5">
-                                {libraryItems.map(item => (
-                                    <button
-                                        key={item.id}
-                                        onClick={() => setActiveLibraryTab(item.id)}
-                                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${activeLibraryTab === item.id ? 'bg-white/70 dark:bg-white/10 text-[#1152d4] shadow-sm' : 'text-[#4c669a] hover:bg-white/50 dark:hover:bg-white/5'}`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-                                            {item.label}
-                                        </div>
-                                        {item.count !== null && <span className="text-[10px] font-black opacity-60">{item.count}</span>}
-                                    </button>
-                                ))}
-                            </div>
-                        </section>
+            {mainTab === 'workspace' ? (
+                <div>
+                    <CoreWorkspace />
+                </div>
+            ) : (
+                <div style={{ display: 'flex', gap: 24 }}>
+                    {/* Left sidebar */}
+                    <aside style={{ width: 220, flexShrink: 0 }}>
+                        {/* Library nav */}
+                        <div style={{ marginBottom: 20 }}>
+                            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 8 }}>Library</div>
+                            {libraryItems.map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setActiveLibraryTab(item.id)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        width: '100%', padding: '8px 12px',
+                                        background: activeLibraryTab === item.id ? 'var(--accent-soft)' : 'transparent',
+                                        border: 'none',
+                                        borderLeft: activeLibraryTab === item.id ? '2px solid var(--accent)' : '2px solid transparent',
+                                        color: activeLibraryTab === item.id ? 'var(--accent)' : 'var(--ink-600)',
+                                        fontSize: 13, fontWeight: activeLibraryTab === item.id ? 600 : 400,
+                                        cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', marginBottom: 2
+                                    }}
+                                >
+                                    <span>{item.label}</span>
+                                    <span style={{ fontSize: 10, color: 'var(--ink-400)', fontFamily: "'Geist Mono', monospace" }}>{item.count}</span>
+                                </button>
+                            ))}
+                        </div>
 
-                        <section>
-                            <p className="text-[11px] font-black text-[#8a9dbd] uppercase tracking-[0.2em] mb-3">Document Types</p>
-                            <div className="space-y-2">
-                                {documentTypes.map(type => (
-                                    <label key={type} className="flex items-center gap-3 cursor-pointer group">
+                        {/* Document Types */}
+                        <div style={{ marginBottom: 20 }}>
+                            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 8 }}>Document Types</div>
+                            {documentTypes.map(type => (
+                                <label key={type} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedDocTypes.includes(type)}
+                                        onChange={() => toggleDocType(type)}
+                                        style={{ accentColor: 'var(--accent)' }}
+                                    />
+                                    <span style={{ fontSize: 12, color: 'var(--ink-600)' }}>{type}</span>
+                                </label>
+                            ))}
+                        </div>
+
+                        {/* Labels */}
+                        <div style={{ marginBottom: 20 }}>
+                            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 8 }}>Labels</div>
+                            {labels.map(label => (
+                                <button
+                                    key={label.name}
+                                    onClick={() => toggleLabel(label.name)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0',
+                                        background: 'transparent', border: 'none', cursor: 'pointer', width: '100%', fontFamily: 'inherit'
+                                    }}
+                                >
+                                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: label.dotColor, flexShrink: 0 }}></div>
+                                    <span style={{ fontSize: 12, color: selectedLabels.includes(label.name) ? 'var(--accent)' : 'var(--ink-600)', fontWeight: selectedLabels.includes(label.name) ? 600 : 400 }}>
+                                        {label.name}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* TWG Filter */}
+                        {availableTwgs.length > 0 && (
+                            <div style={{ marginBottom: 20 }}>
+                                <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 8 }}>TWG</div>
+                                {availableTwgs.map((t: any) => (
+                                    <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer' }}>
                                         <input
                                             type="checkbox"
-                                            checked={selectedDocTypes.includes(type)}
-                                            onChange={() => toggleDocType(type)}
-                                            className="size-4 rounded border-[#cfd7e7] text-[#1152d4] focus:ring-[#1152d4]"
+                                            checked={selectedTwgFilter.includes(t.id)}
+                                            onChange={() => setSelectedTwgFilter(prev =>
+                                                prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
+                                            )}
+                                            style={{ accentColor: 'var(--accent)' }}
                                         />
-                                        <span className="text-sm font-bold text-[#4c669a] group-hover:text-[#1152d4] transition-colors">{type}</span>
+                                        <span style={{ fontSize: 12, color: 'var(--ink-600)' }} className="truncate">{t.name}</span>
                                     </label>
                                 ))}
                             </div>
-                        </section>
-
-                        <section>
-                            <p className="text-[11px] font-black text-[#8a9dbd] uppercase tracking-[0.2em] mb-3">Labels</p>
-                            <div className="space-y-2">
-                                {labels.map(label => (
-                                    <button
-                                        key={label.name}
-                                        onClick={() => toggleLabel(label.name)}
-                                        className="flex items-center gap-3 w-full group"
-                                    >
-                                        <span className={`size-3 rounded-full bg-${label.color}-500 shadow-sm shadow-${label.color}-500/30`}></span>
-                                        <span className={`text-sm font-bold transition-colors ${selectedLabels.includes(label.name) ? 'text-[#1152d4]' : 'text-[#4c669a] group-hover:text-[#1152d4]'}`}>{label.name}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </section>
-
-                        {availableTwgs.length > 0 && (
-                            <section>
-                                <p className="text-[11px] font-black text-[#8a9dbd] uppercase tracking-[0.2em] mb-3">TWG Filter</p>
-                                <div className="space-y-2">
-                                    {availableTwgs.map((t: any) => (
-                                        <label key={t.id} className="flex items-center gap-3 cursor-pointer group">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedTwgFilter.includes(t.id)}
-                                                onChange={() => setSelectedTwgFilter(prev =>
-                                                    prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
-                                                )}
-                                                className="size-4 rounded border-[#cfd7e7] text-[#1152d4] focus:ring-[#1152d4]"
-                                            />
-                                            <span className="text-sm font-bold text-[#4c669a] group-hover:text-[#1152d4] transition-colors truncate">{t.name}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </section>
                         )}
-                    </div>{/* end glass-card */}
-                </aside>
 
-                {/* Main Content Area */}
-                <div className="flex-1 space-y-6">
-
-                    {/* Top Level Tabs */}
-                    <div className="flex items-center gap-6 border-b border-white/60 dark:border-[#2d3748] mb-6">
-                        <button
-                            onClick={() => setMainTab('library')}
-                            className={`pb-3 text-sm font-black uppercase tracking-wider relative transition-all ${mainTab === 'library' ? 'text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
-                        >
-                            Document Library
-                            {mainTab === 'library' && (
-                                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-[#1152d4] rounded-t-full"></span>
-                            )}
-                        </button>
-                        <button
-                            onClick={() => setMainTab('workspace')}
-                            className={`pb-3 text-sm font-black uppercase tracking-wider relative transition-all ${mainTab === 'workspace' ? 'text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
-                        >
-                            Core Workspace (Shared)
-                            {mainTab === 'workspace' && (
-                                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-[#1152d4] rounded-t-full"></span>
-                            )}
-                        </button>
-                    </div>
-
-                    {/* Core Workspace Tab Content */}
-                    {mainTab === 'workspace' ? (
-                        <div className="animate-in fade-in duration-300">
-                            <CoreWorkspace />
+                        {/* Clear / Sort */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <button
+                                onClick={() => { setSelectedDocTypes([]); setSelectedLabels([]); setActiveLibraryTab('all'); }}
+                                style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '6px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+                            >
+                                Clear filters
+                            </button>
+                            <button
+                                onClick={() => setSortBy(sortBy === 'date' ? 'name' : 'date')}
+                                style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '6px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+                            >
+                                Sort: {sortBy === 'date' ? 'Date' : 'Name'}
+                            </button>
                         </div>
-                    ) : (
-                        /* Standard Document Library Content */
-                        <>
-                            <div className="flex items-center justify-between">
-                                <h1 className="text-2xl font-black text-[#0d121b] dark:text-white tracking-tight">
-                                    {activeLibraryTab === 'recent' ? 'Recent Documents' : 'All Documents'}
-                                </h1>
-                                <div className="flex gap-2">
-                                    {selectedDocs.length > 0 && (
-                                        <button
-                                            onClick={handleBulkDelete}
-                                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-black uppercase tracking-wider hover:bg-red-700 transition-all shadow-lg shadow-red-500/20"
-                                        >
-                                            <span className="material-symbols-outlined text-sm">delete_sweep</span>
-                                            Delete {selectedDocs.length}
-                                        </button>
+                    </aside>
+
+                    {/* Main content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        {/* Search */}
+                        <form onSubmit={handleSearch} style={{ position: 'relative', marginBottom: 16 }}>
+                            <input
+                                type="search"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search by name, owner, or tag..."
+                                style={{
+                                    width: '100%', padding: '10px 16px 10px 40px',
+                                    background: 'var(--surface)', border: '1px solid var(--border)',
+                                    fontSize: 13, color: 'var(--ink-900)', outline: 'none',
+                                    fontFamily: 'inherit', boxSizing: 'border-box'
+                                }}
+                            />
+                            <span className="material-symbols-outlined" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 18, color: 'var(--ink-400)' }}>search</span>
+                        </form>
+
+                        {/* AI Search Results */}
+                        {isSearching && (
+                            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 16, marginBottom: 16 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                    <span style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600 }}>
+                                        AI Knowledge Fragments
+                                    </span>
+                                    <button onClick={() => { setIsSearching(false); setSearchQuery(''); }} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        Close
+                                    </button>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                    {searchResults.length > 0 ? searchResults.map((result, idx) => (
+                                        <div key={idx} style={{ background: 'var(--ink-50)', border: '1px solid var(--border)', padding: 12 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                                                <span style={{ fontSize: 10, color: 'var(--ink-500)', fontWeight: 600, textTransform: 'uppercase' }} className="truncate">{result.metadata.file_name}</span>
+                                                <span style={{ fontSize: 10, color: 'var(--sage)', fontWeight: 600, whiteSpace: 'nowrap', marginLeft: 8 }}>{(result.score * 100).toFixed(0)}%</span>
+                                            </div>
+                                            <p style={{ fontSize: 11, color: 'var(--ink-600)', fontStyle: 'italic', margin: 0 }} className="line-clamp-2">"{result.metadata.text}"</p>
+                                        </div>
+                                    )) : (
+                                        <p style={{ fontSize: 12, color: 'var(--ink-500)', margin: 0 }}>No matching fragments found.</p>
                                     )}
-                                    <button
-                                        onClick={() => {
-                                            setSelectedDocTypes([])
-                                            setSelectedLabels([])
-                                            setActiveLibraryTab('all')
-                                        }}
-                                        className="flex items-center gap-2 px-4 py-2 glass-card rounded-lg text-xs font-black text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider hover:bg-white/90 transition-all"
-                                    >
-                                        <span className="material-symbols-outlined text-sm">filter_list</span>
-                                        Clear Filters
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            if (sortBy === 'date') {
-                                                setSortBy('name')
-                                            } else {
-                                                setSortBy('date')
-                                            }
-                                        }}
-                                        className="flex items-center gap-2 px-4 py-2 bg-[#1152d4] border border-[#1152d4]/20 rounded-lg text-xs font-black text-white uppercase tracking-wider hover:bg-[#0d3ea8] transition-all shadow-lg shadow-blue-500/20"
-                                    >
-                                        <span className="material-symbols-outlined text-sm">sort</span>
-                                        Sort: {sortBy === 'date' ? 'Date' : 'Name'}
-                                    </button>
                                 </div>
                             </div>
+                        )}
 
-                            <form onSubmit={handleSearch} className="relative">
-                                <input
-                                    type="search"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Search by name, owner, or tag..."
-                                    className="w-full pl-12 pr-4 py-4 rounded-xl border border-white/60 dark:border-[#4a5568] bg-white/80 dark:bg-[#1a202c]/80 backdrop-blur-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 shadow-sm text-[#0d121b] dark:text-white placeholder:text-[#8a9dbd]"
-                                />
-                                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#8a9dbd]">search</span>
-                            </form>
-
-                            {/* AI Knowledge Base Search Results */}
-                            {isSearching && (
-                                <div className="glass-card border border-blue-100/40 dark:border-blue-900/30 rounded-2xl p-6 animate-in slide-in-from-top-2 duration-300">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h2 className="text-sm font-black text-[#1152d4] flex items-center gap-2 uppercase tracking-wider">
-                                            <span className="material-symbols-outlined text-[20px]">psychology</span>
-                                            AI Knowledge Fragments
-                                        </h2>
-                                        <button onClick={() => { setIsSearching(false); setSearchQuery(''); }} className="text-[10px] font-black text-[#1152d4] hover:underline uppercase">Close Results</button>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {searchResults.length > 0 ? (
-                                            searchResults.map((result, idx) => (
-                                                <div key={idx} className="glass-card p-4 rounded-xl hover:scale-[1.01] transition-transform">
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <span className="text-[10px] font-black text-[#4c669a] uppercase truncate max-w-[150px]">{result.metadata.file_name}</span>
-                                                        <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">{(result.score * 100).toFixed(0)}% Match</span>
-                                                    </div>
-                                                    <p className="text-xs text-[#4c669a] dark:text-[#a0aec0] italic line-clamp-2 leading-relaxed">"{result.metadata.text}"</p>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <p className="text-xs text-[#4c669a] dark:text-[#a0aec0] font-bold">No matching semantic fragments discovered in the knowledge base.</p>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Table View */}
-                            <div className="glass-card rounded-2xl">
-                                <div className="overflow-x-auto rounded-2xl">
-                                <table className="w-full min-w-[860px] text-left text-sm">
+                        {/* Table */}
+                        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', minWidth: 760, textAlign: 'left', fontSize: 13, borderCollapse: 'collapse' }}>
                                     <thead>
-                                        <tr className="border-b border-white/60 dark:border-[#2d3748] bg-white/30 dark:bg-white/5">
-                                            <th className="px-4 py-4 w-10 text-center">
+                                        <tr style={{ background: 'var(--ink-50)', borderBottom: '1px solid var(--border)' }}>
+                                            <th style={{ padding: '10px 12px', width: 32 }}>
                                                 <input
                                                     type="checkbox"
                                                     checked={selectedDocs.length > 0 && selectedDocs.length === paginatedDocs.length}
                                                     onChange={() => toggleSelectAll(paginatedDocs.map(d => d.id))}
-                                                    className="size-4 rounded border-[#cfd7e7] text-[#1152d4]"
+                                                    style={{ accentColor: 'var(--accent)' }}
                                                 />
                                             </th>
-                                            <th className="px-4 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider">Name</th>
-                                            <th className="px-4 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Context (TWG)</th>
-                                            <th className="px-4 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Uploader</th>
-                                            <th className="px-4 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Modified</th>
-                                            <th className="px-4 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">RAG Sync</th>
-                                            <th className="px-4 py-4 text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider text-center">Label</th>
-                                            <th className="px-4 py-4 w-20"></th>
+                                            {['Document', 'Type', 'Context (TWG)', 'Owner', 'Date', 'RAG Sync', 'Label', ''].map(col => (
+                                                <th key={col} style={{ padding: '10px 12px', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{col}</th>
+                                            ))}
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-white/40 dark:divide-[#2d3748]">
+                                    <tbody>
                                         {loading ? (
-                                            <tr><td colSpan={8} className="p-12 text-center text-[#4c669a] font-bold tracking-widest uppercase text-xs">Initializing Document Stream...</td></tr>
+                                            <tr><td colSpan={9} style={{ padding: '48px 12px', textAlign: 'center', color: 'var(--ink-400)', fontSize: 13 }}>Loading documents...</td></tr>
                                         ) : paginatedDocs.length === 0 ? (
-                                            <tr><td colSpan={8} className="p-12 text-center text-[#4c669a] font-bold">No documents match the current filters.</td></tr>
-                                        ) : paginatedDocs.map((doc) => (
-                                            <tr key={doc.id} className={`hover:bg-white/60 dark:hover:bg-white/5 transition-colors group ${selectedDocs.includes(doc.id) ? 'bg-blue-50/40 dark:bg-blue-900/10' : ''}`}>
-                                                <td className="px-4 py-4 text-center">
+                                            <tr><td colSpan={9} style={{ padding: '48px 12px', textAlign: 'center', color: 'var(--ink-400)', fontSize: 13 }}>No documents match the current filters.</td></tr>
+                                        ) : paginatedDocs.map((doc, idx) => (
+                                            <tr
+                                                key={doc.id}
+                                                style={{
+                                                    borderBottom: idx < paginatedDocs.length - 1 ? '1px solid var(--border)' : 'none',
+                                                    background: selectedDocs.includes(doc.id) ? 'var(--accent-soft)' : 'transparent',
+                                                }}
+                                                onMouseEnter={e => { if (!selectedDocs.includes(doc.id)) (e.currentTarget as HTMLElement).style.background = 'var(--ink-50)' }}
+                                                onMouseLeave={e => { if (!selectedDocs.includes(doc.id)) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                                            >
+                                                <td style={{ padding: '10px 12px' }}>
                                                     <input
                                                         type="checkbox"
                                                         checked={selectedDocs.includes(doc.id)}
                                                         onChange={() => toggleSelect(doc.id)}
-                                                        className="size-4 rounded border-[#cfd7e7] text-[#1152d4]"
+                                                        style={{ accentColor: 'var(--accent)' }}
                                                     />
                                                 </td>
-                                                <td className="px-4 py-4">
+                                                <td style={{ padding: '10px 12px', maxWidth: 200 }}>
                                                     <button
                                                         onClick={() => handleDownload(doc.id)}
                                                         disabled={downloading === doc.id}
-                                                        className="flex items-center gap-4 hover:bg-white/70 dark:hover:bg-white/10 rounded-lg p-2 -ml-2 -my-1 transition-all cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, opacity: downloading === doc.id ? 0.5 : 1 }}
                                                     >
-                                                        <div className="size-10 rounded-lg bg-white/60 dark:bg-white/10 backdrop-blur-sm border border-white/60 dark:border-white/10 flex items-center justify-center text-[#4c669a] group-hover:bg-[#1152d4] group-hover:text-white transition-all group-hover:border-[#1152d4]">
-                                                            {downloading === doc.id ? (
-                                                                <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
-                                                            ) : (
-                                                                <span className="material-symbols-outlined text-[20px]">
-                                                                    {doc.file_name.endsWith('.pdf') ? 'picture_as_pdf' : 'description'}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div className="text-left">
-                                                            <p className="font-bold text-[#0d121b] dark:text-white mb-0.5 group-hover:text-[#1152d4] transition-colors">{doc.file_name}</p>
-                                                            <p className="text-[10px] font-bold text-[#8a9dbd] uppercase">{getDocumentType(doc)}</p>
-                                                        </div>
+                                                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--ink-400)', flexShrink: 0 }}>
+                                                            {downloading === doc.id ? 'sync' : doc.file_name.endsWith('.pdf') ? 'picture_as_pdf' : 'description'}
+                                                        </span>
+                                                        <span style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500 }} className="truncate">{doc.file_name}</span>
                                                     </button>
                                                 </td>
-                                                <td className="px-4 py-4 text-center">
-                                                    {doc.twg ? (
-                                                        <span className="inline-block px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                                                            {doc.twg.name}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-block px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                                                            Global / Secretariat
-                                                        </span>
-                                                    )}
+                                                <td style={{ padding: '10px 12px' }}>
+                                                    <span style={{ fontSize: 11, color: 'var(--ink-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{getDocumentType(doc)}</span>
                                                 </td>
-                                                <td className="px-4 py-4 text-center text-[#4c669a] font-bold">
+                                                <td style={{ padding: '10px 12px' }}>
+                                                    <span style={{ fontSize: 11, color: 'var(--ink-600)', background: 'var(--ink-50)', border: '1px solid var(--border)', padding: '2px 8px' }}>
+                                                        {doc.twg ? doc.twg.name : 'Global'}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--ink-600)' }}>
                                                     {doc.uploaded_by?.full_name || 'System Admin'}
                                                 </td>
-                                                <td className="px-4 py-4 text-center text-[#4c669a] text-xs font-bold">
+                                                <td style={{ padding: '10px 12px', fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'var(--ink-500)' }}>
                                                     {new Date(doc.created_at).toLocaleDateString()}
                                                 </td>
-                                                <td className="px-4 py-4 text-center">
+                                                <td style={{ padding: '10px 12px' }}>
                                                     {doc.ingested_at ? (
-                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50/50 text-[#1152d4] border border-blue-100">
-                                                            <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                                                            <span className="text-[10px] font-black uppercase tracking-wider">Synced</span>
+                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--sage)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--sage)' }}></div>
+                                                            Synced
                                                         </span>
                                                     ) : (
                                                         <button
                                                             onClick={() => handleIngest(doc.id)}
                                                             disabled={ingesting === doc.id}
-                                                            className={`p-2 rounded-lg transition-all ${ingesting === doc.id ? 'text-[#1152d4] animate-spin' : 'text-[#8a9dbd] hover:text-[#1152d4] hover:bg-blue-50'}`}
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)', fontSize: 10, display: 'flex', alignItems: 'center', gap: 4, padding: 0 }}
                                                             title="Ingest to RAG"
                                                         >
-                                                            <span className="material-symbols-outlined text-[20px]">{ingesting === doc.id ? 'sync' : 'database_upload'}</span>
+                                                            <span className={`material-symbols-outlined ${ingesting === doc.id ? 'animate-spin' : ''}`} style={{ fontSize: 16 }}>
+                                                                {ingesting === doc.id ? 'sync' : 'database_upload'}
+                                                            </span>
+                                                            Ingest
                                                         </button>
                                                     )}
                                                 </td>
-                                                <td className="px-4 py-4 text-center">
-                                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${doc.is_confidential ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
-                                                        <span className={`size-1.5 rounded-full ${doc.is_confidential ? 'bg-red-600' : 'bg-emerald-600'} mr-2`}></span>
+                                                <td style={{ padding: '10px 12px' }}>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: doc.is_confidential ? 'var(--terra)' : 'var(--sage)' }}>
+                                                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: doc.is_confidential ? 'var(--terra)' : 'var(--sage)' }}></div>
                                                         {doc.is_confidential ? 'Confidential' : 'Public'}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 py-4 text-right flex justify-end gap-1">
-                                                    <button
-                                                        onClick={() => handleDownload(doc.id)}
-                                                        disabled={downloading === doc.id}
-                                                        className={`p-2 transition-colors ${downloading === doc.id ? 'text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#1152d4]'}`}
-                                                        title="Download"
-                                                    >
-                                                        {downloading === doc.id ? (
-                                                            <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
-                                                        ) : (
-                                                            <span className="material-symbols-outlined text-[18px]">download</span>
-                                                        )}
-                                                    </button>
-                                                    {/* Translate & Download */}
-                                                    <div className="relative">
-                                                        <button
-                                                            onClick={() => setTranslateMenuDoc(translateMenuDoc === doc.id ? null : doc.id)}
-                                                            disabled={translatingDoc === doc.id}
-                                                            className={`p-2 transition-colors ${translatingDoc === doc.id ? 'text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#1152d4]'}`}
-                                                            title="Translate & Download"
-                                                        >
-                                                            {translatingDoc === doc.id ? (
-                                                                <span className="material-symbols-outlined text-[18px] animate-spin">sync</span>
-                                                            ) : (
-                                                                <span className="material-symbols-outlined text-[18px]">translate</span>
-                                                            )}
+                                                <td style={{ padding: '10px 12px' }}>
+                                                    <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                                                        <button onClick={() => handleDownload(doc.id)} disabled={downloading === doc.id} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)', padding: 4 }} title="Download">
+                                                            <span className={`material-symbols-outlined ${downloading === doc.id ? 'animate-spin' : ''}`} style={{ fontSize: 16 }}>
+                                                                {downloading === doc.id ? 'sync' : 'download'}
+                                                            </span>
                                                         </button>
-                                                        {translateMenuDoc === doc.id && (
-                                                            <>
-                                                                <div className="fixed inset-0 z-10" onClick={() => setTranslateMenuDoc(null)} />
-                                                                <div className="absolute right-0 top-full mt-1 glass-card rounded-xl z-20 py-1 min-w-[160px] overflow-hidden border border-white/60 dark:border-slate-700">
-                                                                    {[
-                                                                        { code: 'fr', label: 'Français (French)' },
-                                                                        { code: 'pt', label: 'Português (Portuguese)' },
-                                                                    ].map((lang) => (
-                                                                        <button
-                                                                            key={lang.code}
-                                                                            onClick={() => handleTranslateDownload(doc.id, lang.code)}
-                                                                            className="w-full text-left px-4 py-2 text-sm text-[#4c669a] dark:text-slate-300 hover:bg-white/60 dark:hover:bg-white/10 font-bold"
-                                                                        >
-                                                                            {lang.label}
-                                                                        </button>
-                                                                    ))}
-                                                                </div>
-                                                            </>
-                                                        )}
+                                                        <div style={{ position: 'relative' }}>
+                                                            <button
+                                                                onClick={() => setTranslateMenuDoc(translateMenuDoc === doc.id ? null : doc.id)}
+                                                                disabled={translatingDoc === doc.id}
+                                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)', padding: 4 }} title="Translate"
+                                                            >
+                                                                <span className={`material-symbols-outlined ${translatingDoc === doc.id ? 'animate-spin' : ''}`} style={{ fontSize: 16 }}>
+                                                                    {translatingDoc === doc.id ? 'sync' : 'translate'}
+                                                                </span>
+                                                            </button>
+                                                            {translateMenuDoc === doc.id && (
+                                                                <>
+                                                                    <div className="fixed inset-0 z-10" onClick={() => setTranslateMenuDoc(null)} />
+                                                                    <div style={{ position: 'absolute', right: 0, top: '100%', zIndex: 20, background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 160 }}>
+                                                                        {[{ code: 'fr', label: 'Français (French)' }, { code: 'pt', label: 'Português (Portuguese)' }].map((lang) => (
+                                                                            <button
+                                                                                key={lang.code}
+                                                                                onClick={() => handleTranslateDownload(doc.id, lang.code)}
+                                                                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 12, color: 'var(--ink-700)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                                                                            >
+                                                                                {lang.label}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                        <button onClick={() => handleDelete(doc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)', padding: 4 }} title="Delete">
+                                                            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+                                                        </button>
                                                     </div>
-                                                    <button
-                                                        onClick={() => handleDelete(doc.id)}
-                                                        className="p-2 text-[#8a9dbd] hover:text-red-600 transition-colors"
-                                                        title="Delete Asset"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[18px]">delete</span>
-                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
-                                </div>{/* end overflow-x-auto */}
-
-                                {/* Pagination Footer */}
-                                {totalPages > 1 && (
-                                    <div className="px-6 py-4 bg-white/30 dark:bg-white/5 border-t border-white/50 dark:border-white/10 flex items-center justify-between">
-                                        <p className="text-xs font-black text-[#8a9dbd] uppercase tracking-widest">
-                                            Page {currentPage} of {totalPages}
-                                        </p>
-                                        <div className="flex gap-1">
-                                            <button
-                                                disabled={currentPage === 1}
-                                                onClick={() => setCurrentPage(prev => prev - 1)}
-                                                className="size-8 rounded-lg border border-[#cfd7e7] flex items-center justify-center text-[#4c669a] hover:bg-white disabled:opacity-30 transition-all"
-                                            >
-                                                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-                                            </button>
-                                            {[...Array(totalPages)].map((_, i) => (
-                                                <button
-                                                    key={i}
-                                                    onClick={() => setCurrentPage(i + 1)}
-                                                    className={`size-8 rounded-lg text-xs font-black transition-all ${currentPage === i + 1 ? 'bg-[#1152d4] text-white shadow-md shadow-blue-500/20' : 'border border-[#cfd7e7] text-[#4c669a] hover:bg-white'}`}
-                                                >
-                                                    {i + 1}
-                                                </button>
-                                            ))}
-                                            <button
-                                                disabled={currentPage === totalPages}
-                                                onClick={() => setCurrentPage(prev => prev + 1)}
-                                                className="size-8 rounded-lg border border-[#cfd7e7] flex items-center justify-center text-[#4c669a] hover:bg-white disabled:opacity-30 transition-all"
-                                            >
-                                                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
-                        </>
-                    )}
+
+                            {/* Pagination */}
+                            {totalPages > 1 && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+                                    <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'var(--ink-500)' }}>
+                                        Page {currentPage} of {totalPages}
+                                    </span>
+                                    <div style={{ display: 'flex', gap: 4 }}>
+                                        <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', opacity: currentPage === 1 ? 0.4 : 1 }}>
+                                            Prev
+                                        </button>
+                                        {[...Array(totalPages)].map((_, i) => (
+                                            <button key={i} onClick={() => setCurrentPage(i + 1)} style={{ background: currentPage === i + 1 ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${currentPage === i + 1 ? 'var(--accent)' : 'var(--border)'}`, color: currentPage === i + 1 ? 'var(--accent-ink)' : 'var(--ink-600)', padding: '4px 8px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                                {i + 1}
+                                            </button>
+                                        ))}
+                                        <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', opacity: currentPage === totalPages ? 0.4 : 1 }}>
+                                            Next
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Upload Modal */}
             {showUploadModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-card rounded-3xl w-full max-w-md overflow-hidden relative">
-                        <div className="px-8 py-6 border-b border-white/40 dark:border-[#2d3748] flex items-center justify-between">
-                            <h3 className="font-black text-[#0d121b] dark:text-white uppercase tracking-tight">
-                                {uploadStep === 'initial' ? 'Upload Knowledge Asset' :
-                                    uploadStep === 'ready_to_ingest' ? 'Upload Successful' :
-                                        uploadStep === 'ingesting' ? 'Ingesting Vectors' : 'Complete'}
+                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: '100%', maxWidth: 440, overflow: 'hidden' }}>
+                        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <h3 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 20, color: 'var(--ink-900)', margin: 0 }}>
+                                {uploadStep === 'initial' ? 'Upload document' : uploadStep === 'ready_to_ingest' ? 'Upload successful' : uploadStep === 'ingesting' ? 'Processing...' : 'Complete'}
                             </h3>
-                            <button onClick={() => {
-                                setShowUploadModal(false);
-                                setUploadStep('initial');
-                                setSelectedFile(null);
-                                setSelectedDocType('');
-                                setCustomDocType('');
-                            }} className="text-[#8a9dbd] hover:text-red-600 transition-colors">
-                                <span className="material-symbols-outlined">close</span>
+                            <button onClick={() => { setShowUploadModal(false); setUploadStep('initial'); setSelectedFile(null); setSelectedDocType(''); setCustomDocType(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-500)', display: 'flex', padding: 4 }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>close</span>
                             </button>
                         </div>
 
-                        <div className="p-8 space-y-6">
+                        <div style={{ padding: 24 }}>
                             {uploadStep === 'initial' && (
-                                <>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                     <div
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="border-2 border-dashed border-[#cfd7e7] dark:border-[#4a5568] rounded-2xl p-10 text-center cursor-pointer hover:border-[#1152d4] hover:bg-blue-50/10 transition-all group"
+                                        style={{ border: '1px dashed var(--border)', padding: '32px 16px', textAlign: 'center', cursor: 'pointer' }}
                                     >
-                                        <input
-                                            type="file"
-                                            ref={fileInputRef}
-                                            className="hidden"
-                                            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                                        />
-                                        <span className="material-symbols-outlined text-[56px] text-[#8a9dbd] group-hover:text-[#1152d4] mb-4 transition-colors">cloud_upload</span>
-                                        <p className="text-sm font-bold text-[#0d121b] dark:text-white">{selectedFile ? selectedFile.name : 'Click to select or drag and drop'}</p>
-                                        <p className="text-xs font-bold text-[#8a9dbd] mt-2 uppercase">PDF, DOCX, XLSX (Max 10MB)</p>
+                                        <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
+                                        <span className="material-symbols-outlined" style={{ fontSize: 40, color: 'var(--ink-300)', display: 'block', marginBottom: 8 }}>cloud_upload</span>
+                                        <p style={{ fontSize: 13, color: 'var(--ink-700)', margin: 0 }}>{selectedFile ? selectedFile.name : 'Click to select a file'}</p>
+                                        <p style={{ fontSize: 11, color: 'var(--ink-400)', margin: '4px 0 0' }}>PDF, DOCX, XLSX (Max 10MB)</p>
                                     </div>
 
                                     <div>
-                                        <label className="block text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider mb-2">Assign to TWG Knowledge Base</label>
-                                        <select
-                                            value={selectedTwgId}
-                                            onChange={(e) => setSelectedTwgId(e.target.value)}
-                                            disabled={!!twgId}
-                                            className={`w-full px-4 py-3 rounded-xl border text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 appearance-none transition-all ${twgId ? 'bg-white/40 dark:bg-[#2d3748] border-white/40 text-[#8a9dbd] cursor-not-allowed' : 'bg-white/80 dark:bg-[#2d3748]/80 backdrop-blur-sm border-white/60 dark:border-[#4a5568] text-[#4c669a]'}`}
-                                        >
-                                            <option value="" disabled>Select Target Knowledge Base...</option>
-                                            {isAdmin && <option value="global">Global Secretariat (General)</option>}
+                                        <label style={{ display: 'block', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 6 }}>Assign to TWG</label>
+                                        <select value={selectedTwgId} onChange={(e) => setSelectedTwgId(e.target.value)} disabled={!!twgId} style={{ width: '100%', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', fontSize: 13, color: 'var(--ink-700)', fontFamily: 'inherit', cursor: twgId ? 'not-allowed' : 'pointer', opacity: twgId ? 0.6 : 1 }}>
+                                            <option value="" disabled>Select knowledge base...</option>
+                                            {isAdmin && <option value="global">Global Secretariat</option>}
                                             {isAdmin ? (
                                                 <>
                                                     <option value="energy">Energy Trade and Industrial Growth</option>
@@ -814,133 +747,71 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                     <option value="digital">Digital Transformation</option>
                                                 </>
                                             ) : (
-                                                availableTwgs.map((twg: any) => (
-                                                    <option key={twg.id} value={twg.id}>{twg.name}</option>
-                                                ))
+                                                availableTwgs.map((twg: any) => (<option key={twg.id} value={twg.id}>{twg.name}</option>))
                                             )}
                                         </select>
                                     </div>
 
                                     <div>
-                                        <label className="block text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider mb-2">Document Type</label>
-                                        <select
-                                            value={selectedDocType}
-                                            onChange={(e) => setSelectedDocType(e.target.value)}
-                                            className="w-full px-4 py-3 rounded-xl border border-white/60 dark:border-[#4a5568] bg-white/80 dark:bg-[#2d3748]/80 backdrop-blur-sm text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 appearance-none transition-all text-[#4c669a]"
-                                        >
-                                            <option value="" disabled>Select document type...</option>
+                                        <label style={{ display: 'block', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 6 }}>Document Type</label>
+                                        <select value={selectedDocType} onChange={(e) => setSelectedDocType(e.target.value)} style={{ width: '100%', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', fontSize: 13, color: 'var(--ink-700)', fontFamily: 'inherit', cursor: 'pointer' }}>
+                                            <option value="" disabled>Select type...</option>
                                             <option value="Meeting Minutes">Meeting Minutes</option>
                                             <option value="Policy Drafts">Policy Drafts</option>
                                             <option value="Reports">Reports</option>
                                             <option value="Legal Documents">Legal Documents</option>
                                             <option value="Presentations">Presentations</option>
-                                            <option value="Other">Other (specify below)</option>
+                                            <option value="Other">Other</option>
                                         </select>
                                         {selectedDocType === 'Other' && (
-                                            <input
-                                                type="text"
-                                                value={customDocType}
-                                                onChange={(e) => setCustomDocType(e.target.value)}
-                                                placeholder="Enter document type..."
-                                                className="mt-2 w-full px-4 py-3 rounded-xl border border-white/60 dark:border-[#4a5568] bg-white/80 dark:bg-[#2d3748]/80 backdrop-blur-sm text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 transition-all text-[#4c669a]"
-                                            />
+                                            <input type="text" value={customDocType} onChange={(e) => setCustomDocType(e.target.value)} placeholder="Enter document type..." style={{ marginTop: 8, width: '100%', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', fontSize: 13, color: 'var(--ink-700)', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                                         )}
                                     </div>
 
-                                    <div className="flex items-center gap-4 p-4 bg-red-50/50 dark:bg-red-900/10 rounded-2xl border border-red-50 dark:border-red-900/30">
-                                        <input
-                                            type="checkbox"
-                                            id="confidential"
-                                            checked={isConfidential}
-                                            onChange={(e) => setIsConfidential(e.target.checked)}
-                                            className="size-5 text-red-600 focus:ring-red-600 rounded-lg border-[#cfd7e7]"
-                                        />
-                                        <label htmlFor="confidential" className="text-xs font-black text-red-700 dark:text-red-400 uppercase tracking-wider cursor-pointer">Mark as CONFIDENTIAL</label>
-                                    </div>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                                        <input type="checkbox" checked={isConfidential} onChange={(e) => setIsConfidential(e.target.checked)} style={{ accentColor: 'var(--terra)' }} />
+                                        <span style={{ fontSize: 12, color: 'var(--terra)', fontWeight: 500 }}>Mark as CONFIDENTIAL</span>
+                                    </label>
 
-                                    <button
-                                        onClick={handleUpload}
-                                        disabled={!selectedFile || !selectedTwgId || uploading}
-                                        className="w-full py-4 bg-[#1152d4] hover:bg-[#0d3ea8] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/30 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3"
-                                    >
-                                        {uploading ? (
-                                            <>
-                                                <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
-                                                Uploading...
-                                            </>
-                                        ) : 'Upload Document'}
+                                    <button onClick={handleUpload} disabled={!selectedFile || !selectedTwgId || uploading} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: !selectedFile || !selectedTwgId || uploading ? 0.5 : 1 }}>
+                                        {uploading ? <><span className="material-symbols-outlined animate-spin" style={{ fontSize: 16 }}>progress_activity</span> Uploading...</> : 'Upload Document'}
                                     </button>
-                                </>
+                                </div>
                             )}
 
                             {uploadStep === 'ready_to_ingest' && (
-                                <div className="text-center space-y-6">
-                                    <div className="size-20 bg-green-50 rounded-full flex items-center justify-center mx-auto">
-                                        <span className="material-symbols-outlined text-[32px] text-green-600">check_circle</span>
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                                        <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--sage)' }}>check_circle</span>
                                     </div>
-                                    <div>
-                                        <h4 className="text-lg font-black text-[#0d121b] dark:text-white">File Uploaded Successfully</h4>
-                                        <p className="text-sm text-[#4c669a] mt-2 font-medium">
-                                            The document is saved. Do you want to ingest it into the Knowledge Base for AI search?
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={handleModalIngest}
-                                        className="w-full py-4 bg-[#1152d4] hover:bg-[#0d3ea8] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/30 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
-                                    >
-                                        <span className="material-symbols-outlined">database_upload</span>
+                                    <h4 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 18, color: 'var(--ink-900)', margin: '0 0 8px' }}>File uploaded</h4>
+                                    <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: '0 0 20px' }}>Ingest into Knowledge Base for AI search?</p>
+                                    <button onClick={handleModalIngest} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
+                                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>database_upload</span>
                                         Ingest to Knowledge Base
                                     </button>
-                                    <button
-                                        onClick={() => {
-                                            setShowUploadModal(false);
-                                            setUploadStep('initial');
-                                            setSelectedDocType('');
-                                            setCustomDocType('');
-                                        }}
-                                        className="text-sm font-bold text-[#8a9dbd] hover:text-[#4c669a]"
-                                    >
-                                        Skip Ingestion (Store Only)
+                                    <button onClick={() => { setShowUploadModal(false); setUploadStep('initial'); setSelectedDocType(''); setCustomDocType(''); }} style={{ fontSize: 12, color: 'var(--ink-500)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        Skip (store only)
                                     </button>
                                 </div>
                             )}
 
                             {uploadStep === 'ingesting' && (
-                                <div className="text-center space-y-8 py-4">
-                                    <div className="relative size-24 mx-auto">
-                                        <div className="absolute inset-0 rounded-full border-4 border-[#eef2ff] border-t-[#1152d4] animate-spin"></div>
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-[32px] text-[#1152d4]">smart_toy</span>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <h4 className="text-lg font-black text-[#0d121b] dark:text-white animate-pulse">Processing Vectors...</h4>
-                                        <p className="text-sm text-[#4c669a] mt-2 font-medium">Reading content, generating embeddings, and updating Pinecone index.</p>
-                                    </div>
+                                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                                    <div className="animate-spin rounded-full" style={{ width: 48, height: 48, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', margin: '0 auto 16px' }}></div>
+                                    <h4 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 18, color: 'var(--ink-900)', margin: '0 0 8px' }}>Processing vectors...</h4>
+                                    <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: 0 }}>Generating embeddings and updating index.</p>
                                 </div>
                             )}
 
                             {uploadStep === 'complete' && (
-                                <div className="text-center space-y-6">
-                                    <div className="size-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto">
-                                        <span className="material-symbols-outlined text-[32px] text-[#1152d4]">auto_awesome</span>
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                                        <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--accent)' }}>auto_awesome</span>
                                     </div>
-                                    <div>
-                                        <h4 className="text-lg font-black text-[#0d121b] dark:text-white">Ingestion Complete!</h4>
-                                        <p className="text-sm text-[#4c669a] mt-2 font-medium">
-                                            Your document is now searchable by the AI agents.
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            setShowUploadModal(false);
-                                            setUploadStep('initial');
-                                            setSelectedDocType('');
-                                            setCustomDocType('');
-                                            fetchData();
-                                        }}
-                                        className="w-full py-4 bg-[#1152d4] hover:bg-[#0d3ea8] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/30 transition-all active:scale-[0.98]"
-                                    >
+                                    <h4 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 18, color: 'var(--ink-900)', margin: '0 0 8px' }}>Ingestion complete</h4>
+                                    <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: '0 0 20px' }}>Your document is now searchable by AI agents.</p>
+                                    <button onClick={() => { setShowUploadModal(false); setUploadStep('initial'); setSelectedDocType(''); setCustomDocType(''); fetchData(); }} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
                                         Close
                                     </button>
                                 </div>
@@ -949,6 +820,6 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 }

@@ -451,3 +451,261 @@ UPDATE_MEETING_TOOL_DEF = {
         }
     }
 }
+
+# ---------------------------------------------------------------------------
+# create_meeting
+# ---------------------------------------------------------------------------
+
+async def create_meeting(
+    twg_id: str,
+    title: str,
+    scheduled_at_iso: str,
+    duration_minutes: int = 60,
+    meeting_type: str = "virtual",
+    location: Optional[str] = None,
+    db=None,
+    current_user=None,
+) -> str:
+    """Create a single (non-recurring) meeting for a TWG."""
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.models.models import Meeting, TWG
+        from app.models.models import MeetingStatus
+        from sqlalchemy import select
+        import uuid as _uuid
+        from datetime import timezone
+
+        # Parse and normalise to naive UTC
+        dt = datetime.fromisoformat(scheduled_at_iso)
+        if dt.tzinfo:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+        async with AsyncSessionLocal() as session:
+            # Validate TWG exists
+            twg_result = await session.execute(select(TWG).where(TWG.id == _uuid.UUID(twg_id)))
+            twg_obj = twg_result.scalar_one_or_none()
+            if not twg_obj:
+                return json.dumps({"error": f"TWG {twg_id} not found"})
+
+            meeting_id = _uuid.uuid4()
+            meeting = Meeting(
+                id=meeting_id,
+                twg_id=_uuid.UUID(twg_id),
+                title=title,
+                scheduled_at=dt,
+                duration_minutes=duration_minutes,
+                meeting_type=meeting_type,
+                location=location,
+                status=MeetingStatus.SCHEDULED,
+            )
+            session.add(meeting)
+            await session.commit()
+            await session.refresh(meeting)
+
+            return json.dumps({
+                "success": True,
+                "meeting_id": str(meeting.id),
+                "title": meeting.title,
+                "scheduled_at": meeting.scheduled_at.isoformat(),
+                "twg": twg_obj.name,
+                "type": meeting_type,
+            })
+    except Exception as e:
+        return json.dumps({"error": f"Failed to create meeting: {str(e)}"})
+
+
+CREATE_MEETING_TOOL = {
+    "name": "create_meeting",
+    "description": (
+        "Create a new single meeting for a TWG. Use when the user asks to schedule or book a meeting. "
+        "Requires: TWG ID (get from context or ask), title, and date/time. "
+        "Example: 'Schedule an Energy TWG meeting next Tuesday at 2pm' → call create_meeting with twg_id, title, scheduled_at_iso. "
+        "Returns the created meeting ID and details."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "twg_id": {
+                "type": "string",
+                "description": "UUID of the TWG to create the meeting for"
+            },
+            "title": {
+                "type": "string",
+                "description": "Title/name of the meeting"
+            },
+            "scheduled_at_iso": {
+                "type": "string",
+                "description": "Start date and time in ISO 8601 format, e.g. '2026-06-15T14:00:00'"
+            },
+            "duration_minutes": {
+                "type": "integer",
+                "description": "Duration in minutes (default 60)"
+            },
+            "meeting_type": {
+                "type": "string",
+                "enum": ["virtual", "in_person"],
+                "description": "virtual (default) or in_person"
+            },
+            "location": {
+                "type": "string",
+                "description": "Location or video link (optional)"
+            }
+        },
+        "required": ["twg_id", "title", "scheduled_at_iso"]
+    }
+}
+
+# ---------------------------------------------------------------------------
+# create_recurring_meeting
+# ---------------------------------------------------------------------------
+
+async def create_recurring_meeting(
+    twg_id: str,
+    title_template: str,
+    start_date_iso: str,
+    start_time: str,
+    frequency: str,
+    interval_weeks: int = 1,
+    day_of_week: Optional[int] = None,
+    end_type: str = "after_occurrences",
+    max_occurrences: Optional[int] = None,
+    end_date_iso: Optional[str] = None,
+    duration_minutes: int = 60,
+    meeting_type: str = "virtual",
+    location: Optional[str] = None,
+    timezone_str: str = "Africa/Nairobi",
+    db=None,
+    current_user=None,
+) -> str:
+    """Create a recurring meeting series for a TWG."""
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.models.models import TWG
+        from app.schemas.schemas import RecurringMeetingCreate, RecurrenceRule, RecurrenceEnd, RecurrenceEndType, RecurrenceFrequency
+        from app.services.recurring_meeting_service import RecurringMeetingService
+        from sqlalchemy import select
+        import uuid as _uuid
+
+        start_dt = datetime.fromisoformat(start_date_iso)
+        end_dt = datetime.fromisoformat(end_date_iso) if end_date_iso else None
+
+        recurrence_rule = RecurrenceRule(
+            frequency=RecurrenceFrequency(frequency),
+            interval_weeks=interval_weeks,
+            day_of_week=day_of_week,
+        )
+        recurrence_end = RecurrenceEnd(
+            end_type=RecurrenceEndType(end_type),
+            end_date=end_dt,
+            max_occurrences=max_occurrences,
+        )
+        payload = RecurringMeetingCreate(
+            twg_id=_uuid.UUID(twg_id),
+            title_template=title_template,
+            duration_minutes=duration_minutes,
+            location=location,
+            meeting_type=meeting_type,
+            recurrence_rule=recurrence_rule,
+            recurrence_end=recurrence_end,
+            start_date=start_dt,
+            start_time=start_time,
+            timezone=timezone_str,
+        )
+
+        async with AsyncSessionLocal() as session:
+            twg_result = await session.execute(select(TWG).where(TWG.id == _uuid.UUID(twg_id)))
+            twg_obj = twg_result.scalar_one_or_none()
+            if not twg_obj:
+                return json.dumps({"error": f"TWG {twg_id} not found"})
+
+            service = RecurringMeetingService(session)
+            series = await service.create_series(payload, created_by=None)
+            return json.dumps({
+                "success": True,
+                "series_id": str(series.id),
+                "title_template": series.title_template,
+                "frequency": frequency,
+                "twg": twg_obj.name,
+                "instances_generated": len(series.instances) if hasattr(series, 'instances') else "scheduled",
+            })
+    except Exception as e:
+        return json.dumps({"error": f"Failed to create recurring meeting: {str(e)}"})
+
+
+CREATE_RECURRING_MEETING_TOOL = {
+    "name": "create_recurring_meeting",
+    "description": (
+        "Create a recurring meeting series for a TWG. Use when the user asks to set up weekly, biweekly, or monthly meetings. "
+        "Example: 'Set up a weekly Energy TWG sync every Monday at 10am for 8 weeks' → "
+        "create_recurring_meeting(twg_id=..., title_template='Energy TWG Weekly Sync', start_date_iso='2026-06-02', "
+        "start_time='10:00', frequency='weekly', day_of_week=0, end_type='after_occurrences', max_occurrences=8). "
+        "frequency options: 'weekly', 'biweekly', 'monthly'. "
+        "day_of_week: 0=Monday … 6=Sunday. "
+        "end_type: 'after_occurrences' (use max_occurrences) or 'after_date' (use end_date_iso) or 'indefinite'."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "twg_id": {
+                "type": "string",
+                "description": "UUID of the TWG"
+            },
+            "title_template": {
+                "type": "string",
+                "description": "Title template for generated meetings, e.g. 'Energy TWG Weekly Sync'"
+            },
+            "start_date_iso": {
+                "type": "string",
+                "description": "First occurrence date, e.g. '2026-06-02'"
+            },
+            "start_time": {
+                "type": "string",
+                "description": "Time in HH:MM format, e.g. '14:00'"
+            },
+            "frequency": {
+                "type": "string",
+                "enum": ["weekly", "biweekly", "monthly"],
+                "description": "How often the meeting repeats"
+            },
+            "interval_weeks": {
+                "type": "integer",
+                "description": "Interval in weeks (1 = every week, 2 = every 2 weeks). Default 1."
+            },
+            "day_of_week": {
+                "type": "integer",
+                "description": "Day of week: 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun (optional)"
+            },
+            "end_type": {
+                "type": "string",
+                "enum": ["after_occurrences", "after_date", "indefinite"],
+                "description": "How the series ends"
+            },
+            "max_occurrences": {
+                "type": "integer",
+                "description": "Number of occurrences (when end_type is after_occurrences)"
+            },
+            "end_date_iso": {
+                "type": "string",
+                "description": "End date ISO string (when end_type is after_date)"
+            },
+            "duration_minutes": {
+                "type": "integer",
+                "description": "Duration per meeting in minutes (default 60)"
+            },
+            "meeting_type": {
+                "type": "string",
+                "enum": ["virtual", "in_person"],
+                "description": "virtual (default) or in_person"
+            },
+            "location": {
+                "type": "string",
+                "description": "Location or link (optional)"
+            },
+            "timezone_str": {
+                "type": "string",
+                "description": "Timezone name, e.g. 'Africa/Nairobi' (default)"
+            }
+        },
+        "required": ["twg_id", "title_template", "start_date_iso", "start_time", "frequency"]
+    }
+}

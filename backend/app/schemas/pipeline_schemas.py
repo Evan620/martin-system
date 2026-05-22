@@ -258,3 +258,48 @@ class BuyerMatchRead(BaseModel):
     score: int
     status: str
     match_rationale: Optional[str] = None
+
+
+class DFIWindowRead(BaseModel):
+    id: UUID
+    name: str
+    institution: str
+    instrument_type: str
+    sectors: Optional[List[str]] = None
+    geographies: Optional[List[str]] = None
+    min_size_usd: Optional[float] = None
+    max_size_usd: Optional[float] = None
+    eligible_stages: Optional[List[str]] = None
+    gender_focus: bool = False
+    climate_focus: bool = False
+    description: Optional[str] = None
+    url: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DFIMatchRead(BaseModel):
+    match_id: str
+    dfi_window: DFIWindowRead
+    fit_score: int
+    fit_rationale: Optional[str] = None
+    status: str
+    notes: Optional[str] = None
+
+
+class DFIMatchStatusUpdate(BaseModel):
+    status: str
+    notes: Optional[str] = None
+
+
+class FinancingMemoResponse(BaseModel):
+    project_id: str
+    project_name: str
+    recommended_structure: str
+    grant_component_pct: int
+    concessional_component_pct: int
+    commercial_component_pct: int
+    priority_windows: List[str]
+    key_risks: List[str]
+    next_steps: List[str]
+    full_memo: str

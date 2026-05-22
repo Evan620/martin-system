@@ -28,6 +28,8 @@ TWG_SCOPED_TOOLS: Set[str] = {
     "get_schedule",
     "get_past_meetings",
     "update_meeting",
+    "create_meeting",
+    "create_recurring_meeting",
     "search_documents",
     "retrieve_document_content",
     "get_meeting_minutes",
@@ -177,8 +179,10 @@ class ToolRegistry:
             GET_SCHEDULE_TOOL_DEF, get_schedule,
             GET_PAST_MEETINGS_TOOL_DEF, get_past_meetings,
             UPDATE_MEETING_TOOL_DEF, update_meeting,
+            CREATE_MEETING_TOOL, create_meeting,
+            CREATE_RECURRING_MEETING_TOOL, create_recurring_meeting,
         )
-        
+
         for tool_def, handler in [
             (GET_SCHEDULE_TOOL_DEF, get_schedule),
             (GET_PAST_MEETINGS_TOOL_DEF, get_past_meetings),
@@ -191,6 +195,20 @@ class ToolRegistry:
                 parameters=func_def["parameters"].get("properties", {}),
                 handler=handler,
                 required_params=func_def["parameters"].get("required", []),
+            )
+
+        # create_meeting and create_recurring_meeting use input_schema (Anthropic) format
+        for tool_def, handler in [
+            (CREATE_MEETING_TOOL, create_meeting),
+            (CREATE_RECURRING_MEETING_TOOL, create_recurring_meeting),
+        ]:
+            schema = tool_def["input_schema"]
+            self.register(
+                name=tool_def["name"],
+                description=tool_def["description"],
+                parameters=schema.get("properties", {}),
+                handler=handler,
+                required_params=schema.get("required", []),
             )
 
     def _register_email_tools(self) -> None:
@@ -396,7 +414,7 @@ class ToolRegistry:
             if tool_name in UNRESTRICTED_TOOLS:
                 return True
             # Supervisor can send emails, create meetings, and search/retrieve documents directly
-            if tool_name in {"send_email", "create_email_draft", "create_meeting_invite", "search_documents", "retrieve_document_content"}:
+            if tool_name in {"send_email", "create_email_draft", "create_meeting_invite", "create_meeting", "create_recurring_meeting", "search_documents", "retrieve_document_content"}:
                 return True
             raise ToolAccessDenied(
                 f"Supervisor delegates '{tool_name}' to TWG agents via consult_twg_agents_tool."

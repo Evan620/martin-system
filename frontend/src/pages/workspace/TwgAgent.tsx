@@ -119,7 +119,7 @@ export default function TwgAgent() {
     const [documentApprovalRequest, setDocumentApprovalRequest] = useState<any | null>(null);
 
     // Context panel state
-    const [showContextPanel, setShowContextPanel] = useState(false);
+    const [showContextPanel, setShowContextPanel] = useState(true);
     const [showOverflow, setShowOverflow] = useState(false);
     const overflowRef = useRef<HTMLDivElement>(null);
 
@@ -677,16 +677,18 @@ export default function TwgAgent() {
         }, 50);
     };
 
+    const [hoveredChip, setHoveredChip] = useState<string | null>(null);
+
     return (
-        <div className="font-display text-[#0d121b] dark:text-white h-full flex flex-col overflow-hidden">
+        <div style={{ fontFamily: "'Geist', 'Inter', system-ui, sans-serif", color: 'var(--ink-900)', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
 
             {/* Main Content */}
-            <main className="flex-1 flex overflow-hidden">
+            <main className="flex-1 flex overflow-hidden" style={{ maxWidth: 1520, margin: '0 auto', width: '100%' }}>
                 {/* Chat Area */}
                 <div className="flex-1 flex flex-col bg-transparent">
                     {/* Agent Header */}
-                    <div className="glass-nav border-b border-white/60 dark:border-white/10 px-6 py-4 flex items-center justify-between">
+                    <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                         <div className="relative flex items-center gap-3" ref={twgSwitcherRef}>
                             <div className="relative">
                                 <div className={`size-10 rounded-full bg-gradient-to-br ${getTwgColor(activeTwg?.name)} flex items-center justify-center text-white`}>
@@ -719,36 +721,34 @@ export default function TwgAgent() {
 
                             {/* TWG Switcher Dropdown */}
                             {showTwgSwitcher && user?.twgs && user.twgs.length > 1 && (
-                                <div className="absolute top-full left-0 mt-2 w-72 glass-card rounded-xl shadow-xl z-50 overflow-hidden">
-                                    <div className="px-4 py-2.5 border-b border-[#e7ebf3] dark:border-[#2d3748]">
-                                        <p className="text-xs font-semibold text-[#4c669a] dark:text-[#9ca3af] uppercase tracking-wider">Switch Agent</p>
+                                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, width: 288, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', zIndex: 50, overflow: 'hidden' }}>
+                                    <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+                                        <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--ink-500)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Switch Agent</p>
                                     </div>
-                                    <div className="py-1 max-h-80 overflow-y-auto">
+                                    <div style={{ maxHeight: 320, overflowY: 'auto' }}>
                                         {user.twgs.map((twg) => {
                                             const isActive = activeTwg?.id === twg.id;
                                             return (
                                                 <button
                                                     key={twg.id}
                                                     onClick={() => handleTwgSwitch(twg)}
-                                                    className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${
-                                                        isActive
-                                                            ? 'bg-blue-50 dark:bg-blue-900/20'
-                                                            : 'hover:bg-gray-50 dark:hover:bg-[#2d3748]'
-                                                    }`}
+                                                    style={{ width: '100%', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, background: isActive ? 'var(--accent-soft)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                                                    onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--accent-soft)'; }}
+                                                    onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                                                 >
                                                     <div className={`size-9 rounded-full bg-gradient-to-br ${getTwgColor(twg.name)} flex items-center justify-center text-white flex-shrink-0`}>
                                                         <span className="material-symbols-outlined text-[18px]">{getTwgIcon(twg.name)}</span>
                                                     </div>
-                                                    <div className="flex-1 text-left min-w-0">
-                                                        <p className={`text-sm font-semibold truncate ${isActive ? 'text-blue-700 dark:text-blue-300' : 'text-[#0d121b] dark:text-white'}`}>
+                                                    <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                                                        <p style={{ fontSize: 13, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isActive ? 'var(--accent)' : 'var(--ink-900)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
                                                             {getAgentIdentity(twg.name)}
                                                         </p>
-                                                        <p className="text-xs text-[#4c669a] dark:text-[#9ca3af] truncate">
+                                                        <p style={{ fontSize: 11, color: 'var(--ink-500)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
                                                             {twg.name}
                                                         </p>
                                                     </div>
                                                     {isActive && (
-                                                        <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[20px] flex-shrink-0">check_circle</span>
+                                                        <span className="material-symbols-outlined text-[20px] flex-shrink-0" style={{ color: 'var(--accent)' }}>check_circle</span>
                                                     )}
                                                 </button>
                                             );
@@ -794,7 +794,7 @@ export default function TwgAgent() {
                                     <span className="material-symbols-outlined">more_horiz</span>
                                 </button>
                                 {showOverflow && (
-                                    <div className="absolute right-0 top-full mt-1 w-52 glass-card rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                                    <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, width: 208, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', zIndex: 50, overflow: 'hidden', padding: '4px 0' }}>
                                         <button
                                             onClick={() => { setSettingsOpen(true); setShowOverflow(false); }}
                                             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#0d121b] dark:text-white hover:bg-gray-50 dark:hover:bg-[#2d3748] transition-colors"
@@ -822,10 +822,10 @@ export default function TwgAgent() {
                             <div className="h-full flex flex-col items-center justify-center px-4">
                                 <div className="max-w-2xl w-full text-center space-y-6">
                                     <div>
-                                        <h2 className="text-2xl font-bold text-[#111827] dark:text-white">
+                                        <h2 style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 28, fontWeight: 600, color: 'var(--ink-900)' }}>
                                             Good morning, {user?.full_name ? user.full_name.split(' ')[0] : 'there'}
                                         </h2>
-                                        <p className="text-sm text-[#6b7280] dark:text-[#9ca3af] mt-1">
+                                        <p style={{ fontSize: 13, color: 'var(--ink-500)', marginTop: 8, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
                                             How can {currentAgentName} help you today?
                                         </p>
                                     </div>
@@ -841,7 +841,9 @@ export default function TwgAgent() {
                                             <button
                                                 key={label}
                                                 onClick={() => { setInputMessage(prompt); inputRef.current?.focus(); }}
-                                                className="px-4 py-2 glass-card rounded-full text-sm text-[#374151] dark:text-[#d1d5db] hover:bg-white/90 dark:hover:bg-white/10 transition-all"
+                                                onMouseEnter={() => setHoveredChip(label)}
+                                                onMouseLeave={() => setHoveredChip(null)}
+                                                style={{ border: '1px solid var(--border)', borderRadius: 20, padding: '8px 16px', background: hoveredChip === label ? 'var(--accent-soft)' : 'var(--surface)', fontSize: 13, color: hoveredChip === label ? 'var(--accent)' : 'var(--ink-700)', cursor: 'pointer', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}
                                             >
                                                 {label}
                                             </button>
@@ -884,8 +886,8 @@ export default function TwgAgent() {
                     </div>
 
                     {/* Input Area */}
-                    <div className="glass-nav border-t border-white/60 dark:border-white/10 px-4 pt-3 pb-4">
-                        <div className="relative flex items-center gap-2 border border-white/70 dark:border-white/20 rounded-[26px] px-4 py-2 bg-white/80 dark:bg-slate-800/60 focus-within:border-[#7c3aed]/60 dark:focus-within:border-[#7c3aed]/60 transition-colors backdrop-blur-sm">
+                    <div style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)', padding: '12px 16px 16px', flexShrink: 0 }}>
+                        <div className="relative flex items-center gap-2 focus-within:border-[#7c3aed]/60 dark:focus-within:border-[#7c3aed]/60 transition-colors" style={{ border: '1px solid var(--border)', borderRadius: 24, padding: '8px 16px', background: 'var(--surface)' }}>
                             {autocompleteType === 'command' && commandSuggestions.length > 0 && (
                                 <CommandAutocomplete
                                     suggestions={commandSuggestions}

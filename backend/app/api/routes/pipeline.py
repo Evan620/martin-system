@@ -16,14 +16,16 @@ from app.api.deps import get_current_user, require_facilitator, require_admin
 from app.models.models import User, Project, ProjectStatus
 from app.services.project_pipeline_service import ProjectPipelineService
 from app.services.investor_matching_service import get_investor_matching_service
+from app.services.dfi_matching_service import get_dfi_matching_service
 from app.schemas.pipeline_schemas import (
     ProjectIngest, ProjectUpdate, ProjectPipelineRead, ProjectAdvanceStage,
     InvestorMatchRead, PipelineStats, InvestorMatchUpdate, InvestorRead,
     ProjectScoreDetailRead, ScoringCriteriaRead, ScoringCriteriaWeightUpdate,
     ReadinessGapRead, ReadinessGapItem,
     BuyerCreate, BuyerRead, BuyerMatchRead, BuyerMatchUpdate,
+    DFIWindowRead, DFIMatchRead, DFIMatchStatusUpdate, FinancingMemoResponse,
 )
-from app.models.models import ProjectScoreDetail, ScoringCriteria, Buyer
+from app.models.models import ProjectScoreDetail, ScoringCriteria, Buyer, DFIWindow, ProjectDFIMatch, DFIMatchStatus
 from app.services.lifecycle_service import LifecycleService
 from app.services.project_insights_service import insights_service
 
@@ -271,6 +273,35 @@ async def update_buyer_match_status(
         new_status=payload.status,
         notes=payload.notes,
     )
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+# ── DFI Windows ───────────────────────────────────────────────────────────────
+
+@router.get("/dfi-windows", response_model=List[DFIWindowRead])
+async def list_dfi_windows(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List all active DFI/climate-finance windows."""
+    result = await db.execute(
+        select(DFIWindow).where(DFIWindow.is_active.is_(True)).order_by(DFIWindow.institution)
+    )
+    return result.scalars().all()
+
+
+@router.patch("/dfi-matches/{match_id}", response_model=dict)
+async def update_dfi_match_status(
+    match_id: uuid.UUID,
+    payload: DFIMatchStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update the status (and optional notes) of a DFI window match."""
+    svc = get_dfi_matching_service(db)
+    result = await svc.update_match_status(match_id, payload.status, payload.notes)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
@@ -1039,5 +1070,44 @@ async def trigger_buyer_matching(
 ):
     service = get_buyer_matching_service(db)
     result = await service.match_buyers(project_id)
+    return result
+
+
+@router.get("/{project_id}/dfi-matches", response_model=List[DFIMatchRead])
+async def get_dfi_matches(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve scored DFI window matches for a project."""
+    svc = get_dfi_matching_service(db)
+    return await svc.get_matches_for_project(project_id)
+
+
+@router.post("/{project_id}/dfi-match", response_model=dict)
+async def trigger_dfi_matching(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Run the DFI matching engine for a project."""
+    svc = get_dfi_matching_service(db)
+    result = await svc.match_dfi_windows(project_id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@router.post("/{project_id}/financing-memo", response_model=FinancingMemoResponse)
+async def get_financing_memo(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate a blended finance structuring memo for a project (LLM-powered)."""
+    svc = get_dfi_matching_service(db)
+    result = await svc.generate_financing_memo(project_id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
     return result
 

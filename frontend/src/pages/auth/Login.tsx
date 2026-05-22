@@ -1,269 +1,272 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Button, Input } from '../../components/ui'
 import { useAppDispatch } from '../../hooks/useRedux'
 import { setCredentials, setToken, setError } from '../../store/slices/authSlice'
 import { authService } from '../../services/auth'
 
 declare global {
-    interface Window {
-        google: any;
-    }
+    interface Window { google: any }
 }
+
+const f = "'Geist', 'Inter', system-ui, sans-serif"
+const serif = "'Source Serif 4', Georgia, serif"
+const mono = "'Geist Mono', monospace"
 
 export default function Login() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const [loginError, setLoginError] = useState<string | null>(null)
+    const [focused, setFocused] = useState<string | null>(null)
     const navigate = useNavigate()
     const dispatch = useAppDispatch()
 
     const handleGoogleLogin = useCallback(async (response: any) => {
-        setIsLoading(true);
-        setLoginError(null);
+        setIsLoading(true)
+        setLoginError(null)
         try {
-            const result = await authService.loginWithGoogle(response.credential);
-
-            localStorage.setItem('token', result.access_token);
-            if (result.refresh_token) {
-                localStorage.setItem('refresh_token', result.refresh_token)
-            }
-            dispatch(setToken(result.access_token));
-
-            const user = await authService.getCurrentUser();
-            dispatch(setCredentials({
-                user: user,
-                token: result.access_token
-            }));
-
-            navigate('/dashboard');
-        } catch (err: any) {
-            console.error('Google login failed', err);
-            // Admin approval disabled - show error instead
-            setLoginError('Google authentication failed. Please try again.');
+            const result = await authService.loginWithGoogle(response.credential)
+            localStorage.setItem('token', result.access_token)
+            if (result.refresh_token) localStorage.setItem('refresh_token', result.refresh_token)
+            dispatch(setToken(result.access_token))
+            const user = await authService.getCurrentUser()
+            dispatch(setCredentials({ user, token: result.access_token }))
+            navigate('/dashboard')
+        } catch {
+            setLoginError('Google authentication failed. Please try again.')
         } finally {
-            setIsLoading(false);
+            setIsLoading(false)
         }
-    }, [dispatch, navigate]);
+    }, [dispatch, navigate])
 
     useEffect(() => {
-        // Function to attempt initialization
-        const initializeGoogle = () => {
-            if (window.google?.accounts?.id && document.getElementById("googleSync")) {
+        const init = () => {
+            if (window.google?.accounts?.id && document.getElementById('googleSync')) {
                 try {
                     window.google.accounts.id.initialize({
                         client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
                         callback: handleGoogleLogin,
-                    });
-
+                    })
                     window.google.accounts.id.renderButton(
-                        document.getElementById("googleSync"),
-                        { theme: "dark", size: "large", width: "250" }
-                    );
-                    return true;
-                } catch (error) {
-                    console.error("[ERROR] Google Sign-In Initialization Error:", error);
-                    return false;
-                }
+                        document.getElementById('googleSync'),
+                        { theme: 'outline', size: 'large', width: '320' }
+                    )
+                    return true
+                } catch { return false }
             }
-            return false;
-        };
-
-        // Check immediately
-        if (!initializeGoogle()) {
-            // Set up polling interval
-            const intervalId = setInterval(() => {
-                if (initializeGoogle()) {
-                    clearInterval(intervalId);
-                }
-            }, 100);
-
-            // Safety timeout after 10 seconds
-            const timeoutId = setTimeout(() => {
-                clearInterval(intervalId);
-            }, 10000);
-
-            return () => {
-                clearInterval(intervalId);
-                clearTimeout(timeoutId);
-            };
+            return false
         }
-    }, [handleGoogleLogin]);
+        if (!init()) {
+            const id = setInterval(() => { if (init()) clearInterval(id) }, 100)
+            const tid = setTimeout(() => clearInterval(id), 10000)
+            return () => { clearInterval(id); clearTimeout(tid) }
+        }
+    }, [handleGoogleLogin])
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
         setIsLoading(true)
         setLoginError(null)
-
         try {
-            // Call backend login
             const response = await authService.login({ email, password })
-
-            // Expected response: { access_token, refresh_token, token_type }
-            // We need to fetch the user profile next, or if the backend returns it with login
-            // Assuming we need to fetch user profile separately or backend returns it.
-            // Let's check auth.py: login returns only tokens.
-            // So we need to fetch /auth/me after login.
-
-            // Store tokens — access token for requests, refresh token for silent renewal
             localStorage.setItem('token', response.access_token)
-            if (response.refresh_token) {
-                localStorage.setItem('refresh_token', response.refresh_token)
-            }
-
-            // Dispatch token to store so api interceptor can use it for subsequent calls
+            if (response.refresh_token) localStorage.setItem('refresh_token', response.refresh_token)
             dispatch(setToken(response.access_token))
-
-            // Fetch current user
             const user = await authService.getCurrentUser()
-
-            dispatch(setCredentials({
-                user: user,
-                token: response.access_token
-            }))
-
+            dispatch(setCredentials({ user, token: response.access_token }))
             navigate('/dashboard')
         } catch (err: any) {
-            console.error('Login failed', err)
-            // Admin approval disabled - show error message directly
-            const errorMessage = err.response?.data?.detail || 'Invalid email or password. Please try again.'
-            setLoginError(errorMessage)
-            dispatch(setError(errorMessage))
+            const msg = err.response?.data?.detail || 'Invalid email or password.'
+            setLoginError(msg)
+            dispatch(setError(msg))
         } finally {
             setIsLoading(false)
         }
     }
 
+    const inputStyle = (name: string): React.CSSProperties => ({
+        width: '100%',
+        padding: '10px 12px',
+        fontFamily: f,
+        fontSize: 14,
+        color: 'var(--ink-900)',
+        background: 'var(--surface)',
+        border: `1px solid ${focused === name ? 'var(--accent)' : 'var(--border)'}`,
+        outline: 'none',
+        boxSizing: 'border-box',
+        transition: 'border-color 0.15s',
+    })
+
     return (
-        <div className="flex h-screen bg-slate-50 text-slate-900">
-            {/* Left side - Visuals */}
-            <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-primary">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent"></div>
-
-                {/* Abstract Globe/Network visualization placeholder */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-40">
-                    <svg className="w-full h-full p-20" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                            <radialGradient id="grad1" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-                                <stop offset="0%" style={{ stopColor: '#ffffff', stopOpacity: 0.5 }} />
-                                <stop offset="100%" style={{ stopColor: '#ffffff', stopOpacity: 0 }} />
-                            </radialGradient>
-                        </defs>
-                        <circle cx="100" cy="100" r="80" fill="url(#grad1)" />
-                        <circle cx="100" cy="100" r="80" stroke="#ffffff" strokeWidth="0.5" fill="none" />
-                        <path d="M20 100 Q 100 20 180 100" stroke="#ffffff" strokeWidth="0.2" fill="none" />
-                        <path d="M20 100 Q 100 180 180 100" stroke="#ffffff" strokeWidth="0.2" fill="none" />
-                        <path d="M100 20 Q 20 100 100 180" stroke="#ffffff" strokeWidth="0.2" fill="none" />
-                        <path d="M100 20 Q 180 100 100 180" stroke="#ffffff" strokeWidth="0.2" fill="none" />
-                    </svg>
+        <div style={{
+            minHeight: '100vh',
+            background: 'var(--bg)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '40px 16px',
+            fontFamily: f,
+        }}>
+            {/* Wordmark — above the card */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
+                <div style={{
+                    width: 32, height: 32,
+                    border: '1.5px solid var(--accent)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                }}>
+                    <span style={{ color: 'var(--accent)', fontFamily: serif, fontSize: 15, fontWeight: 600 }}>E</span>
                 </div>
-
-                <div className="relative z-10 flex flex-col justify-end p-16 space-y-6 text-white">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/20">
-                            <span className="font-bold text-lg">E</span>
-                        </div>
-                        <span className="text-xl font-display font-semibold">ECOWAS SUMMIT TWG</span>
+                <div>
+                    <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-800)', lineHeight: 1.2 }}>
+                        ECOWAS Summit
                     </div>
-                    <h1 className="text-5xl font-display font-bold leading-tight">
-                        Empowering Regional Cooperation through AI-Driven Insights
-                    </h1>
-                    <p className="text-blue-100 text-lg max-w-lg">
-                        Welcome to the Technical Working Group Support System. Securely access real-time data analysis and strategic planning tools.
-                    </p>
-                    <div className="flex gap-2">
-                        <div className="w-2 h-2 bg-white rounded-full"></div>
-                        <div className="w-2 h-2 bg-white/50 rounded-full"></div>
-                        <div className="w-2 h-2 bg-white/50 rounded-full"></div>
+                    <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-400)' }}>
+                        TWG Platform
                     </div>
                 </div>
             </div>
 
-            {/* Right side - Form */}
-            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white">
-                <div className="w-full max-w-md space-y-8">
-                    <div className="flex justify-end">
-                        <div className="flex items-center gap-2 px-3 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs text-slate-500 font-medium">
-                            <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                            </svg>
-                            SECURE ACCESS
-                        </div>
+            {/* Card */}
+            <div style={{
+                width: '100%',
+                maxWidth: 400,
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+                padding: '36px 36px 28px',
+            }}>
+                {/* Heading */}
+                <h1 style={{
+                    fontFamily: serif,
+                    fontSize: 26,
+                    fontWeight: 600,
+                    color: 'var(--ink-900)',
+                    letterSpacing: '-0.01em',
+                    lineHeight: 1.2,
+                    marginBottom: 6,
+                }}>
+                    Sign in to your account
+                </h1>
+                <p style={{ fontFamily: f, fontSize: 13, color: 'var(--ink-500)', marginBottom: 28, lineHeight: 1.5 }}>
+                    Use your official ECOWAS credentials.
+                </p>
+
+                {/* Error */}
+                {loginError && (
+                    <div style={{
+                        padding: '9px 12px',
+                        background: 'rgba(185,28,28,0.06)',
+                        border: '1px solid rgba(185,28,28,0.18)',
+                        marginBottom: 20,
+                        fontFamily: f,
+                        fontSize: 13,
+                        color: 'var(--terra)',
+                        lineHeight: 1.5,
+                    }}>
+                        {loginError}
+                    </div>
+                )}
+
+                {/* Form */}
+                <form onSubmit={handleLogin}>
+                    <div style={{ marginBottom: 14 }}>
+                        <label style={{ display: 'block', fontFamily: mono, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-500)', marginBottom: 5 }}>
+                            Email Address
+                        </label>
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            onFocus={() => setFocused('email')}
+                            onBlur={() => setFocused(null)}
+                            placeholder="name@ecowas.int"
+                            required
+                            style={inputStyle('email')}
+                        />
                     </div>
 
-                    <div className="space-y-2">
-                        <h2 className="text-3xl font-display font-bold text-slate-900">Log In</h2>
-                        <p className="text-slate-500">Enter your official credentials to access the TWG workspace.</p>
+                    <div style={{ marginBottom: 6 }}>
+                        <label style={{ display: 'block', fontFamily: mono, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-500)', marginBottom: 5 }}>
+                            Password
+                        </label>
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            onFocus={() => setFocused('password')}
+                            onBlur={() => setFocused(null)}
+                            placeholder="••••••••"
+                            required
+                            style={inputStyle('password')}
+                        />
                     </div>
 
-                    {loginError && (
-                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-                            {loginError}
-                        </div>
-                    )}
-
-                    <form onSubmit={handleLogin} className="space-y-6">
-                        <div className="space-y-4">
-                            <Input
-                                label="Official Email"
-                                type="email"
-                                placeholder="name@ecowas.int"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                                className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:ring-primary focus:border-primary"
-                            />
-                            <div className="space-y-1">
-                                <Input
-                                    label="Password"
-                                    type="password"
-                                    placeholder="••••••••"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:ring-primary focus:border-primary"
-                                />
-                                <div className="flex justify-end">
-                                    <Link to="/forgot-password" className="text-sm text-slate-500 hover:text-primary transition-colors">
-                                        Forgot Password?
-                                    </Link>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            <Button
-                                type="submit"
-                                isLoading={isLoading}
-                                className="w-full py-3 bg-primary hover:bg-blue-800 text-white font-semibold rounded-lg shadow-lg shadow-blue-900/10 flex items-center justify-center gap-2"
-                            >
-                                Access Dashboard
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                                </svg>
-                            </Button>
-
-                            <div className="relative flex items-center gap-4">
-                                <div className="flex-1 h-px bg-slate-200"></div>
-                                <span className="text-xs text-slate-500 font-medium">OR</span>
-                                <div className="flex-1 h-px bg-slate-200"></div>
-                            </div>
-
-                            <div id="googleSync" className="w-full flex justify-center"></div>
-                        </div>
-                    </form>
-
-                    <div className="pt-8 border-t border-slate-100 text-center">
-                        <p className="text-xs text-slate-400">
-                            ECOWAS Summit © 2026. Authorized Personnel Only.
-                        </p>
-                        <p className="text-xs text-slate-400 mt-1">
-                            By logging in, you agree to our Terms of Service and Privacy Policy.
-                        </p>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 22 }}>
+                        <Link
+                            to="/forgot-password"
+                            style={{ fontFamily: f, fontSize: 12, color: 'var(--ink-400)', textDecoration: 'none', transition: 'color 0.15s' }}
+                            onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
+                            onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-400)')}
+                        >
+                            Forgot password?
+                        </Link>
                     </div>
-                </div>
+
+                    <button
+                        type="submit"
+                        disabled={isLoading}
+                        style={{
+                            width: '100%',
+                            padding: '10px 16px',
+                            background: isLoading ? 'var(--ink-300)' : 'var(--accent)',
+                            color: 'white',
+                            border: 'none',
+                            cursor: isLoading ? 'not-allowed' : 'pointer',
+                            fontFamily: f,
+                            fontSize: 14,
+                            fontWeight: 500,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 8,
+                            transition: 'opacity 0.15s',
+                            marginBottom: 20,
+                        }}
+                        onMouseEnter={e => { if (!isLoading) e.currentTarget.style.opacity = '0.88' }}
+                        onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+                    >
+                        {isLoading ? (
+                            <>
+                                <div style={{ width: 13, height: 13, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                                Signing in…
+                            </>
+                        ) : 'Log in'}
+                    </button>
+
+                    {/* OR divider */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                        <span style={{ fontFamily: mono, fontSize: 9, color: 'var(--ink-400)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>or</span>
+                        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                    </div>
+
+                    <div id="googleSync" style={{ display: 'flex', justifyContent: 'center' }} />
+                </form>
             </div>
+
+            {/* Footer */}
+            <div style={{ marginTop: 28, textAlign: 'center' }}>
+                <p style={{ fontFamily: mono, fontSize: 9, color: 'var(--ink-400)', letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 2 }}>
+                    ECOWAS Summit © 2026 · Authorized Personnel Only
+                </p>
+            </div>
+
+            <style>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+                input::placeholder { color: var(--ink-300); font-family: ${f}; }
+            `}</style>
         </div>
     )
 }

@@ -9,11 +9,11 @@ import { twgs as twgService } from '../../services/api'
 import InvitationChat from '../../components/invitations/InvitationChat'
 import { toast } from 'react-toastify'
 
-const STATUS_COLORS: Record<OrganizationInvitationStatus, string> = {
-    pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-    accepted: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    declined: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    expired: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+const STATUS_DOT: Record<OrganizationInvitationStatus, string> = {
+    pending: 'var(--amber)',
+    accepted: 'var(--sage)',
+    declined: 'var(--terra)',
+    expired: 'var(--ink-400)'
 }
 
 export default function OrganizationInvitations() {
@@ -24,6 +24,7 @@ export default function OrganizationInvitations() {
     const [page, setPage] = useState(1)
     const [pageSize] = useState(20)
     const [pages, setPages] = useState(0)
+    const [hoveredRow, setHoveredRow] = useState<string | null>(null)
 
     // Filters
     const [statusFilter, setStatusFilter] = useState<OrganizationInvitationStatus | ''>('')
@@ -186,208 +187,183 @@ export default function OrganizationInvitations() {
         })
     }
 
+    // Counts for LedgerStat
+    const pendingCount = invitations.filter(i => i.status === 'pending').length
+    const acceptedCount = invitations.filter(i => i.status === 'accepted').length
+    const declinedCount = invitations.filter(i => i.status === 'declined').length
+    const expiredCount = invitations.filter(i => i.status === 'expired').length
+
+    const inputStyle: React.CSSProperties = {
+        width: '100%', padding: '8px 12px', background: 'var(--surface)',
+        border: '1px solid var(--border)', fontSize: 13, color: 'var(--ink-700)',
+        fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none'
+    }
+    const labelStyle: React.CSSProperties = {
+        display: 'block', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
+        color: 'var(--ink-500)', fontWeight: 500, marginBottom: 6
+    }
+
     return (
-        <>
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-[#0d121b] dark:text-white tracking-tight">
-                        Organization Invitations
+        <div style={{ maxWidth: 1180, margin: '0 auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+            {/* Page header */}
+            <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)', marginBottom: 6 }}>
+                    Management · onboarding
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                    <h1 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
+                        Organisation invitations
                     </h1>
-                    <p className="text-[#4c669a] dark:text-[#a0aec0] font-medium">
-                        Invite external organizations to join Technical Working Groups
-                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={loadInvitations} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>refresh</span>
+                            Refresh
+                        </button>
+                        <button onClick={() => { if (twgs.length === 0) loadTwgs(); setIsCreateModalOpen(true); }} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>mail</span>
+                            New Invitation
+                        </button>
+                    </div>
                 </div>
-                <div className="flex gap-3">
-                    <button
-                        onClick={loadInvitations}
-                        className="px-4 py-2 bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg text-sm font-bold text-[#0d121b] dark:text-white hover:bg-gray-50 dark:hover:bg-[#2d3748] transition-colors shadow-sm flex items-center gap-2"
-                    >
-                        <span className="material-symbols-outlined text-sm">refresh</span>
-                        Refresh
-                    </button>
-                    <button
-                        onClick={() => {
-                            if (twgs.length === 0) loadTwgs()
-                            setIsCreateModalOpen(true)
-                        }}
-                        className="px-4 py-2 bg-[#1152d4] hover:bg-[#0e44b1] text-white rounded-lg text-sm font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-2"
-                    >
-                        <span className="material-symbols-outlined text-sm">mail</span>
-                        New Invitation
-                    </button>
-                </div>
+            </div>
+
+            {/* LedgerStat strip */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', background: 'var(--surface)', border: '1px solid var(--border)', padding: '22px 32px', marginBottom: 24 }}>
+                {[
+                    { label: 'Pending', value: pendingCount, accent: 'var(--amber)', sub: 'awaiting response' },
+                    { label: 'Accepted', value: acceptedCount, accent: 'var(--sage)', sub: 'joined' },
+                    { label: 'Declined', value: declinedCount, accent: 'var(--terra)', sub: 'not joining' },
+                    { label: 'Expired', value: expiredCount, accent: 'var(--ink-400)', sub: 'timed out' },
+                ].map((stat, i, arr) => (
+                    <div key={stat.label} style={{ paddingRight: 24, borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none', paddingLeft: i > 0 ? 24 : 0 }}>
+                        <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{stat.label}</div>
+                        <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 28, color: stat.accent, letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{stat.value}</div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 6 }}>{stat.sub}</div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Martin notes strip */}
+            <div style={{ borderLeft: '2px solid var(--accent)', padding: '10px 16px', background: 'var(--accent-soft)', marginBottom: 24 }}>
+                <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600, fontStyle: 'normal' }}>Martin notes</span>
+                <p style={{ fontFamily: "'Source Serif 4', serif", fontSize: 14, color: 'var(--ink-700)', margin: '4px 0 0', fontStyle: 'italic', lineHeight: 1.5 }}>
+                    Send personalised invitations to external organisations. Pending invitations expire after 30 days. Use the chat feature to answer questions before they respond.
+                </p>
             </div>
 
             {/* Filters */}
-            <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] p-4 mb-6">
-                <div className="flex flex-wrap gap-4">
-                    <div className="flex-1 min-w-[200px]">
-                        <label className="block text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase mb-2">
-                            Status
-                        </label>
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => {
-                                setStatusFilter(e.target.value as OrganizationInvitationStatus | '')
-                                setPage(1)
-                            }}
-                            className="w-full bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg px-3 py-2 text-sm"
-                        >
-                            <option value="">All Statuses</option>
-                            <option value="pending">Pending</option>
-                            <option value="accepted">Accepted</option>
-                            <option value="declined">Declined</option>
-                            <option value="expired">Expired</option>
-                        </select>
-                    </div>
-                    <div className="flex-1 min-w-[200px]">
-                        <label className="block text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase mb-2">
-                            TWG
-                        </label>
-                        <select
-                            value={twgFilter}
-                            onChange={(e) => {
-                                setTwgFilter(e.target.value)
-                                setPage(1)
-                            }}
-                            className="w-full bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg px-3 py-2 text-sm"
-                        >
-                            <option value="">All TWGs</option>
-                            {twgs.map(twg => (
-                                <option key={twg.id} value={twg.id}>{twg.name}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
+                <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as OrganizationInvitationStatus | ''); setPage(1); }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', fontSize: 12, padding: '7px 12px', color: 'var(--ink-700)', fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
+                    <option value="">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="accepted">Accepted</option>
+                    <option value="declined">Declined</option>
+                    <option value="expired">Expired</option>
+                </select>
+                <select value={twgFilter} onChange={(e) => { setTwgFilter(e.target.value); setPage(1); }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', fontSize: 12, padding: '7px 12px', color: 'var(--ink-700)', fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
+                    <option value="">All TWGs</option>
+                    {twgs.map(twg => (<option key={twg.id} value={twg.id}>{twg.name}</option>))}
+                </select>
+                <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'var(--ink-400)', marginLeft: 'auto' }}>
+                    {total} invitations
+                </span>
             </div>
 
-            {/* Invitations Table */}
-            <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm overflow-hidden">
+            {/* Table */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                 {isLoading ? (
-                    <div className="flex items-center justify-center h-64">
-                        <div className="w-8 h-8 border-4 border-[#1152d4] border-t-transparent rounded-full animate-spin"></div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 256 }}>
+                        <div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', textAlign: 'left', fontSize: 13, borderCollapse: 'collapse' }}>
                             <thead>
-                                <tr className="bg-gray-50 dark:bg-[#2d3748]/30">
-                                    <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">
-                                        Organization
-                                    </th>
-                                    <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">
-                                        TWG
-                                    </th>
-                                    <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">
-                                        Status
-                                    </th>
-                                    <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">
-                                        Sent
-                                    </th>
-                                    <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">
-                                        Expires
-                                    </th>
-                                    <th className="px-6 py-4 text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider text-right">
-                                        Actions
-                                    </th>
+                                <tr style={{ background: 'var(--ink-50)', borderBottom: '1px solid var(--border)' }}>
+                                    {['Organisation', 'Contact', 'TWG', 'Sent', 'Expires', 'Status', 'Actions'].map(col => (
+                                        <th key={col} style={{ padding: '10px 16px', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{col}</th>
+                                    ))}
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-[#e7ebf3] dark:divide-[#2d3748]">
-                                {invitations.map((invitation) => (
-                                    <tr key={invitation.id} className="hover:bg-gray-50 dark:hover:bg-[#2d3748]/30 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div>
-                                                <div className="font-bold text-[#0d121b] dark:text-white text-sm">
-                                                    {invitation.organization_name}
-                                                </div>
-                                                <div className="text-xs text-[#4c669a] dark:text-[#a0aec0]">
-                                                    {invitation.contact_email}
-                                                </div>
-                                            </div>
+                            <tbody>
+                                {invitations.map((invitation, idx) => (
+                                    <tr
+                                        key={invitation.id}
+                                        onMouseEnter={() => setHoveredRow(invitation.id)}
+                                        onMouseLeave={() => setHoveredRow(null)}
+                                        style={{
+                                            borderBottom: idx < invitations.length - 1 ? '1px solid var(--border)' : 'none',
+                                            background: hoveredRow === invitation.id ? 'var(--ink-50)' : 'transparent'
+                                        }}
+                                    >
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <div style={{ fontWeight: 500, color: 'var(--ink-900)', fontSize: 13 }}>{invitation.organization_name}</div>
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <span className="text-sm text-[#0d121b] dark:text-white">
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <div style={{ fontSize: 13, color: 'var(--ink-700)' }}>{invitation.contact_email}</div>
+                                        </td>
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <span style={{ fontSize: 11, color: 'var(--ink-600)', background: 'var(--ink-50)', border: '1px solid var(--border)', padding: '2px 8px' }}>
                                                 {invitation.twg_name || 'Unknown'}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${STATUS_COLORS[invitation.status]}`}>
-                                                {invitation.status.charAt(0).toUpperCase() + invitation.status.slice(1)}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-[#4c669a] dark:text-[#a0aec0]">
+                                        <td style={{ padding: '12px 16px', fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'var(--ink-500)' }}>
                                             {formatDate(invitation.sent_at)}
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-[#4c669a] dark:text-[#a0aec0]">
+                                        <td style={{ padding: '12px 16px', fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'var(--ink-500)' }}>
                                             {formatDate(invitation.expires_at)}
                                         </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex justify-end gap-2 items-center">
-                                                {/* Chat button */}
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
+                                                <div style={{ width: 7, height: 7, borderRadius: '50%', background: STATUS_DOT[invitation.status], flexShrink: 0 }}></div>
+                                                <span style={{ color: 'var(--ink-700)', textTransform: 'capitalize' }}>{invitation.status}</span>
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                                                {/* Chat */}
                                                 <button
-                                                    onClick={() => {
-                                                        setSelectedInvitation(invitation)
-                                                        setIsChatModalOpen(true)
-                                                    }}
-                                                    className={`p-2 rounded-lg transition-colors relative ${
-                                                        invitation.unread_message_count > 0
-                                                            ? 'text-[#1152d4] bg-blue-50 dark:bg-blue-900/20'
-                                                            : 'text-[#4c669a] hover:bg-gray-100 dark:hover:bg-[#2d3748]'
-                                                    }`}
+                                                    onClick={() => { setSelectedInvitation(invitation); setIsChatModalOpen(true); }}
+                                                    style={{ background: invitation.unread_message_count > 0 ? 'var(--accent-soft)' : 'none', border: 'none', cursor: 'pointer', color: invitation.unread_message_count > 0 ? 'var(--accent)' : 'var(--ink-400)', padding: 5, position: 'relative' }}
                                                     title={invitation.has_messages ? 'View Conversation' : 'Start Conversation'}
                                                 >
-                                                    <span className="material-symbols-outlined text-[20px]">chat</span>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chat</span>
                                                     {invitation.unread_message_count > 0 && (
-                                                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                                                        <span style={{ position: 'absolute', top: 0, right: 0, width: 14, height: 14, background: 'var(--terra)', color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                             {invitation.unread_message_count > 9 ? '9+' : invitation.unread_message_count}
                                                         </span>
                                                     )}
                                                 </button>
-
-                                                {/* Copy Link button */}
+                                                {/* Copy link */}
                                                 <button
-                                                    onClick={() => {
-                                                        const baseUrl = window.location.origin
-                                                        const link = `${baseUrl}/invitations/${invitation.id}/respond`
-                                                        navigator.clipboard.writeText(link)
-                                                        toast.success('Invitation link copied!')
-                                                    }}
-                                                    className="p-2 text-[#4c669a] hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
-                                                    title="Copy Invitation Link"
+                                                    onClick={() => { const link = `${window.location.origin}/invitations/${invitation.id}/respond`; navigator.clipboard.writeText(link); toast.success('Invitation link copied!'); }}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)', padding: 5 }}
+                                                    title="Copy Link"
                                                 >
-                                                    <span className="material-symbols-outlined text-[20px]">link</span>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>link</span>
                                                 </button>
-
-                                                {/* Pending-only actions */}
+                                                {/* Resend (pending only) */}
                                                 {invitation.status === 'pending' && (
-                                                    <>
-                                                        <button
-                                                            onClick={() => handleResendInvitation(invitation)}
-                                                            disabled={resendingId === invitation.id}
-                                                            className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors disabled:opacity-50"
-                                                            title="Resend Invitation"
-                                                        >
-                                                            {resendingId === invitation.id ? (
-                                                                <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                                                            ) : (
-                                                                <span className="material-symbols-outlined text-[20px]">forward_to_inbox</span>
-                                                            )}
-                                                        </button>
-                                                    </>
+                                                    <button
+                                                        onClick={() => handleResendInvitation(invitation)}
+                                                        disabled={resendingId === invitation.id}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)', padding: 5, opacity: resendingId === invitation.id ? 0.5 : 1 }}
+                                                        title="Resend"
+                                                    >
+                                                        {resendingId === invitation.id ? (
+                                                            <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
+                                                        ) : (
+                                                            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>forward_to_inbox</span>
+                                                        )}
+                                                    </button>
                                                 )}
-
-                                                {/* Delete button for all invitations */}
-                                                <button
-                                                    onClick={() => handleDeleteInvitation(invitation.id, invitation.organization_name)}
-                                                    className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                    title="Delete Invitation"
-                                                >
-                                                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                                                {/* Delete */}
+                                                <button onClick={() => handleDeleteInvitation(invitation.id, invitation.organization_name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--terra)', padding: 5 }} title="Delete">
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
                                                 </button>
-
-                                                {/* Response date for non-pending */}
+                                                {/* Response date */}
                                                 {invitation.status !== 'pending' && invitation.responded_at && (
-                                                    <span className="text-xs text-[#4c669a] dark:text-[#a0aec0] ml-2 whitespace-nowrap">
+                                                    <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'var(--ink-400)', marginLeft: 4, whiteSpace: 'nowrap' }}>
                                                         {formatDate(invitation.responded_at)}
                                                     </span>
                                                 )}
@@ -401,41 +377,23 @@ export default function OrganizationInvitations() {
                 )}
 
                 {!isLoading && invitations.length === 0 && (
-                    <div className="p-12 text-center">
-                        <div className="size-16 bg-gray-100 dark:bg-[#2d3748] rounded-full flex items-center justify-center mx-auto mb-4 text-[#4c669a]">
-                            <span className="material-symbols-outlined text-3xl">mail_off</span>
-                        </div>
-                        <h3 className="text-lg font-bold text-[#0d121b] dark:text-white">No invitations found</h3>
-                        <p className="text-[#4c669a] dark:text-[#a0aec0]">
-                            {statusFilter || twgFilter
-                                ? 'Try adjusting your filters'
-                                : 'Click "New Invitation" to invite an organization'
-                            }
+                    <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--ink-400)' }}>
+                        <p style={{ fontSize: 16, fontWeight: 500, margin: 0 }}>No invitations found</p>
+                        <p style={{ fontSize: 13, marginTop: 4 }}>
+                            {statusFilter || twgFilter ? 'Try adjusting your filters' : 'Click "New Invitation" to invite an organisation'}
                         </p>
                     </div>
                 )}
 
                 {/* Pagination */}
                 {!isLoading && pages > 1 && (
-                    <div className="flex items-center justify-between px-6 py-4 border-t border-[#e7ebf3] dark:border-[#2d3748]">
-                        <div className="text-sm text-[#4c669a] dark:text-[#a0aec0]">
-                            Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, total)} of {total} invitations
-                        </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setPage(p => Math.max(1, p - 1))}
-                                disabled={page === 1}
-                                className="px-3 py-1 rounded-lg text-sm font-medium bg-gray-100 dark:bg-[#2d3748] text-[#0d121b] dark:text-white disabled:opacity-50"
-                            >
-                                Previous
-                            </button>
-                            <button
-                                onClick={() => setPage(p => Math.min(pages, p + 1))}
-                                disabled={page === pages}
-                                className="px-3 py-1 rounded-lg text-sm font-medium bg-gray-100 dark:bg-[#2d3748] text-[#0d121b] dark:text-white disabled:opacity-50"
-                            >
-                                Next
-                            </button>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'var(--ink-500)' }}>
+                            {((page - 1) * pageSize) + 1}–{Math.min(page * pageSize, total)} of {total}
+                        </span>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', opacity: page === 1 ? 0.4 : 1 }}>Previous</button>
+                            <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages} style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', opacity: page === pages ? 0.4 : 1 }}>Next</button>
                         </div>
                     </div>
                 )}
@@ -444,148 +402,62 @@ export default function OrganizationInvitations() {
             {/* Create Invitation Modal */}
             {isCreateModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-2xl w-full max-w-lg border border-[#e7ebf3] dark:border-[#2d3748] overflow-hidden">
-                        <div className="p-6 border-b border-[#e7ebf3] dark:border-[#2d3748]">
-                            <h3 className="text-xl font-bold text-[#0d121b] dark:text-white">New Organization Invitation</h3>
-                            <p className="text-sm text-[#4c669a] dark:text-[#a0aec0]">Invite an external organization to join a TWG</p>
+                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: '100%', maxWidth: 480, overflow: 'hidden' }}>
+                        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
+                            <h3 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 20, color: 'var(--ink-900)', margin: '0 0 4px' }}>New Organisation Invitation</h3>
+                            <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: 0 }}>Invite an external organisation to join a TWG</p>
                         </div>
-
-                        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '60vh', overflowY: 'auto' }}>
+                            <div><label style={labelStyle}>Organisation Name *</label><input type="text" value={createForm.organization_name} onChange={(e) => setCreateForm({ ...createForm, organization_name: e.target.value })} style={inputStyle} placeholder="Acme Corporation" /></div>
+                            <div><label style={labelStyle}>Contact Email *</label><input type="email" value={createForm.contact_email} onChange={(e) => setCreateForm({ ...createForm, contact_email: e.target.value })} style={inputStyle} placeholder="contact@acme.com" /></div>
                             <div>
-                                <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">
-                                    Organization Name *
-                                </label>
-                                <input
-                                    type="text"
-                                    value={createForm.organization_name}
-                                    onChange={(e) => setCreateForm({ ...createForm, organization_name: e.target.value })}
-                                    className="w-full px-3 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm"
-                                    placeholder="Acme Corporation"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">
-                                    Contact Email *
-                                </label>
-                                <input
-                                    type="email"
-                                    value={createForm.contact_email}
-                                    onChange={(e) => setCreateForm({ ...createForm, contact_email: e.target.value })}
-                                    className="w-full px-3 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm"
-                                    placeholder="contact@acme.com"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">
-                                    TWG to Join *
-                                </label>
-                                <select
-                                    value={createForm.twg_id}
-                                    onChange={(e) => setCreateForm({ ...createForm, twg_id: e.target.value })}
-                                    className="w-full px-3 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm"
-                                >
+                                <label style={labelStyle}>TWG to Join *</label>
+                                <select value={createForm.twg_id} onChange={(e) => setCreateForm({ ...createForm, twg_id: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
                                     <option value="">Select a TWG</option>
-                                    {twgs.map(twg => (
-                                        <option key={twg.id} value={twg.id}>{twg.name}</option>
-                                    ))}
+                                    {twgs.map(twg => (<option key={twg.id} value={twg.id}>{twg.name}</option>))}
                                 </select>
                             </div>
-
                             <div>
-                                <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">
-                                    Custom Message
-                                </label>
-                                <textarea
-                                    value={createForm.custom_message || ''}
-                                    onChange={(e) => setCreateForm({ ...createForm, custom_message: e.target.value })}
-                                    className="w-full px-3 py-2 bg-white dark:bg-[#2d3748] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm min-h-[100px] resize-y"
-                                    placeholder="Optional personal message to include in the invitation..."
-                                />
+                                <label style={labelStyle}>Custom Message</label>
+                                <textarea value={createForm.custom_message || ''} onChange={(e) => setCreateForm({ ...createForm, custom_message: e.target.value })} style={{ ...inputStyle, minHeight: 90, resize: 'vertical' }} placeholder="Optional personal message..." />
                             </div>
-
                             {/* Attachments */}
                             <div>
-                                <label className="block text-sm font-bold text-[#0d121b] dark:text-white mb-2">
-                                    Attachments
-                                </label>
-                                <div
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="border-2 border-dashed border-[#e7ebf3] dark:border-[#4a5568] rounded-lg p-4 text-center cursor-pointer hover:border-[#1152d4] dark:hover:border-[#1152d4] transition-colors"
-                                >
-                                    <span className="material-symbols-outlined text-3xl text-[#4c669a] dark:text-[#a0aec0]">attach_file</span>
-                                    <p className="text-sm text-[#4c669a] dark:text-[#a0aec0] mt-1">
-                                        Click to attach files (PDF, images, documents)
-                                    </p>
-                                    <p className="text-xs text-[#4c669a] dark:text-[#a0aec0]">
-                                        Max 5 files, 10MB each
-                                    </p>
+                                <label style={labelStyle}>Attachments</label>
+                                <div onClick={() => fileInputRef.current?.click()} style={{ border: '1px dashed var(--border)', padding: '16px', textAlign: 'center', cursor: 'pointer' }}>
+                                    <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--ink-300)', display: 'block', marginBottom: 4 }}>attach_file</span>
+                                    <p style={{ fontSize: 12, color: 'var(--ink-500)', margin: 0 }}>Click to attach files (PDF, images, documents)</p>
+                                    <p style={{ fontSize: 11, color: 'var(--ink-400)', margin: '2px 0 0' }}>Max 5 files, 10MB each</p>
                                 </div>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    multiple
-                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
-                                    onChange={handleFileSelect}
-                                    className="hidden"
-                                />
-
-                                {/* Selected files */}
+                                <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" onChange={handleFileSelect} className="hidden" />
                                 {attachments.length > 0 && (
-                                    <div className="mt-3 space-y-2">
+                                    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
                                         {attachments.map((file, index) => (
-                                            <div key={index} className="flex items-center justify-between bg-gray-50 dark:bg-[#2d3748] rounded-lg px-3 py-2">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="material-symbols-outlined text-[20px] text-[#4c669a]">description</span>
+                                            <div key={index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--ink-50)', border: '1px solid var(--border)', padding: '6px 10px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--ink-400)' }}>description</span>
                                                     <div>
-                                                        <p className="text-sm font-medium text-[#0d121b] dark:text-white">{file.name}</p>
-                                                        <p className="text-xs text-[#4c669a]">{formatFileSize(file.size)}</p>
+                                                        <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-800)', margin: 0 }}>{file.name}</p>
+                                                        <p style={{ fontSize: 10, color: 'var(--ink-400)', margin: 0 }}>{formatFileSize(file.size)}</p>
                                                     </div>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeAttachment(index)}
-                                                    className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                                                >
-                                                    <span className="material-symbols-outlined text-[18px]">close</span>
+                                                <button type="button" onClick={() => removeAttachment(index)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--terra)', padding: 4 }}>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
                                                 </button>
                                             </div>
                                         ))}
                                     </div>
                                 )}
                             </div>
-
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    id="send_email"
-                                    checked={createForm.send_email}
-                                    onChange={(e) => setCreateForm({ ...createForm, send_email: e.target.checked })}
-                                    className="w-4 h-4 rounded border-gray-300 text-[#1152d4]"
-                                />
-                                <label htmlFor="send_email" className="text-sm text-[#0d121b] dark:text-white">
-                                    Send invitation email immediately
-                                </label>
-                            </div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                                <input type="checkbox" id="send_email" checked={createForm.send_email} onChange={(e) => setCreateForm({ ...createForm, send_email: e.target.checked })} style={{ accentColor: 'var(--accent)' }} />
+                                <span style={{ fontSize: 13, color: 'var(--ink-700)' }}>Send invitation email immediately</span>
+                            </label>
                         </div>
-
-                        <div className="p-6 bg-gray-50 dark:bg-[#2d3748]/30 flex justify-end gap-3">
-                            <button
-                                onClick={() => {
-                                    setIsCreateModalOpen(false)
-                                    resetCreateForm()
-                                }}
-                                className="px-4 py-2 text-sm font-bold text-[#4c669a] hover:text-[#0d121b] dark:text-[#a0aec0] dark:hover:text-white"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleCreateInvitation}
-                                disabled={!createForm.organization_name || !createForm.contact_email || !createForm.twg_id || isSubmitting}
-                                className="px-4 py-2 bg-[#1152d4] hover:bg-[#0e44b1] text-white text-sm font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                            >
-                                {isSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                            <button onClick={() => { setIsCreateModalOpen(false); resetCreateForm(); }} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                            <button onClick={handleCreateInvitation} disabled={!createForm.organization_name || !createForm.contact_email || !createForm.twg_id || isSubmitting} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: !createForm.organization_name || !createForm.contact_email || !createForm.twg_id || isSubmitting ? 0.5 : 1 }}>
+                                {isSubmitting && <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }}></div>}
                                 Send Invitation
                             </button>
                         </div>
@@ -596,28 +468,21 @@ export default function OrganizationInvitations() {
             {/* Chat Modal */}
             {isChatModalOpen && selectedInvitation && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-2xl w-full max-w-2xl border border-[#e7ebf3] dark:border-[#2d3748] overflow-hidden flex flex-col max-h-[80vh]">
-                        <div className="p-6 border-b border-[#e7ebf3] dark:border-[#2d3748] flex items-center justify-between">
+                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: '100%', maxWidth: 600, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
+                        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                             <div>
-                                <h3 className="text-xl font-bold text-[#0d121b] dark:text-white">
+                                <h3 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 20, color: 'var(--ink-900)', margin: '0 0 4px' }}>
                                     Conversation with {selectedInvitation.organization_name}
                                 </h3>
-                                <p className="text-sm text-[#4c669a] dark:text-[#a0aec0]">
-                                    {selectedInvitation.twg_name} • {selectedInvitation.contact_email}
+                                <p style={{ fontSize: 12, color: 'var(--ink-500)', margin: 0 }}>
+                                    {selectedInvitation.twg_name} · {selectedInvitation.contact_email}
                                 </p>
                             </div>
-                            <button
-                                onClick={() => {
-                                    setIsChatModalOpen(false)
-                                    setSelectedInvitation(null)
-                                    loadInvitations() // Refresh to update unread counts
-                                }}
-                                className="p-2 text-[#4c669a] hover:text-[#0d121b] dark:text-[#a0aec0] dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-[#2d3748]"
-                            >
-                                <span className="material-symbols-outlined">close</span>
+                            <button onClick={() => { setIsChatModalOpen(false); setSelectedInvitation(null); loadInvitations(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)', padding: 4 }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>close</span>
                             </button>
                         </div>
-                        <div className="flex-1 min-h-0">
+                        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                             <InvitationChat
                                 invitationId={selectedInvitation.id}
                                 isPublic={false}
@@ -627,6 +492,6 @@ export default function OrganizationInvitations() {
                     </div>
                 </div>
             )}
-        </>
+        </div>
     )
 }

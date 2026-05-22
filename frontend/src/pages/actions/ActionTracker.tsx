@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSelector } from 'react-redux'
 import { RootState } from '../../store'
 import { UserRole } from '../../types/auth'
-import { Card, Avatar } from '../../components/ui'
 import { actionItems } from '../../services/api'
 
 interface ActionItemData {
@@ -29,18 +28,18 @@ interface SummaryData {
     completed_this_week: number
 }
 
-const STATUS_COLUMNS = [
-    { key: 'PENDING', label: 'To Do', color: 'bg-slate-400' },
-    { key: 'IN_PROGRESS', label: 'In Progress', color: 'bg-blue-600' },
-    { key: 'OVERDUE', label: 'Overdue', color: 'bg-red-500' },
-    { key: 'COMPLETED', label: 'Completed', color: 'bg-green-500' },
-] as const
-
 const STATUS_TRANSITIONS: Record<string, string[]> = {
     PENDING: ['IN_PROGRESS', 'COMPLETED'],
     IN_PROGRESS: ['COMPLETED', 'PENDING'],
     OVERDUE: ['IN_PROGRESS', 'COMPLETED'],
     COMPLETED: [],
+}
+
+const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+    PENDING:     { label: 'To Do',       color: 'var(--ink-500)',  bg: 'var(--ink-50)' },
+    IN_PROGRESS: { label: 'In Progress', color: 'var(--amber)',    bg: 'color-mix(in srgb, var(--amber) 12%, transparent)' },
+    OVERDUE:     { label: 'Overdue',     color: 'var(--terra)',    bg: 'color-mix(in srgb, var(--terra) 12%, transparent)' },
+    COMPLETED:   { label: 'Completed',   color: 'var(--sage)',     bg: 'color-mix(in srgb, var(--sage) 12%, transparent)' },
 }
 
 export default function ActionTracker() {
@@ -73,9 +72,7 @@ export default function ActionTracker() {
         }
     }, [statusFilter, mineOnly])
 
-    useEffect(() => {
-        fetchData()
-    }, [fetchData])
+    useEffect(() => { fetchData() }, [fetchData])
 
     const handleStatusChange = async (itemId: string, newStatus: string) => {
         setUpdatingId(itemId)
@@ -96,278 +93,258 @@ export default function ActionTracker() {
     }
 
     const formatDate = (dateStr: string | null) => {
-        if (!dateStr) return 'No date'
-        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        if (!dateStr) return '—'
+        const d = new Date(dateStr)
+        const today = new Date()
+        const diff = Math.ceil((d.getTime() - today.getTime()) / 86400000)
+        if (diff === 0) return 'Today'
+        if (diff === 1) return 'Tomorrow'
+        if (diff < 0 && diff > -7) return `${Math.abs(diff)}d ago`
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }
 
-    const isRecentlyCreated = (createdAt: string | null) => {
-        if (!createdAt) return false
-        const diff = Date.now() - new Date(createdAt).getTime()
-        return diff < 24 * 60 * 60 * 1000
+    const isDateOverdue = (dateStr: string | null, status: string) => {
+        if (!dateStr || status === 'COMPLETED') return false
+        return new Date(dateStr) < new Date()
     }
-
-    const recentCount = items.filter(i => isRecentlyCreated(i.created_at)).length
-
-    const stats = [
-        { label: 'Open Items', value: summary ? summary.pending + summary.in_progress : 0, change: `${summary?.due_this_week || 0} due this week`, icon: ListIcon, color: 'text-blue-500' },
-        { label: 'Overdue', value: summary?.overdue || 0, change: 'need attention', icon: AlertIcon, color: 'text-red-500' },
-        { label: 'Completed (Week)', value: summary?.completed_this_week || 0, change: 'items done', icon: CheckIcon, color: 'text-green-500' },
-    ]
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 256 }}>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--accent)' }} />
             </div>
         )
     }
 
+    const stats = [
+        { label: 'Overdue',     value: summary?.overdue ?? 0,      sub: 'need attention',                         accent: 'var(--terra)' },
+        { label: 'In Progress', value: summary?.in_progress ?? 0,  sub: `${summary?.due_this_week ?? 0} due this week`, accent: 'var(--amber)' },
+        { label: 'To Do',       value: summary?.pending ?? 0,       sub: 'open items',                             accent: 'var(--ink-500)' },
+        { label: 'Completed',   value: summary?.completed ?? 0,    sub: `${summary?.completed_this_week ?? 0} this week`, accent: 'var(--sage)' },
+    ]
+
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white transition-colors">
-                        {isFacilitator ? 'Action Items Tracker' : 'My Action Items'}
-                    </h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {isFacilitator
-                            ? 'Track and manage action items across your working groups'
-                            : 'View and update your assigned action items'}
-                    </p>
+        <div style={{ maxWidth: 1180, margin: '0 auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+
+            {/* Page header */}
+            <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)', marginBottom: 6 }}>
+                    Action Tracker
                 </div>
+                <h1 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
+                    {isFacilitator ? 'Actions' : 'My Actions'}
+                </h1>
             </div>
 
-            {/* Stats row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {stats.map((stat) => (
-                    <Card key={stat.label} className="p-5 flex items-start justify-between">
-                        <div className="space-y-1">
-                            <p className="text-xs font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider">{stat.label}</p>
-                            <div className="flex items-baseline gap-2">
-                                <h2 className="text-3xl font-display font-bold text-slate-900 dark:text-white transition-colors">{stat.value}</h2>
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${stat.color === 'text-red-500' ? 'bg-red-50 text-red-600 dark:bg-red-900/30' : 'bg-green-50 text-green-600 dark:bg-green-900/30'}`}>
-                                    {stat.change}
-                                </span>
-                            </div>
-                        </div>
-                        <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl transition-colors">
-                            <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                        </div>
-                    </Card>
+            {/* Stats strip */}
+            <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                padding: '20px 28px', marginBottom: 24, gap: 0,
+            }}>
+                {stats.map((s, i) => (
+                    <div
+                        key={s.label}
+                        onClick={() => setStatusFilter(
+                            s.label === 'Overdue' ? (statusFilter === 'OVERDUE' ? '' : 'OVERDUE') :
+                            s.label === 'In Progress' ? (statusFilter === 'IN_PROGRESS' ? '' : 'IN_PROGRESS') :
+                            s.label === 'To Do' ? (statusFilter === 'PENDING' ? '' : 'PENDING') :
+                            (statusFilter === 'COMPLETED' ? '' : 'COMPLETED')
+                        )}
+                        style={{
+                            paddingLeft: i > 0 ? 24 : 0,
+                            paddingRight: i < 3 ? 24 : 0,
+                            borderRight: i < 3 ? '1px solid var(--border)' : 'none',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{s.label}</div>
+                        <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 28, color: s.accent, letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1 }}>{s.value}</div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 4 }}>{s.sub}</div>
+                    </div>
                 ))}
             </div>
 
-            {/* AI extraction alert — only show if recent items exist */}
-            {recentCount > 0 && (
-                <div className="bg-blue-600/10 border border-blue-500/20 rounded-xl p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white">
-                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                        </div>
-                        <div>
-                            <h4 className="font-bold text-slate-900 dark:text-white transition-colors">New Action Items</h4>
-                            <p className="text-xs text-slate-600 dark:text-slate-400">{recentCount} action item{recentCount > 1 ? 's' : ''} created in the last 24 hours</p>
-                        </div>
-                    </div>
+            {/* Toolbar */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {/* Status filter pills */}
+                    {[{ key: '', label: 'All' }, { key: 'PENDING', label: 'To Do' }, { key: 'IN_PROGRESS', label: 'In Progress' }, { key: 'OVERDUE', label: 'Overdue' }, { key: 'COMPLETED', label: 'Completed' }].map(f => (
+                        <button
+                            key={f.key}
+                            onClick={() => setStatusFilter(f.key)}
+                            style={{
+                                fontSize: 12, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+                                background: statusFilter === f.key ? 'var(--accent)' : 'var(--surface)',
+                                border: `1px solid ${statusFilter === f.key ? 'var(--accent)' : 'var(--border)'}`,
+                                color: statusFilter === f.key ? 'var(--accent-ink)' : 'var(--ink-600)',
+                            }}
+                        >
+                            {f.label}
+                            {f.key && (
+                                <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.7 }}>
+                                    {f.key === 'PENDING' ? summary?.pending ?? 0
+                                     : f.key === 'IN_PROGRESS' ? summary?.in_progress ?? 0
+                                     : f.key === 'OVERDUE' ? summary?.overdue ?? 0
+                                     : summary?.completed ?? 0}
+                                </span>
+                            )}
+                        </button>
+                    ))}
                 </div>
-            )}
-
-            {/* Filter toolbar */}
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-dark-border pb-4 transition-colors">
-                <div className="flex gap-3 items-center">
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-card text-slate-700 dark:text-slate-300"
-                    >
-                        <option value="">All Statuses</option>
-                        <option value="PENDING">To Do</option>
-                        <option value="IN_PROGRESS">In Progress</option>
-                        <option value="OVERDUE">Overdue</option>
-                        <option value="COMPLETED">Completed</option>
-                    </select>
-                    <button
-                        onClick={() => setMineOnly(!mineOnly)}
-                        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${mineOnly ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-blue-500'}`}
-                    >
-                        My Items
-                    </button>
-                </div>
+                <button
+                    onClick={() => setMineOnly(!mineOnly)}
+                    style={{
+                        fontSize: 12, padding: '5px 14px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+                        background: mineOnly ? 'var(--accent)' : 'transparent',
+                        border: `1px solid ${mineOnly ? 'var(--accent)' : 'var(--border)'}`,
+                        color: mineOnly ? 'var(--accent-ink)' : 'var(--ink-600)',
+                    }}
+                >
+                    My Items
+                </button>
             </div>
 
-            {/* Action Items List */}
-            {items.length === 0 && !statusFilter ? (
-                <div className="text-center py-16 text-slate-400">
-                    <p className="text-lg font-medium">No action items yet</p>
-                    <p className="text-sm mt-1">Action items will appear here once created from meeting minutes</p>
+            {/* Table */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                {/* Header */}
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 150px 110px 90px 110px 130px',
+                    padding: '10px 16px',
+                    background: 'var(--ink-50)',
+                    borderBottom: '1px solid var(--border)',
+                }}>
+                    {['Description', 'Owner', 'Due Date', 'Priority', 'Status', 'Actions'].map(col => (
+                        <div key={col} style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>
+                            {col}
+                        </div>
+                    ))}
                 </div>
-            ) : (
-                <Card className="overflow-hidden">
-                    {/* Table - Desktop */}
-                    <div className="hidden md:block overflow-x-auto">
-                        <div className="grid grid-cols-[1fr_140px_140px_120px_160px] gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider min-w-[700px]">
-                            <span>Description</span>
-                            <span>Owner</span>
-                            <span>Due Date</span>
-                            <span>Status</span>
-                            <span>Actions</span>
-                        </div>
 
-                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {items.map((item) => {
-                                const isOverdue = item.status === 'OVERDUE'
-                                const isCompleted = item.status === 'COMPLETED'
-                                const transitions = STATUS_TRANSITIONS[item.status] || []
-                                const statusColor = STATUS_COLUMNS.find(c => c.key === item.status)
+                {/* Rows */}
+                {items.length === 0 ? (
+                    <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--ink-400)' }}>
+                        <p style={{ fontSize: 15, fontWeight: 500, margin: 0 }}>No action items</p>
+                        <p style={{ fontSize: 13, marginTop: 4 }}>
+                            {statusFilter ? 'No items match this filter.' : 'Action items are created from meeting minutes.'}
+                        </p>
+                    </div>
+                ) : (
+                    items.map((item, idx) => {
+                        const isCompleted = item.status === 'COMPLETED'
+                        const dueDateOverdue = isDateOverdue(item.due_date, item.status)
+                        const transitions = STATUS_TRANSITIONS[item.status] || []
+                        const meta = STATUS_META[item.status] || STATUS_META.PENDING
+                        const isLast = idx === items.length - 1
 
-                                return (
-                                    <div
-                                        key={item.id}
-                                        className={`grid grid-cols-[1fr_140px_140px_120px_160px] gap-4 px-5 py-3.5 items-center transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/30 min-w-[700px] ${isOverdue ? 'bg-red-50/40 dark:bg-red-900/5' : ''}`}
-                                    >
-                                    {/* Description */}
-                                    <div className="min-w-0">
-                                        <span className={`text-sm leading-snug ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white font-medium'}`}>
-                                            {item.description}
-                                        </span>
+                        return (
+                            <div
+                                key={item.id}
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 150px 110px 90px 110px 130px',
+                                    padding: '13px 16px',
+                                    borderBottom: isLast ? 'none' : '1px solid var(--border)',
+                                    alignItems: 'center',
+                                    opacity: isCompleted ? 0.55 : 1,
+                                    transition: 'background 0.1s',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--ink-50)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                            >
+                                {/* Description */}
+                                <div style={{ fontSize: 13, color: 'var(--ink-900)', textDecoration: isCompleted ? 'line-through' : 'none', paddingRight: 16, lineHeight: 1.4 }}>
+                                    {item.description}
+                                </div>
+
+                                {/* Owner */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <div style={{
+                                        width: 26, height: 26, borderRadius: '50%',
+                                        background: 'var(--accent-soft)', color: 'var(--accent)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: 10, fontWeight: 600, flexShrink: 0,
+                                    }}>
+                                        {getInitials(item.owner?.full_name)}
                                     </div>
+                                    <span style={{ fontSize: 12, color: 'var(--ink-600)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {item.owner?.full_name || 'Unassigned'}
+                                    </span>
+                                </div>
 
-                                    {/* Owner */}
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <Avatar size="sm" fallback={getInitials(item.owner?.full_name)} />
-                                        <span className="text-xs text-slate-600 dark:text-slate-400 truncate">{item.owner?.full_name || 'Unassigned'}</span>
-                                    </div>
+                                {/* Due Date */}
+                                <div style={{
+                                    fontFamily: "'Geist Mono', monospace",
+                                    fontSize: 11,
+                                    fontWeight: dueDateOverdue ? 600 : 400,
+                                    color: dueDateOverdue ? 'var(--terra)' : 'var(--ink-500)',
+                                }}>
+                                    {formatDate(item.due_date)}
+                                </div>
 
-                                    {/* Due Date */}
-                                    <div className={`flex items-center gap-1.5 text-xs font-medium ${isOverdue ? 'text-red-500' : isCompleted ? 'text-slate-400' : 'text-slate-600 dark:text-slate-400'}`}>
-                                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                        {formatDate(item.due_date)}
-                                    </div>
+                                {/* Priority */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{
+                                        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                                        background: item.priority?.toUpperCase() === 'HIGH' ? 'var(--terra)'
+                                            : item.priority?.toUpperCase() === 'MEDIUM' ? 'var(--amber)'
+                                            : 'var(--ink-300)',
+                                    }} />
+                                    <span style={{ fontSize: 11, color: 'var(--ink-500)', textTransform: 'capitalize' }}>
+                                        {item.priority?.toLowerCase() || 'normal'}
+                                    </span>
+                                </div>
 
-                                    {/* Status Badge */}
-                                    <div>
-                                        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full ${
-                                            isCompleted ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                            : isOverdue ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                            : item.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                                        }`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${statusColor?.color || 'bg-slate-400'}`}></span>
-                                            {statusColor?.label || item.status}
-                                        </span>
-                                    </div>
+                                {/* Status badge */}
+                                <div>
+                                    <span style={{
+                                        fontSize: 11, fontWeight: 500, padding: '3px 8px',
+                                        background: meta.bg, color: meta.color,
+                                        border: `1px solid ${meta.color}`,
+                                        whiteSpace: 'nowrap',
+                                    }}>
+                                        {meta.label}
+                                    </span>
+                                </div>
 
-                                    {/* Status Transition Buttons */}
-                                    <div className="flex gap-1.5 flex-wrap">
-                                        {transitions.map((nextStatus) => (
+                                {/* Actions */}
+                                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                                    {transitions.map(next => {
+                                        const nextMeta = STATUS_META[next] || STATUS_META.PENDING
+                                        return (
                                             <button
-                                                key={nextStatus}
-                                                onClick={() => handleStatusChange(item.id, nextStatus)}
+                                                key={next}
+                                                onClick={() => handleStatusChange(item.id, next)}
                                                 disabled={updatingId === item.id}
-                                                className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition-colors disabled:opacity-50 ${
-                                                    nextStatus === 'COMPLETED'
-                                                        ? 'border-green-300 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30'
-                                                        : nextStatus === 'IN_PROGRESS'
-                                                        ? 'border-blue-300 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30'
-                                                        : 'border-slate-300 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
-                                                }`}
+                                                style={{
+                                                    fontSize: 10, padding: '3px 9px', cursor: 'pointer',
+                                                    fontFamily: 'inherit', fontWeight: 500,
+                                                    background: 'transparent',
+                                                    border: `1px solid ${nextMeta.color}`,
+                                                    color: nextMeta.color,
+                                                    opacity: updatingId === item.id ? 0.4 : 1,
+                                                    whiteSpace: 'nowrap',
+                                                }}
                                             >
-                                                {updatingId === item.id ? '...' : nextStatus.replace('_', ' ')}
+                                                {updatingId === item.id ? '…' : nextMeta.label}
                                             </button>
-                                        ))}
-                                    </div>
+                                        )
+                                    })}
                                 </div>
-                            )
-                        })}
-                        </div>
-                    </div>
+                            </div>
+                        )
+                    })
+                )}
+            </div>
 
-                    {/* Mobile Card View */}
-                    <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
-                        {items.map((item) => {
-                            const isOverdue = item.status === 'OVERDUE'
-                            const isCompleted = item.status === 'COMPLETED'
-                            const transitions = STATUS_TRANSITIONS[item.status] || []
-                            const statusColor = STATUS_COLUMNS.find(c => c.key === item.status)
-
-                            return (
-                                <div
-                                    key={item.id}
-                                    className={`p-4 space-y-3 ${isOverdue ? 'bg-red-50/40 dark:bg-red-900/5' : ''}`}
-                                >
-                                    <div className="flex items-start justify-between gap-2">
-                                        <span className={`text-sm leading-snug flex-1 ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white font-medium'}`}>
-                                            {item.description}
-                                        </span>
-                                        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${
-                                            isCompleted ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                            : isOverdue ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                            : item.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                                        }`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${statusColor?.color || 'bg-slate-400'}`}></span>
-                                            {statusColor?.label || item.status}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-xs text-slate-500">
-                                        <div className="flex items-center gap-1.5">
-                                            <Avatar size="xs" fallback={getInitials(item.owner?.full_name)} />
-                                            <span className="truncate">{item.owner?.full_name || 'Unassigned'}</span>
-                                        </div>
-                                        <span>|</span>
-                                        <span className={isOverdue ? 'text-red-500 font-medium' : ''}>{formatDate(item.due_date)}</span>
-                                    </div>
-                                    {transitions.length > 0 && (
-                                        <div className="flex gap-2 flex-wrap">
-                                            {transitions.map((nextStatus) => (
-                                                <button
-                                                    key={nextStatus}
-                                                    onClick={() => handleStatusChange(item.id, nextStatus)}
-                                                    disabled={updatingId === item.id}
-                                                    className={`text-[10px] font-bold px-3 py-1.5 rounded-full border transition-colors disabled:opacity-50 ${
-                                                        nextStatus === 'COMPLETED'
-                                                            ? 'border-green-300 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30'
-                                                            : nextStatus === 'IN_PROGRESS'
-                                                            ? 'border-blue-300 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30'
-                                                            : 'border-slate-300 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
-                                                    }`}
-                                                >
-                                                    {updatingId === item.id ? '...' : nextStatus.replace('_', ' ')}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        })}
-                    </div>
-                </Card>
+            {/* Footer count */}
+            {items.length > 0 && (
+                <div style={{ marginTop: 10, fontSize: 11, color: 'var(--ink-400)', textAlign: 'right' }}>
+                    {items.length} item{items.length !== 1 ? 's' : ''}
+                    {statusFilter && ` · filtered by ${STATUS_META[statusFilter]?.label || statusFilter}`}
+                </div>
             )}
         </div>
-    )
-}
-
-function ListIcon({ className }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-        </svg>
-    )
-}
-
-function AlertIcon({ className }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-    )
-}
-
-function CheckIcon({ className }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
     )
 }

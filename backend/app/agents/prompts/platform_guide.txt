@@ -34,7 +34,7 @@ Core investment project management. Each project moves through these stages in o
   6. Social Impact (10%) — jobs created, smallholders reached, community benefit
   7. Economic Impact (10%) — macroeconomic ROI, cross-border economic benefit
   8. Stakeholder Alignment (10%) — project sponsor quality, key contacts present
-  9. ECOWAS Integration (5%) — lead country is ECOWAS member, cross-border project
+  9. ECOWAS Integration (10%) — lead country is ECOWAS member, cross-border project
 
 To trigger a rescore: open a project → click "Rescore" button.
 

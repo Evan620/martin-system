@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect } from 'react';
-import Card from '../../components/ui/Card';
 import { auditLogs } from '../../services/api';
 import { useAppSelector } from '../../hooks/useRedux';
 
@@ -20,6 +19,7 @@ const AuditLogs: React.FC = () => {
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
     useEffect(() => {
         fetchLogs();
@@ -38,8 +38,8 @@ const AuditLogs: React.FC = () => {
         }
     };
 
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleString();
+    const formatTime = (dateString: string) => {
+        return new Date(dateString).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     };
 
     const formatDetails = (details: any) => {
@@ -47,95 +47,158 @@ const AuditLogs: React.FC = () => {
         return JSON.stringify(details, null, 2);
     };
 
+    const getSeverityColor = (action: string) => {
+        if (action.includes('DELETE') || action.includes('CANCEL') || action.includes('DENIED')) return 'var(--terra)';
+        if (action.includes('UPDATE') || action.includes('CHANGE') || action.includes('WARN')) return 'var(--amber)';
+        if (action.includes('APPROVED') || action.includes('CREATE') || action.includes('LOGIN')) return 'var(--sage)';
+        return 'var(--ink-400)';
+    };
+
+    // Group logs by date
+    const groupedLogs: Record<string, AuditLog[]> = {};
+    logs.forEach(log => {
+        const date = new Date(log.created_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        if (!groupedLogs[date]) groupedLogs[date] = [];
+        groupedLogs[date].push(log);
+    });
+
     const allowedRoles = ['ADMIN', 'SECRETARIAT_LEAD'];
     if (!allowedRoles.includes(user?.role || '')) {
         return (
-            <div className="p-8">
-                <Card className="bg-red-50 border-red-200">
-                    <p className="text-red-600">Access Denied: Admin privileges required.</p>
-                </Card>
+            <div style={{ maxWidth: 1180, margin: '0 auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif", padding: '32px 0' }}>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--terra)', padding: 16 }}>
+                    <p style={{ color: 'var(--terra)', margin: 0, fontSize: 13 }}>Access Denied: Admin privileges required.</p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
-            <header className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white">System Audit Logs</h1>
-                    <p className="text-slate-500 mt-1">Track all secure actions across the platform</p>
+        <div style={{ maxWidth: 1180, margin: '0 auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+            {/* Page header */}
+            <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)', marginBottom: 6 }}>
+                    Management · trail
                 </div>
-                <button
-                    onClick={fetchLogs}
-                    className="p-2 text-slate-500 hover:text-blue-600 transition-colors"
-                    title="Refresh Logs"
-                >
-                    🔄 Refresh
-                </button>
-            </header>
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                    <h1 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
+                        Audit logs
+                    </h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'var(--ink-500)' }}>
+                            {logs.length} events
+                        </span>
+                        <button
+                            onClick={fetchLogs}
+                            style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                        >
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Filter bar */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 28, padding: '14px 16px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginRight: 8 }}>Filter</span>
+                {['All Actions', 'CREATE', 'UPDATE', 'DELETE', 'LOGIN'].map(f => (
+                    <button key={f} style={{ fontSize: 11, padding: '4px 10px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-600)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {f}
+                    </button>
+                ))}
+            </div>
 
             {error && (
-                <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100">
-                    {error}
+                <div style={{ background: 'var(--surface)', borderLeft: '2px solid var(--terra)', padding: '12px 16px', marginBottom: 16 }}>
+                    <p style={{ color: 'var(--terra)', margin: 0, fontSize: 13 }}>{error}</p>
                 </div>
             )}
 
-            <Card className="overflow-hidden border-slate-200 dark:border-slate-800 shadow-sm">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-medium border-b border-slate-200 dark:border-slate-700">
-                            <tr>
-                                <th className="p-4">Timestamp</th>
-                                <th className="p-4">Action</th>
-                                <th className="p-4">Resource</th>
-                                <th className="p-4">Details</th>
-                                <th className="p-4">IP Address</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {loading ? (
-                                <tr>
-                                    <td colSpan={5} className="p-8 text-center text-slate-500">Loading logs...</td>
-                                </tr>
-                            ) : logs.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="p-8 text-center text-slate-500">No logs found.</td>
-                                </tr>
-                            ) : (
-                                logs.map((log) => (
-                                    <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                        <td className="p-4 text-slate-500 whitespace-nowrap font-mono text-xs">
-                                            {formatDate(log.created_at)}
-                                        </td>
-                                        <td className="p-4 font-medium text-slate-900 dark:text-white">
-                                            <span className={`px-2 py-1 rounded text-xs font-bold ${log.action.includes('APPROVED') ? 'bg-green-100 text-green-700' :
-                                                log.action.includes('CANCEL') ? 'bg-red-100 text-red-700' :
-                                                    'bg-blue-100 text-blue-700'
-                                                }`}>
+            {loading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '64px 0' }}>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--accent)' }}></div>
+                </div>
+            ) : logs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '64px 0', color: 'var(--ink-400)' }}>
+                    <p style={{ fontSize: 16, fontWeight: 500, margin: 0 }}>No audit logs found</p>
+                </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+                    {Object.entries(groupedLogs).map(([date, dateLogs]) => (
+                        <div key={date}>
+                            {/* Date heading */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10 }}>
+                                <h2 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 16, color: 'var(--ink-700)', margin: 0, whiteSpace: 'nowrap' }}>
+                                    {date}
+                                </h2>
+                                <div style={{ flex: 1, height: 1, background: 'var(--border)' }}></div>
+                                <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'var(--ink-400)' }}>{dateLogs.length} events</span>
+                            </div>
+
+                            {/* Group body */}
+                            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                                {/* Table header */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 160px 1fr 1fr 60px', gap: 0, background: 'var(--ink-50)', borderBottom: '1px solid var(--border)', padding: '10px 16px' }}>
+                                    {['Time', 'Action', 'Resource', 'Details', 'IP Address', ''].map(col => (
+                                        <div key={col} style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{col}</div>
+                                    ))}
+                                </div>
+                                {dateLogs.map((log, idx) => (
+                                    <div
+                                        key={log.id}
+                                        onMouseEnter={() => setHoveredRow(log.id)}
+                                        onMouseLeave={() => setHoveredRow(null)}
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: '90px 1fr 160px 1fr 1fr 60px',
+                                            gap: 0,
+                                            padding: '11px 16px',
+                                            borderBottom: idx < dateLogs.length - 1 ? '1px solid var(--border)' : 'none',
+                                            background: hoveredRow === log.id ? 'var(--ink-50)' : 'transparent',
+                                            alignItems: 'start',
+                                        }}
+                                    >
+                                        {/* Time */}
+                                        <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'var(--ink-500)', paddingTop: 1 }}>
+                                            {formatTime(log.created_at)}
+                                        </div>
+
+                                        {/* Action */}
+                                        <div>
+                                            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'var(--ink-700)', fontWeight: 500 }}>
                                                 {log.action}
                                             </span>
-                                        </td>
-                                        <td className="p-4 text-slate-600 dark:text-slate-400">
-                                            <div className="flex flex-col">
-                                                <span className="uppercase text-xs font-bold text-slate-400">{log.resource_type}</span>
-                                                <span className="font-mono text-xs">{log.resource_id ? log.resource_id.substring(0, 8) + '...' : '-'}</span>
-                                            </div>
-                                        </td>
-                                        <td className="p-4">
-                                            <pre className="text-xs font-mono text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 p-2 rounded max-w-xs overflow-x-auto">
+                                        </div>
+
+                                        {/* Resource */}
+                                        <div>
+                                            <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{log.resource_type}</div>
+                                            <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'var(--ink-500)', marginTop: 2 }}>{log.resource_id ? log.resource_id.substring(0, 8) + '...' : '-'}</div>
+                                        </div>
+
+                                        {/* Details */}
+                                        <div style={{ overflow: 'hidden' }}>
+                                            <pre style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'var(--ink-600)', background: 'var(--ink-50)', padding: '4px 8px', margin: 0, overflowX: 'auto', maxWidth: 220, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                                                 {formatDetails(log.details)}
                                             </pre>
-                                        </td>
-                                        <td className="p-4 text-slate-500 font-mono text-xs">
+                                        </div>
+
+                                        {/* IP */}
+                                        <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'var(--ink-500)' }}>
                                             {log.ip_address || '-'}
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                                        </div>
+
+                                        {/* Severity dot */}
+                                        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 4 }}>
+                                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: getSeverityColor(log.action) }}></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
                 </div>
-            </Card>
+            )}
         </div>
     );
 };

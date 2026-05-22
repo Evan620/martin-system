@@ -34,6 +34,7 @@ import OrganizationInvitations from './pages/admin/OrganizationInvitations'
 import ProjectConflicts from './pages/Conflicts/ProjectConflicts'
 import ProtectedRoute from './components/ProtectedRoute'
 import PublicInvitationRespond from './pages/public/PublicInvitationRespond'
+import BuyerDatabase from './pages/BuyerDatabase'
 
 function HomeRedirect() {
     const user = useAppSelector((state) => state.auth.user)
@@ -74,8 +75,7 @@ function App() {
     }, [dispatch, token, user])
 
     useEffect(() => {
-        // Force light mode by removing dark class
-        document.documentElement.classList.remove('dark')
+        document.documentElement.classList.toggle('dark', theme === 'dark')
     }, [theme])
 
     if (!initialCheckDone && token && !user) {
@@ -123,6 +123,7 @@ function App() {
                 <Route path="/conflicts" element={<ProjectConflicts />} />
                 <Route path="/deal-pipeline" element={<DealPipeline />} />
                 <Route path="/deal-pipeline/new" element={<NewProject />} />
+                <Route path="/deal-pipeline/buyers" element={<BuyerDatabase />} />
                 <Route path="/deal-pipeline/:projectId/edit" element={<EditProject />} />
                 <Route path="/deal-pipeline/:projectId" element={<ProjectDetails />} />
                 <Route path="/deal-pipeline/:projectId/memo" element={<ProjectMemo />} />

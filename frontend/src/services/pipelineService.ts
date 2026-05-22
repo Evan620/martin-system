@@ -2,15 +2,17 @@
 import api from './api';
 import {
     Project, ProjectStatus, PipelineStats,
-    ProjectIngestDTO, InvestorMatch, UpdateMatchStatusDTO
+    ProjectIngestDTO, InvestorMatch, UpdateMatchStatusDTO,
+    Buyer, BuyerMatch, UpdateBuyerMatchStatusDTO
 } from '../types/pipeline';
 
 export const pipelineService = {
     // Pipeline Views
-    listProjects: async (stage?: ProjectStatus, pillar?: string): Promise<Project[]> => {
+    listProjects: async (stage?: ProjectStatus, pillar?: string, value_chain_stage?: string): Promise<Project[]> => {
         const params = new URLSearchParams();
         if (stage) params.append('stage', stage);
         if (pillar) params.append('pillar', pillar);
+        if (value_chain_stage) params.append('value_chain_stage', value_chain_stage);
 
         const response = await api.get(`/pipeline/?${params.toString()}`);
         return response.data;
@@ -85,6 +87,32 @@ export const pipelineService = {
 
     updateCriterionWeight: async (criterionId: string, weight: number): Promise<any> => {
         const response = await api.patch(`/pipeline/scoring-criteria/${criterionId}`, { weight });
+        return response.data;
+    },
+
+    // Buyer / Offtake Matching
+    getBuyerMatches: async (projectId: string): Promise<BuyerMatch[]> => {
+        const response = await api.get(`/pipeline/${projectId}/buyer-matches`);
+        return response.data;
+    },
+
+    triggerBuyerMatching: async (projectId: string): Promise<any> => {
+        const response = await api.post(`/pipeline/${projectId}/buyer-match`);
+        return response.data;
+    },
+
+    updateBuyerMatchStatus: async (matchId: string, data: UpdateBuyerMatchStatusDTO): Promise<any> => {
+        const response = await api.patch(`/pipeline/buyer-matches/${matchId}`, data);
+        return response.data;
+    },
+
+    listBuyers: async (): Promise<Buyer[]> => {
+        const response = await api.get('/pipeline/buyers/');
+        return response.data;
+    },
+
+    createBuyer: async (data: Omit<Buyer, 'id'>): Promise<Buyer> => {
+        const response = await api.post('/pipeline/buyers/', data);
         return response.data;
     },
 };

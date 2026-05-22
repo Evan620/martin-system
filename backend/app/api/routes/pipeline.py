@@ -21,8 +21,9 @@ from app.schemas.pipeline_schemas import (
     InvestorMatchRead, PipelineStats, InvestorMatchUpdate, InvestorRead,
     ProjectScoreDetailRead, ScoringCriteriaRead, ScoringCriteriaWeightUpdate,
     ReadinessGapRead, ReadinessGapItem,
+    BuyerCreate, BuyerRead, BuyerMatchRead, BuyerMatchUpdate,
 )
-from app.models.models import ProjectScoreDetail, ScoringCriteria
+from app.models.models import ProjectScoreDetail, ScoringCriteria, Buyer
 from app.services.lifecycle_service import LifecycleService
 from app.services.project_insights_service import insights_service
 
@@ -216,6 +217,63 @@ async def update_platform_settings(
             db.add(PlatformSetting(key=key, value=str(value)))
     await db.commit()
     return {"updated": list(payload.keys())}
+
+
+# ---------------------------------------------------------------------------
+# Buyer CRUD + buyer-match PATCH — MUST be before /{project_id} to avoid UUID routing clash
+# ---------------------------------------------------------------------------
+from app.services.buyer_matching_service import get_buyer_matching_service
+
+
+@router.get("/buyers/", response_model=List[BuyerRead])
+async def list_buyers(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    result = await db.execute(select(Buyer).where(Buyer.deleted_at.is_(None)))
+    buyers = result.scalars().all()
+    return [BuyerRead.model_validate(b) for b in buyers]
+
+
+@router.post("/buyers/", response_model=BuyerRead, status_code=201)
+async def create_buyer(
+    payload: BuyerCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_facilitator)
+):
+    buyer = Buyer(
+        id=uuid.uuid4(),
+        name=payload.name,
+        commodity_types=payload.commodity_types,
+        volume_mt_per_year=payload.volume_mt_per_year,
+        contract_term_years=payload.contract_term_years,
+        price_floor_usd=payload.price_floor_usd,
+        geographic_focus=payload.geographic_focus,
+        notes=payload.notes,
+        created_by=current_user.id,
+    )
+    db.add(buyer)
+    await db.commit()
+    await db.refresh(buyer)
+    return BuyerRead.model_validate(buyer)
+
+
+@router.patch("/buyer-matches/{match_id}", response_model=dict)
+async def update_buyer_match_status(
+    match_id: uuid.UUID,
+    payload: BuyerMatchUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_facilitator)
+):
+    service = get_buyer_matching_service(db)
+    result = await service.update_match_status(
+        match_id=match_id,
+        new_status=payload.status,
+        notes=payload.notes,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -951,4 +1009,35 @@ async def import_projects_from_excel(
         raise HTTPException(status_code=500, detail=f"Database commit failed: {exc}")
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
+
+
+@router.get("/{project_id}/buyer-matches", response_model=List[BuyerMatchRead])
+async def get_buyer_matches(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    service = get_buyer_matching_service(db)
+    matches = await service.get_matches_for_project(project_id)
+    return [
+        BuyerMatchRead(
+            match_id=m["match_id"],
+            buyer=BuyerRead.model_validate(m["buyer"]),
+            score=m["score"],
+            status=m["status"],
+            match_rationale=m["match_rationale"],
+        )
+        for m in matches
+    ]
+
+
+@router.post("/{project_id}/buyer-match", response_model=dict)
+async def trigger_buyer_matching(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_facilitator)
+):
+    service = get_buyer_matching_service(db)
+    result = await service.match_buyers(project_id)
+    return result
 

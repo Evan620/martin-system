@@ -166,3 +166,35 @@ export interface UpdateMatchStatusDTO {
     status: InvestorMatchStatus;
     notes?: string;
 }
+
+export enum BuyerMatchStatus {
+    DETECTED = "DETECTED",
+    CONTACTED = "CONTACTED",
+    INTERESTED = "INTERESTED",
+    NEGOTIATING = "NEGOTIATING",
+    COMMITTED = "COMMITTED",
+}
+
+export interface Buyer {
+    id: string;
+    name: string;
+    commodity_types?: string[];
+    volume_mt_per_year?: number;
+    contract_term_years?: number;
+    price_floor_usd?: number;
+    geographic_focus?: string[];
+    notes?: string;
+}
+
+export interface BuyerMatch {
+    match_id: string;
+    buyer: Buyer;
+    score: number;
+    status: BuyerMatchStatus;
+    match_rationale?: string;
+}
+
+export interface UpdateBuyerMatchStatusDTO {
+    status: BuyerMatchStatus;
+    notes?: string;
+}

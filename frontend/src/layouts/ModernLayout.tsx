@@ -7,6 +7,7 @@ import { UserRole } from '../types/auth';
 import { NotificationType } from '../services/notificationService';
 import { useEffect, useRef, useState } from 'react';
 import GlobalCopilot from '../components/copilot/GlobalCopilot';
+import ThemeToggle from '../components/ui/ThemeToggle';
 
 interface ModernLayoutProps {
     children?: React.ReactNode;
@@ -20,7 +21,10 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
     const { unreadCount } = useAppSelector((state) => state.notifications)
     const token = useAppSelector((state) => state.auth.token);
     const socketRef = useRef<WebSocket | null>(null);
-    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isSidebarCollapsed] = useState(() => {
+        const saved = localStorage.getItem('sidebar_collapsed');
+        return saved !== null ? saved === 'true' : true;
+    });
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [copilotOpen, setCopilotOpen] = useState(() => {
         const saved = localStorage.getItem('copilot_open');
@@ -36,6 +40,10 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
     useEffect(() => {
         localStorage.setItem('copilot_open', String(copilotOpen));
     }, [copilotOpen]);
+
+    useEffect(() => {
+        localStorage.setItem('sidebar_collapsed', String(isSidebarCollapsed));
+    }, [isSidebarCollapsed]);
 
     useEffect(() => {
         if (token) {
@@ -101,380 +109,331 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
 
     const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.SECRETARIAT_LEAD;
 
-    const isActive = (path: string) => location.pathname === path;
+    // Nav sections for the new design
+    const navSections = [
+        {
+            label: 'Today',
+            items: [
+                { path: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
+                { path: '/schedule', icon: 'calendar_month', label: 'Meetings' },
+                { path: '/actions', icon: 'task_alt', label: 'Actions' },
+            ],
+        },
+        {
+            label: 'Work',
+            items: [
+                { path: '/deal-pipeline', icon: 'work_outline', label: 'Deal Pipeline' },
+                { path: '/deal-pipeline/buyers', icon: 'storefront', label: 'Buyer Database' },
+                { path: '/twgs', icon: 'hub', label: 'TWG Agents' },
+                { path: '/documents', icon: 'description', label: 'Documents' },
+            ],
+        },
+        ...(isAdmin ? [{
+            label: 'Management',
+            items: [
+                { path: '/admin/team', icon: 'group', label: 'Team' },
+                { path: '/admin/invitations', icon: 'mail_outline', label: 'Org Invitations' },
+                { path: '/admin/logs', icon: 'fact_check', label: 'Audit Logs' },
+            ],
+        }] : []),
+    ];
+
+    const userInitials = user?.full_name
+        ? user.full_name.split(' ').map((s: string) => s[0]).join('').slice(0, 2).toUpperCase()
+        : user?.email?.slice(0, 2).toUpperCase() || 'U';
 
     return (
-        <div className="font-display bg-frosted-warm text-[#0d121b] dark:text-white h-screen overflow-hidden flex flex-col">
-            {/* Top Navbar */}
-            <header className="sticky top-0 z-50 w-full glass-nav border-b border-white/60 dark:border-slate-700/50">
-                <div className="px-6 lg:px-10 py-3 flex items-center justify-between gap-6">
-                    <div className="flex items-center gap-4 lg:gap-8">
-                        {/* Mobile Hamburger */}
-                        <button
-                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                            className="lg:hidden p-2 -ml-2 text-[#4c669a] hover:text-[#0d121b] dark:hover:text-white transition-colors"
-                            aria-label="Toggle navigation menu"
-                        >
-                            <span className="material-symbols-outlined text-[24px]">
-                                {isMobileMenuOpen ? 'close' : 'menu'}
-                            </span>
-                        </button>
-                        {/* Brand */}
-                        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/dashboard')}>
-                            <div className="size-8 rounded-full bg-[#1152d4]/10 flex items-center justify-center text-[#1152d4]">
-                                <span className="material-symbols-outlined">shield_person</span>
-                            </div>
-                            <h2 className="text-lg font-bold leading-tight tracking-[-0.015em] hidden sm:block">ECOWAS Summit TWG Support</h2>
+        <div
+            className="font-geist h-screen overflow-hidden flex"
+            style={{ background: 'var(--bg)', color: 'var(--ink-900)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}
+        >
+            {/* ── Sidebar ─────────────────────────────────────────────── */}
+            <aside
+                className="shrink-0 hidden lg:flex flex-col"
+                style={{
+                    width: 224,
+                    background: 'var(--surface)',
+                    borderRight: '1px solid var(--border)',
+                    padding: '24px 14px 20px',
+                }}
+            >
+                {/* Logo */}
+                <div
+                    className="flex items-center gap-2.5 cursor-pointer"
+                    style={{ padding: '0 10px 22px' }}
+                    onClick={() => navigate('/dashboard')}
+                >
+                    <div style={{
+                        width: 26, height: 26, borderRadius: 6,
+                        background: 'var(--accent)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: 'var(--accent-ink)',
+                        fontFamily: "'Source Serif 4', serif",
+                        fontSize: 14, fontWeight: 600,
+                    }}>E</div>
+                    <div>
+                        <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 14, color: 'var(--ink-900)', lineHeight: 1.1, letterSpacing: '-0.01em' }}>
+                            ECOWAS Summit
                         </div>
-                        {/* Search */}
-                        <div className="hidden md:flex items-center bg-[#f0f2f5] dark:bg-[#2d3748] rounded-lg h-10 w-64 px-3 gap-2">
-                            <span className="material-symbols-outlined text-[#4c669a] dark:text-[#a0aec0]">search</span>
-                            <input
-                                className="bg-transparent border-none outline-none text-sm w-full placeholder:text-[#4c669a] dark:placeholder:text-[#a0aec0] text-[#0d121b] dark:text-white focus:ring-0 p-0"
-                                placeholder="Search TWGs, Agents, Reports..."
-                                type="text"
-                            />
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-6">
-                        {/* User Profile & Actions */}
-                        <div className="flex items-center gap-4 border-l border-[#e7ebf3] dark:border-[#2d3748] pl-6">
-                            {/* Martin Copilot Toggle */}
-                            <button
-                                onClick={() => setCopilotOpen(!copilotOpen)}
-                                title={copilotOpen ? 'Close Martin Copilot' : 'Open Martin Copilot'}
-                                className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                                    copilotOpen
-                                        ? 'bg-[#1152d4] text-white shadow-md shadow-blue-500/30'
-                                        : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f0f2f5] dark:hover:bg-[#2d3748] hover:text-[#1152d4]'
-                                }`}
-                            >
-                                <span className="text-base leading-none">✦</span>
-                                <span className="hidden sm:inline">Martin</span>
-                            </button>
-                            <button
-                                onClick={() => navigate('/notifications')}
-                                className={`relative p-1 ${isActive('/notifications') ? 'text-[#1152d4]' : 'text-[#4c669a] dark:text-[#a0aec0]'} hover:text-[#1152d4] transition-colors`}
-                            >
-                                <span className="material-symbols-outlined">notifications</span>
-                                {unreadCount > 0 && (
-                                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white dark:ring-[#1a202c] animate-pulse">
-                                        {unreadCount > 9 ? '9+' : unreadCount}
-                                    </span>
-                                )}
-                            </button>
-                            <div
-                                onClick={() => navigate('/profile')}
-                                className="h-10 w-10 rounded-full bg-cover bg-center border border-[#e7ebf3] dark:border-[#2d3748] bg-gray-300 cursor-pointer"
-                            ></div>
+                        <div style={{ fontSize: 10, color: 'var(--ink-500)', letterSpacing: '0.04em' }}>
+                            TWG Workspace
                         </div>
                     </div>
                 </div>
-            </header>
 
-            {/* Mobile Menu Overlay */}
-            {isMobileMenuOpen && (
-                <div className="fixed inset-0 z-40 lg:hidden">
-                    <div className="absolute inset-0 bg-black/50" onClick={() => setIsMobileMenuOpen(false)} />
-                    <div className="absolute left-0 top-0 bottom-0 w-72 glass-nav shadow-2xl flex flex-col animate-slide-in-left">
-                        <div className="p-4 border-b border-[#e7ebf3] dark:border-[#2d3748] flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="size-8 rounded-full bg-[#1152d4]/10 flex items-center justify-center text-[#1152d4]">
-                                    <span className="material-symbols-outlined">shield_person</span>
-                                </div>
-                                <span className="text-sm font-bold">ECOWAS Summit</span>
-                            </div>
-                            <button onClick={() => setIsMobileMenuOpen(false)} className="p-1 text-[#4c669a]">
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
-                        </div>
-
-                        {/* Mobile Search */}
-                        <div className="p-4 md:hidden">
-                            <div className="flex items-center bg-[#f0f2f5] dark:bg-[#2d3748] rounded-lg h-10 px-3 gap-2">
-                                <span className="material-symbols-outlined text-[#4c669a] dark:text-[#a0aec0]">search</span>
-                                <input
-                                    className="bg-transparent border-none outline-none text-sm w-full placeholder:text-[#4c669a] dark:placeholder:text-[#a0aec0] text-[#0d121b] dark:text-white focus:ring-0 p-0"
-                                    placeholder="Search..."
-                                    type="text"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                            <div>
-                                <div className="text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider mb-3 px-3">Navigation</div>
-                                <div className="space-y-1">
-                                    {[
-                                        { path: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
-                                        { path: '/schedule', icon: 'calendar_month', label: 'Meetings (Schedule)' },
-                                        { path: '/documents', icon: 'folder', label: 'Documents' },
-                                        { path: '/twgs', icon: 'smart_toy', label: 'TWG Agents' },
-                                        { path: '/actions', icon: 'task_alt', label: 'Actions' },
-                                    ].map(item => (
+                {/* Nav sections */}
+                <nav className="flex-1 flex flex-col overflow-y-auto no-scrollbar" style={{ gap: 18 }}>
+                    {navSections.map(sec => (
+                        <div key={sec.label}>
+                            <div style={{
+                                fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
+                                color: 'var(--ink-400)', fontWeight: 500, padding: '0 10px 8px',
+                            }}>{sec.label}</div>
+                            <div className="flex flex-col">
+                                {sec.items.map(item => {
+                                    const on = location.pathname === item.path ||
+                                        (location.pathname.startsWith(item.path + '/') &&
+                                         !sec.items.some(other => other.path !== item.path && location.pathname.startsWith(other.path)));
+                                    return (
                                         <button
                                             key={item.path}
                                             onClick={() => navigate(item.path)}
-                                            className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg font-medium text-sm transition-colors ${isActive(item.path)
-                                                ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                                : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                            }`}
+                                            className="relative flex items-center gap-2.5 text-left transition-colors"
+                                            style={{
+                                                padding: '7px 10px 7px 14px',
+                                                fontSize: 13,
+                                                fontWeight: on ? 500 : 400,
+                                                color: on ? 'var(--ink-900)' : 'var(--ink-600)',
+                                                background: on ? 'var(--accent-soft)' : 'transparent',
+                                                borderRadius: 4,
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                fontFamily: 'inherit',
+                                            }}
                                         >
-                                            <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                                            {on && (
+                                                <div style={{
+                                                    position: 'absolute', left: 0, top: 8, bottom: 8, width: 2,
+                                                    background: 'var(--accent)', borderRadius: 1,
+                                                }} />
+                                            )}
+                                            <span className="material-symbols-outlined" style={{ fontSize: 18, color: on ? 'var(--accent)' : 'var(--ink-500)' }}>
+                                                {item.icon}
+                                            </span>
                                             <span>{item.label}</span>
                                         </button>
-                                    ))}
-                                </div>
+                                    );
+                                })}
                             </div>
+                        </div>
+                    ))}
+                </nav>
 
-                            {isAdmin && (
-                                <div>
-                                    <div className="text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider mb-3 px-3">Management</div>
-                                    <div className="space-y-1">
-                                        {[
-                                            { path: '/admin/team', icon: 'badge', label: 'Team' },
-                                            { path: '/admin/invitations', icon: 'mail', label: 'Org Invitations' },
-                                            { path: '/admin/logs', icon: 'history', label: 'Audit Logs' },
-                                        ].map(item => (
-                                            <button
-                                                key={item.path}
-                                                onClick={() => navigate(item.path)}
-                                                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg font-medium text-sm transition-colors ${isActive(item.path)
-                                                    ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                                    : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                                }`}
-                                            >
-                                                <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-                                                <span>{item.label}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
+                {/* User footer */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 12 }}>
+                    <div className="flex items-center justify-between" style={{ padding: '0 8px' }}>
+                        <div
+                            className="cursor-pointer"
+                            title={`${user?.full_name || user?.email} — ${user?.role?.replace(/_/g, ' ')}`}
+                            onClick={() => navigate('/profile')}
+                            style={{
+                                width: 32, height: 32, borderRadius: '50%',
+                                overflow: 'hidden', flexShrink: 0,
+                                border: '2px solid var(--border)',
+                            }}
+                        >
+                            {user?.avatar ? (
+                                <img src={user.avatar} alt={userInitials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                                <div style={{
+                                    width: '100%', height: '100%',
+                                    background: 'var(--ink-200)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: 11, color: 'var(--ink-700)', fontWeight: 700,
+                                }}>{userInitials}</div>
                             )}
                         </div>
-
-                        <div className="p-4 border-t border-[#e7ebf3] dark:border-[#2d3748] space-y-1">
-                            <button
-                                onClick={() => { navigate('/profile'); }}
-                                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg font-medium text-sm text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748] transition-colors"
-                            >
-                                <span className="material-symbols-outlined text-[20px]">person</span>
-                                <span>Profile</span>
-                            </button>
-                            <button
-                                onClick={() => {
-                                    dispatch(logout());
-                                    navigate('/login');
-                                }}
-                                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg font-bold text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                            >
-                                <span className="material-symbols-outlined text-[20px]">logout</span>
-                                <span>Sign Out</span>
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => { dispatch(logout()); navigate('/login'); }}
+                            title="Sign out"
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--terra)', display: 'flex', alignItems: 'center', padding: 4 }}
+                        >
+                            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>logout</span>
+                        </button>
                     </div>
                 </div>
-            )}
+            </aside>
 
-            {/* Main Content with Sidebar */}
-            <div className="flex-1 flex overflow-hidden">
-                {/* Left Sidebar Navigation */}
-                <aside className={`glass-nav border-r border-white/60 dark:border-slate-700/50 hidden lg:block shrink-0 transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
-                    <div className={`flex flex-col h-full ${isSidebarCollapsed ? 'p-3' : 'p-6'} transition-all duration-300`}>
-                        <div className="flex-1 space-y-6 overflow-y-auto custom-scrollbar">
-                            <div>
-                                {!isSidebarCollapsed && (
-                                    <div className="text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider mb-3 px-3 transition-opacity duration-300">
-                                        Navigation
-                                    </div>
-                                )}
-                                <div className="space-y-1">
-                                    <button
-                                        onClick={() => navigate('/dashboard')}
-                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/dashboard')
-                                            ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                            : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                            } ${isSidebarCollapsed ? 'justify-center !px-2' : ''}`}
-                                        title={isSidebarCollapsed ? "Dashboard" : ""}
-                                    >
-                                        <span className="material-symbols-outlined text-[20px]">dashboard</span>
-                                        {!isSidebarCollapsed && <span>Dashboard</span>}
-                                    </button>
-                                    <button
-                                        onClick={() => navigate('/schedule')}
-                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/schedule')
-                                            ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                            : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                            } ${isSidebarCollapsed ? 'justify-center !px-2' : ''}`}
-                                        title={isSidebarCollapsed ? "Schedule" : ""}
-                                    >
-                                        <span className="material-symbols-outlined text-[20px]">calendar_month</span>
-                                        {!isSidebarCollapsed && <span>Meetings (Schedule)</span>}
-                                    </button>
-                                    <button
-                                        onClick={() => navigate('/documents')}
-                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/documents')
-                                            ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                            : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                            } ${isSidebarCollapsed ? 'justify-center !px-2' : ''}`}
-                                        title={isSidebarCollapsed ? "Documents" : ""}
-                                    >
-                                        <span className="material-symbols-outlined text-[20px]">folder</span>
-                                        {!isSidebarCollapsed && <span>Documents</span>}
-                                    </button>
-                                    <button
-                                        onClick={() => navigate('/twgs')}
-                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/twgs')
-                                            ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                            : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                            } ${isSidebarCollapsed ? 'justify-center !px-2' : ''}`}
-                                        title={isSidebarCollapsed ? "TWG Agents" : ""}
-                                    >
-                                        <span className="material-symbols-outlined text-[20px]">smart_toy</span>
-                                        {!isSidebarCollapsed && <span>TWG Agents</span>}
-                                    </button>
-                                    <button
-                                        onClick={() => navigate('/actions')}
-                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/actions')
-                                            ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                            : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                            } ${isSidebarCollapsed ? 'justify-center !px-2' : ''}`}
-                                        title={isSidebarCollapsed ? "Actions" : ""}
-                                    >
-                                        <span className="material-symbols-outlined text-[20px]">task_alt</span>
-                                        {!isSidebarCollapsed && <span>Actions</span>}
-                                    </button>
+            {/* ── Right side: topbar + main ───────────────────────────── */}
+            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+                {/* Top Bar */}
+                <header
+                    className="shrink-0 flex items-center justify-between"
+                    style={{
+                        height: 56,
+                        borderBottom: '1px solid var(--border)',
+                        background: 'var(--surface)',
+                        padding: '0 32px',
+                    }}
+                >
+                    {/* Mobile hamburger */}
+                    <button
+                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                        className="lg:hidden mr-4"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-600)' }}
+                    >
+                        <span className="material-symbols-outlined">menu</span>
+                    </button>
 
-                                    <button
-                                        onClick={() => navigate('/deal-pipeline')}
-                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/deal-pipeline')
-                                            ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                            : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                            } ${isSidebarCollapsed ? 'justify-center !px-2' : ''}`}
-                                        title={isSidebarCollapsed ? "Deal Pipeline" : ""}
-                                    >
-                                        <span className="material-symbols-outlined text-[20px]">work</span>
-                                        {!isSidebarCollapsed && <span>Deal Pipeline</span>}
-                                    </button>
-                                </div>
-                            </div>
+                    {/* Search */}
+                    <div
+                        className="hidden md:flex items-center gap-2"
+                        style={{
+                            padding: '6px 12px',
+                            border: '1px solid var(--border)',
+                            borderRadius: 6,
+                            background: 'var(--ink-50)',
+                            width: 320,
+                        }}
+                    >
+                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--ink-500)' }}>search</span>
+                        <input
+                            className="bg-transparent border-none outline-none flex-1"
+                            style={{ fontSize: 12, color: 'var(--ink-400)', fontFamily: 'inherit' }}
+                            placeholder="Search projects, TWGs, investors… (⌘K)"
+                            type="text"
+                        />
+                    </div>
 
-                            {isAdmin && (
-                                <div>
-                                    {!isSidebarCollapsed && (
-                                        <div className="text-xs font-bold text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider mb-3 px-3 transition-opacity duration-300">
-                                            Management
-                                        </div>
-                                    )}
-                                    <div className="space-y-1">
-                                        <button
-                                            onClick={() => navigate('/admin/team')}
-                                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/admin/team')
-                                                ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                                : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                                } ${isSidebarCollapsed ? 'justify-center !px-2' : ''}`}
-                                            title={isSidebarCollapsed ? "Team" : ""}
-                                        >
-                                            <span className="material-symbols-outlined text-[20px]">badge</span>
-                                            {!isSidebarCollapsed && <span>Team</span>}
-                                        </button>
-                                        <button
-                                            onClick={() => navigate('/admin/invitations')}
-                                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/admin/invitations')
-                                                ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                                : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                                } ${isSidebarCollapsed ? 'justify-center !px-2' : ''}`}
-                                            title={isSidebarCollapsed ? "Org Invitations" : ""}
-                                        >
-                                            <span className="material-symbols-outlined text-[20px]">mail</span>
-                                            {!isSidebarCollapsed && <span>Org Invitations</span>}
-                                        </button>
-                                        {/* Hidden for now
-                                        <button
-                                            onClick={() => navigate('/admin/control-tower')}
-                                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/admin/control-tower')
-                                                ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                                : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                                } ${isSidebarCollapsed ? 'justify-center !px-2' : ''}`}
-                                            title={isSidebarCollapsed ? "Control Tower" : ""}
-                                        >
-                                            <span className="material-symbols-outlined text-[20px]">radar</span>
-                                            {!isSidebarCollapsed && <span>Control Tower</span>}
-                                        </button>
-                                        */}
-                                        <button
-                                            onClick={() => navigate('/admin/logs')}
-                                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${isActive('/admin/logs')
-                                                ? 'bg-[#e8effe] dark:bg-[#1e3a8a]/20 text-[#1152d4] dark:text-[#60a5fa]'
-                                                : 'text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748]'
-                                                } ${isSidebarCollapsed ? 'justify-center !px-2' : ''}`}
-                                            title={isSidebarCollapsed ? "Logs" : ""}
-                                        >
-                                            <span className="material-symbols-outlined text-[20px]">history</span>
-                                            {!isSidebarCollapsed && <span>Audit Logs</span>}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="pt-3 mt-3 border-t border-[#e7ebf3] dark:border-[#2d3748] space-y-1">
-                            <button
-                                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-sm text-[#4c669a] dark:text-[#a0aec0] hover:bg-[#f6f6f8] dark:hover:bg-[#2d3748] transition-colors ${isSidebarCollapsed ? 'justify-center !px-2' : 'justify-end'}`}
-                                title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-                            >
-                                <span className="material-symbols-outlined">
-                                    {isSidebarCollapsed ? 'last_page' : 'first_page'}
+                    {/* Right actions */}
+                    <div className="flex items-center gap-4 ml-auto">
+                        <span style={{ fontSize: 11, color: 'var(--ink-500)', fontFamily: "'Geist Mono', monospace" }} className="hidden md:block">
+                            {new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase()}
+                        </span>
+                        <button
+                            onClick={() => navigate('/notifications')}
+                            className="relative"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-600)', display: 'flex', padding: 4 }}
+                        >
+                            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>notifications</span>
+                            {unreadCount > 0 && (
+                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                                    {unreadCount > 9 ? '9+' : unreadCount}
                                 </span>
-                            </button>
+                            )}
+                        </button>
+                        <ThemeToggle />
+                        <button
+                            onClick={() => setCopilotOpen(!copilotOpen)}
+                            className="flex items-center gap-1.5"
+                            style={{
+                                background: copilotOpen ? 'var(--accent)' : 'transparent',
+                                color: copilotOpen ? 'var(--accent-ink)' : 'var(--ink-700)',
+                                border: `1px solid ${copilotOpen ? 'var(--accent)' : 'var(--border)'}`,
+                                padding: '7px 14px', borderRadius: 4, fontSize: 12, fontWeight: 500,
+                                cursor: 'pointer', fontFamily: 'inherit',
+                            }}
+                        >
+                            <span style={{ fontSize: 11 }}>✦</span> Ask Martin
+                        </button>
+                    </div>
+                </header>
 
-                            <button
-                                onClick={() => {
-                                    dispatch(logout());
-                                    navigate('/login');
-                                }}
-                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-bold text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors ${isSidebarCollapsed ? 'justify-center !px-2' : ''}`}
-                                title={isSidebarCollapsed ? "Sign Out" : ""}
-                            >
-                                <span className="material-symbols-outlined text-[20px]">logout</span>
-                                {!isSidebarCollapsed && <span>Sign Out</span>}
-                            </button>
+                {/* Mobile nav overlay */}
+                {isMobileMenuOpen && (
+                    <div className="fixed inset-0 z-40 lg:hidden">
+                        <div className="absolute inset-0 bg-black/50" onClick={() => setIsMobileMenuOpen(false)} />
+                        <div
+                            className="absolute left-0 top-0 bottom-0 w-64 flex flex-col animate-slide-in-left"
+                            style={{ background: 'var(--surface)', borderRight: '1px solid var(--border)' }}
+                        >
+                            <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border)' }}>
+                                <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 15, color: 'var(--ink-900)' }}>ECOWAS Summit</div>
+                                <button onClick={() => setIsMobileMenuOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-500)' }}>
+                                    <span className="material-symbols-outlined">close</span>
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5">
+                                {navSections.map(sec => (
+                                    <div key={sec.label}>
+                                        <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-400)', fontWeight: 500, marginBottom: 8 }}>
+                                            {sec.label}
+                                        </div>
+                                        {sec.items.map(item => {
+                                            const on = location.pathname === item.path;
+                                            return (
+                                                <button
+                                                    key={item.path}
+                                                    onClick={() => { navigate(item.path); setIsMobileMenuOpen(false); }}
+                                                    className="w-full flex items-center gap-2.5 py-2 px-3 rounded text-sm transition-colors"
+                                                    style={{
+                                                        color: on ? 'var(--accent)' : 'var(--ink-700)',
+                                                        background: on ? 'var(--accent-soft)' : 'transparent',
+                                                        border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: on ? 500 : 400,
+                                                    }}
+                                                >
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{item.icon}</span>
+                                                    {item.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                </aside>
-
-                {/* Main Content Area */}
-                <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-20 bg-frosted-warm min-w-0">
-                    <div className="max-w-[1440px] mx-auto w-full h-full">
-                        {children || <Outlet />}
-                    </div>
-                </main>
-
-                {/* Global Copilot Panel — desktop side panel */}
-                {copilotOpen && (
-                    <div className="hidden lg:flex w-[380px] shrink-0 border-l border-white/60 dark:border-slate-700/50 overflow-hidden">
-                        <GlobalCopilot onClose={() => setCopilotOpen(false)} />
                     </div>
                 )}
+
+                {/* Main content + copilot row */}
+                <div className="flex-1 flex overflow-hidden">
+                    {location.pathname.startsWith('/twgs') ? (
+                        <main className="flex-1 flex flex-col overflow-hidden min-w-0" style={{ background: 'var(--bg)' }}>
+                            {children || <Outlet />}
+                        </main>
+                    ) : (
+                    <main
+                        className="flex-1 overflow-y-auto min-w-0"
+                        style={{ background: 'var(--bg)', padding: '40px 48px 48px' }}
+                    >
+                        <div className="max-w-[1180px] mx-auto w-full">
+                            {children || <Outlet />}
+                        </div>
+                    </main>
+                    )}
+
+                    {/* Copilot side panel */}
+                    {copilotOpen && (
+                        <div
+                            className="hidden lg:flex w-[380px] shrink-0 overflow-hidden"
+                            style={{ borderLeft: '1px solid var(--border)' }}
+                        >
+                            <GlobalCopilot onClose={() => setCopilotOpen(false)} />
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Mobile copilot overlay */}
             {copilotOpen && (
-                <div className="lg:hidden fixed inset-0 z-50 flex flex-col bg-white dark:bg-dark-card">
+                <div className="lg:hidden fixed inset-0 z-50 flex flex-col" style={{ background: 'var(--surface)' }}>
                     <GlobalCopilot onClose={() => setCopilotOpen(false)} />
                 </div>
             )}
 
-            {/* Floating copilot button — visible on all screens */}
+            {/* Floating Ask Martin — shown when panel is closed */}
             {!copilotOpen && (
                 <button
                     onClick={() => setCopilotOpen(true)}
-                    title="Open Martin Copilot"
-                    className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 rounded-full bg-[#1152d4] text-white shadow-lg shadow-blue-500/30 hover:bg-[#0e44b0] transition-all hover:scale-105 active:scale-95"
+                    className="fixed bottom-6 right-6 z-40 flex items-center gap-2"
+                    style={{
+                        background: 'var(--accent)', color: 'var(--accent-ink)',
+                        border: 'none', padding: '10px 18px', borderRadius: 999,
+                        fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                        boxShadow: '0 4px 12px rgba(17,82,212,0.35)',
+                    }}
                 >
-                    <span className="text-base leading-none">✦</span>
-                    <span className="text-sm font-medium">Martin</span>
+                    <span style={{ fontSize: 11 }}>✦</span>
+                    <span>Martin</span>
                 </button>
             )}
         </div>

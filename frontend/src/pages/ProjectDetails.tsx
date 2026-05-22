@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { pipelineService } from '../services/pipelineService';
 import { documentService, Document } from '../services/documentService';
-import { Project, InvestorMatch, InvestorMatchStatus, ProjectScoreDetail, ProjectStatus } from '../types/pipeline';
+import { Project, InvestorMatch, InvestorMatchStatus, ProjectScoreDetail, ProjectStatus, BuyerMatch, BuyerMatchStatus } from '../types/pipeline';
 import { useAppSelector } from '../hooks/useRedux';
 import { ProjectLifecycleTimeline } from '../components/pipeline/ProjectLifecycleTimeline';
 import { ProjectHistoryTimeline } from '../components/pipeline/ProjectHistoryTimeline';
@@ -27,6 +27,10 @@ const ProjectDetails: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState('feasibility_study');
   const [rescoring, setRescoring] = useState(false);
+  const [buyerMatches, setBuyerMatches] = useState<BuyerMatch[]>([]);
+  const [loadingBuyerMatches, setLoadingBuyerMatches] = useState(false);
+  const [triggeringBuyerMatch, setTriggeringBuyerMatch] = useState(false);
+  const [matchSubTab, setMatchSubTab] = useState<'investor' | 'buyer'>('investor');
 
   // RBAC - Must be at top level before any returns
   const { user } = useAppSelector((state) => state.auth);
@@ -47,6 +51,7 @@ const ProjectDetails: React.FC = () => {
 
         // Fetch parallel data
         fetchMatches(projectId);
+        fetchBuyerMatches(projectId);
         fetchScoreDetails(projectId);
         fetchDocuments(projectId);
       } catch (error) {
@@ -67,6 +72,18 @@ const ProjectDetails: React.FC = () => {
       console.error("Failed to load matches", e);
     } finally {
       setLoadingMatches(false);
+    }
+  };
+
+  const fetchBuyerMatches = async (id: string) => {
+    setLoadingBuyerMatches(true);
+    try {
+      const data = await pipelineService.getBuyerMatches(id);
+      setBuyerMatches(data);
+    } catch (e) {
+      console.error("Failed to load buyer matches", e);
+    } finally {
+      setLoadingBuyerMatches(false);
     }
   };
 
@@ -189,6 +206,30 @@ const ProjectDetails: React.FC = () => {
       }
     } catch (error) {
       console.error("Failed to update match status", error);
+      alert("Failed to update status.");
+    }
+  };
+
+  const handleTriggerBuyerMatch = async () => {
+    if (!project) return;
+    setTriggeringBuyerMatch(true);
+    try {
+      await pipelineService.triggerBuyerMatching(project.id);
+      await fetchBuyerMatches(project.id);
+    } catch (error: any) {
+      console.error("Failed to trigger buyer matching", error);
+      alert(error.response?.data?.detail || 'Failed to trigger buyer matching.');
+    } finally {
+      setTriggeringBuyerMatch(false);
+    }
+  };
+
+  const handleUpdateBuyerMatchStatus = async (matchId: string, newStatus: BuyerMatchStatus) => {
+    try {
+      await pipelineService.updateBuyerMatchStatus(matchId, { status: newStatus });
+      setBuyerMatches(prev => prev.map(m => m.match_id === matchId ? { ...m, status: newStatus } : m));
+    } catch (error) {
+      console.error("Failed to update buyer match status", error);
       alert("Failed to update status.");
     }
   };
@@ -464,12 +505,12 @@ const ProjectDetails: React.FC = () => {
                 fontFamily: 'inherit',
               }}>
                 {label}
-                {key === 'matches' && matches.length > 0 && (
+                {key === 'matches' && (matches.length + buyerMatches.length) > 0 && (
                   <span style={{
                     marginLeft: 6, fontSize: 10, padding: '1px 6px',
                     background: 'var(--ink-100)', color: 'var(--ink-600)',
                     fontFamily: "'Geist Mono', monospace",
-                  }}>{matches.length}</span>
+                  }}>{matches.length + buyerMatches.length}</span>
                 )}
               </button>
             );
@@ -624,82 +665,194 @@ const ProjectDetails: React.FC = () => {
             </>
           )}
 
-          {/* Investor Matches Tab */}
+          {/* Matches Tab — Investor & Buyer sub-tabs */}
           {activeTab === 'matches' && (
             <section>
-              <div style={sectionHeadStyle}>
-                <h2 style={sectionTitleStyle}>Investor matches</h2>
-                <button onClick={handleTriggerMatching} disabled={triggeringMatch} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  background: 'var(--accent)', border: 'none', color: 'var(--accent-ink)',
-                  padding: '7px 14px', fontSize: 12, fontWeight: 500,
-                  cursor: triggeringMatch ? 'default' : 'pointer', fontFamily: 'inherit',
-                  opacity: triggeringMatch ? 0.7 : 1,
-                }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>restart_alt</span>
-                  {triggeringMatch ? 'Running…' : 'Run matching engine'}
-                </button>
-              </div>
-              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                {loadingMatches ? (
-                  <div style={{ padding: '32px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-500)' }}>Loading matches…</div>
-                ) : matches.length === 0 ? (
-                  <div style={{ padding: '48px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-400)' }}>
-                    No investors matched yet. Run the matching engine to find potential investors.
-                  </div>
-                ) : matches.map((match, i) => {
-                  const MATCH_STATUS_COLOR: Record<string, string> = {
-                    INTERESTED: 'var(--sage)', CONTACTED: 'var(--navy)', DETECTED: 'var(--ink-500)',
-                    COMMITTED: 'var(--accent)', DECLINED: 'var(--terra)',
-                  };
+              {/* Sub-tab switcher */}
+              <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+                {([
+                  { key: 'investor' as const, label: 'Investor matches', count: matches.length },
+                  { key: 'buyer' as const, label: 'Buyer / Offtake', count: buyerMatches.length },
+                ]).map(({ key, label, count }) => {
+                  const on = matchSubTab === key;
                   return (
-                    <div key={match.match_id} style={{
-                      display: 'grid', gridTemplateColumns: '1fr 80px 160px',
-                      gap: 16, alignItems: 'center',
-                      padding: '16px 24px',
-                      borderBottom: i < matches.length - 1 ? '1px solid var(--border)' : 'none',
+                    <button key={key} onClick={() => setMatchSubTab(key)} style={{
+                      padding: '9px 16px', fontSize: 12,
+                      background: 'none', border: 'none',
+                      borderBottom: on ? '2px solid var(--accent)' : '2px solid transparent',
+                      color: on ? 'var(--ink-900)' : 'var(--ink-500)',
+                      fontWeight: on ? 500 : 400,
+                      cursor: 'pointer', fontFamily: 'inherit', marginBottom: -1,
                     }}>
-                      <div>
-                        <div style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500, marginBottom: 4 }}>
-                          {match.investor?.name || 'Unknown Investor'}
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--ink-500)', lineHeight: 1.45 }}>
-                          {match.investor?.sector_preferences?.join(', ') || 'No specific strategy'}
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--ink-600)', marginTop: 6, fontFamily: "'Geist Mono', monospace" }}>
-                          {match.investor?.ticket_size_min ? `$${match.investor.ticket_size_min}M – $${match.investor.ticket_size_max}M` : 'N/A'}
-                          {match.investor?.geographic_focus?.length ? ` · ${match.investor.geographic_focus[0]}` : ''}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{
-                          fontFamily: "'Source Serif 4', serif", fontSize: 24,
-                          color: 'var(--ink-900)', lineHeight: 1, fontVariantNumeric: 'tabular-nums',
-                        }}>{Math.round(match.score)}<span style={{ fontSize: 13, color: 'var(--ink-400)' }}>%</span></div>
-                        <div style={{ fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-400)', marginTop: 4 }}>Match</div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: 6, background: MATCH_STATUS_COLOR[match.status] ?? 'var(--ink-400)', display: 'inline-block', flexShrink: 0 }} />
-                        <select
-                          value={match.status}
-                          onChange={(e) => handleUpdateMatchStatus(match.match_id, e.target.value as InvestorMatchStatus)}
-                          style={{
-                            background: 'var(--surface)', border: '1px solid var(--border)',
-                            color: 'var(--ink-700)', padding: '5px 8px', fontSize: 11,
-                            fontFamily: 'inherit', cursor: 'pointer', outline: 'none', flex: 1,
-                          }}
-                        >
-                          <option value={InvestorMatchStatus.DETECTED}>Detected</option>
-                          <option value={InvestorMatchStatus.CONTACTED}>Contacted</option>
-                          <option value={InvestorMatchStatus.INTERESTED}>Interested</option>
-                          <option value={InvestorMatchStatus.COMMITTED}>Committed</option>
-                          <option value={InvestorMatchStatus.DECLINED}>Declined</option>
-                        </select>
-                      </div>
-                    </div>
+                      {label}
+                      {count > 0 && (
+                        <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 5px', background: 'var(--ink-100)', color: 'var(--ink-600)', fontFamily: "'Geist Mono', monospace" }}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
                   );
                 })}
               </div>
+
+              {/* Investor Matches */}
+              {matchSubTab === 'investor' && (
+                <>
+                  <div style={sectionHeadStyle}>
+                    <h2 style={sectionTitleStyle}>Investor matches</h2>
+                    <button onClick={handleTriggerMatching} disabled={triggeringMatch} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      background: 'var(--accent)', border: 'none', color: 'var(--accent-ink)',
+                      padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                      cursor: triggeringMatch ? 'default' : 'pointer', fontFamily: 'inherit',
+                      opacity: triggeringMatch ? 0.7 : 1,
+                    }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>restart_alt</span>
+                      {triggeringMatch ? 'Running…' : 'Run matching engine'}
+                    </button>
+                  </div>
+                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                    {loadingMatches ? (
+                      <div style={{ padding: '32px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-500)' }}>Loading matches…</div>
+                    ) : matches.length === 0 ? (
+                      <div style={{ padding: '48px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-400)' }}>
+                        No investors matched yet. Run the matching engine to find potential investors.
+                      </div>
+                    ) : matches.map((match, i) => {
+                      const MATCH_STATUS_COLOR: Record<string, string> = {
+                        INTERESTED: 'var(--sage)', CONTACTED: 'var(--navy)', DETECTED: 'var(--ink-500)',
+                        COMMITTED: 'var(--accent)', DECLINED: 'var(--terra)',
+                      };
+                      return (
+                        <div key={match.match_id} style={{
+                          display: 'grid', gridTemplateColumns: '1fr 80px 160px',
+                          gap: 16, alignItems: 'center',
+                          padding: '16px 24px',
+                          borderBottom: i < matches.length - 1 ? '1px solid var(--border)' : 'none',
+                        }}>
+                          <div>
+                            <div style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500, marginBottom: 4 }}>
+                              {match.investor?.name || 'Unknown Investor'}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--ink-500)', lineHeight: 1.45 }}>
+                              {match.investor?.sector_preferences?.join(', ') || 'No specific strategy'}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--ink-600)', marginTop: 6, fontFamily: "'Geist Mono', monospace" }}>
+                              {match.investor?.ticket_size_min ? `$${match.investor.ticket_size_min}M – $${match.investor.ticket_size_max}M` : 'N/A'}
+                              {match.investor?.geographic_focus?.length ? ` · ${match.investor.geographic_focus[0]}` : ''}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{
+                              fontFamily: "'Source Serif 4', serif", fontSize: 24,
+                              color: 'var(--ink-900)', lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+                            }}>{Math.round(match.score)}<span style={{ fontSize: 13, color: 'var(--ink-400)' }}>%</span></div>
+                            <div style={{ fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-400)', marginTop: 4 }}>Match</div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: 6, background: MATCH_STATUS_COLOR[match.status] ?? 'var(--ink-400)', display: 'inline-block', flexShrink: 0 }} />
+                            <select
+                              value={match.status}
+                              onChange={(e) => handleUpdateMatchStatus(match.match_id, e.target.value as InvestorMatchStatus)}
+                              style={{
+                                background: 'var(--surface)', border: '1px solid var(--border)',
+                                color: 'var(--ink-700)', padding: '5px 8px', fontSize: 11,
+                                fontFamily: 'inherit', cursor: 'pointer', outline: 'none', flex: 1,
+                              }}
+                            >
+                              <option value={InvestorMatchStatus.DETECTED}>Detected</option>
+                              <option value={InvestorMatchStatus.CONTACTED}>Contacted</option>
+                              <option value={InvestorMatchStatus.INTERESTED}>Interested</option>
+                              <option value={InvestorMatchStatus.COMMITTED}>Committed</option>
+                              <option value={InvestorMatchStatus.DECLINED}>Declined</option>
+                            </select>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Buyer / Offtake Matches */}
+              {matchSubTab === 'buyer' && (
+                <>
+                  <div style={sectionHeadStyle}>
+                    <h2 style={sectionTitleStyle}>Buyer / offtake matches</h2>
+                    <button onClick={handleTriggerBuyerMatch} disabled={triggeringBuyerMatch} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      background: 'var(--accent)', border: 'none', color: 'var(--accent-ink)',
+                      padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                      cursor: triggeringBuyerMatch ? 'default' : 'pointer', fontFamily: 'inherit',
+                      opacity: triggeringBuyerMatch ? 0.7 : 1,
+                    }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>restart_alt</span>
+                      {triggeringBuyerMatch ? 'Running…' : 'Run buyer matching'}
+                    </button>
+                  </div>
+                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                    {loadingBuyerMatches ? (
+                      <div style={{ padding: '32px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-500)' }}>Loading…</div>
+                    ) : buyerMatches.length === 0 ? (
+                      <div style={{ padding: '48px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-400)' }}>
+                        No buyers matched yet. Run the buyer matching engine to find potential offtakers.
+                      </div>
+                    ) : buyerMatches.map((match, i) => {
+                      const BUYER_STATUS_COLOR: Record<string, string> = {
+                        DETECTED: 'var(--ink-500)', CONTACTED: 'var(--navy)',
+                        INTERESTED: 'var(--sage)', NEGOTIATING: 'var(--amber)', COMMITTED: 'var(--accent)',
+                      };
+                      return (
+                        <div key={match.match_id} style={{
+                          display: 'grid', gridTemplateColumns: '1fr 80px 160px',
+                          gap: 16, alignItems: 'start',
+                          padding: '16px 24px',
+                          borderBottom: i < buyerMatches.length - 1 ? '1px solid var(--border)' : 'none',
+                        }}>
+                          <div>
+                            <div style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500, marginBottom: 4 }}>
+                              {match.buyer?.name || 'Unknown Buyer'}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--ink-500)', lineHeight: 1.45 }}>
+                              {match.buyer?.commodity_types?.join(', ') || 'No commodity data'}
+                            </div>
+                            {match.match_rationale && (
+                              <div style={{ fontSize: 11, color: 'var(--ink-600)', marginTop: 6, lineHeight: 1.4 }}>
+                                {match.match_rationale}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{
+                              fontFamily: "'Source Serif 4', serif", fontSize: 24,
+                              color: 'var(--ink-900)', lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+                            }}>{match.score}<span style={{ fontSize: 13, color: 'var(--ink-400)' }}>/100</span></div>
+                            <div style={{ fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-400)', marginTop: 4 }}>Score</div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 2 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: 6, background: BUYER_STATUS_COLOR[match.status] ?? 'var(--ink-400)', display: 'inline-block', flexShrink: 0 }} />
+                            <select
+                              value={match.status}
+                              onChange={(e) => handleUpdateBuyerMatchStatus(match.match_id, e.target.value as BuyerMatchStatus)}
+                              style={{
+                                background: 'var(--surface)', border: '1px solid var(--border)',
+                                color: 'var(--ink-700)', padding: '5px 8px', fontSize: 11,
+                                fontFamily: 'inherit', cursor: 'pointer', outline: 'none', flex: 1,
+                              }}
+                            >
+                              <option value={BuyerMatchStatus.DETECTED}>Detected</option>
+                              <option value={BuyerMatchStatus.CONTACTED}>Contacted</option>
+                              <option value={BuyerMatchStatus.INTERESTED}>Interested</option>
+                              <option value={BuyerMatchStatus.NEGOTIATING}>Negotiating</option>
+                              <option value={BuyerMatchStatus.COMMITTED}>Committed</option>
+                            </select>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </section>
           )}
 

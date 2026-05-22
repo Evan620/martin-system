@@ -127,6 +127,14 @@ class InvestorMatchStatus(str, enum.Enum):
     NEGOTIATING = "negotiating"
     COMMITTED = "committed"
 
+
+class BuyerMatchStatus(str, enum.Enum):
+    DETECTED = "DETECTED"
+    CONTACTED = "CONTACTED"
+    INTERESTED = "INTERESTED"
+    NEGOTIATING = "NEGOTIATING"
+    COMMITTED = "COMMITTED"
+
 class DependencyType(str, enum.Enum):
     FINISH_TO_START = "finish_to_start"
     START_TO_START = "start_to_start"
@@ -631,6 +639,7 @@ class Project(Base):
     twg: Mapped["TWG"] = relationship(back_populates="projects")
     investment_memo: Mapped[Optional["Document"]] = relationship(foreign_keys=[investment_memo_id])
     investor_matches: Mapped[List["ProjectInvestorMatch"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    buyer_matches: Mapped[List["ProjectBuyerMatch"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     documents: Mapped[List["Document"]] = relationship(foreign_keys="[Document.project_id]", back_populates="project")
     score_details: Mapped[List["ProjectScoreDetail"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     status_history: Mapped[List["ProjectStatusHistory"]] = relationship(back_populates="project", cascade="all, delete-orphan")
@@ -841,6 +850,43 @@ class ProjectInvestorMatch(Base):
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="investor_matches")
     investor: Mapped["Investor"] = relationship(back_populates="project_matches")
+
+
+class Buyer(Base):
+    __tablename__ = "buyers"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255))
+    commodity_types: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    volume_mt_per_year: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    contract_term_years: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    price_floor_usd: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    geographic_focus: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    buyer_matches: Mapped[List["ProjectBuyerMatch"]] = relationship(back_populates="buyer", cascade="all, delete-orphan")
+
+
+class ProjectBuyerMatch(Base):
+    __tablename__ = "project_buyer_matches"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"))
+    buyer_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("buyers.id", ondelete="CASCADE"))
+    match_score: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[BuyerMatchStatus] = mapped_column(Enum(BuyerMatchStatus), default=BuyerMatchStatus.DETECTED)
+    match_rationale: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project: Mapped["Project"] = relationship(back_populates="buyer_matches")
+    buyer: Mapped["Buyer"] = relationship(back_populates="buyer_matches")
 
 class ScoringCriteria(Base):
     __tablename__ = "scoring_criteria"

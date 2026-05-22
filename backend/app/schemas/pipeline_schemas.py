@@ -3,7 +3,7 @@ Pipeline Schemas
 
 Pydantic models for the Deal Pipeline API.
 """
-from pydantic import BaseModel, Field, condecimal
+from pydantic import BaseModel, ConfigDict, Field, condecimal
 from typing import Optional, List, Any, Dict
 from datetime import datetime
 from uuid import UUID
@@ -222,3 +222,39 @@ class ReadinessGapRead(BaseModel):
     current_score: float
     threshold: float
     cached: bool = False
+
+
+class BuyerCreate(BaseModel):
+    name: str
+    commodity_types: Optional[List[str]] = None
+    volume_mt_per_year: Optional[float] = None
+    contract_term_years: Optional[int] = None
+    price_floor_usd: Optional[float] = None
+    geographic_focus: Optional[List[str]] = None
+    notes: Optional[str] = None
+
+
+class BuyerRead(BaseModel):
+    id: UUID
+    name: str
+    commodity_types: Optional[List[str]] = None
+    volume_mt_per_year: Optional[float] = None
+    contract_term_years: Optional[int] = None
+    price_floor_usd: Optional[float] = None
+    geographic_focus: Optional[List[str]] = None
+    notes: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BuyerMatchUpdate(BaseModel):
+    status: str
+    notes: Optional[str] = None
+
+
+class BuyerMatchRead(BaseModel):
+    match_id: str
+    buyer: BuyerRead
+    score: int
+    status: str
+    match_rationale: Optional[str] = None

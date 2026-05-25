@@ -74,7 +74,16 @@ class CopernicusClient:
         return self._token
 
     def _process_request(self, payload: Dict[str, Any]) -> bytes:
-        """POST to the Process API. Returns raw response bytes."""
+        """POST to the Process API. Returns raw response bytes.
+
+        NOTE: The live request paths (dataset type identifiers, Process API vs
+        Statistics API endpoint shape, BYOC collection wiring) are designed
+        against the CDSE documentation but have not been verified against live
+        credentials. When credentials are provisioned, the integration test in
+        `tests/test_copernicus_client_integration.py` will exercise this end-to-end
+        and any shape mismatches should surface there. The service layer treats
+        any per-signal failure as `None` via `_safe_call` and degrades to fixture
+        mode, so misconfiguration here cannot break the local mirror."""
         token = self._get_token()
         resp = httpx.post(
             f"{self._base_url}/api/v1/process",
@@ -149,8 +158,12 @@ function evaluatePixel(s) {
                 if stats is not None and stats.get("count", 0) > 0:
                     return round(float(stats["mean"]), 3)
             except httpx.HTTPStatusError as e:
-                if e.response.status_code == 429:
-                    time.sleep(min(int(e.response.headers.get("Retry-After", "5")), 30))
+                status = e.response.status_code
+                if status == 429:
+                    time.sleep(min(_parse_retry_after(e.response.headers.get("Retry-After")), 30))
+                    continue
+                if 500 <= status < 600:
+                    time.sleep(2)
                     continue
                 raise
         return None
@@ -279,3 +292,15 @@ def _parse_json_stats(raw: bytes) -> Optional[Dict[str, Any]]:
                 stats["histogram"] = [{"value": b.get("lowEdge", b.get("value")), "count": b["count"]} for b in histogram]
             return stats
     return data if isinstance(data, dict) else None
+
+
+def _parse_retry_after(value: Optional[str]) -> int:
+    """Parse the Retry-After header. RFC 7231 allows either a delta-seconds
+    integer or an HTTP-date. Returns seconds; falls back to 5 on anything
+    we can't parse."""
+    if not value:
+        return 5
+    try:
+        return int(value)
+    except ValueError:
+        return 5

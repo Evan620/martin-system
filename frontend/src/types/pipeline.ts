@@ -24,6 +24,21 @@ export enum ProjectStatus {
 
     // Other
     ON_HOLD = "ON_HOLD",
+    ARCHIVED = "ARCHIVED",
+}
+
+// R5 — Incubation checklist
+export interface IncubationChecklistItem {
+    code: string;
+    label: string;
+    completed: boolean;
+    document_id: string | null;
+}
+
+export interface IncubationChecklist {
+    items: IncubationChecklistItem[];
+    completed_count: number;
+    total_count: number;
 }
 
 // Investor Match Status Enum
@@ -245,15 +260,91 @@ export interface UpdateDFIMatchStatusDTO {
     notes?: string;
 }
 
+export interface FinancingTranche {
+    label: string;
+    dfi_window_name?: string | null;
+    instrument_type: 'GRANT' | 'CONCESSIONAL_LOAN' | 'EQUITY' | 'BLENDED';
+    amount_usd: number;
+    tenor_years?: number | null;
+    coupon_pct?: number | null;
+    seniority: number;  // 1 = most senior, larger = more junior
+    is_first_loss: boolean;
+    notes?: string | null;
+}
+
 export interface FinancingMemo {
     project_id: string;
     project_name: string;
+    source?: 'llm' | 'default_fallback';
+    error_class?: string | null;
     recommended_structure: string;
     grant_component_pct: number;
     concessional_component_pct: number;
     commercial_component_pct: number;
+    tranches?: FinancingTranche[];
     priority_windows: string[];
     key_risks: string[];
     next_steps: string[];
     full_memo: string;
+}
+
+// R8 — Geospatial site analysis
+export interface ProjectGeospatial {
+    id: string;
+    project_id: string;
+    ndvi: number;
+    water_proximity_km: number;
+    land_use_description: string;
+    land_use_smallholder_pct: number;
+    deforestation_risk: 'low' | 'medium' | 'high';
+    geo_score_boost: number;
+    source: 'copernicus' | 'fixture' | 'stub';
+    is_demo: boolean;
+    analysed_at: string;
+}
+
+// R9 — Post-commitment impact monitoring
+export interface ImpactLogEntry {
+    id: string;
+    project_id: string;
+    period_label: string;
+    period_start: string;  // ISO date
+    period_end: string;
+    jobs_created?: number | null;
+    ghg_avoided_tco2?: number | null;
+    smallholders_reached?: number | null;
+    women_jobs_actual?: number | null;
+    youth_jobs_actual?: number | null;
+    investment_deployed_usd?: number | string | null;
+    notes?: string | null;
+    logged_by_id: string;
+    logged_at: string;
+}
+
+export interface ImpactLogEntryCreate {
+    period_label: string;
+    period_start: string;
+    period_end: string;
+    jobs_created?: number | null;
+    ghg_avoided_tco2?: number | null;
+    smallholders_reached?: number | null;
+    women_jobs_actual?: number | null;
+    youth_jobs_actual?: number | null;
+    investment_deployed_usd?: number | null;
+    notes?: string | null;
+}
+
+export interface ImpactSummary {
+    project_id: string;
+    target_jobs?: number | null;
+    target_ghg_tco2?: number | null;
+    target_smallholders?: number | null;
+    target_investment_usd?: number | string | null;
+    actual_jobs: number;
+    actual_ghg_tco2: number;
+    actual_smallholders: number;
+    actual_women_jobs: number;
+    actual_youth_jobs: number;
+    actual_investment_deployed: number | string;
+    entry_count: number;
 }

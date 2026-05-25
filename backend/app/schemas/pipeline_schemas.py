@@ -131,6 +131,7 @@ class ProjectUpdate(BaseModel):
     # R8 — Site coordinates for geospatial analysis
     site_lat: Optional[float] = None
     site_lon: Optional[float] = None
+    site_location_name: Optional[str] = None
 
     @field_validator("value_chain_stages")
     @classmethod
@@ -245,6 +246,7 @@ class ProjectPipelineRead(BaseModel):
     # R8 — Geospatial site coordinates (optional)
     site_lat: Optional[float] = None
     site_lon: Optional[float] = None
+    site_location_name: Optional[str] = None
 
     # Lifecycle Config
     allowed_transitions: List[str] = []

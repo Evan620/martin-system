@@ -9,6 +9,7 @@ import { ProjectHistoryTimeline } from '../components/pipeline/ProjectHistoryTim
 import { UserRole } from '../types/auth';
 import api from '../services/api';
 import ReadinessTab from '../components/pipeline/ReadinessTab';
+import ScoutCoordsModal from '../components/geospatial/ScoutCoordsModal';
 
 // Format a USD value as compact millions/thousands. Backend now stores all ticket
 // sizes as raw USD (e.g. 25_000_000 → "$25M", 250_000 → "$250K").
@@ -51,6 +52,7 @@ const ProjectDetails: React.FC = () => {
   // R8 — geospatial site analysis state (loaded on Overview tab)
   const [siteAnalysis, setSiteAnalysis] = useState<import('../types/pipeline').ProjectGeospatial | null>(null);
   const [analysingSite, setAnalysingSite] = useState(false);
+  const [scoutModalOpen, setScoutModalOpen] = useState(false);
   // Polish 2 — all DFI windows in the catalogue, used to look up by investor name
   // for the "Windows offered" expansion under each investor card.
   const [allDfiWindows, setAllDfiWindows] = useState<DFIWindow[]>([]);
@@ -750,144 +752,6 @@ const ProjectDetails: React.FC = () => {
           {/* Overview Tab Content */}
           {activeTab === 'overview' && (
             <>
-              {/* R8 — Site Analysis panel (only if project has site_lat/lon set) */}
-              {(project.site_lat != null && project.site_lon != null) && (
-                <section>
-                  <div style={sectionHeadStyle}>
-                    <h2 style={sectionTitleStyle}>Site analysis</h2>
-                    <button
-                      onClick={async () => {
-                        if (!projectId) return;
-                        setAnalysingSite(true);
-                        try {
-                          const res = await pipelineService.analyseSite(projectId);
-                          setSiteAnalysis(res);
-                        } catch (e) {
-                          console.error('analyse-site failed', e);
-                        } finally {
-                          setAnalysingSite(false);
-                        }
-                      }}
-                      disabled={analysingSite}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        background: 'transparent', border: '1px solid var(--border)',
-                        color: 'var(--ink-700)', padding: '6px 12px', fontSize: 12,
-                        cursor: 'pointer', fontFamily: 'inherit',
-                      }}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>satellite_alt</span>
-                      {analysingSite ? 'Analysing…' : (siteAnalysis ? 'Re-analyse' : 'Run analysis')}
-                    </button>
-                  </div>
-                  <div style={blockStyle}>
-                    {!siteAnalysis ? (
-                      <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-500)' }}>
-                        Project has coordinates ({project.site_lat?.toFixed(3)}, {project.site_lon?.toFixed(3)}). Run analysis to generate NDVI, water-proximity and deforestation-risk signals.
-                      </p>
-                    ) : (
-                      <>
-                        {siteAnalysis.source === 'copernicus' && (
-                          <div style={{
-                            background: 'rgba(34, 197, 94, 0.12)',
-                            borderLeft: '3px solid #16a34a',
-                            padding: '8px 12px',
-                            marginBottom: 12,
-                            borderRadius: 4,
-                            fontSize: 13,
-                            color: 'var(--text-primary)',
-                          }}>
-                            ✓ Live Sentinel-2 — analysed {siteAnalysis.analysed_at ? new Date(siteAnalysis.analysed_at).toLocaleDateString() : '—'}
-                          </div>
-                        )}
-                        {siteAnalysis.source === 'fixture' && (
-                          <div style={{
-                            background: 'rgba(245, 158, 11, 0.12)',
-                            borderLeft: '3px solid #f59e0b',
-                            padding: '8px 12px',
-                            marginBottom: 12,
-                            borderRadius: 4,
-                            fontSize: 13,
-                            color: 'var(--text-primary)',
-                          }}>
-                            Reference fixture (Copernicus snapshot) — credentials not configured
-                          </div>
-                        )}
-                        {siteAnalysis.source === 'stub' && (
-                          <div style={{
-                            background: 'rgba(245, 158, 11, 0.12)',
-                            borderLeft: '3px solid #f59e0b',
-                            padding: '8px 12px',
-                            marginBottom: 12,
-                            borderRadius: 4,
-                            fontSize: 13,
-                            color: 'var(--text-primary)',
-                          }}>
-                            ⚠ Synthetic placeholder — coordinates outside fixture set
-                          </div>
-                        )}
-                        <div style={{
-                          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12,
-                        }}>
-                          <div>
-                            <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)' }}>NDVI</div>
-                            <div style={{ fontSize: 22, fontFamily: "'Source Serif 4', serif", color: 'var(--ink-900)', marginTop: 4 }}>
-                              {siteAnalysis.ndvi.toFixed(3)}
-                            </div>
-                            <div style={{
-                              marginTop: 6, height: 4,
-                              background: `linear-gradient(to right, #b91c1c 0%, #f59e0b 50%, #10b981 100%)`,
-                              position: 'relative',
-                            }}>
-                              <div style={{
-                                position: 'absolute', top: -3, left: `${Math.min(100, siteAnalysis.ndvi * 100)}%`,
-                                transform: 'translateX(-50%)', width: 2, height: 10, background: 'var(--ink-900)',
-                              }} />
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)' }}>Water proximity</div>
-                            <div style={{ fontSize: 22, fontFamily: "'Source Serif 4', serif", color: 'var(--ink-900)', marginTop: 4 }}>
-                              {siteAnalysis.water_proximity_km.toFixed(1)} <span style={{ fontSize: 13, color: 'var(--ink-500)' }}>km</span>
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)' }}>Smallholder land</div>
-                            <div style={{ fontSize: 22, fontFamily: "'Source Serif 4', serif", color: 'var(--ink-900)', marginTop: 4 }}>
-                              {siteAnalysis.land_use_smallholder_pct.toFixed(0)}%
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)' }}>EUDR risk</div>
-                            <div style={{ marginTop: 4 }}>
-                              <span style={{
-                                display: 'inline-block', padding: '3px 8px', fontSize: 11, fontWeight: 600,
-                                background: siteAnalysis.deforestation_risk === 'high' ? 'rgba(239,68,68,0.18)'
-                                  : siteAnalysis.deforestation_risk === 'medium' ? 'rgba(245,158,11,0.18)'
-                                  : 'rgba(16,185,129,0.18)',
-                                color: siteAnalysis.deforestation_risk === 'high' ? '#f87171'
-                                  : siteAnalysis.deforestation_risk === 'medium' ? '#fbbf24'
-                                  : '#34d399',
-                                textTransform: 'uppercase', letterSpacing: '0.06em',
-                              }}>{siteAnalysis.deforestation_risk}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{
-                          marginTop: 14, padding: '8px 12px', background: 'rgba(124,58,237,0.06)',
-                          border: '1px solid var(--border)', fontSize: 12, color: 'var(--ink-700)',
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        }}>
-                          <span>{siteAnalysis.land_use_description}</span>
-                          <span style={{ fontSize: 11, color: '#a78bfa', fontWeight: 600 }}>
-                            +{siteAnalysis.geo_score_boost} pts → Readiness
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </section>
-              )}
 
               {/* Executive Summary */}
               <section>
@@ -1725,33 +1589,178 @@ const ProjectDetails: React.FC = () => {
             </button>
           </div>
 
-          {/* Quick facts */}
+          {/* Site analysis — sidebar widget (replaces Quick facts) */}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '18px 24px' }}>
-            <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)' }}>
-              Quick facts
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)' }}>
+                Site analysis
+              </div>
+              {(project.site_lat != null && project.site_lon != null) && (
+                <button
+                  onClick={async () => {
+                    if (!projectId) return;
+                    setAnalysingSite(true);
+                    try {
+                      const res = await pipelineService.analyseSite(projectId);
+                      setSiteAnalysis(res);
+                    } catch (e) {
+                      console.error('analyse-site failed', e);
+                    } finally {
+                      setAnalysingSite(false);
+                    }
+                  }}
+                  disabled={analysingSite}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: 'transparent', border: '1px solid var(--border)',
+                    color: 'var(--ink-700)', padding: '3px 8px', fontSize: 11,
+                    cursor: analysingSite ? 'default' : 'pointer', fontFamily: 'inherit',
+                    opacity: analysingSite ? 0.6 : 1,
+                  }}
+                  title={siteAnalysis ? 'Re-run analysis (bypass cache)' : 'Run analysis'}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>satellite_alt</span>
+                  {analysingSite ? '…' : (siteAnalysis ? 'Re-analyse' : 'Run')}
+                </button>
+              )}
             </div>
-            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column' }}>
-              {[
-                ['Pillar', (project.pillar || 'General').split(',')[0]],
-                ['Geography', project.lead_country || 'Regional'],
-                ['Sponsor', project.project_sponsor || '—'],
-                ['Stage', STATUS_LABEL[project.status] ?? project.status],
-                ['Cross-border', project.is_cross_border ? 'Yes' : 'No'],
-              ].map(([k, v], i, arr) => (
-                <div key={k} style={{
-                  display: 'grid', gridTemplateColumns: '90px 1fr', gap: 12,
-                  padding: '10px 0', fontSize: 12,
-                  borderBottom: i === arr.length - 1 ? 'none' : '1px solid var(--border)',
-                }}>
-                  <span style={{ color: 'var(--ink-500)' }}>{k}</span>
-                  <span style={{ color: 'var(--ink-900)' }}>{v}</span>
+
+            {/* No coordinates yet */}
+            {(project.site_lat == null || project.site_lon == null) && (
+              <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 12, color: 'var(--ink-500)', lineHeight: 1.6 }}>
+                  No site coordinates yet. Edit the project to drop a pin, or let Martin scout plausible coordinates from the project content.
                 </div>
-              ))}
-            </div>
+                <button
+                  onClick={() => setScoutModalOpen(true)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    background: '#4f46e5', color: '#fff', border: 'none',
+                    padding: '7px 12px', fontSize: 12, fontWeight: 500,
+                    cursor: 'pointer', borderRadius: 4, fontFamily: 'inherit',
+                    width: 'fit-content',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 15 }}>auto_awesome</span>
+                  Scout coordinates with Martin
+                </button>
+              </div>
+            )}
+
+            {/* Coordinates set, analysis not yet run */}
+            {(project.site_lat != null && project.site_lon != null && !siteAnalysis) && (
+              <div style={{ marginTop: 14, fontSize: 12, color: 'var(--ink-500)' }}>
+                Pinned at {project.site_lat.toFixed(3)}, {project.site_lon.toFixed(3)}. Click <strong>Run</strong> to fetch satellite signals.
+              </div>
+            )}
+
+            {/* Analysis present */}
+            {siteAnalysis && (
+              <div style={{ marginTop: 12 }}>
+                {/* Source banner — compact */}
+                {siteAnalysis.source === 'copernicus' && (
+                  <div style={{
+                    background: 'rgba(34, 197, 94, 0.12)', borderLeft: '3px solid #16a34a',
+                    padding: '6px 10px', borderRadius: 4, fontSize: 11, color: 'var(--ink-700)', marginBottom: 10,
+                  }}>
+                    ✓ Live Sentinel-2 — {siteAnalysis.analysed_at ? new Date(siteAnalysis.analysed_at).toLocaleDateString() : '—'}
+                  </div>
+                )}
+                {siteAnalysis.source === 'fixture' && (
+                  <div style={{
+                    background: 'rgba(245, 158, 11, 0.12)', borderLeft: '3px solid #f59e0b',
+                    padding: '6px 10px', borderRadius: 4, fontSize: 11, color: 'var(--ink-700)', marginBottom: 10,
+                  }}>
+                    Reference fixture — credentials not configured
+                  </div>
+                )}
+                {siteAnalysis.source === 'stub' && (
+                  <div style={{
+                    background: 'rgba(245, 158, 11, 0.12)', borderLeft: '3px solid #f59e0b',
+                    padding: '6px 10px', borderRadius: 4, fontSize: 11, color: 'var(--ink-700)', marginBottom: 10,
+                  }}>
+                    ⚠ Synthetic placeholder
+                  </div>
+                )}
+
+                {/* Metric rows */}
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {[
+                    ['NDVI', siteAnalysis.ndvi.toFixed(3)],
+                    ['Water proximity', `${siteAnalysis.water_proximity_km.toFixed(1)} km`],
+                    ['Smallholder land', `${siteAnalysis.land_use_smallholder_pct.toFixed(0)}%`],
+                    ['EUDR risk', null],
+                    ['Land cover', siteAnalysis.land_use_description],
+                  ].map(([k, v], i, arr) => (
+                    <div key={k as string} style={{
+                      display: 'grid', gridTemplateColumns: '100px 1fr', gap: 12,
+                      padding: '8px 0', fontSize: 12,
+                      borderBottom: i === arr.length - 1 ? 'none' : '1px solid var(--border)',
+                      alignItems: 'center',
+                    }}>
+                      <span style={{ color: 'var(--ink-500)' }}>{k}</span>
+                      {k === 'EUDR risk' ? (
+                        <span style={{
+                          display: 'inline-block', padding: '2px 8px', fontSize: 10, fontWeight: 600,
+                          width: 'fit-content',
+                          background: siteAnalysis.deforestation_risk === 'high' ? 'rgba(239,68,68,0.18)'
+                            : siteAnalysis.deforestation_risk === 'medium' ? 'rgba(245,158,11,0.18)'
+                            : 'rgba(16,185,129,0.18)',
+                          color: siteAnalysis.deforestation_risk === 'high' ? '#f87171'
+                            : siteAnalysis.deforestation_risk === 'medium' ? '#fbbf24'
+                            : '#34d399',
+                          textTransform: 'uppercase', letterSpacing: '0.06em',
+                          borderRadius: 3,
+                        }}>{siteAnalysis.deforestation_risk}</span>
+                      ) : (
+                        <span style={{ color: 'var(--ink-900)' }}>{v}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Boost summary */}
+                <div style={{
+                  marginTop: 10, padding: '7px 10px', background: 'rgba(124,58,237,0.06)',
+                  border: '1px solid var(--border)', fontSize: 11,
+                  display: 'flex', justifyContent: 'flex-end',
+                }}>
+                  <span style={{ color: '#a78bfa', fontWeight: 600 }}>
+                    +{siteAnalysis.geo_score_boost} pts → Readiness
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
         </div>
       </div>
+
+      {/* Scout coordinates modal */}
+      {scoutModalOpen && projectId && (
+        <ScoutCoordsModal
+          projectId={projectId}
+          onClose={() => setScoutModalOpen(false)}
+          onConfirm={async (lat, lon, place_name) => {
+            // Persist coords + optional place name, then run analyse
+            await pipelineService.updateProject(projectId, {
+              site_lat: lat,
+              site_lon: lon,
+              site_location_name: place_name || undefined,
+            });
+            // Refresh project so the widget shows the new coords
+            const fresh = await pipelineService.getProject(projectId);
+            setProject(fresh);
+            // Trigger analysis (force=true bypasses cache for a fresh first read)
+            try {
+              const res = await pipelineService.analyseSite(projectId, true);
+              setSiteAnalysis(res);
+            } catch (e) {
+              console.error('Post-scout analyse failed', e);
+            }
+          }}
+        />
+      )}
 
       {/* Upload Document Modal */}
       {showUploadModal && (

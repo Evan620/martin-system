@@ -4,18 +4,34 @@ import {
     Project, ProjectStatus, PipelineStats,
     ProjectIngestDTO, InvestorMatch, UpdateMatchStatusDTO,
     Buyer, BuyerMatch, UpdateBuyerMatchStatusDTO,
-    DFIMatch, DFIWindow, UpdateDFIMatchStatusDTO, FinancingMemo
+    DFIMatch, DFIWindow, UpdateDFIMatchStatusDTO, FinancingMemo,
+    IncubationChecklist,
+    ProjectGeospatial, ScoutedCoordinates, ImpactLogEntry, ImpactLogEntryCreate, ImpactSummary,
 } from '../types/pipeline';
 
 export const pipelineService = {
     // Pipeline Views
-    listProjects: async (stage?: ProjectStatus, pillar?: string, value_chain_stage?: string): Promise<Project[]> => {
+    listProjects: async (stage?: ProjectStatus, pillar?: string, value_chain_stage?: string, include_archived?: boolean): Promise<Project[]> => {
         const params = new URLSearchParams();
         if (stage) params.append('stage', stage);
         if (pillar) params.append('pillar', pillar);
         if (value_chain_stage) params.append('value_chain_stage', value_chain_stage);
+        if (include_archived) params.append('include_archived', 'true');
 
         const response = await api.get(`/pipeline/?${params.toString()}`);
+        return response.data;
+    },
+
+    // R5 — Incubation Track
+    getIncubationChecklist: async (projectId: string): Promise<IncubationChecklist> => {
+        const response = await api.get(`/pipeline/${projectId}/incubation-checklist`);
+        return response.data;
+    },
+
+    downloadFinancialModelTemplate: async (): Promise<Blob> => {
+        const response = await api.get('/pipeline/templates/financial-model', {
+            responseType: 'blob',
+        });
         return response.data;
     },
 
@@ -141,5 +157,42 @@ export const pipelineService = {
     listDFIWindows: async (): Promise<DFIWindow[]> => {
         const response = await api.get('/pipeline/dfi-windows');
         return response.data;
+    },
+
+    // R8 — Geospatial site analysis
+    analyseSite: async (projectId: string, force?: boolean): Promise<ProjectGeospatial> => {
+        const url = force ? `/pipeline/${projectId}/analyse-site?force=true` : `/pipeline/${projectId}/analyse-site`;
+        const response = await api.post(url);
+        return response.data;
+    },
+    scoutCoordinates: async (projectId: string): Promise<ScoutedCoordinates> => {
+        const response = await api.post(`/pipeline/${projectId}/scout-coordinates`);
+        return response.data;
+    },
+    getSiteAnalysis: async (projectId: string): Promise<ProjectGeospatial | null> => {
+        try {
+            const response = await api.get(`/pipeline/${projectId}/site-analysis`);
+            return response.data;
+        } catch (e: any) {
+            if (e?.response?.status === 404) return null;
+            throw e;
+        }
+    },
+
+    // R9 — Post-commitment impact monitoring
+    listImpactLogEntries: async (projectId: string): Promise<ImpactLogEntry[]> => {
+        const response = await api.get(`/pipeline/${projectId}/impact-log`);
+        return response.data;
+    },
+    createImpactLogEntry: async (projectId: string, payload: ImpactLogEntryCreate): Promise<ImpactLogEntry> => {
+        const response = await api.post(`/pipeline/${projectId}/impact-log`, payload);
+        return response.data;
+    },
+    getImpactSummary: async (projectId: string): Promise<ImpactSummary> => {
+        const response = await api.get(`/pipeline/${projectId}/impact-log/summary`);
+        return response.data;
+    },
+    deleteImpactLogEntry: async (projectId: string, entryId: string): Promise<void> => {
+        await api.delete(`/pipeline/${projectId}/impact-log/${entryId}`);
     },
 };

@@ -37,6 +37,7 @@ from app.models.models import Document, ImpactLogEntry, ProjectGeospatialData
 from app.core.constants import INCUBATION_CHECKLIST_ITEMS, canonical_code_for
 from app.models.models import ProjectScoreDetail, ScoringCriteria, Buyer, DFIWindow, ProjectDFIMatch, DFIMatchStatus
 from app.services.geospatial_service import get_geospatial_service
+from app.services.coordinate_scout_service import get_coordinate_scout_service
 from app.services.lifecycle_service import LifecycleService
 from app.services.project_insights_service import insights_service
 
@@ -1418,6 +1419,26 @@ async def get_site_analysis(
     if not row:
         raise HTTPException(status_code=404, detail="No site analysis yet for this project")
     return row
+
+
+@router.post("/{project_id}/scout-coordinates")
+async def scout_coordinates(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_facilitator),
+):
+    """Ask the LLM to infer plausible GPS coordinates for a project's site
+    from its textual metadata. Returns a suggestion the facilitator must
+    confirm — the coordinates are NOT persisted by this endpoint.
+
+    Response shape:
+        {lat, lon, place_name, confidence, reasoning, project_id}"""
+    svc = get_coordinate_scout_service(db)
+    result = await svc.scout(project_id)
+    if "error" in result:
+        msg = result.get("message") or result["error"]
+        raise HTTPException(status_code=400, detail=msg)
+    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────

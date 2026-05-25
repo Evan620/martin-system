@@ -643,6 +643,11 @@ class Project(Base):
     # project owner; triggers `geospatial_service.analyse_project()` on rescore.
     site_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     site_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Human-readable place name (e.g., "Bondoukou rural, Côte d'Ivoire"). Set
+    # by the sponsor at intake via the site-location picker, or auto-scouted
+    # from the project content and confirmed by a facilitator. Independent
+    # from lat/lon — the coords are authoritative for analysis.
+    site_location_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Submission metadata
     submitted_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

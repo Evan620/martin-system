@@ -117,6 +117,7 @@ export interface Project {
     // R8 — Site coordinates for geospatial analysis
     site_lat?: number;
     site_lon?: number;
+    site_location_name?: string;
 
     // Metadata from backend API
     days_in_stage?: number;
@@ -290,6 +291,16 @@ export interface FinancingMemo {
     key_risks: string[];
     next_steps: string[];
     full_memo: string;
+}
+
+// R8 — AI-scouted coordinates (not persisted until user confirms)
+export interface ScoutedCoordinates {
+    lat: number;
+    lon: number;
+    place_name: string;
+    confidence: number;
+    reasoning: string;
+    project_id: string;
 }
 
 // R8 — Geospatial site analysis

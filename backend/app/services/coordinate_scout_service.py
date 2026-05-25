@@ -64,11 +64,15 @@ class CoordinateScoutService:
         llm = get_llm_service()
 
         try:
+            # Note: max_tokens must cover reasoning-model thinking tokens too.
+            # On gpt-5.5 / o-series, the response budget eats both the
+            # internal chain-of-thought and the visible output. 400 wasn't
+            # enough; the model silently returned an empty string.
             raw = llm.chat(
                 prompt=prompt,
                 system_prompt=_SYSTEM_PROMPT,
                 temperature=0.1,
-                max_tokens=400,
+                max_tokens=2000,
                 response_format={"type": "json_object"},
             )
         except Exception as e:

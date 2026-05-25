@@ -1,7 +1,7 @@
 """R8 — Geospatial analysis service.
 
-Dispatches between live Copernicus and offline fixtures based on whether
-COPERNICUS_CLIENT_ID is set in the environment. Persists a single
+Dispatches between live satellite (Microsoft Planetary Computer) and offline
+fixtures based on the `LIVE_GEOSPATIAL_ENABLED` env var. Persists a single
 ProjectGeospatialData row per project (DELETE-then-INSERT) so analysed_at
 advances on every call."""
 from __future__ import annotations
@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import Project, ProjectGeospatialData
 from app.services import geospatial_fixtures
-from app.services.copernicus_client import CopernicusClient, CopernicusAuthError
+from app.services.mpc_client import MPCClient
 from app.services.geospatial_scoring import compute_boost
 
 logger = logging.getLogger(__name__)
@@ -80,23 +80,18 @@ class GeospatialService:
         }
 
     async def _collect_signals(self, lat: float, lon: float) -> Tuple[Dict[str, Any], str]:
-        """Live Copernicus when configured; fall back to fixtures otherwise
-        or when 3+ signals fail."""
-        if not CopernicusClient.is_configured():
+        """Live MPC satellite query when LIVE_GEOSPATIAL_ENABLED=1; fall back
+        to fixtures otherwise or when 3+ signals fail."""
+        if not MPCClient.is_configured():
             return geospatial_fixtures.lookup(lat, lon)
 
-        try:
-            client = CopernicusClient()
-            # CopernicusClient uses sync httpx — run it off the event loop so a
-            # slow live call doesn't block other requests.
-            live = await asyncio.to_thread(client.compute_signals, lat, lon)
-        except CopernicusAuthError as e:
-            logger.warning("Copernicus auth failed, falling back to fixtures: %s", e)
-            return geospatial_fixtures.lookup(lat, lon)
+        # MPC client is sync (rasterio + STAC); run off the event loop so
+        # the per-tile reads don't block other requests.
+        live = await asyncio.to_thread(MPCClient().compute_signals, lat, lon)
 
         failed = sum(1 for v in live.values() if v is None)
         if failed >= 3:
-            logger.warning("Copernicus returned %d nulls; falling back to fixtures", failed)
+            logger.warning("MPC returned %d nulls; falling back to fixtures", failed)
             return geospatial_fixtures.lookup(lat, lon)
 
         return live, "copernicus"

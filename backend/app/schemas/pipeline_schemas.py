@@ -3,13 +3,42 @@ Pipeline Schemas
 
 Pydantic models for the Deal Pipeline API.
 """
-from pydantic import BaseModel, ConfigDict, Field, condecimal
+from pydantic import BaseModel, ConfigDict, Field, condecimal, field_validator
 from typing import Optional, List, Any, Dict
 from datetime import datetime
 from uuid import UUID
 from decimal import Decimal
 
 from app.models.models import ProjectStatus, InvestorMatchStatus
+
+# R1 — Controlled vocabulary for value chain stages. Union of the original 5
+# stages already in use + the 3 added per Carren Mwanzia's May 2026 benchmark
+# analysis. Investors filter by these segments, so the set must be stable.
+VALID_VALUE_CHAIN_STAGES = {
+    "INPUTS",              # Inputs & Seeds
+    "PRODUCTION",          # Primary Production
+    "PROCESSING",          # Post-Harvest & Processing
+    "LOGISTICS",           # Logistics & Cold Chain
+    "RETAIL",              # Retail / Markets
+    "DIGITAL_PLATFORM",    # Digital Agri-Platform
+    "FINANCIAL_SERVICES",  # Financial Services for Agriculture
+    "POLICY_ENABLING",     # Policy & Enabling Environment
+}
+
+
+def _validate_value_chain_stages(stages: Optional[List[str]]) -> Optional[List[str]]:
+    """Reject entries outside the controlled vocabulary. None passes through."""
+    if stages is None:
+        return None
+    invalid = [s for s in stages if s not in VALID_VALUE_CHAIN_STAGES]
+    if invalid:
+        valid_list = ", ".join(sorted(VALID_VALUE_CHAIN_STAGES))
+        raise ValueError(
+            f"value_chain_stages contains entries not in the controlled vocabulary: {invalid}. "
+            f"Valid stages: {valid_list}"
+        )
+    return stages
+
 
 class ProjectIngest(BaseModel):
     """Schema for ingesting a project proposal"""
@@ -26,6 +55,26 @@ class ProjectIngest(BaseModel):
     metadata_json: Optional[Dict[str, Any]] = None
     status: Optional[str] = None # Optional override, otherwise defaults to DRAFT
     start_in_incubation: bool = True
+
+    # R1 — Value chain classification. Required at intake: every new project must
+    # declare at least one stage so investors can filter by mandate.
+    value_chain_stages: List[str] = Field(
+        ..., min_length=1,
+        description="At least one stage from the controlled vocabulary",
+    )
+    # R2 — Gender / youth signals (binary + justification). Optional on intake
+    # because some early projects may not have decided yet; lifecycle stage gate
+    # enforces them at UNDER_REVIEW → SUMMIT_READY.
+    is_cross_border: Optional[bool] = None
+    gender_intentional: Optional[bool] = None
+    gender_justification: Optional[str] = None
+    youth_focused: Optional[bool] = None
+    youth_justification: Optional[str] = None
+
+    @field_validator("value_chain_stages")
+    @classmethod
+    def _check_value_chain_stages(cls, v):
+        return _validate_value_chain_stages(v)
 
 class ProjectUpdate(BaseModel):
     """Schema for updating a project"""
@@ -78,6 +127,16 @@ class ProjectUpdate(BaseModel):
     gender_justification: Optional[str] = None
     youth_focused: Optional[bool] = None
     youth_justification: Optional[str] = None
+
+    # R8 — Site coordinates for geospatial analysis
+    site_lat: Optional[float] = None
+    site_lon: Optional[float] = None
+
+    @field_validator("value_chain_stages")
+    @classmethod
+    def _check_value_chain_stages(cls, v):
+        return _validate_value_chain_stages(v)
+
 
 class ProjectAdvanceStage(BaseModel):
     """Schema for advancing a project stage"""
@@ -182,6 +241,10 @@ class ProjectPipelineRead(BaseModel):
     gender_justification: Optional[str] = None
     youth_focused: Optional[bool] = None
     youth_justification: Optional[str] = None
+
+    # R8 — Geospatial site coordinates (optional)
+    site_lat: Optional[float] = None
+    site_lon: Optional[float] = None
 
     # Lifecycle Config
     allowed_transitions: List[str] = []
@@ -292,14 +355,113 @@ class DFIMatchStatusUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class FinancingTranche(BaseModel):
+    """R7 — one layer of the blended finance capital stack."""
+    label: str
+    dfi_window_name: Optional[str] = None
+    instrument_type: str  # GRANT | CONCESSIONAL_LOAN | EQUITY | BLENDED
+    amount_usd: float
+    tenor_years: Optional[int] = None
+    coupon_pct: Optional[float] = None
+    seniority: int = 1  # 1=most senior, higher=more junior / first-loss
+    is_first_loss: bool = False
+    notes: Optional[str] = None
+
+
 class FinancingMemoResponse(BaseModel):
     project_id: str
     project_name: str
+    source: str = "llm"  # "llm" for AI-generated, "default_fallback" when AI unavailable
+    error_class: Optional[str] = None  # e.g. "TimeoutError", "RateLimitError" when source==default_fallback
     recommended_structure: str
     grant_component_pct: int
     concessional_component_pct: int
     commercial_component_pct: int
+    # R7 — Structured capital-stack tranches; complements the high-level pct breakdown above.
+    tranches: List[FinancingTranche] = Field(default_factory=list)
     priority_windows: List[str]
     key_risks: List[str]
     next_steps: List[str]
     full_memo: str
+
+
+# ---------------------------------------------------------------------------
+# R5 — Incubation checklist
+# ---------------------------------------------------------------------------
+class IncubationChecklistItem(BaseModel):
+    code: str
+    label: str
+    completed: bool
+    document_id: Optional[UUID] = None
+
+
+class IncubationChecklistRead(BaseModel):
+    items: List[IncubationChecklistItem]
+    completed_count: int
+    total_count: int
+
+
+# ---------------------------------------------------------------------------
+# R8 — Geospatial site analysis
+# ---------------------------------------------------------------------------
+class ProjectGeospatialRead(BaseModel):
+    """One project's cached Sentinel-2-style site analysis. STUB DATA today —
+    `is_demo: true` indicates synthetic values from the seeded local generator.
+    Real Copernicus integration will set `is_demo: false`."""
+    id: UUID
+    project_id: UUID
+    ndvi: float
+    water_proximity_km: float
+    land_use_description: str
+    land_use_smallholder_pct: float
+    deforestation_risk: str
+    geo_score_boost: int
+    source: str
+    is_demo: bool
+    analysed_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ---------------------------------------------------------------------------
+# R9 — Post-commitment impact monitoring
+# ---------------------------------------------------------------------------
+from datetime import date as _date  # local alias to avoid clashing with class members
+
+class ImpactLogEntryCreate(BaseModel):
+    period_label: str = Field(..., min_length=1, max_length=64)
+    period_start: _date
+    period_end: _date
+    jobs_created: Optional[int] = None
+    ghg_avoided_tco2: Optional[float] = None
+    smallholders_reached: Optional[int] = None
+    women_jobs_actual: Optional[int] = None
+    youth_jobs_actual: Optional[int] = None
+    investment_deployed_usd: Optional[Decimal] = None
+    notes: Optional[str] = None
+
+
+class ImpactLogEntryRead(ImpactLogEntryCreate):
+    id: UUID
+    project_id: UUID
+    logged_by_id: UUID
+    logged_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ImpactSummaryRead(BaseModel):
+    """Cumulative actuals vs target — for the headline metric cards."""
+    project_id: UUID
+    # Targets parsed from project columns
+    target_jobs: Optional[int] = None
+    target_ghg_tco2: Optional[float] = None
+    target_smallholders: Optional[int] = None
+    target_investment_usd: Optional[Decimal] = None
+    # Cumulative actuals across all log entries
+    actual_jobs: int = 0
+    actual_ghg_tco2: float = 0.0
+    actual_smallholders: int = 0
+    actual_women_jobs: int = 0
+    actual_youth_jobs: int = 0
+    actual_investment_deployed: Decimal = Decimal("0")
+    entry_count: int = 0
+

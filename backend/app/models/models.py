@@ -1,9 +1,9 @@
 import uuid
 import enum
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional
 from decimal import Decimal
-from sqlalchemy import String, DateTime, Enum, ForeignKey, Column, Table, Text, Numeric, Float, Boolean, JSON, Uuid, Integer, ARRAY
+from sqlalchemy import String, DateTime, Date, Enum, ForeignKey, Column, Table, Text, Numeric, Float, Boolean, JSON, Uuid, Integer, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 try:
@@ -82,6 +82,7 @@ class ProjectStatus(str, enum.Enum):
 
     # Other
     ON_HOLD = "ON_HOLD"
+    ARCHIVED = "ARCHIVED"
 
 class NotificationType(str, enum.Enum):
     INFO = "info"
@@ -632,8 +633,29 @@ class Project(Base):
     youth_focused: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     youth_justification: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # R6 — Certifications the project holds (Fairtrade, Organic, Rainforest Alliance,
+    # UTZ, GlobalG.A.P., EU GAP). Matched against buyer.certifications_accepted to
+    # score offtake fit. Optional — many early-stage projects won't have any yet.
+    certifications_held: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+
+    # R8 — Site coordinates for geospatial analysis (NDVI, water proximity,
+    # land-use classification, deforestation risk). Optional — set by the
+    # project owner; triggers `geospatial_service.analyse_project()` on rescore.
+    site_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    site_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Human-readable place name (e.g., "Bondoukou rural, Côte d'Ivoire"). Set
+    # by the sponsor at intake via the site-location picker, or auto-scouted
+    # from the project content and confirmed by a facilitator. Independent
+    # from lat/lon — the coords are authoritative for analysis.
+    site_location_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Submission metadata
     submitted_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    # Timestamps (these columns exist in the DB schema; mapped here so the
+    # ORM can read/write them, e.g. for the R5 90-day stale-incubation check).
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
     # Relationships
     twg: Mapped["TWG"] = relationship(back_populates="projects")
@@ -641,6 +663,8 @@ class Project(Base):
     investor_matches: Mapped[List["ProjectInvestorMatch"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     buyer_matches: Mapped[List["ProjectBuyerMatch"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     dfi_matches: Mapped[List["ProjectDFIMatch"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    impact_log_entries: Mapped[List["ImpactLogEntry"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    geospatial_data: Mapped[Optional["ProjectGeospatialData"]] = relationship(back_populates="project", uselist=False, cascade="all, delete-orphan")
     documents: Mapped[List["Document"]] = relationship(foreign_keys="[Document.project_id]", back_populates="project")
     score_details: Mapped[List["ProjectScoreDetail"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     status_history: Mapped[List["ProjectStatusHistory"]] = relationship(back_populates="project", cascade="all, delete-orphan")
@@ -820,10 +844,17 @@ class Investor(Base):
     contact_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     contact_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     total_commitments_usd: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 2), default=0)
-    
+
+    # Mandate signals — mirror DFIWindow so investor matching can consume the same
+    # project signals (value chain, gender, youth, climate) that DFI matching already uses.
+    value_chain_preferences: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    gender_focus: Mapped[bool] = mapped_column(Boolean, default=False)
+    youth_focus: Mapped[bool] = mapped_column(Boolean, default=False)
+    climate_focus: Mapped[bool] = mapped_column(Boolean, default=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships
     project_matches: Mapped[List["ProjectInvestorMatch"]] = relationship(back_populates="investor", cascade="all, delete-orphan")
 
@@ -864,6 +895,11 @@ class Buyer(Base):
     contract_term_years: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     price_floor_usd: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     geographic_focus: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    # R6 — Certifications the buyer requires from suppliers (Fairtrade, Rainforest Alliance,
+    # Organic, UTZ, EU GAP, GlobalG.A.P., etc.). Matches against project.certifications_held.
+    certifications_accepted: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    # R6 — DEMO / VERIFIED status so seeded buyers aren't confused with real signed partners
+    verification_status: Mapped[str] = mapped_column(String(20), default="demo", nullable=False)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_by: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
@@ -924,6 +960,21 @@ class DFIWindow(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Polish 2 — FK linking this window to its parent Investor record. Nullable so
+    # legacy windows continue to work pre-backfill; populated by
+    # scripts/link_dfi_windows_to_investors.py via string-matching institution names.
+    investor_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid, ForeignKey("investors.id", ondelete="SET NULL"), nullable=True,
+    )
+    # R7 — Concessional eligibility rules. Free-form JSON so each window can express
+    # its own conditions without a schema migration per rule type. Common keys:
+    #   max_project_size_usd, min_project_size_usd, allowed_lead_countries (list),
+    #   excluded_lead_countries (list), required_pillar (list), required_value_chain (list),
+    #   requires_gender_intentional (bool), requires_climate_target (bool),
+    #   max_lead_country_gdp_per_capita_usd (int).
+    # The eligibility filter in dfi_matching_service evaluates these against the
+    # project; a window failing any rule is marked eligible=false with a reason.
+    concessional_eligibility_rules: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -946,6 +997,68 @@ class ProjectDFIMatch(Base):
 
     project: Mapped["Project"] = relationship(back_populates="dfi_matches")
     dfi_window: Mapped["DFIWindow"] = relationship(back_populates="dfi_matches")
+    # R7 — Eligibility evaluation cached per match row so we don't re-run rules
+    # on every read. Set when matching runs; rationale is human-readable.
+    eligible: Mapped[bool] = mapped_column(Boolean, default=True)
+    ineligibility_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class BlendedFinancePackage(Base):
+    """R7 — A multi-tranche blended finance structure for a project, generated by
+    the AI financing memo workflow and refinable by an admin. One project may
+    have many packages (different scenarios); the most recently saved one is the
+    'active' recommendation. Tranches are first-class child rows so the structure
+    can be validated (e.g. amounts sum to investment ask, first-loss < concessional)."""
+
+    __tablename__ = "blended_finance_packages"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(255), default="AI-generated package")
+    rationale: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    total_amount_usd: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String(20), default="llm")  # 'llm' | 'default_fallback' | 'manual'
+    error_class: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    tranches: Mapped[List["BlendedFinanceTranche"]] = relationship(
+        back_populates="package",
+        cascade="all, delete-orphan",
+        order_by="BlendedFinanceTranche.seniority",
+    )
+
+
+class BlendedFinanceTranche(Base):
+    """R7 — One layer in a blended finance capital stack.
+
+    Seniority convention: lower number = more senior. So senior debt = 1,
+    mezzanine = 2, first-loss equity / grant = 3. Senior tranches are repaid first
+    in a downside scenario; first-loss absorbs initial losses to protect commercial
+    capital and is what makes the package 'blended'.
+    """
+
+    __tablename__ = "blended_finance_tranches"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    package_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("blended_finance_packages.id", ondelete="CASCADE"))
+    dfi_window_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("dfi_windows.id", ondelete="SET NULL"), nullable=True)
+
+    label: Mapped[str] = mapped_column(String(255))  # human-readable, e.g. "AfDB ADPP senior concessional"
+    instrument_type: Mapped[DFIInstrumentType] = mapped_column(Enum(DFIInstrumentType), default=DFIInstrumentType.BLENDED)
+    amount_usd: Mapped[float] = mapped_column(Float)
+    tenor_years: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    coupon_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    seniority: Mapped[int] = mapped_column(Integer, default=1)  # 1=senior, larger=more junior
+    is_first_loss: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    package: Mapped["BlendedFinancePackage"] = relationship(back_populates="tranches")
+    dfi_window: Mapped[Optional["DFIWindow"]] = relationship()
 
 
 class ScoringCriteria(Base):
@@ -1109,3 +1222,58 @@ class InvitationMessage(Base):
     # Relationships
     invitation: Mapped["OrganizationInvitation"] = relationship(back_populates="messages")
     sender_user: Mapped[Optional["User"]] = relationship("User")
+
+
+class ImpactLogEntry(Base):
+    """R9 — Post-commitment quarterly impact tracking. One row per project per
+    reporting period. Targets come from the parent Project's columns; this table
+    stores the actuals."""
+
+    __tablename__ = "impact_log_entries"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"))
+    period_label: Mapped[str] = mapped_column(Text)  # "Q1 2026"
+    period_start: Mapped[date] = mapped_column(Date)
+    period_end: Mapped[date] = mapped_column(Date)
+
+    # Actuals
+    jobs_created: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    ghg_avoided_tco2: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    smallholders_reached: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    women_jobs_actual: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    youth_jobs_actual: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    investment_deployed_usd: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 2), nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    logged_by_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"))
+    logged_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    project: Mapped["Project"] = relationship(back_populates="impact_log_entries")
+    logged_by: Mapped["User"] = relationship("User", foreign_keys=[logged_by_id])
+
+
+class ProjectGeospatialData(Base):
+    """R8 — Cached geospatial analysis for a project. One row per project.
+    Generated on demand by geospatial_service.analyse_project(); refreshed on
+    rescore or coordinate change. STUB IMPLEMENTATION — `is_demo=true` until
+    real Copernicus / AfCEN integration lands."""
+
+    __tablename__ = "project_geospatial_data"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), unique=True)
+    ndvi: Mapped[float] = mapped_column(Float)
+    water_proximity_km: Mapped[float] = mapped_column(Float)
+    land_use_description: Mapped[str] = mapped_column(Text)
+    land_use_smallholder_pct: Mapped[float] = mapped_column(Float)
+    deforestation_risk: Mapped[str] = mapped_column(Text)  # 'low' | 'medium' | 'high'
+    geo_score_boost: Mapped[int] = mapped_column(Integer)
+    source: Mapped[str] = mapped_column(String(20), default="stub", nullable=False)
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    analysed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    raw_response: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+    project: Mapped["Project"] = relationship(back_populates="geospatial_data")

@@ -142,6 +142,26 @@ class ProjectPipelineService:
                 logger.error(f"Failed to analyze {doc.file_name}: {e}")
 
         agg = self._aggregate_document_analyses(all_analyses)
+        # R6 — Offtake-agreement evidence (signed MOU / supply contract) is a
+        # bankability signal independent of LLM doc analysis. Presence of any
+        # document with type OFFTAKE_AGREEMENT counts.
+        agg["has_offtake_agreement"] = any(
+            (d.document_type or "").upper() == "OFFTAKE_AGREEMENT" for d in documents
+        )
+
+        # R8 — Pull geospatial boost from cached ProjectGeospatialData if present.
+        # geo_score_boost (0–15) is added to Readiness in _compute_waiis_sub_scores.
+        from app.models.models import ProjectGeospatialData
+        geo_res = await self.db.execute(
+            select(ProjectGeospatialData).where(ProjectGeospatialData.project_id == project_id)
+        )
+        geo_row = geo_res.scalar_one_or_none()
+        if geo_row:
+            agg["geo_score_boost"] = geo_row.geo_score_boost
+            agg["geo_is_demo"] = geo_row.is_demo
+            agg["geo_ndvi"] = geo_row.ndvi
+            agg["geo_deforestation_risk"] = geo_row.deforestation_risk
+
         sub_scores = self._compute_waiis_sub_scores(project, agg)
 
         criteria_res = await self.db.execute(select(ScoringCriteria))
@@ -164,7 +184,7 @@ class ProjectPipelineService:
             if detail:
                 detail.score = score
                 detail.notes = notes
-                detail.scored_date = datetime.now(UTC)
+                detail.scored_date = datetime.utcnow()
             else:
                 self.db.add(ProjectScoreDetail(
                     project_id=project_id,
@@ -265,6 +285,11 @@ class ProjectPipelineService:
             33 if project.technical_studies and str(project.technical_studies).strip() else 0,
         ])
         readiness = (doc_r * 0.5) + (field_r * 0.5)
+        # R8 — Geospatial boost. If a ProjectGeospatialData row exists for this
+        # project, add geo_score_boost (0–15) to readiness. Capped at 100.
+        geo_boost = int(agg.get("geo_score_boost") or 0)
+        if geo_boost > 0:
+            readiness = min(100.0, readiness + geo_boost)
 
         # 2. SCALE OF IMPACT
         inv = float(project.investment_size or 0)
@@ -293,7 +318,10 @@ class ProjectPipelineService:
             25 if project.revenue_model and str(project.revenue_model).strip() else 0,
             25 if project.financing_structure and str(project.financing_structure).strip() else 0,
         ])
-        bankability = min(100.0, doc_b + field_b)
+        # R6 — A signed offtake agreement / MOU substantially de-risks market exposure
+        # and is a load-bearing signal for DFI investors. +10 pts when present.
+        offtake_b = 10.0 if agg.get("has_offtake_agreement") else 0.0
+        bankability = min(100.0, doc_b + field_b + offtake_b)
 
         # 5. CLIMATE IMPACT (replaces Additionality)
         climate_text = str(project.climate_impact or "").lower()
@@ -317,14 +345,28 @@ class ProjectPipelineService:
         sh_nums = re.findall(r'\d+', smallholder_text)
         total_sh = sum(int(n) for n in sh_nums) if sh_nums else 0
 
-        women_pct = project.women_employment_pct or 0.0
-        youth_pct = project.youth_employment_pct or 0.0
+        # Gender / youth signals use the canonical binary + justification model.
+        # Score levels: 25 (intentional AND justified ≥50 chars), 12 (intentional but
+        # justification thin), 0 (not intentional or undeclared). This rewards both
+        # the design decision AND the rigor of the explanation that backs it up.
+        def _score_inclusion_flag(flag: bool | None, justification: str | None) -> int:
+            if not flag:
+                return 0
+            j = (justification or "").strip()
+            if len(j) >= 50:
+                return 25
+            if j:
+                return 12
+            return 0
+
+        gender_score = _score_inclusion_flag(project.gender_intentional, project.gender_justification)
+        youth_score = _score_inclusion_flag(project.youth_focused, project.youth_justification)
 
         social_impact = sum([
             25 if total_jobs >= 100 else (12 if total_jobs > 0 else 0),
             25 if total_sh >= 500 else (12 if total_sh > 0 else 0),
-            25 if women_pct >= 30 else (12 if women_pct > 0 else 0),
-            25 if youth_pct >= 25 else (12 if youth_pct > 0 else 0),
+            gender_score,
+            youth_score,
         ])
         social_impact = min(100.0, float(social_impact))
 
@@ -382,6 +424,10 @@ class ProjectPipelineService:
             if project.technical_studies:        notes.append("technical studies ✓")
             if project.permits_licences:         notes.append("permits field ✓")
             if project.land_status:              notes.append("land status ✓")
+            gb = int(agg.get("geo_score_boost") or 0)
+            if gb > 0:
+                suffix = " (demo)" if agg.get("geo_is_demo") else ""
+                notes.append(f"geo boost +{gb}{suffix}")
         elif criterion == "Scale of Impact":
             inv = float(project.investment_size or 0)
             notes.append(f"Investment: ${inv:,.0f}")
@@ -396,6 +442,7 @@ class ProjectPipelineService:
             if irr:                            notes.append(f"IRR: {irr}%")
             if project.revenue_model:          notes.append("revenue model ✓")
             if project.financing_structure:    notes.append("financing structure ✓")
+            if agg.get("has_offtake_agreement"): notes.append("offtake agreement ✓ (+10)")
         elif criterion == "Climate Impact":
             if agg.get("esg_compliant"):          notes.append("ESG compliant (doc) ✓")
             if project.ghg_avoided_target:        notes.append(f"GHG target: {str(project.ghg_avoided_target)[:30]}")
@@ -865,6 +912,8 @@ class ProjectPipelineService:
             "value_chain_stages", "women_employment_pct", "youth_employment_pct",
             # R2 — Gender & Youth intentional design flags
             "gender_intentional", "gender_justification", "youth_focused", "youth_justification",
+            # R8 — Site coordinates for geospatial analysis
+            "site_lat", "site_lon", "site_location_name",
         }
         for field in _UPDATABLE:
             if field in data and data[field] is not None:

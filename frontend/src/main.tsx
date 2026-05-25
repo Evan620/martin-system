@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { store } from './store'
 import App from './App'
 import './index.css'
+import 'leaflet/dist/leaflet.css'
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>

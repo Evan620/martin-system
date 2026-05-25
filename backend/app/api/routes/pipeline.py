@@ -2,9 +2,11 @@
 Deal Pipeline API Routes
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Path as PathParam, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from typing import List, Optional
+from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from datetime import datetime, timezone
 UTC = timezone.utc
 import uuid
@@ -13,7 +15,11 @@ import re
 
 from app.core.database import get_db
 from app.api.deps import get_current_user, require_facilitator, require_admin
-from app.models.models import User, Project, ProjectStatus
+from app.models.models import User, Project, ProjectStatus, UserRole
+
+# Roles allowed to see INCUBATION-status projects. All other roles (TWG_MEMBER,
+# any future investor role) get incubation projects filtered out at the API.
+INCUBATION_VISIBLE_ROLES = {UserRole.ADMIN, UserRole.SECRETARIAT_LEAD, UserRole.TWG_FACILITATOR}
 from app.services.project_pipeline_service import ProjectPipelineService
 from app.services.investor_matching_service import get_investor_matching_service
 from app.services.dfi_matching_service import get_dfi_matching_service
@@ -24,8 +30,14 @@ from app.schemas.pipeline_schemas import (
     ReadinessGapRead, ReadinessGapItem,
     BuyerCreate, BuyerRead, BuyerMatchRead, BuyerMatchUpdate,
     DFIWindowRead, DFIMatchRead, DFIMatchStatusUpdate, FinancingMemoResponse,
+    IncubationChecklistRead, IncubationChecklistItem,
+    ProjectGeospatialRead, ImpactLogEntryCreate, ImpactLogEntryRead, ImpactSummaryRead,
 )
+from app.models.models import Document, ImpactLogEntry, ProjectGeospatialData
+from app.core.constants import INCUBATION_CHECKLIST_ITEMS, canonical_code_for
 from app.models.models import ProjectScoreDetail, ScoringCriteria, Buyer, DFIWindow, ProjectDFIMatch, DFIMatchStatus
+from app.services.geospatial_service import get_geospatial_service
+from app.services.coordinate_scout_service import get_coordinate_scout_service
 from app.services.lifecycle_service import LifecycleService
 from app.services.project_insights_service import insights_service
 
@@ -85,6 +97,9 @@ def _project_to_read(p: "Project", current_user: "User") -> ProjectPipelineRead:
         gender_justification=p.gender_justification,
         youth_focused=p.youth_focused,
         youth_justification=p.youth_justification,
+        # R8 — Site coordinates
+        site_lat=p.site_lat,
+        site_lon=p.site_lon,
         allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role),
     )
 
@@ -94,12 +109,15 @@ async def list_pipeline_projects(
     stage: Optional[ProjectStatus] = None,
     pillar: Optional[str] = None,
     value_chain_stage: Optional[str] = None,
+    include_archived: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     List projects in the deal pipeline with optional filtering.
     value_chain_stage: filter to projects that include this stage, e.g. 'INPUTS'
+    include_archived: when false (default) ARCHIVED projects are omitted; admins
+    can pass include_archived=true to see them.
     """
     query = select(Project)
 
@@ -110,6 +128,14 @@ async def list_pipeline_projects(
         query = query.where(Project.pillar.ilike(f"%{pillar}%"))
     if value_chain_stage:
         query = query.where(Project.value_chain_stages.contains([value_chain_stage]))
+
+    # Hide INCUBATION projects from non-privileged roles (investors, TWG members)
+    if current_user.role not in INCUBATION_VISIBLE_ROLES:
+        query = query.where(Project.status != ProjectStatus.INCUBATION)
+
+    # Hide ARCHIVED projects by default (mirrors the showIncubation pattern)
+    if not include_archived and stage != ProjectStatus.ARCHIVED:
+        query = query.where(Project.status != ProjectStatus.ARCHIVED)
 
     result = await db.execute(query)
     projects = result.scalars().all()
@@ -309,6 +335,186 @@ async def update_dfi_match_status(
 
 # ---------------------------------------------------------------------------
 
+@router.get("/templates/financial-model")
+async def download_financial_model_template(
+    current_user: User = Depends(get_current_user),
+):
+    """Return a generated WAIIS financial-model XLSX template.
+
+    Any authenticated user may download. The template includes 7 sheets covering
+    the WAIIS-required line items (Sources & Uses, 5Y P&L, Capex, Sensitivity,
+    Currency Exposure, ESIA Costs, Social Impact). Sheets are blank — sponsors
+    fill in their own numbers.
+    """
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+
+        wb = Workbook()
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill("solid", fgColor="2D3748")
+        instr_font = Font(italic=True, color="555555", size=10)
+        section_font = Font(bold=True, size=11)
+
+        def write_sheet(ws, title: str, instruction: str, headers: list[str], rows: list[list[str]]):
+            ws.title = title
+            ws["A1"] = instruction
+            ws["A1"].font = instr_font
+            ws.row_dimensions[1].height = 22
+            for col_idx, h in enumerate(headers, start=1):
+                cell = ws.cell(row=3, column=col_idx, value=h)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+            for r_idx, row in enumerate(rows, start=4):
+                for c_idx, val in enumerate(row, start=1):
+                    ws.cell(row=r_idx, column=c_idx, value=val)
+            # column widths
+            for c in range(1, len(headers) + 1):
+                ws.column_dimensions[chr(64 + c)].width = 22
+
+        # --- Sheet 1: Sources & Uses ---
+        ws1 = wb.active
+        write_sheet(
+            ws1,
+            "Sources & Uses",
+            "Capital stack. Leave rows that don't apply blank. Sum of Sources must equal Uses.",
+            ["Source / Use", "Amount (USD)", "Tranche / Window", "Notes"],
+            [
+                ["SOURCES", "", "", ""],
+                ["DFI tranche 1", "", "", ""],
+                ["DFI tranche 2", "", "", ""],
+                ["Sponsor equity", "", "", ""],
+                ["Grant funding", "", "", ""],
+                ["Commercial debt", "", "", ""],
+                ["Other concessional", "", "", ""],
+                ["", "", "", ""],
+                ["USES", "", "", ""],
+                ["Land acquisition", "", "", ""],
+                ["Construction / CapEx", "", "", ""],
+                ["Equipment", "", "", ""],
+                ["Working capital", "", "", ""],
+                ["Contingency", "", "", ""],
+            ],
+        )
+
+        # --- Sheet 2: 5Y P&L ---
+        ws2 = wb.create_sheet()
+        write_sheet(
+            ws2,
+            "5Y P&L",
+            "5-year projection. Enter values in USD, in nominal terms. Year 1 = first full operating year.",
+            ["Line Item", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5"],
+            [
+                ["Revenue", "", "", "", "", ""],
+                ["COGS", "", "", "", "", ""],
+                ["Gross Profit", "", "", "", "", ""],
+                ["Operating Expenses", "", "", "", "", ""],
+                ["EBITDA", "", "", "", "", ""],
+                ["Depreciation", "", "", "", "", ""],
+                ["EBIT", "", "", "", "", ""],
+                ["Interest expense", "", "", "", "", ""],
+                ["Taxes", "", "", "", "", ""],
+                ["Net Income", "", "", "", "", ""],
+            ],
+        )
+
+        # --- Sheet 3: Capex Schedule ---
+        ws3 = wb.create_sheet()
+        write_sheet(
+            ws3,
+            "Capex Schedule",
+            "Construction-phase capital expenditure by quarter. Add rows as needed for line items.",
+            ["Capex Line Item", "Q1", "Q2", "Q3", "Q4", "Total"],
+            [
+                ["Site preparation", "", "", "", "", ""],
+                ["Civil works", "", "", "", "", ""],
+                ["Equipment procurement", "", "", "", "", ""],
+                ["Installation & commissioning", "", "", "", "", ""],
+                ["Owner's costs", "", "", "", "", ""],
+                ["Contingency", "", "", "", "", ""],
+            ],
+        )
+
+        # --- Sheet 4: Sensitivity ---
+        ws4 = wb.create_sheet()
+        write_sheet(
+            ws4,
+            "Sensitivity",
+            "IRR / NPV at three commodity-price scenarios. Document each scenario's assumption.",
+            ["Scenario", "Commodity price assumption", "IRR (%)", "NPV (USD)"],
+            [
+                ["Low", "", "", ""],
+                ["Base", "", "", ""],
+                ["High", "", "", ""],
+            ],
+        )
+
+        # --- Sheet 5: Currency Exposure ---
+        ws5 = wb.create_sheet()
+        write_sheet(
+            ws5,
+            "Currency Exposure",
+            "Share of revenue and costs denominated in USD vs local currency.",
+            ["Category", "USD %", "Local currency %", "Notes"],
+            [
+                ["Revenue", "", "", ""],
+                ["Operating costs", "", "", ""],
+                ["Capex", "", "", ""],
+                ["Debt service", "", "", ""],
+            ],
+        )
+
+        # --- Sheet 6: ESIA Costs ---
+        ws6 = wb.create_sheet()
+        write_sheet(
+            ws6,
+            "ESIA Costs",
+            "Environmental & social compliance budget. Required for DFI eligibility.",
+            ["ESIA Line Item", "Amount (USD)", "Phase", "Notes"],
+            [
+                ["Environmental impact assessment", "", "Pre-construction", ""],
+                ["Social impact assessment", "", "Pre-construction", ""],
+                ["Community consultation", "", "Pre-construction", ""],
+                ["Resettlement / compensation", "", "Pre-construction", ""],
+                ["Monitoring & reporting", "", "Operation", ""],
+                ["Closure / rehabilitation", "", "End-of-life", ""],
+            ],
+        )
+
+        # --- Sheet 7: Social Impact ---
+        ws7 = wb.create_sheet()
+        write_sheet(
+            ws7,
+            "Social Impact",
+            "Baseline social-impact metrics. These feed WAIIS scoring directly.",
+            ["Metric", "Target value", "Methodology / notes"],
+            [
+                ["Jobs created — construction phase", "", ""],
+                ["Jobs created — O&M phase", "", ""],
+                ["Smallholders reached", "", ""],
+                ["Women employment %", "", ""],
+                ["Youth employment %", "", ""],
+                ["Electricity connections enabled", "", ""],
+                ["Digital connections enabled", "", ""],
+            ],
+        )
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        return StreamingResponse(
+            buf,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": 'attachment; filename="waiis_financial_model_template.xlsx"',
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Template generation failed: {exc}")
+
+
 @router.get("/{project_id}", response_model=ProjectPipelineRead)
 async def get_project_details(
     project_id: uuid.UUID,
@@ -322,6 +528,11 @@ async def get_project_details(
     p = result.scalars().first()
 
     if not p:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Hide INCUBATION projects from non-privileged roles — return 404 (not 403)
+    # to avoid leaking the existence of incubation projects via enumeration.
+    if p.status == ProjectStatus.INCUBATION and current_user.role not in INCUBATION_VISIBLE_ROLES:
         raise HTTPException(status_code=404, detail="Project not found")
 
     return _project_to_read(p, current_user)
@@ -1110,4 +1321,262 @@ async def get_financing_memo(
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
+
+
+@router.get("/{project_id}/incubation-checklist", response_model=IncubationChecklistRead)
+async def get_incubation_checklist(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the six-item Incubation document checklist for a project.
+
+    Each slot ticks if a Document exists whose document_type matches the
+    canonical code (e.g. 'FEASIBILITY') or any of its legacy aliases. Most
+    recently uploaded match wins when there are several.
+
+    Access is restricted to roles in INCUBATION_VISIBLE_ROLES.
+    """
+    if current_user.role not in INCUBATION_VISIBLE_ROLES:
+        raise HTTPException(status_code=403, detail="Not authorised for incubation data")
+
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.status != ProjectStatus.INCUBATION:
+        raise HTTPException(
+            status_code=400,
+            detail="Incubation checklist is only available for projects in INCUBATION status",
+        )
+
+    docs_result = await db.execute(
+        select(Document)
+        .where(Document.project_id == project_id)
+        .order_by(desc(Document.created_at))
+    )
+    docs = docs_result.scalars().all()
+
+    # Bucket the most-recent document per canonical code.
+    by_code: dict[str, Document] = {}
+    for doc in docs:
+        code = canonical_code_for(doc.document_type)
+        if code and code not in by_code:
+            by_code[code] = doc
+
+    items: list[IncubationChecklistItem] = []
+    for code, label in INCUBATION_CHECKLIST_ITEMS:
+        matched = by_code.get(code)
+        items.append(IncubationChecklistItem(
+            code=code,
+            label=label,
+            completed=matched is not None,
+            document_id=matched.id if matched else None,
+        ))
+
+    completed = sum(1 for i in items if i.completed)
+    return IncubationChecklistRead(
+        items=items,
+        completed_count=completed,
+        total_count=len(items),
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# R8 — Geospatial site analysis (STUB; deterministic synthetic data)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/{project_id}/analyse-site", response_model=ProjectGeospatialRead)
+async def analyse_site(
+    project_id: uuid.UUID,
+    force: bool = False,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_facilitator),
+):
+    """Run geospatial analysis on a project's `site_lat`/`site_lon`.
+
+    A previously-analysed row within 30 days for the same coords is reused
+    unless `?force=true` is passed. Coords change → cache auto-invalidates."""
+    svc = get_geospatial_service(db)
+    result = await svc.analyse_project(project_id, force=force)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result.get("message") or result["error"])
+    return result
+
+
+@router.get("/{project_id}/site-analysis", response_model=ProjectGeospatialRead)
+async def get_site_analysis(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the most-recent cached geo analysis for a project. 404 if never
+    analysed."""
+    result = await db.execute(
+        select(ProjectGeospatialData).where(ProjectGeospatialData.project_id == project_id)
+    )
+    row = result.scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="No site analysis yet for this project")
+    return row
+
+
+@router.post("/{project_id}/scout-coordinates")
+async def scout_coordinates(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_facilitator),
+):
+    """Ask the LLM to infer plausible GPS coordinates for a project's site
+    from its textual metadata. Returns a suggestion the facilitator must
+    confirm — the coordinates are NOT persisted by this endpoint.
+
+    Response shape:
+        {lat, lon, place_name, confidence, reasoning, project_id}"""
+    svc = get_coordinate_scout_service(db)
+    result = await svc.scout(project_id)
+    if "error" in result:
+        msg = result.get("message") or result["error"]
+        raise HTTPException(status_code=400, detail=msg)
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# R9 — Post-commitment impact monitoring
+# ─────────────────────────────────────────────────────────────────────────────
+
+_COMMITTED_STATUSES = {ProjectStatus.COMMITTED, ProjectStatus.IMPLEMENTED}
+
+
+def _parse_first_int(text: Optional[str]) -> Optional[int]:
+    """Pull the first integer out of free-form text (e.g. '2500 jobs over 3 years' → 2500)."""
+    if not text:
+        return None
+    m = re.search(r"\d+", str(text))
+    return int(m.group(0)) if m else None
+
+
+def _parse_int_sum(text: Optional[str]) -> int:
+    """Sum every integer found in text. Mirrors the pattern in _compute_waiis_sub_scores."""
+    if not text:
+        return 0
+    nums = re.findall(r"\d+", str(text))
+    return sum(int(n) for n in nums) if nums else 0
+
+
+def _parse_first_float(text: Optional[str]) -> Optional[float]:
+    if not text:
+        return None
+    m = re.search(r"\d+(?:\.\d+)?", str(text))
+    return float(m.group(0)) if m else None
+
+
+@router.post("/{project_id}/impact-log", response_model=ImpactLogEntryRead, status_code=201)
+async def create_impact_log_entry(
+    project_id: uuid.UUID,
+    payload: ImpactLogEntryCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Log a quarterly impact data point for a COMMITTED or IMPLEMENTED project."""
+    proj_res = await db.execute(select(Project).where(Project.id == project_id))
+    project = proj_res.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.status not in _COMMITTED_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Project must be in COMMITTED or IMPLEMENTED status to log impact data; "
+                f"current status: {project.status.value}"
+            ),
+        )
+
+    entry = ImpactLogEntry(
+        project_id=project_id,
+        period_label=payload.period_label,
+        period_start=payload.period_start,
+        period_end=payload.period_end,
+        jobs_created=payload.jobs_created,
+        ghg_avoided_tco2=payload.ghg_avoided_tco2,
+        smallholders_reached=payload.smallholders_reached,
+        women_jobs_actual=payload.women_jobs_actual,
+        youth_jobs_actual=payload.youth_jobs_actual,
+        investment_deployed_usd=payload.investment_deployed_usd,
+        notes=payload.notes,
+        logged_by_id=current_user.id,
+    )
+    db.add(entry)
+    await db.commit()
+    await db.refresh(entry)
+    return entry
+
+
+@router.get("/{project_id}/impact-log", response_model=List[ImpactLogEntryRead])
+async def list_impact_log_entries(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """All impact log entries for a project, most recent period first."""
+    result = await db.execute(
+        select(ImpactLogEntry)
+        .where(ImpactLogEntry.project_id == project_id)
+        .order_by(ImpactLogEntry.period_start.desc())
+    )
+    return result.scalars().all()
+
+
+@router.get("/{project_id}/impact-log/summary", response_model=ImpactSummaryRead)
+async def get_impact_summary(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Cumulative actuals plus target values parsed from the project's text fields."""
+    proj_res = await db.execute(select(Project).where(Project.id == project_id))
+    project = proj_res.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    entries_res = await db.execute(
+        select(ImpactLogEntry).where(ImpactLogEntry.project_id == project_id)
+    )
+    entries = entries_res.scalars().all()
+
+    return ImpactSummaryRead(
+        project_id=project_id,
+        target_jobs=_parse_int_sum(f"{project.jobs_construction or ''} {project.jobs_om or ''}") or None,
+        target_ghg_tco2=_parse_first_float(project.ghg_avoided_target),
+        target_smallholders=_parse_first_int(project.smallholder_farmers_reached),
+        target_investment_usd=project.investment_size,
+        actual_jobs=sum(e.jobs_created or 0 for e in entries),
+        actual_ghg_tco2=sum(e.ghg_avoided_tco2 or 0.0 for e in entries),
+        actual_smallholders=sum(e.smallholders_reached or 0 for e in entries),
+        actual_women_jobs=sum(e.women_jobs_actual or 0 for e in entries),
+        actual_youth_jobs=sum(e.youth_jobs_actual or 0 for e in entries),
+        actual_investment_deployed=sum((e.investment_deployed_usd or Decimal("0") for e in entries), Decimal("0")),
+        entry_count=len(entries),
+    )
+
+
+@router.delete("/{project_id}/impact-log/{entry_id}")
+async def delete_impact_log_entry(
+    project_id: uuid.UUID,
+    entry_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    result = await db.execute(
+        select(ImpactLogEntry).where(
+            ImpactLogEntry.id == entry_id,
+            ImpactLogEntry.project_id == project_id,
+        )
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    await db.delete(entry)
+    await db.commit()
+    return {"deleted": str(entry_id)}
 

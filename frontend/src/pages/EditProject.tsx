@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import SiteLocationPicker from '../components/geospatial/SiteLocationPicker';
 import { useNavigate, useParams } from 'react-router-dom';
 import { pipelineService } from '../services/pipelineService';
+
+// R1 — Value chain controlled vocabulary. Order is intentional: upstream → downstream,
+// then the three cross-cutting stages (digital, finance, policy) that span multiple
+// segments. Keep in sync with backend VALID_VALUE_CHAIN_STAGES.
+const VALUE_CHAIN_STAGES = [
+    { code: 'INPUTS', label: 'Inputs & Seeds' },
+    { code: 'PRODUCTION', label: 'Primary Production' },
+    { code: 'PROCESSING', label: 'Post-Harvest & Processing' },
+    { code: 'LOGISTICS', label: 'Logistics & Cold Chain' },
+    { code: 'RETAIL', label: 'Retail / Markets' },
+    { code: 'DIGITAL_PLATFORM', label: 'Digital Agri-Platform' },
+    { code: 'FINANCIAL_SERVICES', label: 'Financial Services' },
+    { code: 'POLICY_ENABLING', label: 'Policy & Enabling Env.' },
+];
 
 const EditProject: React.FC = () => {
     const { projectId } = useParams<{ projectId: string }>();
@@ -20,12 +35,13 @@ const EditProject: React.FC = () => {
         status: '',
         is_flagship: false,
         value_chain_stages: [] as string[],
-        women_employment_pct: undefined as number | undefined,
-        youth_employment_pct: undefined as number | undefined,
         gender_intentional: undefined as boolean | undefined,
         gender_justification: undefined as string | undefined,
         youth_focused: undefined as boolean | undefined,
         youth_justification: undefined as string | undefined,
+        site_lat: null as number | null,
+        site_lon: null as number | null,
+        site_location_name: '' as string,
     });
 
     const pillars = [
@@ -57,12 +73,13 @@ const EditProject: React.FC = () => {
                     status: project.status,
                     is_flagship: project.is_flagship || false,
                     value_chain_stages: project.value_chain_stages ?? [],
-                    women_employment_pct: project.women_employment_pct ?? undefined,
-                    youth_employment_pct: project.youth_employment_pct ?? undefined,
                     gender_intentional: project.gender_intentional ?? undefined,
                     gender_justification: project.gender_justification ?? undefined,
                     youth_focused: project.youth_focused ?? undefined,
                     youth_justification: project.youth_justification ?? undefined,
+                    site_lat: project.site_lat ?? null,
+                    site_lon: project.site_lon ?? null,
+                    site_location_name: project.site_location_name ?? '',
                 });
 
                 // Improve investment formatting
@@ -115,12 +132,13 @@ const EditProject: React.FC = () => {
                     leadCompany: formData.leadCompany
                 },
                 value_chain_stages: formData.value_chain_stages.length > 0 ? formData.value_chain_stages : undefined,
-                women_employment_pct: formData.women_employment_pct,
-                youth_employment_pct: formData.youth_employment_pct,
                 gender_intentional: formData.gender_intentional,
                 gender_justification: formData.gender_justification,
                 youth_focused: formData.youth_focused,
                 youth_justification: formData.youth_justification,
+                site_lat: formData.site_lat ?? undefined,
+                site_lon: formData.site_lon ?? undefined,
+                site_location_name: formData.site_location_name || undefined,
             };
 
             await pipelineService.updateProject(projectId, updateData);
@@ -217,23 +235,43 @@ const EditProject: React.FC = () => {
                     />
                 </div>
 
+                {/* Site location — R8 */}
+                <div>
+                    <label className="block text-sm font-medium mb-2">
+                        Site location <span className="text-xs text-slate-500 font-normal">(used for satellite analysis)</span>
+                    </label>
+                    <SiteLocationPicker
+                        value={{
+                            lat: formData.site_lat,
+                            lon: formData.site_lon,
+                            name: formData.site_location_name,
+                        }}
+                        onChange={(next) => setFormData(prev => ({
+                            ...prev,
+                            site_lat: next.lat,
+                            site_lon: next.lon,
+                            site_location_name: next.name,
+                        }))}
+                    />
+                </div>
+
                 {/* Value Chain Stages */}
                 <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
                         Value Chain Stage
                     </label>
                     <div className="flex gap-2 flex-wrap">
-                        {(['INPUTS', 'PRODUCTION', 'PROCESSING', 'LOGISTICS', 'RETAIL'] as const).map(stage => {
-                            const selected = formData.value_chain_stages.includes(stage);
+                        {VALUE_CHAIN_STAGES.map(({ code, label }) => {
+                            const selected = formData.value_chain_stages.includes(code);
                             return (
                                 <button
-                                    key={stage}
+                                    key={code}
                                     type="button"
                                     onClick={() => setFormData(prev => ({
                                         ...prev,
                                         value_chain_stages: selected
-                                            ? prev.value_chain_stages.filter(s => s !== stage)
-                                            : [...prev.value_chain_stages, stage],
+                                            ? prev.value_chain_stages.filter(s => s !== code)
+                                            : [...prev.value_chain_stages, code],
                                     }))}
                                     className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                                         selected
@@ -241,56 +279,12 @@ const EditProject: React.FC = () => {
                                             : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600'
                                     }`}
                                 >
-                                    {stage.charAt(0) + stage.slice(1).toLowerCase()}
+                                    {label}
                                 </button>
                             );
                         })}
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Select all stages this project operates in.</p>
-                </div>
-
-                {/* Gender & Youth Employment */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-                            Women Employed (%) <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.1"
-                            value={formData.women_employment_pct ?? ''}
-                            onChange={e => setFormData(prev => ({ ...prev, women_employment_pct: e.target.value ? parseFloat(e.target.value) : undefined }))}
-                            placeholder="e.g. 35"
-                            className="w-full px-4 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 text-sm"
-                        />
-                        {formData.women_employment_pct !== undefined && formData.women_employment_pct < 30 && (
-                            <p className="text-xs text-amber-600 mt-1">
-                                Below 30% threshold — project cannot advance to Summit Ready until this is met.
-                            </p>
-                        )}
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-                            Youth Employed (%) <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.1"
-                            value={formData.youth_employment_pct ?? ''}
-                            onChange={e => setFormData(prev => ({ ...prev, youth_employment_pct: e.target.value ? parseFloat(e.target.value) : undefined }))}
-                            placeholder="e.g. 28"
-                            className="w-full px-4 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 text-sm"
-                        />
-                        {formData.youth_employment_pct !== undefined && formData.youth_employment_pct < 25 && (
-                            <p className="text-xs text-amber-600 mt-1">
-                                Below 25% threshold — project cannot advance to Summit Ready until this is met.
-                            </p>
-                        )}
-                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Select all stages this project operates in. At least one is required.</p>
                 </div>
 
                 {/* Gender-intentional design toggle */}

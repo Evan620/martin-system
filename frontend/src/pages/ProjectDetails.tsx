@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { pipelineService } from '../services/pipelineService';
 import { documentService, Document } from '../services/documentService';
-import { Project, InvestorMatch, InvestorMatchStatus, ProjectScoreDetail, ProjectStatus, BuyerMatch, BuyerMatchStatus, DFIMatch, DFIMatchStatus, FinancingMemo } from '../types/pipeline';
+import { Project, InvestorMatch, InvestorMatchStatus, ProjectScoreDetail, ProjectStatus, BuyerMatch, BuyerMatchStatus, DFIMatch, DFIMatchStatus, FinancingMemo, IncubationChecklist } from '../types/pipeline';
 import { useAppSelector } from '../hooks/useRedux';
 import { ProjectLifecycleTimeline } from '../components/pipeline/ProjectLifecycleTimeline';
 import { ProjectHistoryTimeline } from '../components/pipeline/ProjectHistoryTimeline';
@@ -10,12 +10,75 @@ import { UserRole } from '../types/auth';
 import api from '../services/api';
 import ReadinessTab from '../components/pipeline/ReadinessTab';
 
+// Format a USD value as compact millions/thousands. Backend now stores all ticket
+// sizes as raw USD (e.g. 25_000_000 → "$25M", 250_000 → "$250K").
+const formatUSD = (val?: number | string | null): string => {
+  if (val == null || val === '') return '—';
+  const n = typeof val === 'string' ? parseFloat(val) : val;
+  if (!isFinite(n)) return '—';
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return `$${n}`;
+};
+
+const formatTicketRange = (
+  min?: number | string | null,
+  max?: number | string | null,
+): string => {
+  if (min == null && max == null) return 'Ticket range N/A';
+  if (min != null && max != null) return `${formatUSD(min)} – ${formatUSD(max)}`;
+  if (min != null) return `${formatUSD(min)}+`;
+  return `up to ${formatUSD(max)}`;
+};
+
+// Tier-group a list of matches into Strong (≥70) / Moderate (40-69) / Weak (<40).
+type Tier = 'strong' | 'moderate' | 'weak';
+const tierForScore = (score: number): Tier => {
+  if (score >= 70) return 'strong';
+  if (score >= 40) return 'moderate';
+  return 'weak';
+};
+const TIER_META: Record<Tier, { label: string; color: string; defaultOpen: boolean }> = {
+  strong:   { label: 'Strong fit (≥70)',    color: 'var(--sage)',  defaultOpen: true },
+  moderate: { label: 'Moderate fit (40–69)', color: 'var(--navy)',  defaultOpen: true },
+  weak:     { label: 'Weak fit (<40)',       color: 'var(--ink-400)', defaultOpen: false },
+};
+
 const ProjectDetails: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'documents' | 'history' | 'matches' | 'readiness'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'documents' | 'history' | 'matches' | 'readiness' | 'impact'>('overview');
+  // R8 — geospatial site analysis state (loaded on Overview tab)
+  const [siteAnalysis, setSiteAnalysis] = useState<import('../types/pipeline').ProjectGeospatial | null>(null);
+  const [analysingSite, setAnalysingSite] = useState(false);
+  // Polish 2 — all DFI windows in the catalogue, used to look up by investor name
+  // for the "Windows offered" expansion under each investor card.
+  const [allDfiWindows, setAllDfiWindows] = useState<DFIWindow[]>([]);
+  const [expandedInvestors, setExpandedInvestors] = useState<Set<string>>(new Set());
+  // R9 — impact monitoring state (loaded on Impact tab)
+  const [impactEntries, setImpactEntries] = useState<import('../types/pipeline').ImpactLogEntry[]>([]);
+  const [impactSummary, setImpactSummary] = useState<import('../types/pipeline').ImpactSummary | null>(null);
+  const [showImpactModal, setShowImpactModal] = useState(false);
   const [project, setProject] = useState<Project | null>(null);
   const [matches, setMatches] = useState<InvestorMatch[]>([]);
+  // Polish 4 — tier-grouping. Keys look like "investor-strong", "buyer-weak", etc.
+  // When a key is in the set, the user has TOGGLED that tier (closed if default-open, opened if default-closed).
+  const [expandedTiers, setExpandedTiers] = useState<Set<string>>(new Set());
+  const toggleTier = (tierKey: string, defaultOpen: boolean) => {
+    setExpandedTiers((prev) => {
+      const next = new Set(prev);
+      // We store the "toggled" state; the render uses defaultOpen XOR toggled.
+      if (defaultOpen) {
+        // Default open → toggling adds "closed" marker
+        const closedKey = `${tierKey}-closed`;
+        if (next.has(closedKey)) next.delete(closedKey); else next.add(closedKey);
+      } else {
+        // Default closed → toggling adds the key itself
+        if (next.has(tierKey)) next.delete(tierKey); else next.add(tierKey);
+      }
+      return next;
+    });
+  };
   const [scoreDetails, setScoreDetails] = useState<ProjectScoreDetail[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +100,7 @@ const ProjectDetails: React.FC = () => {
   const [generatingMemo, setGeneratingMemo] = useState(false);
   const [financingMemo, setFinancingMemo] = useState<FinancingMemo | null>(null);
   const [showMemoModal, setShowMemoModal] = useState(false);
+  const [incubationChecklist, setIncubationChecklist] = useState<IncubationChecklist | null>(null);
 
   // RBAC - Must be at top level before any returns
   const { user } = useAppSelector((state) => state.auth);
@@ -61,6 +125,19 @@ const ProjectDetails: React.FC = () => {
         fetchDFIMatches(projectId);
         fetchScoreDetails(projectId);
         fetchDocuments(projectId);
+        // R5 — only meaningful for INCUBATION projects, but endpoint enforces it.
+        if (data?.status === ProjectStatus.INCUBATION) {
+          fetchIncubationChecklist(projectId);
+        }
+        // R8 — cached site analysis (may not exist yet; returns null if so)
+        pipelineService.getSiteAnalysis(projectId).then(setSiteAnalysis).catch(() => {});
+        // Polish 2 — load DFI windows catalogue so investor cards can show offered windows
+        pipelineService.listDFIWindows().then(setAllDfiWindows).catch(() => {});
+        // R9 — impact monitoring data for COMMITTED / IMPLEMENTED projects
+        if (data?.status === ProjectStatus.COMMITTED || data?.status === ProjectStatus.IMPLEMENTED) {
+          pipelineService.listImpactLogEntries(projectId).then(setImpactEntries).catch(() => {});
+          pipelineService.getImpactSummary(projectId).then(setImpactSummary).catch(() => {});
+        }
       } catch (error) {
         console.error("Failed to fetch project", error);
       } finally {
@@ -113,6 +190,37 @@ const ProjectDetails: React.FC = () => {
     }
   };
 
+  const fetchIncubationChecklist = async (id: string) => {
+    try {
+      const cl = await pipelineService.getIncubationChecklist(id);
+      setIncubationChecklist(cl);
+    } catch (e) {
+      console.error("Failed to load incubation checklist", e);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const blob = await pipelineService.downloadFinancialModelTemplate();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'waiis_financial_model_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('template download failed', e);
+      alert('Failed to download template.');
+    }
+  };
+
+  const handleOpenChecklistUpload = (code: string) => {
+    setDocumentType(code);
+    setShowUploadModal(true);
+  };
+
   const handleUploadDocument = async () => {
     if (!selectedFile || !projectId) return;
 
@@ -132,6 +240,9 @@ const ProjectDetails: React.FC = () => {
       // Refresh documents list and scores
       await fetchDocuments(projectId);
       await fetchScoreDetails(projectId);
+      if (project?.status === ProjectStatus.INCUBATION) {
+        await fetchIncubationChecklist(projectId);
+      }
 
       // Close modal and reset
       setShowUploadModal(false);
@@ -530,14 +641,76 @@ const ProjectDetails: React.FC = () => {
         ))}
       </div>
 
+      {/* R5 — Incubation document checklist strip. Uses translucent rgba tints
+          so it reads correctly against both light AND dark theme surfaces, with
+          a purple left-border accent to mark its incubation context. */}
+      {project?.status === ProjectStatus.INCUBATION && incubationChecklist && (
+        <div style={{
+          marginBottom: 16, padding: '16px 20px',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderLeft: '3px solid #7c3aed',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#a78bfa', fontWeight: 600 }}>⚗ Incubation checklist</div>
+              <div style={{ fontSize: 13, color: 'var(--ink-700)', marginTop: 2 }}>
+                {incubationChecklist.completed_count} of {incubationChecklist.total_count} documents attached
+              </div>
+            </div>
+            <button
+              onClick={handleDownloadTemplate}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: 'transparent', border: '1px solid rgba(124, 58, 237, 0.6)', color: '#a78bfa',
+                padding: '6px 10px', fontSize: 12, fontWeight: 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span>
+              Financial model template
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+            {incubationChecklist.items.map(item => (
+              <button
+                key={item.code}
+                onClick={() => canEdit && !item.completed && handleOpenChecklistUpload(item.code)}
+                disabled={!canEdit || item.completed}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 12px', fontSize: 12, fontFamily: 'inherit',
+                  textAlign: 'left',
+                  background: item.completed ? 'rgba(16, 185, 129, 0.08)' : 'transparent',
+                  border: `1px solid ${item.completed ? 'rgba(16, 185, 129, 0.5)' : 'var(--border)'}`,
+                  color: item.completed ? '#34d399' : 'var(--ink-700)',
+                  cursor: canEdit && !item.completed ? 'pointer' : 'default',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16, color: item.completed ? '#34d399' : 'var(--ink-400)' }}>
+                  {item.completed ? 'check_circle' : 'radio_button_unchecked'}
+                </span>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {item.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
-      <div style={{ position: 'sticky', top: 56, background: 'var(--bg)', zIndex: 40, paddingTop: 8 }}>
+      <div style={{ paddingTop: 8 }}>
         <div style={{ display: 'flex', gap: 28, borderBottom: '1px solid var(--border)', marginBottom: 28 }}>
           {[
             { key: 'overview', label: 'Overview' },
             { key: 'matches', label: 'Investor matches' },
             { key: 'financials', label: 'Financials' },
             { key: 'documents', label: 'Documents' },
+            // R9 — Impact Monitoring tab only for COMMITTED / IMPLEMENTED projects
+            ...((project?.status === ProjectStatus.COMMITTED || project?.status === ProjectStatus.IMPLEMENTED)
+              ? [{ key: 'impact', label: '📊 Impact monitoring' }]
+              : []),
             { key: 'history', label: 'History' },
             ...(project?.status === ProjectStatus.INCUBATION
               ? [{ key: 'readiness', label: '⚗ Readiness' }]
@@ -577,6 +750,145 @@ const ProjectDetails: React.FC = () => {
           {/* Overview Tab Content */}
           {activeTab === 'overview' && (
             <>
+              {/* R8 — Site Analysis panel (only if project has site_lat/lon set) */}
+              {(project.site_lat != null && project.site_lon != null) && (
+                <section>
+                  <div style={sectionHeadStyle}>
+                    <h2 style={sectionTitleStyle}>Site analysis</h2>
+                    <button
+                      onClick={async () => {
+                        if (!projectId) return;
+                        setAnalysingSite(true);
+                        try {
+                          const res = await pipelineService.analyseSite(projectId);
+                          setSiteAnalysis(res);
+                        } catch (e) {
+                          console.error('analyse-site failed', e);
+                        } finally {
+                          setAnalysingSite(false);
+                        }
+                      }}
+                      disabled={analysingSite}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        background: 'transparent', border: '1px solid var(--border)',
+                        color: 'var(--ink-700)', padding: '6px 12px', fontSize: 12,
+                        cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>satellite_alt</span>
+                      {analysingSite ? 'Analysing…' : (siteAnalysis ? 'Re-analyse' : 'Run analysis')}
+                    </button>
+                  </div>
+                  <div style={blockStyle}>
+                    {!siteAnalysis ? (
+                      <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-500)' }}>
+                        Project has coordinates ({project.site_lat?.toFixed(3)}, {project.site_lon?.toFixed(3)}). Run analysis to generate NDVI, water-proximity and deforestation-risk signals.
+                      </p>
+                    ) : (
+                      <>
+                        {siteAnalysis.source === 'copernicus' && (
+                          <div style={{
+                            background: 'rgba(34, 197, 94, 0.12)',
+                            borderLeft: '3px solid #16a34a',
+                            padding: '8px 12px',
+                            marginBottom: 12,
+                            borderRadius: 4,
+                            fontSize: 13,
+                            color: 'var(--text-primary)',
+                          }}>
+                            ✓ Live Sentinel-2 — analysed {siteAnalysis.analysed_at ? new Date(siteAnalysis.analysed_at).toLocaleDateString() : '—'}
+                          </div>
+                        )}
+                        {siteAnalysis.source === 'fixture' && (
+                          <div style={{
+                            background: 'rgba(245, 158, 11, 0.12)',
+                            borderLeft: '3px solid #f59e0b',
+                            padding: '8px 12px',
+                            marginBottom: 12,
+                            borderRadius: 4,
+                            fontSize: 13,
+                            color: 'var(--text-primary)',
+                          }}>
+                            Reference fixture (Copernicus snapshot) — credentials not configured
+                          </div>
+                        )}
+                        {siteAnalysis.source === 'stub' && (
+                          <div style={{
+                            background: 'rgba(245, 158, 11, 0.12)',
+                            borderLeft: '3px solid #f59e0b',
+                            padding: '8px 12px',
+                            marginBottom: 12,
+                            borderRadius: 4,
+                            fontSize: 13,
+                            color: 'var(--text-primary)',
+                          }}>
+                            ⚠ Synthetic placeholder — coordinates outside fixture set
+                          </div>
+                        )}
+                        <div style={{
+                          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12,
+                        }}>
+                          <div>
+                            <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)' }}>NDVI</div>
+                            <div style={{ fontSize: 22, fontFamily: "'Source Serif 4', serif", color: 'var(--ink-900)', marginTop: 4 }}>
+                              {siteAnalysis.ndvi.toFixed(3)}
+                            </div>
+                            <div style={{
+                              marginTop: 6, height: 4,
+                              background: `linear-gradient(to right, #b91c1c 0%, #f59e0b 50%, #10b981 100%)`,
+                              position: 'relative',
+                            }}>
+                              <div style={{
+                                position: 'absolute', top: -3, left: `${Math.min(100, siteAnalysis.ndvi * 100)}%`,
+                                transform: 'translateX(-50%)', width: 2, height: 10, background: 'var(--ink-900)',
+                              }} />
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)' }}>Water proximity</div>
+                            <div style={{ fontSize: 22, fontFamily: "'Source Serif 4', serif", color: 'var(--ink-900)', marginTop: 4 }}>
+                              {siteAnalysis.water_proximity_km.toFixed(1)} <span style={{ fontSize: 13, color: 'var(--ink-500)' }}>km</span>
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)' }}>Smallholder land</div>
+                            <div style={{ fontSize: 22, fontFamily: "'Source Serif 4', serif", color: 'var(--ink-900)', marginTop: 4 }}>
+                              {siteAnalysis.land_use_smallholder_pct.toFixed(0)}%
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)' }}>EUDR risk</div>
+                            <div style={{ marginTop: 4 }}>
+                              <span style={{
+                                display: 'inline-block', padding: '3px 8px', fontSize: 11, fontWeight: 600,
+                                background: siteAnalysis.deforestation_risk === 'high' ? 'rgba(239,68,68,0.18)'
+                                  : siteAnalysis.deforestation_risk === 'medium' ? 'rgba(245,158,11,0.18)'
+                                  : 'rgba(16,185,129,0.18)',
+                                color: siteAnalysis.deforestation_risk === 'high' ? '#f87171'
+                                  : siteAnalysis.deforestation_risk === 'medium' ? '#fbbf24'
+                                  : '#34d399',
+                                textTransform: 'uppercase', letterSpacing: '0.06em',
+                              }}>{siteAnalysis.deforestation_risk}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{
+                          marginTop: 14, padding: '8px 12px', background: 'rgba(124,58,237,0.06)',
+                          border: '1px solid var(--border)', fontSize: 12, color: 'var(--ink-700)',
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        }}>
+                          <span>{siteAnalysis.land_use_description}</span>
+                          <span style={{ fontSize: 11, color: '#a78bfa', fontWeight: 600 }}>
+                            +{siteAnalysis.geo_score_boost} pts → Readiness
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </section>
+              )}
+
               {/* Executive Summary */}
               <section>
                 <div style={sectionHeadStyle}>
@@ -770,29 +1082,79 @@ const ProjectDetails: React.FC = () => {
                       <div style={{ padding: '48px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-400)' }}>
                         No investors matched yet. Run the matching engine to find potential investors.
                       </div>
-                    ) : matches.map((match, i) => {
+                    ) : (() => {
                       const MATCH_STATUS_COLOR: Record<string, string> = {
                         INTERESTED: 'var(--sage)', CONTACTED: 'var(--navy)', DETECTED: 'var(--ink-500)',
                         COMMITTED: 'var(--accent)', DECLINED: 'var(--terra)',
                       };
-                      return (
-                        <div key={match.match_id} style={{
+                      // Group by tier so 20 rows don't dump into a flat list.
+                      const grouped: Record<Tier, InvestorMatch[]> = { strong: [], moderate: [], weak: [] };
+                      for (const m of matches) grouped[tierForScore(m.score)].push(m);
+
+                      const renderCard = (match: InvestorMatch, last: boolean) => {
+                        // Polish 2 — Match windows to this investor by name. The FK
+                        // is one-way (window → investor), so we filter the catalogue
+                        // here. String match against institution is forgiving across
+                        // "African Development Bank (AfDB)" / "AfDB" variations.
+                        const investorName = match.investor?.name || '';
+                        const investorWindows = investorName
+                          ? allDfiWindows.filter(w =>
+                              w.institution && (
+                                w.institution.toLowerCase().includes(investorName.toLowerCase()) ||
+                                investorName.toLowerCase().includes(w.institution.toLowerCase())
+                              )
+                            )
+                          : [];
+                        const isExpanded = expandedInvestors.has(match.match_id);
+                        return (
+                        <React.Fragment key={match.match_id}>
+                        <div style={{
                           display: 'grid', gridTemplateColumns: '1fr 80px 160px',
                           gap: 16, alignItems: 'center',
                           padding: '16px 24px',
-                          borderBottom: i < matches.length - 1 ? '1px solid var(--border)' : 'none',
+                          borderBottom: (last && !isExpanded) ? 'none' : '1px solid var(--border)',
                         }}>
                           <div>
-                            <div style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500, marginBottom: 4 }}>
-                              {match.investor?.name || 'Unknown Investor'}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                              <span style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500 }}>
+                                {match.investor?.name || 'Unknown Investor'}
+                              </span>
+                              {investorWindows.length > 0 && (
+                                <button
+                                  onClick={() => {
+                                    setExpandedInvestors(prev => {
+                                      const next = new Set(prev);
+                                      next.has(match.match_id) ? next.delete(match.match_id) : next.add(match.match_id);
+                                      return next;
+                                    });
+                                  }}
+                                  style={{
+                                    background: 'transparent', border: 'none', cursor: 'pointer',
+                                    padding: '1px 6px', fontSize: 10, color: '#a78bfa',
+                                    fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 3,
+                                    borderRadius: 3, border: '1px solid rgba(124,58,237,0.4)',
+                                  }}
+                                  title="Show DFI windows offered by this investor"
+                                >
+                                  {investorWindows.length} window{investorWindows.length !== 1 ? 's' : ''}
+                                  <span className="material-symbols-outlined" style={{ fontSize: 12, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                                    expand_more
+                                  </span>
+                                </button>
+                              )}
                             </div>
                             <div style={{ fontSize: 11, color: 'var(--ink-500)', lineHeight: 1.45 }}>
                               {match.investor?.sector_preferences?.join(', ') || 'No specific strategy'}
                             </div>
                             <div style={{ fontSize: 11, color: 'var(--ink-600)', marginTop: 6, fontFamily: "'Geist Mono', monospace" }}>
-                              {match.investor?.ticket_size_min ? `$${match.investor.ticket_size_min}M – $${match.investor.ticket_size_max}M` : 'N/A'}
+                              {formatTicketRange(match.investor?.ticket_size_min, match.investor?.ticket_size_max)}
                               {match.investor?.geographic_focus?.length ? ` · ${match.investor.geographic_focus[0]}` : ''}
                             </div>
+                            {match.notes && (
+                              <div style={{ fontSize: 10, color: 'var(--ink-500)', marginTop: 8, lineHeight: 1.55, fontStyle: 'italic' }}>
+                                {match.notes}
+                              </div>
+                            )}
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <div style={{
@@ -820,8 +1182,81 @@ const ProjectDetails: React.FC = () => {
                             </select>
                           </div>
                         </div>
-                      );
-                    })}
+                        {/* Polish 2 — Expanded "Windows offered" row */}
+                        {isExpanded && investorWindows.length > 0 && (
+                          <div style={{
+                            padding: '10px 24px 14px 40px',
+                            background: 'rgba(124, 58, 237, 0.04)',
+                            borderBottom: last ? 'none' : '1px solid var(--border)',
+                          }}>
+                            <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#a78bfa', fontWeight: 600, marginBottom: 6 }}>
+                              Windows offered by {investorName}
+                            </div>
+                            <div style={{ display: 'grid', gap: 4 }}>
+                              {investorWindows.map(w => (
+                                <div key={w.id} style={{
+                                  display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12,
+                                  padding: '6px 10px', fontSize: 11,
+                                  border: '1px solid var(--border)',
+                                  background: 'var(--surface)',
+                                  alignItems: 'center',
+                                }}>
+                                  <div>
+                                    <span style={{ color: 'var(--ink-900)', fontWeight: 500 }}>{w.name}</span>
+                                    {w.description && (
+                                      <span style={{ color: 'var(--ink-500)', marginLeft: 6 }}>· {w.description.slice(0, 80)}{w.description.length > 80 ? '…' : ''}</span>
+                                    )}
+                                  </div>
+                                  <span style={{ fontSize: 9, padding: '1px 6px', background: 'rgba(124,58,237,0.18)', color: '#a78bfa', borderRadius: 3, letterSpacing: '0.04em' }}>
+                                    {w.instrument_type}
+                                  </span>
+                                  <span style={{ fontSize: 10, color: 'var(--ink-500)', fontFamily: "'Geist Mono', monospace" }}>
+                                    {w.min_size_usd ? `$${(w.min_size_usd / 1e6).toFixed(0)}M` : '—'}
+                                    {w.max_size_usd ? `–$${(w.max_size_usd / 1e6).toFixed(0)}M` : '+'}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        </React.Fragment>
+                        );
+                      };
+
+                      return (['strong', 'moderate', 'weak'] as Tier[]).map((tier) => {
+                        const items = grouped[tier];
+                        if (items.length === 0) return null;
+                        const meta = TIER_META[tier];
+                        const showOpen = meta.defaultOpen
+                          ? !expandedTiers.has(`investor-${tier}-closed`)
+                          : expandedTiers.has(`investor-${tier}`);
+                        return (
+                          <div key={tier}>
+                            <button
+                              onClick={() => toggleTier(`investor-${tier}`, meta.defaultOpen)}
+                              style={{
+                                width: '100%', padding: '10px 24px', textAlign: 'left',
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                background: 'var(--surface-elevated, rgba(255,255,255,0.02))',
+                                border: 'none', borderTop: tier !== 'strong' ? '1px solid var(--border)' : 'none',
+                                borderBottom: '1px solid var(--border)',
+                                cursor: 'pointer', color: 'var(--ink-700)',
+                              }}
+                            >
+                              <span style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: meta.color }} />
+                                {meta.label}
+                                <span style={{ color: 'var(--ink-400)', fontWeight: 400 }}>· {items.length}</span>
+                              </span>
+                              <span className="material-symbols-outlined" style={{ fontSize: 16, transform: showOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                                expand_more
+                              </span>
+                            </button>
+                            {showOpen && items.map((m, idx) => renderCard(m, idx === items.length - 1))}
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 </>
               )}
@@ -1114,6 +1549,106 @@ const ProjectDetails: React.FC = () => {
             </section>
           )}
 
+          {/* R9 — Impact Monitoring Tab */}
+          {activeTab === 'impact' && (
+            <section>
+              <div style={sectionHeadStyle}>
+                <h2 style={sectionTitleStyle}>Impact monitoring</h2>
+                {canEdit && (
+                  <button
+                    onClick={() => setShowImpactModal(true)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      background: 'var(--accent)', border: 'none', color: 'var(--accent-ink)',
+                      padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+                    Log quarter
+                  </button>
+                )}
+              </div>
+
+              {/* Metric cards — actual vs target with progress bars */}
+              {impactSummary && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
+                  {[
+                    { label: 'Jobs created', actual: impactSummary.actual_jobs, target: impactSummary.target_jobs, color: 'var(--accent)' },
+                    { label: 'GHG avoided (tCO₂e)', actual: impactSummary.actual_ghg_tco2, target: impactSummary.target_ghg_tco2, color: '#34d399' },
+                    { label: 'Smallholders reached', actual: impactSummary.actual_smallholders, target: impactSummary.target_smallholders, color: '#60a5fa' },
+                    { label: 'Investment deployed (USD)', actual: Number(impactSummary.actual_investment_deployed) || 0, target: Number(impactSummary.target_investment_usd) || 0, color: '#fbbf24' },
+                  ].map(({ label, actual, target, color }) => {
+                    const pct = target && target > 0 ? Math.min(100, (Number(actual) / Number(target)) * 100) : 0;
+                    return (
+                      <div key={label} style={{
+                        background: 'var(--surface)', border: '1px solid var(--border)',
+                        padding: 14,
+                      }}>
+                        <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', marginBottom: 6 }}>{label}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                          <span style={{ fontFamily: "'Source Serif 4', serif", fontSize: 22, color: 'var(--ink-900)' }}>
+                            {typeof actual === 'number' && actual >= 1000 ? actual.toLocaleString() : actual}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--ink-500)', fontFamily: "'Geist Mono', monospace" }}>
+                            / {target == null ? '—' : (typeof target === 'number' && target >= 1000 ? target.toLocaleString() : target)}
+                          </span>
+                        </div>
+                        <div style={{ height: 3, background: 'var(--ink-100)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ width: `${pct}%`, height: '100%', background: color }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Historical table */}
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                {impactEntries.length === 0 ? (
+                  <div style={{ padding: '48px 24px', textAlign: 'center', fontSize: 13, color: 'var(--ink-400)' }}>
+                    No quarterly entries yet. Click "Log quarter" to record actuals for the most recent reporting period.
+                  </div>
+                ) : (
+                  <>
+                    <div style={{
+                      display: 'grid', gridTemplateColumns: '1fr 0.8fr 0.8fr 1fr 1fr 1.2fr',
+                      padding: '10px 20px', borderBottom: '1px solid var(--border)',
+                      background: 'rgba(255,255,255,0.02)',
+                      fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-500)',
+                    }}>
+                      <div>Period</div>
+                      <div style={{ textAlign: 'right' }}>Jobs</div>
+                      <div style={{ textAlign: 'right' }}>Smallholders</div>
+                      <div style={{ textAlign: 'right' }}>GHG (tCO₂)</div>
+                      <div style={{ textAlign: 'right' }}>$ Deployed</div>
+                      <div>Notes</div>
+                    </div>
+                    {impactEntries.map((e, i) => (
+                      <div key={e.id} style={{
+                        display: 'grid', gridTemplateColumns: '1fr 0.8fr 0.8fr 1fr 1fr 1.2fr',
+                        padding: '12px 20px',
+                        borderBottom: i < impactEntries.length - 1 ? '1px solid var(--border)' : 'none',
+                        fontSize: 12, color: 'var(--ink-700)', alignItems: 'center',
+                      }}>
+                        <div style={{ fontWeight: 500, color: 'var(--ink-900)' }}>{e.period_label}</div>
+                        <div style={{ textAlign: 'right', fontFamily: "'Geist Mono', monospace" }}>{e.jobs_created ?? '—'}</div>
+                        <div style={{ textAlign: 'right', fontFamily: "'Geist Mono', monospace" }}>{e.smallholders_reached ?? '—'}</div>
+                        <div style={{ textAlign: 'right', fontFamily: "'Geist Mono', monospace" }}>{e.ghg_avoided_tco2 ?? '—'}</div>
+                        <div style={{ textAlign: 'right', fontFamily: "'Geist Mono', monospace" }}>
+                          {e.investment_deployed_usd ? `$${(Number(e.investment_deployed_usd) / 1e6).toFixed(2)}M` : '—'}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {e.notes || ''}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </section>
+          )}
+
           {/* History Tab */}
           {activeTab === 'history' && (
             <section>
@@ -1238,13 +1773,23 @@ const ProjectDetails: React.FC = () => {
                   onChange={(e) => setDocumentType(e.target.value)}
                   style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
                 >
-                  <option value="feasibility_study">Feasibility Study</option>
-                  <option value="esia">ESIA Report</option>
-                  <option value="financial_model">Financial Model</option>
-                  <option value="government_support">Government Support Letter</option>
-                  <option value="investment_memo">Investment Memo</option>
-                  <option value="technical_spec">Technical Specification</option>
-                  <option value="other">Other</option>
+                  <optgroup label="Incubation checklist (R5)">
+                    <option value="FEASIBILITY">Preliminary Feasibility Study</option>
+                    <option value="LAND_RIGHTS">Land Rights / Site Control</option>
+                    <option value="GOV_SUPPORT">Government Support Letter</option>
+                    <option value="ENV_ASSESSMENT">Environmental Pre-Assessment</option>
+                    <option value="FINANCIAL_MODEL">Financial Model</option>
+                    <option value="CORE_TEAM">Core Project Team</option>
+                  </optgroup>
+                  <optgroup label="Other / legacy">
+                    <option value="feasibility_study">Feasibility Study (legacy)</option>
+                    <option value="esia">ESIA Report</option>
+                    <option value="financial_model">Financial Model (legacy)</option>
+                    <option value="government_support">Government Support Letter (legacy)</option>
+                    <option value="investment_memo">Investment Memo</option>
+                    <option value="technical_spec">Technical Specification</option>
+                    <option value="other">Other</option>
+                  </optgroup>
                 </select>
               </div>
               <div>
@@ -1308,6 +1853,30 @@ const ProjectDetails: React.FC = () => {
               </button>
             </div>
             <div style={{ padding: '20px 24px' }}>
+              {financingMemo.source === 'default_fallback' && (
+                <div style={{
+                  padding: '12px 14px', marginBottom: 16,
+                  background: 'rgba(255, 184, 0, 0.08)',
+                  border: '1px solid rgba(255, 184, 0, 0.4)',
+                  borderLeft: '3px solid #f5a623',
+                  borderRadius: 2,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f5a623' }}>warning</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#a87000' }}>
+                      AI advisor unavailable
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-700)', lineHeight: 1.55 }}>
+                    The capital-stack breakdown below is a static default (60/30/10), <strong>not</strong> a recommendation grounded in this project. Please retry, or have a finance specialist structure manually.
+                    {financingMemo.error_class && (
+                      <span style={{ display: 'block', marginTop: 4, fontSize: 10, fontFamily: "'Geist Mono', monospace", color: 'var(--ink-500)' }}>
+                        Error class: {financingMemo.error_class}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', marginBottom: 8 }}>Recommended Capital Structure</div>
                 <div style={{ fontSize: 13, color: 'var(--ink-800)', marginBottom: 12 }}>{financingMemo.recommended_structure}</div>
@@ -1329,6 +1898,52 @@ const ProjectDetails: React.FC = () => {
                   ))}
                 </div>
               </div>
+              {/* R7 — Capital-stack tranches with seniority, amounts, terms */}
+              {financingMemo.tranches && financingMemo.tranches.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', marginBottom: 8 }}>
+                    Tranche Structure
+                  </div>
+                  {[...financingMemo.tranches].sort((a, b) => a.seniority - b.seniority).map((t, i) => {
+                    const instrColor =
+                      t.instrument_type === 'GRANT' ? 'var(--sage)'
+                      : t.instrument_type === 'CONCESSIONAL_LOAN' ? 'var(--navy)'
+                      : t.instrument_type === 'EQUITY' ? '#a855f7'
+                      : 'var(--accent)';
+                    return (
+                      <div key={i} style={{
+                        padding: '10px 12px', marginBottom: 6,
+                        border: '1px solid var(--border)', borderLeft: `3px solid ${instrColor}`,
+                        background: 'var(--surface-elevated, rgba(255,255,255,0.02))',
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-900)' }}>
+                            {t.label}
+                            {t.is_first_loss && (
+                              <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 5px', background: '#f5a623', color: '#000', borderRadius: 2, letterSpacing: '0.05em' }}>
+                                FIRST-LOSS
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 13, fontFamily: "'Geist Mono', monospace", color: 'var(--ink-800)' }}>
+                            ${(t.amount_usd / 1e6).toFixed(2)}M
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--ink-500)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                          <span>Seniority {t.seniority}</span>
+                          <span>{t.instrument_type.replace('_', ' ')}</span>
+                          {t.tenor_years != null && <span>{t.tenor_years}yr tenor</span>}
+                          {t.coupon_pct != null && <span>{t.coupon_pct}% coupon</span>}
+                          {t.dfi_window_name && <span>· {t.dfi_window_name}</span>}
+                        </div>
+                        {t.notes && (
+                          <div style={{ marginTop: 4, fontSize: 11, color: 'var(--ink-600)', lineHeight: 1.5 }}>{t.notes}</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', marginBottom: 8 }}>Priority DFI Windows</div>
                 {financingMemo.priority_windows.map((w, i) => (
@@ -1360,6 +1975,145 @@ const ProjectDetails: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* R9 — Log impact entry modal */}
+      {showImpactModal && projectId && (
+        <ImpactLogModal
+          projectId={projectId}
+          onClose={() => setShowImpactModal(false)}
+          onCreated={async () => {
+            setShowImpactModal(false);
+            const [entries, summary] = await Promise.all([
+              pipelineService.listImpactLogEntries(projectId),
+              pipelineService.getImpactSummary(projectId),
+            ]);
+            setImpactEntries(entries);
+            setImpactSummary(summary);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// R9 — Log quarter modal. Local component so it stays close to the data it writes.
+const ImpactLogModal: React.FC<{ projectId: string; onClose: () => void; onCreated: () => void }> = ({ projectId, onClose, onCreated }) => {
+  const today = new Date();
+  const q = Math.floor(today.getMonth() / 3) + 1;
+  const [periodLabel, setPeriodLabel] = useState(`Q${q} ${today.getFullYear()}`);
+  const [periodStart, setPeriodStart] = useState(`${today.getFullYear()}-${String((q-1)*3 + 1).padStart(2, '0')}-01`);
+  const [periodEnd, setPeriodEnd] = useState(`${today.getFullYear()}-${String(q*3).padStart(2, '0')}-${q === 1 ? 31 : q === 2 ? 30 : q === 3 ? 30 : 31}`);
+  const [jobs, setJobs] = useState('');
+  const [smallholders, setSmallholders] = useState('');
+  const [ghg, setGhg] = useState('');
+  const [women, setWomen] = useState('');
+  const [youth, setYouth] = useState('');
+  const [deployed, setDeployed] = useState('');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await pipelineService.createImpactLogEntry(projectId, {
+        period_label: periodLabel,
+        period_start: periodStart,
+        period_end: periodEnd,
+        jobs_created: jobs ? Number(jobs) : null,
+        smallholders_reached: smallholders ? Number(smallholders) : null,
+        ghg_avoided_tco2: ghg ? Number(ghg) : null,
+        women_jobs_actual: women ? Number(women) : null,
+        youth_jobs_actual: youth ? Number(youth) : null,
+        investment_deployed_usd: deployed ? Number(deployed) : null,
+        notes: notes || null,
+      });
+      onCreated();
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to create entry');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const fieldStyle: React.CSSProperties = {
+    background: 'var(--surface)', border: '1px solid var(--border)',
+    color: 'var(--ink-900)', padding: '7px 10px', fontSize: 13,
+    fontFamily: 'inherit', outline: 'none', width: '100%',
+  };
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase',
+    color: 'var(--ink-500)', marginBottom: 4,
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: '100%', maxWidth: 600, margin: 16, maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-400)', marginBottom: 4 }}>R9 · Impact Monitoring</div>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink-900)', margin: 0 }}>Log quarterly actuals</h3>
+        </div>
+        <div style={{ padding: '20px 24px', display: 'grid', gap: 14 }}>
+          <div>
+            <label style={labelStyle}>Period label</label>
+            <input style={fieldStyle} value={periodLabel} onChange={e => setPeriodLabel(e.target.value)} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Period start</label>
+              <input style={fieldStyle} type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Period end</label>
+              <input style={fieldStyle} type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Jobs created</label>
+              <input style={fieldStyle} type="number" value={jobs} onChange={e => setJobs(e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Smallholders reached</label>
+              <input style={fieldStyle} type="number" value={smallholders} onChange={e => setSmallholders(e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>GHG avoided (tCO₂e)</label>
+              <input style={fieldStyle} type="number" step="0.1" value={ghg} onChange={e => setGhg(e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Investment deployed (USD)</label>
+              <input style={fieldStyle} type="number" value={deployed} onChange={e => setDeployed(e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Women jobs</label>
+              <input style={fieldStyle} type="number" value={women} onChange={e => setWomen(e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Youth jobs</label>
+              <input style={fieldStyle} type="number" value={youth} onChange={e => setYouth(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>Notes</label>
+            <textarea style={{ ...fieldStyle, minHeight: 60, resize: 'vertical' }} value={notes} onChange={e => setNotes(e.target.value)} />
+          </div>
+          {error && (
+            <div style={{ padding: '8px 12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.4)', fontSize: 12, color: '#f87171' }}>
+              {error}
+            </div>
+          )}
+        </div>
+        <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button onClick={onClose} disabled={submitting} style={{ padding: '8px 16px', fontSize: 12, fontWeight: 500, cursor: 'pointer', background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', fontFamily: 'inherit' }}>
+            Cancel
+          </button>
+          <button onClick={handleSubmit} disabled={submitting || !periodLabel || !periodStart || !periodEnd} style={{ padding: '8px 16px', fontSize: 12, fontWeight: 500, cursor: 'pointer', background: 'var(--accent)', border: 'none', color: 'var(--accent-ink)', fontFamily: 'inherit' }}>
+            {submitting ? 'Saving…' : 'Save entry'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

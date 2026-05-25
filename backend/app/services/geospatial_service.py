@@ -9,7 +9,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from typing import Any, Dict, Tuple
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional, Tuple
 
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,12 +22,17 @@ from app.services.geospatial_scoring import compute_boost
 
 logger = logging.getLogger(__name__)
 
+CACHE_TTL_DAYS = 30
+COORD_TOLERANCE = 1e-4  # ~11m at the equator — beyond float-rounding noise
+
 
 class GeospatialService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def analyse_project(self, project_id: uuid.UUID) -> Dict[str, Any]:
+    async def analyse_project(
+        self, project_id: uuid.UUID, force: bool = False
+    ) -> Dict[str, Any]:
         result = await self.db.execute(select(Project).where(Project.id == project_id))
         project = result.scalar_one_or_none()
         if project is None:
@@ -38,6 +44,16 @@ class GeospatialService:
             }
 
         lat, lon = float(project.site_lat), float(project.site_lon)
+
+        # Cache check: skip live query if we have a fresh row for these coords.
+        if not force:
+            cached = await self._fresh_cache(project_id, lat, lon)
+            if cached is not None:
+                logger.info(
+                    "Geospatial cache hit for %s (analysed %s)", project_id, cached.analysed_at
+                )
+                return self._row_to_dict(cached)
+
         payload, source = await self._collect_signals(lat, lon)
         boost = compute_boost(
             payload.get("ndvi"),
@@ -65,6 +81,10 @@ class GeospatialService:
         await self.db.commit()
         await self.db.refresh(row)
 
+        return self._row_to_dict(row)
+
+    @staticmethod
+    def _row_to_dict(row: ProjectGeospatialData) -> Dict[str, Any]:
         return {
             "id": str(row.id),
             "project_id": str(row.project_id),
@@ -78,6 +98,34 @@ class GeospatialService:
             "is_demo": row.is_demo,
             "analysed_at": row.analysed_at.isoformat() if row.analysed_at else None,
         }
+
+    async def _fresh_cache(
+        self, project_id: uuid.UUID, lat: float, lon: float
+    ) -> Optional[ProjectGeospatialData]:
+        """Return the cached row if it's within CACHE_TTL_DAYS AND its
+        coords match the project's current coords. Otherwise None.
+
+        A coord change always invalidates the cache — the previous analysis
+        was about a different point on the ground."""
+        result = await self.db.execute(
+            select(ProjectGeospatialData).where(ProjectGeospatialData.project_id == project_id)
+        )
+        row = result.scalar_one_or_none()
+        if row is None or row.analysed_at is None:
+            return None
+
+        if datetime.utcnow() - row.analysed_at > timedelta(days=CACHE_TTL_DAYS):
+            return None
+
+        raw = row.raw_response or {}
+        cached_lat = raw.get("lat")
+        cached_lon = raw.get("lon")
+        if cached_lat is None or cached_lon is None:
+            return None  # Pre-cache rows have no coord stamp — treat as stale
+        if abs(cached_lat - lat) > COORD_TOLERANCE or abs(cached_lon - lon) > COORD_TOLERANCE:
+            return None
+
+        return row
 
     async def _collect_signals(self, lat: float, lon: float) -> Tuple[Dict[str, Any], str]:
         """Live MPC satellite query when LIVE_GEOSPATIAL_ENABLED=1; fall back

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { pipelineService } from '../services/pipelineService';
 import { documentService, Document } from '../services/documentService';
-import { Project, InvestorMatch, InvestorMatchStatus, ProjectScoreDetail, ProjectStatus, BuyerMatch, BuyerMatchStatus, DFIMatch, DFIMatchStatus, FinancingMemo, IncubationChecklist } from '../types/pipeline';
+import { Project, InvestorMatch, InvestorMatchStatus, ProjectScoreDetail, ProjectStatus, BuyerMatch, BuyerMatchStatus, DFIMatch, DFIMatchStatus, DFIWindow, FinancingMemo, IncubationChecklist } from '../types/pipeline';
 import { useAppSelector } from '../hooks/useRedux';
 import { ProjectLifecycleTimeline } from '../components/pipeline/ProjectLifecycleTimeline';
 import { ProjectHistoryTimeline } from '../components/pipeline/ProjectHistoryTimeline';
@@ -1129,7 +1129,7 @@ const ProjectDetails: React.FC = () => {
                                     });
                                   }}
                                   style={{
-                                    background: 'transparent', border: 'none', cursor: 'pointer',
+                                    background: 'transparent', cursor: 'pointer',
                                     padding: '1px 6px', fontSize: 10, color: '#a78bfa',
                                     fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 3,
                                     borderRadius: 3, border: '1px solid rgba(124,58,237,0.4)',

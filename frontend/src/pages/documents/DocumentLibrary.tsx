@@ -251,12 +251,14 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
         }
     }
 
+    // @ts-expect-error: kept for upcoming filter UI; will be wired in next pass
     const toggleDocType = (type: string) => {
         setSelectedDocTypes(prev =>
             prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
         )
     }
 
+    // @ts-expect-error: kept for upcoming filter UI; will be wired in next pass
     const toggleLabel = (label: string) => {
         setSelectedLabels(prev =>
             prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]
@@ -397,108 +399,111 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                     <CoreWorkspace />
                 </div>
             ) : (
-                <div style={{ display: 'flex', gap: 24 }}>
-                    {/* Left sidebar */}
-                    <aside style={{ width: 220, flexShrink: 0 }}>
-                        {/* Library nav */}
-                        <div style={{ marginBottom: 20 }}>
-                            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 8 }}>Library</div>
-                            {libraryItems.map(item => (
-                                <button
-                                    key={item.id}
-                                    onClick={() => setActiveLibraryTab(item.id)}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                        width: '100%', padding: '8px 12px',
-                                        background: activeLibraryTab === item.id ? 'var(--accent-soft)' : 'transparent',
-                                        border: 'none',
-                                        borderLeft: activeLibraryTab === item.id ? '2px solid var(--accent)' : '2px solid transparent',
-                                        color: activeLibraryTab === item.id ? 'var(--accent)' : 'var(--ink-600)',
-                                        fontSize: 13, fontWeight: activeLibraryTab === item.id ? 600 : 400,
-                                        cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', marginBottom: 2
-                                    }}
-                                >
-                                    <span>{item.label}</span>
-                                    <span style={{ fontSize: 10, color: 'var(--ink-400)', fontFamily: "'Geist Mono', monospace" }}>{item.count}</span>
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Document Types */}
-                        <div style={{ marginBottom: 20 }}>
-                            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 8 }}>Document Types</div>
-                            {documentTypes.map(type => (
-                                <label key={type} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedDocTypes.includes(type)}
-                                        onChange={() => toggleDocType(type)}
-                                        style={{ accentColor: 'var(--accent)' }}
-                                    />
-                                    <span style={{ fontSize: 12, color: 'var(--ink-600)' }}>{type}</span>
-                                </label>
-                            ))}
-                        </div>
-
-                        {/* Labels */}
-                        <div style={{ marginBottom: 20 }}>
-                            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 8 }}>Labels</div>
-                            {labels.map(label => (
-                                <button
-                                    key={label.name}
-                                    onClick={() => toggleLabel(label.name)}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0',
-                                        background: 'transparent', border: 'none', cursor: 'pointer', width: '100%', fontFamily: 'inherit'
-                                    }}
-                                >
-                                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: label.dotColor, flexShrink: 0 }}></div>
-                                    <span style={{ fontSize: 12, color: selectedLabels.includes(label.name) ? 'var(--accent)' : 'var(--ink-600)', fontWeight: selectedLabels.includes(label.name) ? 600 : 400 }}>
-                                        {label.name}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* TWG Filter */}
-                        {availableTwgs.length > 0 && (
-                            <div style={{ marginBottom: 20 }}>
-                                <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 8 }}>TWG</div>
-                                {availableTwgs.map((t: any) => (
-                                    <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedTwgFilter.includes(t.id)}
-                                            onChange={() => setSelectedTwgFilter(prev =>
-                                                prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
-                                            )}
-                                            style={{ accentColor: 'var(--accent)' }}
-                                        />
-                                        <span style={{ fontSize: 12, color: 'var(--ink-600)' }} className="truncate">{t.name}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Clear / Sort */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            <button
-                                onClick={() => { setSelectedDocTypes([]); setSelectedLabels([]); setActiveLibraryTab('all'); }}
-                                style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '6px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
-                            >
-                                Clear filters
-                            </button>
-                            <button
-                                onClick={() => setSortBy(sortBy === 'date' ? 'name' : 'date')}
-                                style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '6px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
-                            >
-                                Sort: {sortBy === 'date' ? 'Date' : 'Name'}
-                            </button>
-                        </div>
-                    </aside>
-
+                <div>
                     {/* Main content */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ minWidth: 0 }}>
+                        {/* Compact filter bar (Library tabs + dropdowns + sort + clear) */}
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,
+                            paddingBottom: 14, borderBottom: '1px solid var(--border)', flexWrap: 'wrap',
+                        }}>
+                            {/* Library tabs */}
+                            <div style={{ display: 'flex', gap: 0 }}>
+                                {libraryItems.map(item => {
+                                    const on = activeLibraryTab === item.id;
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => setActiveLibraryTab(item.id)}
+                                            style={{
+                                                background: 'transparent', border: 'none', cursor: 'pointer',
+                                                padding: '6px 12px', fontSize: 12, fontWeight: on ? 500 : 400,
+                                                color: on ? 'var(--ink-900)' : 'var(--ink-500)',
+                                                borderBottom: on ? '2px solid var(--accent)' : '2px solid transparent',
+                                                fontFamily: 'inherit', marginBottom: -15,
+                                                display: 'inline-flex', alignItems: 'center', gap: 6,
+                                            }}
+                                        >
+                                            {item.label}
+                                            <span style={{ fontSize: 10, color: 'var(--ink-400)', fontFamily: "'Geist Mono', monospace" }}>{item.count}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ flex: 1 }} />
+                            {/* Document type filter */}
+                            <select
+                                value={selectedDocTypes[0] ?? ''}
+                                onChange={e => setSelectedDocTypes(e.target.value ? [e.target.value] : [])}
+                                style={{
+                                    background: 'var(--surface)', border: '1px solid var(--border)',
+                                    color: 'var(--ink-700)', padding: '6px 10px', fontSize: 12,
+                                    fontFamily: 'inherit', cursor: 'pointer', outline: 'none',
+                                }}
+                            >
+                                <option value="">All types</option>
+                                {documentTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                            </select>
+                            {/* Label filter */}
+                            <select
+                                value={selectedLabels[0] ?? ''}
+                                onChange={e => setSelectedLabels(e.target.value ? [e.target.value] : [])}
+                                style={{
+                                    background: 'var(--surface)', border: '1px solid var(--border)',
+                                    color: 'var(--ink-700)', padding: '6px 10px', fontSize: 12,
+                                    fontFamily: 'inherit', cursor: 'pointer', outline: 'none',
+                                }}
+                            >
+                                <option value="">All labels</option>
+                                {labels.map(l => <option key={l.name} value={l.name}>{l.name}</option>)}
+                            </select>
+                            {/* TWG filter */}
+                            {availableTwgs.length > 0 && (
+                                <select
+                                    value={selectedTwgFilter[0] ?? ''}
+                                    onChange={e => setSelectedTwgFilter(e.target.value ? [e.target.value] : [])}
+                                    style={{
+                                        background: 'var(--surface)', border: '1px solid var(--border)',
+                                        color: 'var(--ink-700)', padding: '6px 10px', fontSize: 12,
+                                        fontFamily: 'inherit', cursor: 'pointer', outline: 'none',
+                                        maxWidth: 200,
+                                    }}
+                                >
+                                    <option value="">All TWGs</option>
+                                    {availableTwgs.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                </select>
+                            )}
+                            {/* Sort */}
+                            <select
+                                value={sortBy}
+                                onChange={e => setSortBy(e.target.value as 'date' | 'name')}
+                                style={{
+                                    background: 'var(--surface)', border: '1px solid var(--border)',
+                                    color: 'var(--ink-700)', padding: '6px 10px', fontSize: 12,
+                                    fontFamily: 'inherit', cursor: 'pointer', outline: 'none',
+                                }}
+                            >
+                                <option value="date">Sort: Date</option>
+                                <option value="name">Sort: Name</option>
+                            </select>
+                            {/* Clear */}
+                            {(selectedDocTypes.length || selectedLabels.length || selectedTwgFilter.length || activeLibraryTab !== 'all') ? (
+                                <button
+                                    onClick={() => { setSelectedDocTypes([]); setSelectedLabels([]); setSelectedTwgFilter([]); setActiveLibraryTab('all'); }}
+                                    style={{
+                                        background: 'transparent', border: '1px solid var(--border)',
+                                        color: 'var(--ink-600)', padding: '6px 10px', fontSize: 11,
+                                        cursor: 'pointer', fontFamily: 'inherit',
+                                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                                    }}
+                                    title="Clear all filters"
+                                >
+                                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
+                                    Clear
+                                </button>
+                            ) : null}
+                        </div>
+
                         {/* Search */}
                         <form onSubmit={handleSearch} style={{ position: 'relative', marginBottom: 16 }}>
                             <input
@@ -546,10 +551,21 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                         {/* Table */}
                         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                             <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', minWidth: 760, textAlign: 'left', fontSize: 13, borderCollapse: 'collapse' }}>
+                                <table style={{ width: '100%', minWidth: 960, tableLayout: 'fixed', textAlign: 'left', fontSize: 13, borderCollapse: 'collapse' }}>
+                                    <colgroup>
+                                        <col style={{ width: 32 }} />
+                                        <col />
+                                        <col style={{ width: 130 }} />
+                                        <col style={{ width: 160 }} />
+                                        <col style={{ width: 120 }} />
+                                        <col style={{ width: 90 }} />
+                                        <col style={{ width: 90 }} />
+                                        <col style={{ width: 110 }} />
+                                        <col style={{ width: 96 }} />
+                                    </colgroup>
                                     <thead>
                                         <tr style={{ background: 'var(--ink-50)', borderBottom: '1px solid var(--border)' }}>
-                                            <th style={{ padding: '10px 12px', width: 32 }}>
+                                            <th style={{ padding: '10px 12px' }}>
                                                 <input
                                                     type="checkbox"
                                                     checked={selectedDocs.length > 0 && selectedDocs.length === paginatedDocs.length}
@@ -585,16 +601,17 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                         style={{ accentColor: 'var(--accent)' }}
                                                     />
                                                 </td>
-                                                <td style={{ padding: '10px 12px', maxWidth: 200 }}>
+                                                <td style={{ padding: '10px 12px', minWidth: 0, overflow: 'hidden' }}>
                                                     <button
                                                         onClick={() => handleDownload(doc.id)}
                                                         disabled={downloading === doc.id}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, opacity: downloading === doc.id ? 0.5 : 1 }}
+                                                        title={doc.file_name}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, width: '100%', minWidth: 0, opacity: downloading === doc.id ? 0.5 : 1 }}
                                                     >
                                                         <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--ink-400)', flexShrink: 0 }}>
                                                             {downloading === doc.id ? 'sync' : doc.file_name.endsWith('.pdf') ? 'picture_as_pdf' : 'description'}
                                                         </span>
-                                                        <span style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500 }} className="truncate">{doc.file_name}</span>
+                                                        <span style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file_name}</span>
                                                     </button>
                                                 </td>
                                                 <td style={{ padding: '10px 12px' }}>

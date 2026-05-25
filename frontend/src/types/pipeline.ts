@@ -114,6 +114,10 @@ export interface Project {
     youth_focused?: boolean;
     youth_justification?: string;
 
+    // R8 — Site coordinates for geospatial analysis
+    site_lat?: number;
+    site_lon?: number;
+
     // Metadata from backend API
     days_in_stage?: number;
     is_stalled?: boolean;

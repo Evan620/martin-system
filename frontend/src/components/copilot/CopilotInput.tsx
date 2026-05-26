@@ -138,79 +138,90 @@ export default function CopilotInput({
     };
 
     return (
-        <div className="p-3 border-t border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/20 relative">
-            {/* Mentions popup */}
+        <div style={{
+            padding: 12, borderTop: '1px solid var(--border)', background: 'var(--surface)',
+            position: 'relative', fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
+        }}>
             {showMentions && filteredTwgs.length > 0 && (
-                <div className="absolute bottom-full left-4 mb-2 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
-                    <div className="px-3 py-2 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700">
-                        <p className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Mention TWG Agent</p>
-                    </div>
-                    <ul className="max-h-48 overflow-y-auto py-1">
+                <div style={{
+                    position: 'absolute', bottom: '100%', left: 16, marginBottom: 8, width: 240,
+                    background: 'var(--surface)', border: '1px solid var(--border)', overflow: 'hidden', zIndex: 50,
+                }}>
+                    <div style={{
+                        padding: '8px 12px', background: 'var(--ink-50)', borderBottom: '1px solid var(--border)',
+                        fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500,
+                    }}>Mention TWG agent</div>
+                    <ul style={{ margin: 0, padding: '4px 0', maxHeight: 200, overflowY: 'auto', listStyle: 'none' }}>
                         {filteredTwgs.map((twg, idx) => (
                             <li
                                 key={twg.id}
-                                className={`px-3 py-2 text-xs cursor-pointer flex items-center gap-2 transition-colors
-                                    ${idx === mentionIndex
-                                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                                    }`}
-                                onMouseDown={e => {
-                                    e.preventDefault();
-                                    insertMention(twg);
+                                style={{
+                                    padding: '8px 12px', fontSize: 12, cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    background: idx === mentionIndex ? 'var(--accent-soft)' : 'transparent',
+                                    color: idx === mentionIndex ? 'var(--accent)' : 'var(--ink-700)',
+                                    fontWeight: idx === mentionIndex ? 500 : 400,
                                 }}
+                                onMouseDown={e => { e.preventDefault(); insertMention(twg); }}
                             >
-                                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${idx === mentionIndex ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
-                                <span className="font-medium truncate">{twg.name}</span>
+                                <span style={{
+                                    width: 6, height: 6, borderRadius: 6,
+                                    background: idx === mentionIndex ? 'var(--accent)' : 'var(--ink-400)',
+                                    flexShrink: 0, display: 'inline-block',
+                                }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{twg.name}</span>
                             </li>
                         ))}
                     </ul>
                 </div>
             )}
-
-            {/* Slash command palette */}
-            <div className="relative">
+            <div style={{ position: 'relative' }}>
                 <SlashCommandPalette
                     visible={paletteVisible}
                     query={slashQuery}
                     onSelect={handleSlashSelect}
                     onDismiss={() => setPaletteVisible(false)}
                 />
-
-                <div className="flex items-center gap-2">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <input
                         ref={inputRef}
                         type="text"
                         value={value}
                         onChange={handleChange}
                         onKeyDown={handleKeyDown}
-                        placeholder="Ask Copilot to analyze, draft, or schedule... (@ TWG, / commands)"
-                        className="flex-1 bg-white dark:bg-slate-800 rounded-xl py-3 pl-4 pr-4 text-xs font-medium text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 transition-all shadow-sm outline-none border border-slate-200 dark:border-slate-700"
+                        placeholder="Ask Copilot to analyze, draft, or schedule… (@ TWG, / commands)"
                         autoComplete="off"
+                        style={{
+                            flex: 1, background: 'var(--ink-50)', border: '1px solid var(--border)',
+                            padding: '10px 14px', fontSize: 12, fontFamily: 'inherit',
+                            color: 'var(--ink-900)', outline: 'none', boxSizing: 'border-box',
+                        }}
                     />
-
-                    {/* Cancel button — only while streaming */}
                     {isStreaming && (
                         <button
                             onClick={onCancel}
                             title="Cancel"
-                            className="p-2.5 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors shadow-sm flex-shrink-0"
+                            style={{
+                                padding: 9, flexShrink: 0, background: 'transparent', border: '1px solid var(--terra)',
+                                color: 'var(--terra)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
+                            }}
                         >
-                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                                <rect x="6" y="6" width="12" height="12" rx="1" />
-                            </svg>
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>stop</span>
                         </button>
                     )}
-
-                    {/* Send button */}
                     <button
                         onClick={onSend}
                         disabled={isStreaming || !value.trim()}
                         title="Send"
-                        className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md shadow-blue-900/20 flex-shrink-0"
+                        style={{
+                            padding: 9, flexShrink: 0, background: 'var(--accent)', border: '1px solid var(--accent)',
+                            color: 'var(--accent-ink)',
+                            cursor: (isStreaming || !value.trim()) ? 'default' : 'pointer',
+                            opacity: (isStreaming || !value.trim()) ? 0.4 : 1,
+                            display: 'inline-flex', alignItems: 'center',
+                        }}
                     >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 12h14M12 5l7 7-7 7" />
-                        </svg>
+                        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_forward</span>
                     </button>
                 </div>
             </div>

@@ -129,9 +129,10 @@ const BuyerDatabase: React.FC = () => {
                     </button>
                 </div>
             ) : (
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                    <div style={{
-                        display: 'grid', gridTemplateColumns: '1fr 1fr 130px 110px',
+                <div className="resp-table-mobile" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                    <div className="resp-thead" style={{
+                        display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1.4fr) 140px 120px',
+                        columnGap: 20,
                         padding: '10px 20px', borderBottom: '1px solid var(--border)',
                         background: 'var(--ink-50)',
                     }}>
@@ -143,12 +144,13 @@ const BuyerDatabase: React.FC = () => {
                         ))}
                     </div>
                     {buyers.map((buyer, i) => (
-                        <div key={buyer.id} style={{
-                            display: 'grid', gridTemplateColumns: '1fr 1fr 130px 110px',
+                        <div key={buyer.id} className="resp-row" style={{
+                            display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1.4fr) 140px 120px',
+                            columnGap: 20,
                             padding: '14px 20px', alignItems: 'start',
                             borderBottom: i < buyers.length - 1 ? '1px solid var(--border)' : 'none',
                         }}>
-                            <div>
+                            <div data-label="primary">
                                 <div style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500 }}>{buyer.name}</div>
                                 {buyer.contract_term_years && (
                                     <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 3 }}>
@@ -161,7 +163,7 @@ const BuyerDatabase: React.FC = () => {
                                     </div>
                                 )}
                             </div>
-                            <div>
+                            <div data-label="Commodities">
                                 {buyer.commodity_types?.length ? (
                                     <div style={{ fontSize: 12, color: 'var(--ink-700)' }}>
                                         {buyer.commodity_types.join(', ')}
@@ -175,12 +177,12 @@ const BuyerDatabase: React.FC = () => {
                                     </div>
                                 ) : null}
                             </div>
-                            <div style={{ fontSize: 12, color: 'var(--ink-700)', fontFamily: "'Geist Mono', monospace" }}>
+                            <div data-label="Volume (MT/yr)" style={{ fontSize: 12, color: 'var(--ink-700)', fontFamily: "'Geist Mono', monospace" }}>
                                 {buyer.volume_mt_per_year != null
                                     ? buyer.volume_mt_per_year.toLocaleString()
                                     : '—'}
                             </div>
-                            <div style={{ fontSize: 12, color: 'var(--ink-700)', fontFamily: "'Geist Mono', monospace" }}>
+                            <div data-label="Price floor" style={{ fontSize: 12, color: 'var(--ink-700)', fontFamily: "'Geist Mono', monospace" }}>
                                 {buyer.price_floor_usd != null
                                     ? `$${buyer.price_floor_usd.toLocaleString()}`
                                     : '—'}

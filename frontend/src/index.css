@@ -195,3 +195,101 @@
 /* Hide scrollbar helper */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ─── Bottom tab bar — mobile only, hidden ≥1024px ─── */
+.bottom-tab-bar { display: flex; }
+@media (min-width: 1024px) {
+  .bottom-tab-bar { display: none !important; }
+}
+
+/* ─── Responsive KPI strip ───
+   Desktop: 4-col grid with vertical rules.
+   Mobile: horizontal scroll, each cell min 180px, no rules. */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 22px 32px;
+}
+@media (max-width: 640px) {
+  .kpi-strip {
+    display: flex;
+    overflow-x: auto;
+    gap: 24px;
+    padding: 18px 16px;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+  }
+  .kpi-strip::-webkit-scrollbar { display: none; }
+  .kpi-strip > * {
+    flex-shrink: 0;
+    min-width: 180px;
+    border-right: none !important;
+    padding-right: 0 !important;
+    scroll-snap-align: start;
+  }
+}
+
+/* ─── Responsive table → card transform (under 768px) ───
+   Apply to wrappers around grid-template-columns based rows.
+   - Hide the header row
+   - Stack each row vertically with labels visible
+   - Each child cell with data-label shows the label as an uppercase eyebrow */
+.resp-table-mobile { }
+@media (max-width: 767px) {
+  .resp-table-mobile > .resp-thead { display: none !important; }
+  .resp-table-mobile > .resp-row {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    padding: 16px !important;
+    grid-template-columns: none !important;
+  }
+  .resp-table-mobile > .resp-row > [data-label] {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding-right: 0 !important;
+  }
+  .resp-table-mobile > .resp-row > [data-label]::before {
+    content: attr(data-label);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--ink-500);
+    flex-shrink: 0;
+  }
+  .resp-table-mobile > .resp-row > [data-label="primary"]::before { display: none; }
+  .resp-table-mobile > .resp-row > [data-label="primary"] {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+}
+
+/* ─── Stats strip with vertical rules — responsive ───
+   On <md, drop dividers and stack 2x2 */
+@media (max-width: 767px) {
+  .stats-strip { grid-template-columns: repeat(2, 1fr) !important; gap: 16px !important; row-gap: 18px !important; }
+  .stats-strip > * {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    border-right: none !important;
+  }
+}
+
+/* ─── Document library table — responsive ───
+   At <md hide secondary columns; show as inline metadata under filename */
+@media (max-width: 767px) {
+  .doc-table { min-width: 0 !important; table-layout: auto !important; }
+  .doc-table .col-doc-type,
+  .doc-table .col-doc-context,
+  .doc-table .col-doc-owner,
+  .doc-table .col-doc-date,
+  .doc-table .col-doc-rag,
+  .doc-table .col-doc-label,
+  .doc-table .col-doc-actions-extra { display: none !important; }
+  .doc-table colgroup { display: none !important; }
+}

@@ -246,7 +246,11 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
 
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-dark-card">
+        <div style={{
+            display: 'flex', flexDirection: 'column', height: '100%',
+            background: 'var(--surface)',
+            fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
+        }}>
             <CopilotHeader
                 twgName={activeTwgName}
                 twgId={activeTwgId}
@@ -256,100 +260,87 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
                 userTwgs={isAdmin ? [] : userTwgs}
                 isAdmin={isAdmin}
             />
-
             {localMessages.length === 0 && (
                 <SuggestedActions
                     briefing={briefing}
                     onFillInput={handleFillInput}
-                    onSubmit={(text) => {
-                        setInput(text);
-                        setTimeout(handleSend, 0);
-                    }}
+                    onSubmit={(text) => { setInput(text); setTimeout(handleSend, 0); }}
                 />
             )}
-
-            {/* Message list */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
-                {/* Settled messages */}
-                {localMessages.map(msg => (
-                    <div
-                        key={msg.id}
-                        className={`flex gap-2 w-full overflow-hidden ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}
-                    >
-                        {msg.sender !== 'user' && (
-                            <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-                                <span className="text-white text-[10px] font-bold leading-none">✦</span>
-                            </div>
-                        )}
-                        <div className={`p-3 rounded-2xl max-w-[90%] text-xs leading-relaxed shadow-sm break-words min-w-0
-                            ${msg.sender === 'user'
-                                ? 'bg-blue-600 text-white rounded-tr-none'
-                                : 'bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 rounded-tl-none border border-slate-100 dark:border-slate-700'
-                            }`}
+            <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {localMessages.map(msg => {
+                    const monogram = (
+                        <div style={{
+                            width: 22, height: 22, border: '1px solid var(--border)', background: 'var(--ink-50)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontFamily: "'Source Serif 4', serif", fontSize: 11, color: 'var(--accent)', flexShrink: 0,
+                        }}>M</div>
+                    );
+                    return (
+                        <div
+                            key={msg.id}
+                            style={{
+                                display: 'flex', gap: 8, width: '100%', overflow: 'hidden',
+                                flexDirection: msg.sender === 'user' ? 'row-reverse' : 'row',
+                            }}
                         >
-                            {msg.sender === 'user' ? (
-                                <span>{msg.content}</span>
-                            ) : (
-                                <div className="prose prose-xs dark:prose-invert max-w-none">
-                                    <ReactMarkdown
-                                        remarkPlugins={[remarkGfm]}
-                                        components={{
-                                            p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                                            ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
-                                            ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-                                            li: ({ children }) => <li className="pl-1">{children}</li>,
-                                            strong: ({ children }) => <strong className="font-bold text-slate-900 dark:text-white">{children}</strong>,
-                                            a: ({ href, children }) => <a href={href} className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
-                                            code: ({ className, children }) => {
-                                                const isBlock = className?.includes('language-');
-                                                return isBlock ? (
-                                                    <pre className="bg-slate-900 text-slate-50 rounded-lg p-3 my-2 overflow-x-auto text-xs">
-                                                        <code className="font-mono">{children}</code>
-                                                    </pre>
-                                                ) : (
-                                                    <code className="bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded text-xs font-mono">{children}</code>
-                                                );
-                                            },
-                                            pre: ({ children }) => <>{children}</>,
-                                        }}
-                                    >
-                                        {msg.content}
-                                    </ReactMarkdown>
-                                </div>
-                            )}
+                            {msg.sender !== 'user' && monogram}
+                            <div style={{
+                                padding: '10px 12px', maxWidth: '90%', minWidth: 0,
+                                fontSize: 12, lineHeight: 1.6, wordBreak: 'break-word',
+                                background: msg.sender === 'user' ? 'var(--accent)' : 'var(--ink-50)',
+                                color: msg.sender === 'user' ? 'var(--accent-ink)' : 'var(--ink-800)',
+                                border: msg.sender === 'user' ? '1px solid var(--accent)' : '1px solid var(--border)',
+                            }}>
+                                {msg.sender === 'user' ? (
+                                    <span>{msg.content}</span>
+                                ) : (
+                                    <div className="prose prose-xs dark:prose-invert max-w-none">
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm]}
+                                            components={{
+                                                p: ({ children }) => <p style={{ margin: '0 0 8px' }}>{children}</p>,
+                                                ul: ({ children }) => <ul style={{ listStyle: 'disc', paddingLeft: 18, margin: '0 0 8px', display: 'flex', flexDirection: 'column', gap: 3 }}>{children}</ul>,
+                                                ol: ({ children }) => <ol style={{ listStyle: 'decimal', paddingLeft: 18, margin: '0 0 8px', display: 'flex', flexDirection: 'column', gap: 3 }}>{children}</ol>,
+                                                li: ({ children }) => <li style={{ paddingLeft: 2 }}>{children}</li>,
+                                                strong: ({ children }) => <strong style={{ fontWeight: 600, color: 'var(--ink-900)' }}>{children}</strong>,
+                                                a: ({ href, children }) => <a href={href} style={{ color: 'var(--accent)', textDecoration: 'underline' }} target="_blank" rel="noopener noreferrer">{children}</a>,
+                                                code: ({ className, children }) => {
+                                                    const isBlock = className?.includes('language-');
+                                                    return isBlock ? (
+                                                        <pre style={{ background: 'var(--ink-900)', color: 'var(--ink-50)', padding: 12, margin: '8px 0', overflowX: 'auto', fontSize: 11 }}>
+                                                            <code style={{ fontFamily: "'Geist Mono', monospace" }}>{children}</code>
+                                                        </pre>
+                                                    ) : (
+                                                        <code style={{ background: 'var(--ink-100)', padding: '1px 4px', fontSize: 11, fontFamily: "'Geist Mono', monospace" }}>{children}</code>
+                                                    );
+                                                },
+                                                pre: ({ children }) => <>{children}</>,
+                                            }}
+                                        >
+                                            {msg.content}
+                                        </ReactMarkdown>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                ))}
-
-                {/* Briefing loading indicator */}
-                {isBriefingLoading && localMessages.length === 0 && (
-                    <div className="flex gap-2 items-center">
-                        <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-                            <span className="text-white text-[10px] font-bold leading-none animate-pulse">✦</span>
-                        </div>
-                        <div className="flex gap-1 items-center px-1 py-2">
-                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                        </div>
-                    </div>
-                )}
-
-                {/* Streaming: animated thinking indicator */}
-                {isStreaming && (
-                    <div className="flex gap-2 items-center">
-                        <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-                            <span className="text-white text-[10px] font-bold leading-none animate-pulse">✦</span>
-                        </div>
-                        <div className="flex gap-1 items-center px-1 py-2">
-                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    );
+                })}
+                {((isBriefingLoading && localMessages.length === 0) || isStreaming) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{
+                            width: 22, height: 22, border: '1px solid var(--border)', background: 'var(--ink-50)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontFamily: "'Source Serif 4', serif", fontSize: 11, color: 'var(--accent)', flexShrink: 0,
+                        }}>M</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 4px' }}>
+                            <span style={{ width: 4, height: 4, borderRadius: 4, background: 'var(--accent)', display: 'inline-block', animationDelay: '0ms' }} className="animate-bounce" />
+                            <span style={{ width: 4, height: 4, borderRadius: 4, background: 'var(--accent)', display: 'inline-block', animationDelay: '150ms' }} className="animate-bounce" />
+                            <span style={{ width: 4, height: 4, borderRadius: 4, background: 'var(--accent)', display: 'inline-block', animationDelay: '300ms' }} className="animate-bounce" />
                         </div>
                     </div>
                 )}
             </div>
-
             <CopilotInput
                 value={input}
                 onChange={setInput}

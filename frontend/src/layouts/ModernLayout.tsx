@@ -8,6 +8,7 @@ import { NotificationType } from '../services/notificationService';
 import { useEffect, useRef, useState } from 'react';
 import GlobalCopilot from '../components/copilot/GlobalCopilot';
 import ThemeToggle from '../components/ui/ThemeToggle';
+import BottomTabBar from './BottomTabBar';
 
 interface ModernLayoutProps {
     children?: React.ReactNode;
@@ -391,8 +392,8 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                         </main>
                     ) : (
                     <main
-                        className="flex-1 overflow-y-auto min-w-0"
-                        style={{ background: 'var(--bg)', padding: '40px 48px 48px' }}
+                        className="flex-1 overflow-y-auto min-w-0 px-4 sm:px-6 lg:px-12 pt-4 sm:pt-6 lg:pt-10 pb-24 lg:pb-12"
+                        style={{ background: 'var(--bg)' }}
                     >
                         <div className="max-w-[1180px] mx-auto w-full">
                             {children || <Outlet />}
@@ -419,11 +420,14 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                 </div>
             )}
 
+            {/* Bottom tab bar — mobile only */}
+            <BottomTabBar onMoreClick={() => setIsMobileMenuOpen(true)} />
+
             {/* Floating Ask Martin — shown when panel is closed */}
             {!copilotOpen && (
                 <button
                     onClick={() => setCopilotOpen(true)}
-                    className="fixed bottom-6 right-6 z-40 flex items-center gap-2"
+                    className="fixed right-4 lg:right-6 z-40 flex items-center gap-2 bottom-20 lg:bottom-6"
                     style={{
                         background: 'var(--accent)', color: 'var(--accent-ink)',
                         border: 'none', padding: '10px 18px', borderRadius: 999,

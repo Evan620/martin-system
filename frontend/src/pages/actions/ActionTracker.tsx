@@ -137,11 +137,14 @@ export default function ActionTracker() {
             </div>
 
             {/* Stats strip */}
-            <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                padding: '20px 28px', marginBottom: 24, gap: 0,
-            }}>
+            <div
+                className="stats-strip"
+                style={{
+                    display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+                    background: 'var(--surface)', border: '1px solid var(--border)',
+                    padding: '20px 28px', marginBottom: 24, gap: 0,
+                }}
+            >
                 {stats.map((s, i) => (
                     <div
                         key={s.label}
@@ -206,15 +209,18 @@ export default function ActionTracker() {
             </div>
 
             {/* Table */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <div className="resp-table-mobile" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                 {/* Header */}
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 150px 110px 90px 110px 130px',
-                    padding: '10px 16px',
-                    background: 'var(--ink-50)',
-                    borderBottom: '1px solid var(--border)',
-                }}>
+                <div
+                    className="resp-thead"
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 150px 110px 90px 110px 130px',
+                        padding: '10px 16px',
+                        background: 'var(--ink-50)',
+                        borderBottom: '1px solid var(--border)',
+                    }}
+                >
                     {['Description', 'Owner', 'Due Date', 'Priority', 'Status', 'Actions'].map(col => (
                         <div key={col} style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>
                             {col}
@@ -241,6 +247,7 @@ export default function ActionTracker() {
                         return (
                             <div
                                 key={item.id}
+                                className="resp-row"
                                 style={{
                                     display: 'grid',
                                     gridTemplateColumns: '1fr 150px 110px 90px 110px 130px',
@@ -254,12 +261,12 @@ export default function ActionTracker() {
                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                             >
                                 {/* Description */}
-                                <div style={{ fontSize: 13, color: 'var(--ink-900)', textDecoration: isCompleted ? 'line-through' : 'none', paddingRight: 16, lineHeight: 1.4 }}>
+                                <div data-label="primary" style={{ fontSize: 13, color: 'var(--ink-900)', textDecoration: isCompleted ? 'line-through' : 'none', paddingRight: 16, lineHeight: 1.4 }}>
                                     {item.description}
                                 </div>
 
                                 {/* Owner */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div data-label="Owner" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <div style={{
                                         width: 26, height: 26, borderRadius: '50%',
                                         background: 'var(--accent-soft)', color: 'var(--accent)',
@@ -274,7 +281,7 @@ export default function ActionTracker() {
                                 </div>
 
                                 {/* Due Date */}
-                                <div style={{
+                                <div data-label="Due" style={{
                                     fontFamily: "'Geist Mono', monospace",
                                     fontSize: 11,
                                     fontWeight: dueDateOverdue ? 600 : 400,
@@ -284,7 +291,7 @@ export default function ActionTracker() {
                                 </div>
 
                                 {/* Priority */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <div data-label="Priority" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                     <div style={{
                                         width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
                                         background: item.priority?.toUpperCase() === 'HIGH' ? 'var(--terra)'
@@ -297,7 +304,7 @@ export default function ActionTracker() {
                                 </div>
 
                                 {/* Status badge */}
-                                <div>
+                                <div data-label="Status">
                                     <span style={{
                                         fontSize: 11, fontWeight: 500, padding: '3px 8px',
                                         background: meta.bg, color: meta.color,
@@ -309,7 +316,7 @@ export default function ActionTracker() {
                                 </div>
 
                                 {/* Actions */}
-                                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                                <div data-label="Move to" style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                                     {transitions.map(next => {
                                         const nextMeta = STATUS_META[next] || STATUS_META.PENDING
                                         return (

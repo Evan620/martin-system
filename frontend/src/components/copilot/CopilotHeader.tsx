@@ -16,72 +16,73 @@ interface CopilotHeaderProps {
 }
 
 export default function CopilotHeader({
-    twgName,
-    twgId,
-    onTwgChange,
-    onClearHistory,
-    onClose,
-    userTwgs,
-    isAdmin,
+    twgName, twgId, onTwgChange, onClearHistory, onClose, userTwgs, isAdmin,
 }: CopilotHeaderProps) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
-
     const showSelector = isAdmin || userTwgs.length > 1;
 
     useEffect(() => {
         const handleClick = (e: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-                setDropdownOpen(false);
-            }
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setDropdownOpen(false);
         };
         document.addEventListener('mousedown', handleClick);
         return () => document.removeEventListener('mousedown', handleClick);
     }, []);
 
-    const contextLabel = twgName ?? (isAdmin ? 'Supervisor Mode' : 'All TWGs');
+    const contextLabel = twgName ?? (isAdmin ? 'Supervisor mode' : 'All TWGs');
 
     return (
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700/60">
-            {/* Left: Avatar + Name + TWG chip */}
-            <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-900/20">
-                    <span className="text-white text-sm font-bold leading-none">✦</span>
-                </div>
-                <span className="text-sm font-bold text-slate-900 dark:text-white">Martin</span>
-
-                {/* TWG context chip */}
-                <div className="relative" ref={dropdownRef}>
+        <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '12px 16px', borderBottom: '1px solid var(--border)',
+            background: 'var(--surface)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <div style={{
+                    width: 24, height: 24, border: '1px solid var(--border)', background: 'var(--ink-50)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: "'Source Serif 4', serif", fontSize: 13, color: 'var(--accent)', flexShrink: 0,
+                }}>M</div>
+                <span style={{ fontFamily: "'Source Serif 4', serif", fontSize: 15, color: 'var(--ink-900)', letterSpacing: '-0.01em' }}>Martin</span>
+                <div style={{ position: 'relative' }} ref={dropdownRef}>
                     <button
                         onClick={() => showSelector && setDropdownOpen(prev => !prev)}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors
-                            ${showSelector
-                                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 cursor-pointer'
-                                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 cursor-default'
-                            }`}
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px',
+                            fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 500,
+                            fontFamily: 'inherit', color: showSelector ? 'var(--accent)' : 'var(--ink-500)',
+                            background: 'transparent', border: '1px solid var(--border)',
+                            cursor: showSelector ? 'pointer' : 'default', maxWidth: 160,
+                        }}
                     >
-                        <span className="max-w-[120px] truncate">{contextLabel}</span>
-                        {showSelector && <span className="opacity-60">▾</span>}
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{contextLabel}</span>
+                        {showSelector && <span style={{ opacity: 0.6, fontSize: 9 }}>▾</span>}
                     </button>
-
                     {dropdownOpen && (
-                        <div className="absolute top-full left-0 mt-1 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
-                            <div className="px-3 py-2 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700">
-                                <p className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Select Context</p>
-                            </div>
-                            <ul className="py-1 max-h-48 overflow-y-auto">
+                        <div style={{
+                            position: 'absolute', top: '100%', left: 0, marginTop: 4, width: 240,
+                            background: 'var(--surface)', border: '1px solid var(--border)', zIndex: 50, overflow: 'hidden',
+                        }}>
+                            <div style={{
+                                padding: '8px 12px', background: 'var(--ink-50)', borderBottom: '1px solid var(--border)',
+                                fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500,
+                            }}>Select context</div>
+                            <ul style={{ margin: 0, padding: '4px 0', maxHeight: 200, overflowY: 'auto', listStyle: 'none' }}>
                                 {isAdmin && (
                                     <li>
                                         <button
                                             onClick={() => { onTwgChange(null); setDropdownOpen(false); }}
-                                            className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors
-                                                ${twgId === null
-                                                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
-                                                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                                                }`}
+                                            style={{
+                                                width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, fontFamily: 'inherit',
+                                                background: twgId === null ? 'var(--accent-soft)' : 'transparent',
+                                                color: twgId === null ? 'var(--accent)' : 'var(--ink-700)',
+                                                fontWeight: twgId === null ? 500 : 400,
+                                                border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                                            }}
                                         >
-                                            <span className="w-2 h-2 rounded-full bg-purple-400 flex-shrink-0" />
-                                            All TWGs (Supervisor mode)
+                                            <span style={{ width: 6, height: 6, borderRadius: 6, background: 'var(--accent)', flexShrink: 0 }} />
+                                            All TWGs (Supervisor)
                                         </button>
                                     </li>
                                 )}
@@ -89,14 +90,16 @@ export default function CopilotHeader({
                                     <li key={twg.id}>
                                         <button
                                             onClick={() => { onTwgChange(twg.id); setDropdownOpen(false); }}
-                                            className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors
-                                                ${twgId === twg.id
-                                                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
-                                                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                                                }`}
+                                            style={{
+                                                width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, fontFamily: 'inherit',
+                                                background: twgId === twg.id ? 'var(--accent-soft)' : 'transparent',
+                                                color: twgId === twg.id ? 'var(--accent)' : 'var(--ink-700)',
+                                                fontWeight: twgId === twg.id ? 500 : 400,
+                                                border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                                            }}
                                         >
-                                            <span className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
-                                            <span className="truncate">{twg.name}</span>
+                                            <span style={{ width: 6, height: 6, borderRadius: 6, background: 'var(--ink-400)', flexShrink: 0 }} />
+                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{twg.name}</span>
                                         </button>
                                     </li>
                                 ))}
@@ -105,30 +108,25 @@ export default function CopilotHeader({
                     )}
                 </div>
             </div>
-
-            {/* Right: Live indicator + controls */}
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span className="flex items-center gap-1 text-[10px] text-green-600 dark:text-green-400 font-bold uppercase">
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--sage)', fontWeight: 600,
+                }}>
+                    <span style={{ width: 5, height: 5, borderRadius: 5, background: 'var(--sage)', display: 'inline-block' }} className="animate-pulse" />
                     Live
                 </span>
-                <button
-                    onClick={onClearHistory}
-                    title="Clear history"
-                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
-                >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                <button onClick={onClearHistory} title="Clear history" style={{
+                    padding: 6, background: 'transparent', border: '1px solid var(--border)',
+                    color: 'var(--ink-500)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
+                }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
                 </button>
-                <button
-                    onClick={onClose}
-                    title="Close copilot"
-                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
-                >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                <button onClick={onClose} title="Close copilot" style={{
+                    padding: 6, background: 'transparent', border: '1px solid var(--border)',
+                    color: 'var(--ink-500)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
+                }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
                 </button>
             </div>
         </div>

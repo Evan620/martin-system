@@ -551,7 +551,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                         {/* Table */}
                         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                             <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', minWidth: 960, tableLayout: 'fixed', textAlign: 'left', fontSize: 13, borderCollapse: 'collapse' }}>
+                                <table className="doc-table" style={{ width: '100%', minWidth: 960, tableLayout: 'fixed', textAlign: 'left', fontSize: 13, borderCollapse: 'collapse' }}>
                                     <colgroup>
                                         <col style={{ width: 32 }} />
                                         <col />
@@ -573,8 +573,17 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                     style={{ accentColor: 'var(--accent)' }}
                                                 />
                                             </th>
-                                            {['Document', 'Type', 'Context (TWG)', 'Owner', 'Date', 'RAG Sync', 'Label', ''].map(col => (
-                                                <th key={col} style={{ padding: '10px 12px', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{col}</th>
+                                            {[
+                                                { label: 'Document', cls: '' },
+                                                { label: 'Type', cls: 'col-doc-type' },
+                                                { label: 'Context (TWG)', cls: 'col-doc-context' },
+                                                { label: 'Owner', cls: 'col-doc-owner' },
+                                                { label: 'Date', cls: 'col-doc-date' },
+                                                { label: 'RAG Sync', cls: 'col-doc-rag' },
+                                                { label: 'Label', cls: 'col-doc-label' },
+                                                { label: '', cls: '' },
+                                            ].map(c => (
+                                                <th key={c.label} className={c.cls} style={{ padding: '10px 12px', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{c.label}</th>
                                             ))}
                                         </tr>
                                     </thead>
@@ -614,21 +623,21 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                         <span style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file_name}</span>
                                                     </button>
                                                 </td>
-                                                <td style={{ padding: '10px 12px' }}>
+                                                <td className="col-doc-type" style={{ padding: '10px 12px' }}>
                                                     <span style={{ fontSize: 11, color: 'var(--ink-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{getDocumentType(doc)}</span>
                                                 </td>
-                                                <td style={{ padding: '10px 12px' }}>
+                                                <td className="col-doc-context" style={{ padding: '10px 12px' }}>
                                                     <span style={{ fontSize: 11, color: 'var(--ink-600)', background: 'var(--ink-50)', border: '1px solid var(--border)', padding: '2px 8px' }}>
                                                         {doc.twg ? doc.twg.name : 'Global'}
                                                     </span>
                                                 </td>
-                                                <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--ink-600)' }}>
+                                                <td className="col-doc-owner" style={{ padding: '10px 12px', fontSize: 13, color: 'var(--ink-600)' }}>
                                                     {doc.uploaded_by?.full_name || 'System Admin'}
                                                 </td>
-                                                <td style={{ padding: '10px 12px', fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'var(--ink-500)' }}>
+                                                <td className="col-doc-date" style={{ padding: '10px 12px', fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'var(--ink-500)' }}>
                                                     {new Date(doc.created_at).toLocaleDateString()}
                                                 </td>
-                                                <td style={{ padding: '10px 12px' }}>
+                                                <td className="col-doc-rag" style={{ padding: '10px 12px' }}>
                                                     {doc.ingested_at ? (
                                                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--sage)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                                                             <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--sage)' }}></div>
@@ -648,7 +657,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                         </button>
                                                     )}
                                                 </td>
-                                                <td style={{ padding: '10px 12px' }}>
+                                                <td className="col-doc-label" style={{ padding: '10px 12px' }}>
                                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: doc.is_confidential ? 'var(--terra)' : 'var(--sage)' }}>
                                                         <div style={{ width: 6, height: 6, borderRadius: '50%', background: doc.is_confidential ? 'var(--terra)' : 'var(--sage)' }}></div>
                                                         {doc.is_confidential ? 'Confidential' : 'Public'}

@@ -211,7 +211,13 @@ const DealPipeline: React.FC = () => {
   const paginatedProjects = filteredProjects.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const vm = viewMode as string;
-  if (vm === 'deal_room') return <DealRoomDashboard />;
+  if (vm === 'deal_room') return (
+    <DealRoomDashboard
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      canAccessInvestorDB={!!canAccessInvestorDB}
+    />
+  );
   if (vm === 'investors' && canAccessInvestorDB) return <InvestorDatabase />;
   if (vm === 'buyers') return <BuyerDatabase />;
 
@@ -441,11 +447,13 @@ const DealPipeline: React.FC = () => {
       </div>
 
       {/* ── KPI strip ───────────────────────────────────────── */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        padding: '22px 32px', marginBottom: 24,
-      }}>
+      <div
+        className="kpi-strip"
+        style={{
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          marginBottom: 24,
+        }}
+      >
         <LedgerStat label="Total pipeline value" value={loading ? '—' : fmtMoney(totalPipelineValue)} sub={`across ${stats?.total_projects ?? projects.length} projects`} />
         <LedgerStat label="High readiness" value={loading ? '—' : (stats?.healthy_projects ?? 0)} sub="score ≥ 75" />
         <LedgerStat label="Pending AI review" value={loading ? '—' : pendingAIReview} sub="awaiting agent analysis" accent />
@@ -582,14 +590,18 @@ const DealPipeline: React.FC = () => {
       </div>
 
       {/* ── Table ───────────────────────────────────────────── */}
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+      <div className="resp-table-mobile" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
         {/* Column headers */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 2.4fr) 0.8fr 1.2fr 0.9fr 1.1fr 0.9fr',
-          padding: '12px 24px', borderBottom: '1px solid var(--border)',
-          background: 'var(--ink-50)',
-        }}>
+        <div
+          className="resp-thead"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 2.4fr) 0.9fr 1.2fr 0.9fr 1.1fr 1.2fr',
+            columnGap: 20,
+            padding: '12px 24px', borderBottom: '1px solid var(--border)',
+            background: 'var(--ink-50)',
+          }}
+        >
           {['Project', 'Pillar', 'Lead / Co.', 'Investment', 'AfCEN score', 'Status'].map(h => (
             <div key={h} style={{
               fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
@@ -624,10 +636,12 @@ const DealPipeline: React.FC = () => {
           return (
             <div
               key={project.id}
+              className="resp-row"
               onClick={() => navigate(`/deal-pipeline/${encodeURIComponent(project.id)}`)}
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(0, 2.4fr) 0.8fr 1.2fr 0.9fr 1.1fr 0.9fr',
+                gridTemplateColumns: 'minmax(0, 2.4fr) 0.9fr 1.2fr 0.9fr 1.1fr 1.2fr',
+                columnGap: 20,
                 padding: '16px 24px',
                 borderBottom: last ? 'none' : `1px solid ${isIncubation ? '#f3e8ff' : 'var(--border)'}`,
                 background: isIncubation ? '#faf5ff' : 'var(--surface)',
@@ -638,7 +652,7 @@ const DealPipeline: React.FC = () => {
               onMouseLeave={e => (e.currentTarget.style.background = isIncubation ? '#faf5ff' : 'transparent')}
             >
               {/* Project */}
-              <div style={{ minWidth: 0, paddingRight: 16 }}>
+              <div data-label="primary" style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                   {(project as any).flagship && (
                     <span style={{ fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600 }}>
@@ -723,16 +737,16 @@ const DealPipeline: React.FC = () => {
               </div>
 
               {/* Pillar */}
-              <div style={{ fontSize: 12, color: 'var(--ink-700)' }}>{project.pillar || '—'}</div>
+              <div data-label="Pillar" style={{ fontSize: 12, color: 'var(--ink-700)' }}>{project.pillar || '—'}</div>
 
               {/* Lead */}
-              <div>
+              <div data-label="Lead">
                 <div style={{ fontSize: 12, color: 'var(--ink-900)' }}>{project.lead_country || '—'}</div>
                 <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 2 }}>{project.project_sponsor || ''}</div>
               </div>
 
               {/* Investment */}
-              <div style={{
+              <div data-label="Investment" style={{
                 fontSize: 14, fontFamily: "'Geist Mono', monospace",
                 color: 'var(--ink-900)', fontVariantNumeric: 'tabular-nums',
               }}>
@@ -740,7 +754,7 @@ const DealPipeline: React.FC = () => {
               </div>
 
               {/* Score */}
-              <div style={{ paddingRight: 16 }}>
+              <div data-label="AfCEN" style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{
                     fontSize: 13, fontFamily: "'Geist Mono', monospace",
@@ -759,7 +773,7 @@ const DealPipeline: React.FC = () => {
               </div>
 
               {/* Status */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div data-label="Status" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ width: 6, height: 6, borderRadius: 6, background: statusColor, display: 'inline-block', flexShrink: 0 }} />
                 <span style={{ fontSize: 12, color: 'var(--ink-700)' }}>{STATUS_LABEL[project.status] ?? project.status}</span>
                 {isIncubation && score >= threshold && (

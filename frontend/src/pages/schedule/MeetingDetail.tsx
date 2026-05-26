@@ -6,7 +6,6 @@ import { meetings, actionItems, twgs, recurringMeetings } from '../../services/a
 import { UserRole } from '../../types/auth'
 import { Card, Badge } from '../../components/ui'
 import { toLocalInputValue } from '../../utils/dates'
-import MeetingSidebar from './components/MeetingSidebar'
 import MinutesVersionHistory from '../../components/schedule/MinutesVersionHistory'
 
 import ConflictModal from '../../components/modals/ConflictModal'
@@ -999,161 +998,122 @@ export default function MeetingDetail() {
                     </div>
                 )}
 
-                {/* Header */}
-                <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                <button onClick={() => navigate(-1)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors">
-                                    <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                                    </svg>
-                                </button>
-                                <div className="flex items-center gap-2 text-sm text-slate-500">
-                                    <button
-                                        onClick={() => navigate('/dashboard')}
-                                        className="hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-                                    >
-                                        Home
+                {/* Header — editorial */}
+                <div style={{
+                    padding: '24px 32px 20px',
+                    borderBottom: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                        <button
+                            onClick={() => navigate(-1)}
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--ink-500)', padding: 0, display: 'inline-flex', alignItems: 'center' }}
+                            title="Back"
+                        >
+                            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_back</span>
+                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)' }}>
+                            <button onClick={() => navigate('/dashboard')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', font: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit' }}>Home</button>
+                            <span style={{ color: 'var(--ink-300)' }}>·</span>
+                            {location.state?.from === 'schedule' || location.pathname.includes('/schedule') ? (
+                                <>
+                                    <button onClick={() => navigate('/schedule')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', font: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit' }}>Schedule</button>
+                                    <span style={{ color: 'var(--ink-300)' }}>·</span>
+                                    <button onClick={() => navigate('/schedule')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', font: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit' }}>
+                                        {loading ? '—' : meeting?.twg?.name || 'Unknown TWG'}
                                     </button>
-                                    <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-
-                                    {/* Dynamic breadcrumb based on navigation source */}
-                                    {location.state?.from === 'schedule' || location.pathname.includes('/schedule') ? (
-                                        // Path: Home > Schedule > TWG > Meeting
-                                        <>
-                                            <button
-                                                onClick={() => navigate('/schedule')}
-                                                className="hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-                                            >
-                                                Schedule
-                                            </button>
-                                            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-                                            <button
-                                                onClick={() => navigate('/schedule')}
-                                                className="hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-                                            >
-                                                {loading ? (
-                                                    <span className="inline-block h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></span>
-                                                ) : (
-                                                    meeting?.twg?.name || 'Unknown TWG'
-                                                )}
-                                            </button>
-                                        </>
-                                    ) : (
-                                        // Path: Home > TWG Workspace > Meeting History > Meeting
-                                        <>
-                                            <button
-                                                onClick={() => navigate(`/workspace/${meeting?.twg_id}`)}
-                                                className="hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-                                            >
-                                                {loading ? (
-                                                    <span className="inline-block h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></span>
-                                                ) : (
-                                                    meeting?.twg?.name || 'Unknown TWG'
-                                                )}
-                                            </button>
-                                            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-                                            <button
-                                                onClick={() => navigate(`/workspace/${meeting?.twg_id}`)}
-                                                className="hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-                                            >
-                                                Meeting History
-                                            </button>
-                                        </>
-                                    )}
-
-                                    <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-                                    <span className="text-slate-700 dark:text-slate-300 font-medium">
-                                        Meeting #{meetingId?.slice(0, 6)}
+                                </>
+                            ) : (
+                                <>
+                                    <button onClick={() => navigate(`/workspace/${meeting?.twg_id}`)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', font: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit' }}>
+                                        {loading ? '—' : meeting?.twg?.name || 'Unknown TWG'}
+                                    </button>
+                                    <span style={{ color: 'var(--ink-300)' }}>·</span>
+                                    <button onClick={() => navigate(`/workspace/${meeting?.twg_id}`)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', font: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit' }}>Meeting history</button>
+                                </>
+                            )}
+                            <span style={{ color: 'var(--ink-300)' }}>·</span>
+                            <span style={{ color: 'var(--ink-700)', fontFamily: "'Geist Mono', monospace", letterSpacing: '0.05em' }}>#{meetingId?.slice(0, 6)}</span>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <h1 style={{
+                                fontFamily: "'Source Serif 4', serif", fontWeight: 400,
+                                fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)',
+                                margin: 0, lineHeight: 1.15, maxWidth: 820,
+                            }}>{meeting?.title}</h1>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 10, flexWrap: 'wrap' }}>
+                                {meeting?.status && (
+                                    <span style={{
+                                        fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600,
+                                        color: ['COMPLETED', 'completed'].includes(meeting.status) ? 'var(--sage)' : 'var(--accent)',
+                                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                                    }}>
+                                        <span style={{ width: 6, height: 6, borderRadius: 6, background: 'currentColor', display: 'inline-block' }} />
+                                        {String(meeting.status).replace(/_/g, ' ')}
                                     </span>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3 flex-wrap">
-                                <h1 className="text-2xl sm:text-3xl font-display font-black text-slate-900 dark:text-white">{meeting?.title}</h1>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <Badge variant="success" className="uppercase text-xs">{meeting?.status}</Badge>
-                                    {meeting?.recurring_meeting_id && (
-                                        <Badge variant="info" className="text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
-                                            Recurring Series
-                                        </Badge>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2 mt-2 text-sm text-slate-500">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                <span>
-                                    {minutesStatus === 'APPROVED' ? 'Minutes Approved' :
-                                        minutesStatus === 'PENDING_APPROVAL' ? 'Minutes Pending Approval' :
-                                            minutesStatus === 'REVIEW' ? 'Minutes Need Revision' :
-                                                minutesContent ? 'Minutes in Draft' : 'Minutes Not Started'}
+                                )}
+                                {meeting?.recurring_meeting_id && (
+                                    <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent)', opacity: 0.85 }}>
+                                        Recurring series
+                                    </span>
+                                )}
+                                <span style={{ fontSize: 11, color: 'var(--ink-500)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                    <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--ink-400)' }}>description</span>
+                                    {minutesStatus === 'APPROVED' ? 'Minutes approved' :
+                                        minutesStatus === 'PENDING_APPROVAL' ? 'Minutes pending approval' :
+                                            minutesStatus === 'REVIEW' ? 'Minutes need revision' :
+                                                minutesContent ? 'Minutes in draft' : 'Minutes not started'}
                                 </span>
                             </div>
                         </div>
-                        <div className="flex flex-wrap gap-2 sm:gap-3">
+                        <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                             {['scheduled', 'SCHEDULED'].includes(meeting?.status) && (
                                 <>
-                                    <button onClick={handleNotifyUpdate} className="btn-secondary text-sm flex items-center gap-2 border-yellow-500 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/30">
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                                        </svg>
-                                        <span className="hidden sm:inline">Send Update</span>
+                                    <button onClick={handleNotifyUpdate} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--amber)', color: 'var(--amber)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>notifications</span>
+                                        Send update
                                     </button>
-                                    <button onClick={handleCancelMeeting} className="btn-secondary text-sm flex items-center gap-2 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
+                                    <button onClick={handleCancelMeeting} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--terra)', color: 'var(--terra)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
                                         Cancel
                                     </button>
                                 </>
                             )}
-                            <button onClick={openEditModal} className="btn-secondary text-sm flex items-center gap-2">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                <span className="hidden sm:inline">Edit Meeting</span>
+                            <button onClick={openEditModal} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
+                                Edit meeting
                             </button>
                             {meeting?.recurring_meeting_id && (
-                                <button onClick={openManageSeriesModal} className="btn-secondary text-sm flex items-center gap-2 border-indigo-400 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                    </svg>
-                                    <span className="hidden sm:inline">Manage Series</span>
+                                <button onClick={openManageSeriesModal} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>autorenew</span>
+                                    Manage series
                                 </button>
                             )}
                             {meeting?.video_link && (
                                 <button
-                                    onClick={() => window.open(
-                                        meeting.video_link.startsWith('http') ? meeting.video_link : `https://${meeting.video_link}`,
-                                        '_blank'
-                                    )}
-                                    className="btn-secondary text-sm flex items-center gap-2 bg-white text-slate-700 hover:bg-slate-50 border-slate-300"
+                                    onClick={() => window.open(meeting.video_link.startsWith('http') ? meeting.video_link : `https://${meeting.video_link}`, '_blank')}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
                                 >
-                                    <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                    </svg>
+                                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>videocam</span>
                                     Join
                                 </button>
                             )}
-
                             {['in_progress', 'IN_PROGRESS'].includes(meeting?.status) && (
                                 <button
                                     onClick={() => navigate(`/meetings/${meetingId}/live`)}
-                                    className="px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors flex items-center gap-2"
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: '1px solid var(--terra)', color: 'var(--terra)', padding: '7px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', cursor: 'pointer', fontFamily: 'inherit' }}
                                 >
-                                    <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
+                                    <span style={{ width: 6, height: 6, borderRadius: 6, background: 'var(--terra)', display: 'inline-block' }} className="animate-pulse" />
                                     LIVE
                                 </button>
                             )}
-
                             {minutesStatus === 'PENDING_APPROVAL' && (
-                                <button onClick={handleApproveMinutes} className="btn-primary text-sm flex items-center gap-2">
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    <span className="hidden sm:inline">Approve & Send</span>
+                                <button onClick={handleApproveMinutes} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>check_circle</span>
+                                    Approve &amp; send
                                 </button>
                             )}
                         </div>
@@ -1177,32 +1137,83 @@ export default function MeetingDetail() {
                     }}
                 />
 
-                {/* Tabs */}
-                <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 sm:px-8 bg-white dark:bg-slate-900 overflow-x-auto">
+                {/* Ledger strip — at-a-glance meeting facts */}
+                {meeting && (() => {
+                    const dateStr = meeting.scheduled_at?.endsWith?.('Z') ? meeting.scheduled_at : `${meeting.scheduled_at}Z`
+                    const d = meeting.scheduled_at ? new Date(dateStr) : null
+                    const dateLabel = d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
+                    const timeLabel = d ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—'
+                    const partTotal = meeting.participants?.length ?? 0
+                    const partAccepted = meeting.participants?.filter((p: any) => p.rsvp_status === 'accepted').length ?? 0
+                    const docsCount = meeting.documents?.length ?? 0
+                    const minutesLabel = minutesStatus === 'APPROVED' ? 'Approved' : minutesStatus === 'PENDING_APPROVAL' ? 'Pending approval' : minutesStatus === 'REVIEW' ? 'Needs revision' : minutesContent ? 'Draft' : 'Not started'
+                    const minutesAccent = minutesStatus === 'APPROVED' ? 'var(--sage)' : minutesStatus === 'PENDING_APPROVAL' ? 'var(--amber)' : minutesStatus === 'REVIEW' ? 'var(--terra)' : 'var(--ink-900)'
+
+                    const ledgerCell = (label: string, value: React.ReactNode, sub: string, last = false, color?: string): JSX.Element => (
+                        <div style={{ paddingRight: 24, borderRight: last ? 'none' : '1px solid var(--border)' }}>
+                            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{label}</div>
+                            <div style={{
+                                fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 24,
+                                color: color || 'var(--ink-900)', letterSpacing: '-0.02em',
+                                marginTop: 4, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums',
+                            }}>{value}</div>
+                            <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 6 }}>{sub}</div>
+                        </div>
+                    )
+
+                    return (
+                        <div
+                            className="kpi-strip"
+                            style={{
+                                background: 'var(--surface)', borderBottom: '1px solid var(--border)',
+                                fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
+                            }}
+                        >
+                            {ledgerCell('Date', dateLabel, d ? d.toLocaleDateString('en-US', { weekday: 'long' }) : 'unscheduled')}
+                            {ledgerCell('Time', timeLabel, `${meeting.duration_minutes ?? '—'}m · ${meeting.location || 'Virtual'}`)}
+                            {ledgerCell('Participants', partTotal, partTotal ? `${partAccepted} accepted` : 'none yet')}
+                            {ledgerCell('Minutes', minutesLabel, docsCount ? `${docsCount} attachment${docsCount === 1 ? '' : 's'}` : 'no attachments', true, minutesAccent)}
+                        </div>
+                    )
+                })()}
+
+                {/* Tabs — editorial underline */}
+                <div style={{
+                    display: 'flex', gap: 0, padding: '0 32px',
+                    borderBottom: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    overflowX: 'auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
+                }}>
                     {[
                         { id: 'agenda', label: 'Agenda' },
                         { id: 'minutes', label: 'Minutes' },
                         { id: 'participants', label: 'Participants' },
                         { id: 'documents', label: 'Documents' },
                         { id: 'schedule', label: 'Schedule' }
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as TabType)}
-                            className={`py-4 px-3 sm:px-6 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id
-                                ? 'border-blue-600 text-blue-600'
-                                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                                }`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
+                    ].map(tab => {
+                        const on = activeTab === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id as TabType)}
+                                style={{
+                                    background: 'transparent', border: 'none', cursor: 'pointer',
+                                    padding: '14px 18px', fontSize: 12, fontWeight: on ? 500 : 400,
+                                    color: on ? 'var(--ink-900)' : 'var(--ink-500)',
+                                    borderBottom: on ? '2px solid var(--accent)' : '2px solid transparent',
+                                    marginBottom: -1, whiteSpace: 'nowrap',
+                                    fontFamily: 'inherit',
+                                }}
+                            >
+                                {tab.label}
+                            </button>
+                        );
+                    })}
                 </div>
 
-                {/* Content */}
+                {/* Content — single column, full width */}
                 <div className="flex-1 overflow-y-auto">
-                    <div className="flex">
-                        <div className="flex-1 p-4 sm:p-8">
+                    <div style={{ padding: '32px', maxWidth: 1180, margin: '0 auto' }}>
                             {loading ? (
                                 <div className="flex justify-center py-20">
                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -2239,10 +2250,6 @@ export default function MeetingDetail() {
                                     )}
                                 </>
                             )}
-                        </div>
-
-                        {/* Sidebar */}
-                        <MeetingSidebar meeting={meeting} />
                     </div>
                 </div>
             </div>

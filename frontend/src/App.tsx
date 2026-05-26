@@ -15,6 +15,7 @@ import TwgAgent from './pages/workspace/TwgAgent'
 import ActionTracker from './pages/actions/ActionTracker'
 import KnowledgeBase from './pages/knowledge/KnowledgeBase'
 import DealPipeline from './pages/DealPipeline'
+import Incubation from './pages/Incubation'
 import NewProject from './pages/NewProject'
 import EditProject from './pages/EditProject'
 import ProjectDetails from './pages/ProjectDetails'
@@ -122,6 +123,7 @@ function App() {
                 <Route path="/knowledge-base" element={<KnowledgeBase />} />
                 <Route path="/conflicts" element={<ProjectConflicts />} />
                 <Route path="/deal-pipeline" element={<DealPipeline />} />
+                <Route path="/deal-pipeline/incubation" element={<Incubation />} />
                 <Route path="/deal-pipeline/new" element={<NewProject />} />
                 <Route path="/deal-pipeline/buyers" element={<BuyerDatabase />} />
                 <Route path="/deal-pipeline/:projectId/edit" element={<EditProject />} />

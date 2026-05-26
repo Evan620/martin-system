@@ -408,6 +408,21 @@ const DealPipeline: React.FC = () => {
               </button>
             )}
             {canEdit && (
+              <button
+                onClick={() => navigate('/deal-pipeline/incubation')}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  background: 'transparent', border: '1px solid #7c3aed',
+                  color: '#7c3aed', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+                title="Open the Incubation Track workspace — pre-pipeline projects"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>science</span>
+                Incubation Track
+              </button>
+            )}
+            {canEdit && (
               <button onClick={() => navigate('/deal-pipeline/new')} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 background: 'var(--accent)', border: '1px solid var(--accent)',

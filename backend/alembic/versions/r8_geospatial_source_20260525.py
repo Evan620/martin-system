@@ -13,7 +13,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = 'r8_g30_5ource'
-down_revision = 'r8_sync_proj'
+down_revision = 'r8_cr34t3_t4bl'
 branch_labels = None
 depends_on = None
 

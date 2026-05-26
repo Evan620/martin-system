@@ -16,7 +16,7 @@ from alembic import op
 
 
 revision = 'r8_sync_proj'
-down_revision = 'r8_cr34t3_t4bl'
+down_revision = 'r8_l0c_n4m3'
 branch_labels = None
 depends_on = None
 

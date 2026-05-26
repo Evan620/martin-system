@@ -827,6 +827,10 @@ class ProjectPipelineService:
             gender_justification=data.get("gender_justification"),
             youth_focused=data.get("youth_focused"),
             youth_justification=data.get("youth_justification"),
+            # R8 — Site coordinates from intake picker
+            site_lat=data.get("site_lat"),
+            site_lon=data.get("site_lon"),
+            site_location_name=data.get("site_location_name"),
             metadata_json={
                 **(data.get("metadata_json") or {}), # Merge payload metadata
                 "source": "ingestion_api",

@@ -94,20 +94,24 @@ async def upload_document(
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     safe_filename = f"{timestamp}_{file.filename}"
 
-    # Upload to cloud storage (Google Drive)
+    # Try cloud storage (Google Drive) first; fall back to local filesystem so
+    # non-developer testers without GCS/Drive credentials can still upload via UI.
+    cloud_file_id = None
+    cloud_view_link = None
+    cloud_download_url = None
+    local_file_path = None
+    storage_mode = "cloud"
+
     try:
         storage = get_storage_service()
 
-        # Determine target folder
         target_folder_id = None
         if resolved_twg_id:
-            # Get TWG name for folder organization
             twg_result = await db.execute(select(TWG).where(TWG.id == resolved_twg_id))
             twg = twg_result.scalar_one_or_none()
             if twg:
                 target_folder_id = await asyncio.to_thread(storage.get_or_create_twg_folder, twg.name)
 
-        # Upload to cloud (run blocking Google Drive call in thread)
         cloud_file_id, cloud_view_link, cloud_download_url = await asyncio.to_thread(
             storage.upload_bytes,
             file_bytes=file_content,
@@ -116,28 +120,34 @@ async def upload_document(
             folder_id=target_folder_id
         )
 
-        if not cloud_file_id:
-            raise HTTPException(status_code=500, detail="Failed to upload file to cloud storage")
-
-        logger.info(f"Uploaded file to cloud storage: {cloud_file_id}")
-
-    except HTTPException:
-        raise
+        if cloud_file_id:
+            logger.info(f"Uploaded file to cloud storage: {cloud_file_id}")
+        else:
+            logger.warning("Cloud storage returned no file id; using local-disk fallback")
     except Exception as e:
-        logger.error(f"Cloud storage error: {e}")
-        raise HTTPException(status_code=500, detail=f"Cloud storage unavailable: {str(e)}")
-        
+        logger.warning(f"Cloud storage unavailable, using local-disk fallback: {e}")
+
+    if not cloud_file_id:
+        # Local-disk fallback. Path is configurable via LOCAL_UPLOADS_DIR; defaults
+        # to ./uploads/ relative to the backend cwd, which is writable in dev/CI.
+        uploads_dir = os.environ.get("LOCAL_UPLOADS_DIR", os.path.join(os.getcwd(), "uploads"))
+        os.makedirs(uploads_dir, exist_ok=True)
+        local_file_path = os.path.join(uploads_dir, f"{uuid.uuid4().hex}_{safe_filename}")
+        with open(local_file_path, "wb") as f:
+            f.write(file_content)
+        storage_mode = "local"
+        logger.info(f"Saved file to local fallback: {local_file_path}")
+
     # Create DB record
-    # Workaround: Explicitly truncate file_type to 50 chars to avoid persistent DBAPIError
     safe_file_type = (file.content_type or "unknown")[:50]
 
-    # Build metadata_json with document_type and cloud storage info
-    metadata = {
-        "storage_mode": "cloud",
-        "cloud_file_id": cloud_file_id,
-        "cloud_view_link": cloud_view_link,
-        "cloud_download_url": cloud_download_url
-    }
+    metadata = {"storage_mode": storage_mode}
+    if cloud_file_id:
+        metadata.update({
+            "cloud_file_id": cloud_file_id,
+            "cloud_view_link": cloud_view_link,
+            "cloud_download_url": cloud_download_url,
+        })
     if document_type:
         metadata["document_type"] = document_type
 
@@ -145,8 +155,9 @@ async def upload_document(
         twg_id=resolved_twg_id,
         project_id=resolved_project_id,
         file_name=file.filename,
-        file_path=cloud_file_id,  # Store cloud file ID as path
+        file_path=cloud_file_id or local_file_path,
         file_type=safe_file_type,
+        document_type=document_type,
         uploaded_by_id=current_user.id,
         is_confidential=is_confidential,
         metadata_json=metadata
@@ -338,9 +349,24 @@ async def download_document(
 
     # Get cloud file ID from metadata or file_path
     metadata = db_doc.metadata_json or {}
-    cloud_file_id = metadata.get("cloud_file_id") or db_doc.file_path
+    cloud_file_id = metadata.get("cloud_file_id")
 
-    # Handle legacy file_path format (local paths)
+    # Local-disk fallback (storage_mode=local or absolute file_path)
+    if not cloud_file_id and db_doc.file_path and (
+        metadata.get("storage_mode") == "local" or os.path.isabs(db_doc.file_path)
+    ):
+        if not os.path.exists(db_doc.file_path):
+            raise HTTPException(status_code=404, detail="Local file is no longer available on disk")
+        with open(db_doc.file_path, "rb") as f:
+            file_bytes = f.read()
+        return StreamingResponse(
+            io.BytesIO(file_bytes),
+            media_type=db_doc.file_type or "application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{db_doc.file_name}"'},
+        )
+
+    # Fall back to treating file_path as cloud id (legacy)
+    cloud_file_id = cloud_file_id or db_doc.file_path
     if not cloud_file_id or cloud_file_id.startswith('/'):
         error_msg = "This document was uploaded before cloud storage was enabled. Please re-upload the file."
         logger.error(f"Document {doc_id} ({db_doc.file_name}) has no valid cloud_file_id. file_path: {db_doc.file_path}")

@@ -100,6 +100,7 @@ def _project_to_read(p: "Project", current_user: "User") -> ProjectPipelineRead:
         # R8 — Site coordinates
         site_lat=p.site_lat,
         site_lon=p.site_lon,
+        site_location_name=p.site_location_name,
         allowed_transitions=LifecycleService.get_allowed_transitions(p.status, current_user.role),
     )
 

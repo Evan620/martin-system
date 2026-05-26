@@ -71,6 +71,11 @@ class ProjectIngest(BaseModel):
     youth_focused: Optional[bool] = None
     youth_justification: Optional[str] = None
 
+    # R8 — Site coordinates for geospatial analysis (from SiteLocationPicker on intake)
+    site_lat: Optional[float] = None
+    site_lon: Optional[float] = None
+    site_location_name: Optional[str] = None
+
     @field_validator("value_chain_stages")
     @classmethod
     def _check_value_chain_stages(cls, v):

@@ -362,15 +362,8 @@ const DealPipeline: React.FC = () => {
             Q2 2026 · Updated {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} GMT
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24 }}>
-          <h1 style={{
-            fontFamily: "'Source Serif 4', serif", fontWeight: 400,
-            fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)',
-            margin: 0, lineHeight: 1.1, maxWidth: 720,
-          }}>
-            Regional investment opportunities, ranked and tracked.
-          </h1>
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 24 }}>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
             {/* View mode switcher */}
             <div style={{ display: 'flex', border: '1px solid var(--border)', overflow: 'hidden' }}>
               {([

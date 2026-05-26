@@ -20,8 +20,10 @@ ENV VITE_APP_VERSION=$VITE_APP_VERSION
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies. Using `install --legacy-peer-deps` instead of `ci`
+# because react-leaflet v4 + several @testing-library transitive peer deps
+# need looser resolution than `ci` allows. Lock file is still respected.
+RUN npm install --legacy-peer-deps --no-audit --no-fund
 
 # Copy source code
 COPY . .

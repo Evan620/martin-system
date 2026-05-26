@@ -211,15 +211,6 @@ const DealPipeline: React.FC = () => {
   const paginatedProjects = filteredProjects.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const vm = viewMode as string;
-  if (vm === 'deal_room') return (
-    <DealRoomDashboard
-      viewMode={viewMode}
-      onViewModeChange={setViewMode}
-      canAccessInvestorDB={!!canAccessInvestorDB}
-    />
-  );
-  if (vm === 'investors' && canAccessInvestorDB) return <InvestorDatabase />;
-  if (vm === 'buyers') return <BuyerDatabase />;
 
   const toastStyle = (isError: boolean): React.CSSProperties => ({
     position: 'fixed', bottom: 24, right: 24, zIndex: 50,
@@ -446,6 +437,13 @@ const DealPipeline: React.FC = () => {
         </div>
       </div>
 
+      {/* ── Sub-view bodies (deal room / investors / buyers) — toolbar above stays persistent ── */}
+      {vm === 'deal_room' && <DealRoomDashboard />}
+      {vm === 'investors' && canAccessInvestorDB && <InvestorDatabase />}
+      {vm === 'buyers' && <BuyerDatabase />}
+
+      {/* ── Pipeline body (default view) ─────────────────────── */}
+      {vm === 'pipeline' && <>
       {/* ── KPI strip ───────────────────────────────────────── */}
       <div
         className="kpi-strip"
@@ -818,6 +816,7 @@ const DealPipeline: React.FC = () => {
       )}
 
       <div style={{ height: 32 }} />
+      </>}
     </div>
   );
 };

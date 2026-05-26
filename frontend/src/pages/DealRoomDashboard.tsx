@@ -28,15 +28,7 @@ function LedgerStat({ label, value, sub, accent = false, last = false }: {
     );
 }
 
-type ViewMode = 'pipeline' | 'deal_room' | 'investors' | 'buyers';
-
-interface DealRoomDashboardProps {
-    viewMode?: ViewMode;
-    onViewModeChange?: (v: ViewMode) => void;
-    canAccessInvestorDB?: boolean;
-}
-
-const DealRoomDashboard: React.FC<DealRoomDashboardProps> = ({ viewMode = 'deal_room', onViewModeChange, canAccessInvestorDB }) => {
+const DealRoomDashboard: React.FC = () => {
     const navigate = useNavigate();
     const [flagshipProjects, setFlagshipProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
@@ -62,56 +54,28 @@ const DealRoomDashboard: React.FC<DealRoomDashboardProps> = ({ viewMode = 'deal_
         : 0;
 
     return (
-        <div style={{ maxWidth: 1180, margin: '0 auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+        <div style={{ fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
 
-            {/* ── Page header ─────────────────────────────────────── */}
-            <div style={{ marginBottom: 24 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                    <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)' }}>
-                        Deal room
+            {/* Subtitle (page header lives in parent DealPipeline toolbar) */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent)' }}>
+                        ★ Deal room
                     </div>
                     <div style={{ width: 16, height: 1, background: 'var(--border)' }} />
-                    <span style={{ fontSize: 10, color: 'var(--ink-400)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-                        Curated · Updated {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} GMT
+                    <span style={{ fontSize: 12, color: 'var(--ink-700)', fontFamily: "'Source Serif 4', serif", fontStyle: 'italic' }}>
+                        Flagship opportunities, prepared for engagement.
                     </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24 }}>
-                    <h1 style={{
-                        fontFamily: "'Source Serif 4', serif", fontWeight: 400,
-                        fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)',
-                        margin: 0, lineHeight: 1.1, maxWidth: 720,
-                    }}>
-                        Flagship opportunities, prepared for engagement.
-                    </h1>
-                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                        {onViewModeChange && (
-                            <div style={{ display: 'flex', border: '1px solid var(--border)', overflow: 'hidden' }}>
-                                {[
-                                    { key: 'pipeline' as const, label: 'All projects' },
-                                    { key: 'deal_room' as const, label: 'Deal room' },
-                                    ...(canAccessInvestorDB ? [{ key: 'investors' as const, label: 'Investors' }] : []),
-                                ].map(({ key, label }, idx, arr) => (
-                                    <button key={key} onClick={() => onViewModeChange(key)} style={{
-                                        padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
-                                        background: viewMode === key ? 'var(--accent)' : 'transparent',
-                                        border: 'none', color: viewMode === key ? 'var(--accent-ink)' : 'var(--ink-700)',
-                                        fontFamily: 'inherit',
-                                        borderRight: idx !== arr.length - 1 ? '1px solid var(--border)' : 'none',
-                                    }}>{label}</button>
-                                ))}
-                            </div>
-                        )}
-                        <button onClick={() => navigate('/schedule')} style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 6,
-                            background: 'var(--accent)', border: '1px solid var(--accent)',
-                            color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
-                            cursor: 'pointer', fontFamily: 'inherit',
-                        }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>event</span>
-                            Schedule meeting
-                        </button>
-                    </div>
-                </div>
+                <button onClick={() => navigate('/schedule')} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    background: 'transparent', border: '1px solid var(--border)',
+                    color: 'var(--ink-700)', padding: '6px 12px', fontSize: 11, fontWeight: 500,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>event</span>
+                    Schedule meeting
+                </button>
             </div>
 
             {/* ── KPI strip ───────────────────────────────────────── */}

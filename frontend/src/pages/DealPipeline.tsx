@@ -7,6 +7,7 @@ import { useAppSelector } from '../hooks/useRedux';
 import { UserRole } from '../types/auth';
 import DealRoomDashboard from './DealRoomDashboard';
 import InvestorDatabase from './InvestorDatabase';
+import BuyerDatabase from './BuyerDatabase';
 
 // ─── status helpers ───────────────────────────────────────────
 
@@ -58,7 +59,7 @@ function LedgerStat({ label, value, sub, accent = false, last = false }: {
 
 const DealPipeline: React.FC = () => {
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<'pipeline' | 'deal_room' | 'investors'>('pipeline');
+  const [viewMode, setViewMode] = useState<'pipeline' | 'deal_room' | 'investors' | 'buyers'>('pipeline');
   const [activeTab, setActiveTab] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [showAIInsight, setShowAIInsight] = useState(true);
@@ -212,6 +213,7 @@ const DealPipeline: React.FC = () => {
   const vm = viewMode as string;
   if (vm === 'deal_room') return <DealRoomDashboard />;
   if (vm === 'investors' && canAccessInvestorDB) return <InvestorDatabase />;
+  if (vm === 'buyers') return <BuyerDatabase />;
 
   const toastStyle = (isError: boolean): React.CSSProperties => ({
     position: 'fixed', bottom: 24, right: 24, zIndex: 50,
@@ -374,16 +376,17 @@ const DealPipeline: React.FC = () => {
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
             {/* View mode switcher */}
             <div style={{ display: 'flex', border: '1px solid var(--border)', overflow: 'hidden' }}>
-              {[
+              {([
                 { key: 'pipeline', label: 'All projects' },
                 { key: 'deal_room', label: 'Deal room' },
                 ...(canAccessInvestorDB ? [{ key: 'investors', label: 'Investors' }] : []),
-              ].map(({ key, label }) => (
+                { key: 'buyers', label: 'Buyers' },
+              ] as const).map(({ key, label }, idx, arr) => (
                 <button key={key} onClick={() => setViewMode(key as any)} style={{
                   padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
                   background: viewMode === key ? 'var(--accent)' : 'transparent',
                   border: 'none', color: viewMode === key ? 'var(--accent-ink)' : 'var(--ink-700)',
-                  fontFamily: 'inherit', borderRight: key !== 'investors' ? '1px solid var(--border)' : 'none',
+                  fontFamily: 'inherit', borderRight: idx < arr.length - 1 ? '1px solid var(--border)' : 'none',
                 }}>{label}</button>
               ))}
             </div>

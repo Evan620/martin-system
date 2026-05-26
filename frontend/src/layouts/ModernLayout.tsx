@@ -123,7 +123,6 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
             label: 'Work',
             items: [
                 { path: '/deal-pipeline', icon: 'work_outline', label: 'Deal Pipeline' },
-                { path: '/deal-pipeline/buyers', icon: 'storefront', label: 'Buyer Database' },
                 { path: '/twgs', icon: 'hub', label: 'TWG Agents' },
                 { path: '/documents', icon: 'description', label: 'Documents' },
             ],

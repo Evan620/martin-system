@@ -120,6 +120,11 @@ const DealRoomDashboard: React.FC<DealRoomDashboardProps> = ({ viewMode = 'deal_
                 style={{
                     background: 'var(--surface)', border: '1px solid var(--border)',
                     marginBottom: 24,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: 24,
+                    padding: '24px 28px',
+                    alignItems: 'flex-start',
                 }}
             >
                 <LedgerStat label="Flagship opportunities" value={loading ? '—' : flagshipProjects.length} sub="curated by secretariat" accent />

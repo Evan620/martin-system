@@ -105,6 +105,7 @@ export interface Project {
 
     // Section A — Classification (Phase 1)
     value_chain_stages?: string[];
+    sector_details?: Record<string, any>;
     women_employment_pct?: number;
     youth_employment_pct?: number;
 

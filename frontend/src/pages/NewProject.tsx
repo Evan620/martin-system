@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import SiteLocationPicker from '../components/geospatial/SiteLocationPicker';
+import InfoTooltip from '../components/InfoTooltip';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { sectorByPillar, FieldDef } from '../config/sectorConfig';
 
 // R1 — Value chain controlled vocabulary. Keep in sync with backend
 // VALID_VALUE_CHAIN_STAGES in app/schemas/pipeline_schemas.py.
@@ -42,6 +44,7 @@ const NewProject: React.FC = () => {
     climateImpact: '',
     esgCompliance: '',
     value_chain_stages: [] as string[],
+    sector_details: {} as Record<string, any>,
     gender_intentional: undefined as boolean | undefined,
     gender_justification: undefined as string | undefined,
     youth_focused: undefined as boolean | undefined,
@@ -49,6 +52,7 @@ const NewProject: React.FC = () => {
     site_lat: null as number | null,
     site_lon: null as number | null,
     site_location_name: '' as string,
+    financing_structure: '',
   });
 
   const pillars = [
@@ -190,6 +194,7 @@ const NewProject: React.FC = () => {
           iconColor: formData.iconColor,
         },
         value_chain_stages: formData.value_chain_stages.length > 0 ? formData.value_chain_stages : undefined,
+        sector_details: activeSector && !activeSector.legacyAgri ? formData.sector_details : undefined,
         gender_intentional: formData.gender_intentional,
         gender_justification: formData.gender_justification,
         youth_focused: formData.youth_focused,
@@ -197,6 +202,7 @@ const NewProject: React.FC = () => {
         site_lat: formData.site_lat ?? undefined,
         site_lon: formData.site_lon ?? undefined,
         site_location_name: formData.site_location_name || undefined,
+        financing_structure: formData.financing_structure || undefined,
         start_in_incubation: startInIncubation,
       };
 
@@ -242,6 +248,10 @@ const NewProject: React.FC = () => {
       console.log('Form submission complete');
     }
   };
+
+  const activeSector = sectorByPillar(formData.pillar);
+  const setSectorField = (key: string, value: any) =>
+    setFormData(prev => ({ ...prev, sector_details: { ...prev.sector_details, [key]: value } }));
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -440,44 +450,135 @@ const NewProject: React.FC = () => {
             <p className="text-xs text-slate-500 dark:text-slate-400">Check if this project spans multiple countries</p>
           </div>
 
-          {/* Value Chain Stages */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-              Value Chain Stage
-            </label>
-            <div className="flex gap-2 flex-wrap">
-              {VALUE_CHAIN_STAGES.map(({ code, label }) => {
-                const selected = formData.value_chain_stages.includes(code);
-                return (
-                  <button
-                    key={code}
-                    type="button"
-                    onClick={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        value_chain_stages: selected
-                          ? prev.value_chain_stages.filter(s => s !== code)
-                          : [...prev.value_chain_stages, code],
-                      }));
-                    }}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                      selected
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
+          {/* Value Chain Stages — Agribusiness only */}
+          {activeSector?.legacyAgri && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                  Value Chain Stage
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {VALUE_CHAIN_STAGES.map(({ code, label }) => {
+                    const selected = formData.value_chain_stages.includes(code);
+                    return (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            value_chain_stages: selected
+                              ? prev.value_chain_stages.filter(s => s !== code)
+                              : [...prev.value_chain_stages, code],
+                          }));
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                          selected
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Select all stages this project operates in. At least one is required.</p>
+              </div>
+            </>
+          )}
+
+          {/* Sector-specific bespoke fields — non-agri sectors */}
+          {activeSector && !activeSector.legacyAgri && activeSector.fields.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 10 }}>
+                {activeSector.label} details
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                {activeSector.fields.map((f: FieldDef) => (
+                  <div key={f.key}>
+                    <label style={{ display: 'block', fontSize: 12, color: 'var(--ink-600)', marginBottom: 4 }}>
+                      {f.label}{f.optional ? ' (optional)' : ''}
+                    </label>
+                    {f.type === 'text' && (
+                      <input
+                        value={formData.sector_details[f.key] ?? ''}
+                        onChange={e => setSectorField(f.key, e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 13, fontFamily: 'inherit', color: 'var(--ink-900)', outline: 'none', boxSizing: 'border-box' }}
+                      />
+                    )}
+                    {f.type === 'number' && (
+                      <input
+                        type="number"
+                        value={formData.sector_details[f.key] ?? ''}
+                        onChange={e => setSectorField(f.key, e.target.value === '' ? null : Number(e.target.value))}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 13, fontFamily: 'inherit', color: 'var(--ink-900)', outline: 'none', boxSizing: 'border-box' }}
+                      />
+                    )}
+                    {f.type === 'select' && (
+                      <select
+                        value={formData.sector_details[f.key] ?? ''}
+                        onChange={e => setSectorField(f.key, e.target.value || null)}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 13, fontFamily: 'inherit', color: 'var(--ink-900)', outline: 'none', cursor: 'pointer' }}
+                      >
+                        <option value="">Select…</option>
+                        {f.options!.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    )}
+                    {f.type === 'multiselect' && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {f.options!.map(o => {
+                          const sel: string[] = formData.sector_details[f.key] ?? [];
+                          const on = sel.includes(o);
+                          return (
+                            <button
+                              type="button"
+                              key={o}
+                              onClick={() => setSectorField(f.key, on ? sel.filter(x => x !== o) : [...sel, o])}
+                              style={{
+                                padding: '5px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                                background: on ? 'var(--accent)' : 'transparent',
+                                border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+                                color: on ? 'var(--accent-ink)' : 'var(--ink-700)',
+                              }}
+                            >{o}</button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {f.type === 'toggle' && (
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-700)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!formData.sector_details[f.key]}
+                          onChange={e => setSectorField(f.key, e.target.checked)}
+                          style={{ accentColor: 'var(--accent)' }}
+                        />
+                        Yes
+                      </label>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Select all stages this project operates in. At least one is required.</p>
-          </div>
+          )}
 
           {/* Gender-intentional design toggle */}
           <div className="flex flex-col gap-1.5">
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+            <label className="flex items-center gap-1 text-xs font-medium text-slate-700 dark:text-slate-300">
               Gender-Intentional Design
+              <InfoTooltip
+                ariaLabel="What counts as gender-intentional design?"
+                text={
+                  <span>
+                    Choose <strong>Yes</strong> if the project explicitly: targets women-led businesses
+                    or women as key beneficiaries; sets a measurable women-employment or women-ownership
+                    target of <strong>at least 30%</strong>; or adopts a gender action plan as part of
+                    project design.<br /><br />
+                    Choose <strong>No</strong> if gender outcomes are incidental rather than designed in.
+                  </span>
+                }
+              />
             </label>
             <div className="flex gap-3">
               <button
@@ -512,8 +613,20 @@ const NewProject: React.FC = () => {
 
           {/* Youth-focused toggle */}
           <div className="flex flex-col gap-1.5">
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+            <label className="flex items-center gap-1 text-xs font-medium text-slate-700 dark:text-slate-300">
               Youth Employment Focus
+              <InfoTooltip
+                ariaLabel="What counts as youth employment focus?"
+                text={
+                  <span>
+                    Choose <strong>Yes</strong> if the project explicitly: targets under-35s as
+                    <strong> at least 30%</strong> of jobs created; includes a youth training,
+                    aggregator, or kiosk programme; or has a dedicated youth entrepreneurship
+                    pipeline.<br /><br />
+                    Choose <strong>No</strong> if youth outcomes are incidental.
+                  </span>
+                }
+              />
             </label>
             <div className="flex gap-3">
               <button
@@ -565,6 +678,24 @@ const NewProject: React.FC = () => {
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Use 'M' for millions or 'B' for billions (e.g., 1.2B, 450M)
+            </p>
+          </div>
+
+          {/* Funding Structure (optional) */}
+          <div>
+            <label htmlFor="financingStructure" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+              Funding Structure <span className="text-slate-400 font-normal">(optional)</span>
+            </label>
+            <textarea
+              id="financingStructure"
+              rows={2}
+              value={formData.financing_structure}
+              onChange={(e) => setFormData({ ...formData, financing_structure: e.target.value })}
+              className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+              placeholder="e.g., 60% commercial debt + 40% concessional from DFIs; PPP with sovereign guarantee"
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              If known, note the intended capital mix. You can leave this blank and add it later.
             </p>
           </div>
 

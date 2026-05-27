@@ -624,6 +624,10 @@ class Project(Base):
 
     # Investment Template Fields — Section A (Classification — Phase 1)
     value_chain_stages: Mapped[Optional[List[str]]] = mapped_column(ARRAY(Text), nullable=True)
+    # Sector-specific bespoke intake fields for non-agribusiness sectors
+    # (energy / minerals / digital). Shape is defined by frontend sectorConfig.ts;
+    # stored verbatim. Agribusiness continues to use its dedicated columns above.
+    sector_details: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     women_employment_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     youth_employment_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 

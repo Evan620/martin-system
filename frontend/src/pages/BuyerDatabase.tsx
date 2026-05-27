@@ -92,7 +92,7 @@ const BuyerDatabase: React.FC = () => {
                         Buyer Database
                     </h1>
                     <p style={{ fontSize: 13, color: 'var(--ink-500)', marginTop: 8 }}>
-                        Registered offtakers and buyers for project-buyer matching
+                        Registered offtakers for Agribusiness project–buyer matching
                     </p>
                 </div>
                 <button onClick={() => setShowAddModal(true)} style={{

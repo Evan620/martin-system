@@ -820,6 +820,7 @@ class ProjectPipelineService:
             is_flagship=data.get("is_flagship", False),
             # Phase 1 classification fields
             value_chain_stages=data.get("value_chain_stages"),
+            sector_details=data.get("sector_details"),
             women_employment_pct=data.get("women_employment_pct"),
             youth_employment_pct=data.get("youth_employment_pct"),
             # R2 — Gender & Youth intentional design flags
@@ -831,6 +832,8 @@ class ProjectPipelineService:
             site_lat=data.get("site_lat"),
             site_lon=data.get("site_lon"),
             site_location_name=data.get("site_location_name"),
+            # Optional funding-structure note from intake
+            financing_structure=data.get("financing_structure"),
             metadata_json={
                 **(data.get("metadata_json") or {}), # Merge payload metadata
                 "source": "ingestion_api",
@@ -913,7 +916,7 @@ class ProjectPipelineService:
             "jobs_construction", "jobs_om", "electricity_connections",
             "digital_connections", "smallholder_farmers_reached",
             # Phase 1 classification fields
-            "value_chain_stages", "women_employment_pct", "youth_employment_pct",
+            "value_chain_stages", "sector_details", "women_employment_pct", "youth_employment_pct",
             # R2 — Gender & Youth intentional design flags
             "gender_intentional", "gender_justification", "youth_focused", "youth_justification",
             # R8 — Site coordinates for geospatial analysis

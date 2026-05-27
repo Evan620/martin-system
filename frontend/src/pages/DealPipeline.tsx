@@ -8,6 +8,7 @@ import { UserRole } from '../types/auth';
 import DealRoomDashboard from './DealRoomDashboard';
 import InvestorDatabase from './InvestorDatabase';
 import BuyerDatabase from './BuyerDatabase';
+import { SECTORS, sectorCardSummary } from '../config/sectorConfig';
 
 // ─── status helpers ───────────────────────────────────────────
 
@@ -223,9 +224,7 @@ const DealPipeline: React.FC = () => {
 
   const PILLAR_TABS = [
     { key: 'all', label: 'All projects' },
-    { key: 'infrastructure', label: 'Infrastructure' },
-    { key: 'energy', label: 'Energy' },
-    { key: 'agriculture', label: 'Agriculture' },
+    ...SECTORS.map(s => ({ key: s.filterToken, label: s.label })),
   ];
 
   return (
@@ -667,11 +666,19 @@ const DealPipeline: React.FC = () => {
                   fontSize: 14, color: 'var(--ink-900)', fontWeight: 500,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>{project.name}</div>
+                {/* Agribusiness: value-chain stages */}
                 {project.value_chain_stages && project.value_chain_stages.length > 0 && (
                   <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 3 }}>
                     {project.value_chain_stages.map(s => s.charAt(0) + s.slice(1).toLowerCase()).join(' · ')}
                   </div>
                 )}
+                {/* Other sectors: bespoke one-line summary from sector_details */}
+                {(() => {
+                  const summary = sectorCardSummary(project.pillar, project.sector_details);
+                  return summary ? (
+                    <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 3 }}>{summary}</div>
+                  ) : null;
+                })()}
                 {/* Gender & Youth intentional design badges */}
                 {(project.gender_intentional || project.youth_focused) && (
                   <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>

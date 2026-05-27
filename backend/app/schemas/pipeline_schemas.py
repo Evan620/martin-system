@@ -58,10 +58,14 @@ class ProjectIngest(BaseModel):
 
     # R1 — Value chain classification. Required at intake: every new project must
     # declare at least one stage so investors can filter by mandate.
-    value_chain_stages: List[str] = Field(
-        ..., min_length=1,
-        description="At least one stage from the controlled vocabulary",
+    # Optional at intake — only agribusiness projects supply value-chain stages.
+    # Other sectors persist their bespoke fields in sector_details instead.
+    value_chain_stages: Optional[List[str]] = Field(
+        default=None,
+        description="Agribusiness stages from the controlled vocabulary (optional)",
     )
+    # Sector-specific bespoke fields (energy / minerals / digital). Stored verbatim.
+    sector_details: Optional[Dict[str, Any]] = None
     # R2 — Gender / youth signals (binary + justification). Optional on intake
     # because some early projects may not have decided yet; lifecycle stage gate
     # enforces them at UNDER_REVIEW → SUMMIT_READY.
@@ -75,6 +79,10 @@ class ProjectIngest(BaseModel):
     site_lat: Optional[float] = None
     site_lon: Optional[float] = None
     site_location_name: Optional[str] = None
+
+    # Optional funding structure note (prompt the submitter; never required) —
+    # surfaces the existing projects.financing_structure column on intake.
+    financing_structure: Optional[str] = None
 
     @field_validator("value_chain_stages")
     @classmethod
@@ -126,6 +134,7 @@ class ProjectUpdate(BaseModel):
     value_chain_stages: Optional[List[str]] = None
     women_employment_pct: Optional[float] = None
     youth_employment_pct: Optional[float] = None
+    sector_details: Optional[Dict[str, Any]] = None
 
     # R2 — Gender & Youth intentional design flags
     gender_intentional: Optional[bool] = None
@@ -239,6 +248,7 @@ class ProjectPipelineRead(BaseModel):
 
     # Phase 1 — Classification fields
     value_chain_stages: Optional[List[str]] = None
+    sector_details: Optional[Dict[str, Any]] = None
     women_employment_pct: Optional[float] = None
     youth_employment_pct: Optional[float] = None
 

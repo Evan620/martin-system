@@ -485,6 +485,18 @@ class ToolRegistry:
         Raises:
             ToolAccessDenied: If access is denied
         """
+        # Pipeline write/read tools — checked first so supervisor + TWG agents both get them.
+        # User-role gating happens inside each tool body via _rbac.require_role.
+        if tool_name in PIPELINE_WRITE_TOOLS or tool_name in PIPELINE_READ_TOOLS:
+            if agent_id in {"supervisor", "supervisor_v1"} or (agent_id and agent_id.startswith("twg_")) or agent_id in {
+                "energy", "agriculture", "minerals", "digital", "protocol", "resource_mobilization",
+            }:
+                return True
+            raise ToolAccessDenied(
+                f"Tool '{tool_name}' is restricted to supervisor / TWG agents. "
+                f"Agent '{agent_id}' does not have access."
+            )
+
         # Supervisor: only gets its own tools + unrestricted + email/meeting creation
         # It delegates TWG-scoped reads via consult_twg_agents_tool
         if agent_id == "supervisor":
@@ -510,16 +522,6 @@ class ToolRegistry:
         if tool_name in DEAL_PIPELINE_TOOLS and agent_id != "resource_mobilization":
             raise ToolAccessDenied(
                 f"Tool '{tool_name}' is restricted to the Resource Mobilization agent. "
-                f"Agent '{agent_id}' does not have access."
-            )
-
-        # Pipeline write/read tools — user-role gating happens inside each tool body via
-        # _rbac.require_role. Here we only gate by agent: supervisor_v1 or any twg_* agent.
-        if tool_name in PIPELINE_WRITE_TOOLS or tool_name in PIPELINE_READ_TOOLS:
-            if agent_id == "supervisor_v1" or (agent_id and agent_id.startswith("twg_")):
-                return True
-            raise ToolAccessDenied(
-                f"Tool '{tool_name}' is restricted to supervisor_v1 / TWG agents. "
                 f"Agent '{agent_id}' does not have access."
             )
 

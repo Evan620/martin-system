@@ -248,6 +248,12 @@ class Settings(BaseSettings):
     EMAILS_FROM_NAME: str = Field(default="Martin (ECOWAS Summit)", description="Sender name")
     EMAILS_ENABLED: bool = Field(default=True, description="Whether emails are enabled")
     SMTP_TLS: bool = Field(default=True, description="Whether to use TLS for SMTP")
+
+    # When False, Martin's create_meeting_invite skips Google Meet event creation
+    # and skips auto-sending invitation emails to participants. The meeting row
+    # is still written to the DB. Keep this off during testing so no real outreach
+    # happens via the agent path.
+    MEETING_AUTO_INVITES_ENABLED: bool = Field(default=False, description="If False, suppress Google Meet creation + invite emails from agent tools")
     
     # Resend (recommended for production)
     RESEND_API_KEY: Optional[str] = Field(default=None, description="Resend API key for email delivery")

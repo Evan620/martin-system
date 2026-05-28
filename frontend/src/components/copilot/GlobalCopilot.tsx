@@ -10,6 +10,7 @@ import CopilotHeader from './CopilotHeader';
 import SuggestedActions from './SuggestedActions';
 import CopilotInput from './CopilotInput';
 import { getBriefing, BriefingData } from '../../services/martinService';
+import api from '../../services/api';
 
 interface GlobalCopilotProps {
     onClose: () => void;
@@ -246,16 +247,28 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
         return null;
     }
 
-    async function executeConfirm(card: ConfirmCard): Promise<string> {
-        const resp = await fetch(card.confirm_endpoint, {
+    async function executeConfirm(card: ConfirmCard, confirmed: boolean): Promise<string> {
+        // The backend emits confirm_endpoint as "/api/v1/agents/execute" (an
+        // origin-relative path), but the Vite proxy strips the "/api" prefix,
+        // so calling it directly yields 404. Resolve via the api service base
+        // URL so the request lands on the FastAPI router cleanly.
+        const base = (api.defaults.baseURL || '').replace(/\/$/, '');
+        const path = card.confirm_endpoint.replace(/^\/api\/v1/, '').replace(/^\//, '');
+        const url = `${base}/${path}`;
+        const token = localStorage.getItem('token');
+        const resp = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ action_id: card.action_id, action_type: card.action_type, payload: card.payload }),
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ action_id: card.action_id, confirmed, edits: {} }),
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok) return `Action failed: ${data.detail || resp.statusText}`;
-        return data.status === 'ok' ? 'Done.' : JSON.stringify(data);
+        if (data.cancelled) return 'Cancelled.';
+        if (data.success === true || data.status === 'ok') return 'Done.';
+        return JSON.stringify(data);
     }
 
     const handleClearHistory = () => {
@@ -280,7 +293,8 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
 
     return (
         <div style={{
-            display: 'flex', flexDirection: 'column', height: '100%',
+            display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0,
+            width: '100%', overflow: 'hidden',
             background: 'var(--surface)',
             fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
         }}>
@@ -300,7 +314,8 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
                     onSubmit={(text) => { setInput(text); setTimeout(handleSend, 0); }}
                 />
             )}
-            <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {localMessages.map(msg => {
                     const monogram = (
                         <div style={{
@@ -333,7 +348,7 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
                                     <div style={{ display: 'flex', gap: 8 }}>
                                         <button
                                             onClick={async () => {
-                                                const result = await executeConfirm(confirmCard);
+                                                const result = await executeConfirm(confirmCard, true);
                                                 setLocalMessages(prev => [
                                                     ...prev,
                                                     { id: `r_${confirmCard.action_id}`, sender: 'agent', content: result, timestamp: new Date().toISOString() },
@@ -345,7 +360,9 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
                                             }}
                                         >Confirm</button>
                                         <button
-                                            onClick={() => {
+                                            onClick={async () => {
+                                                // Tell the backend to drop the pending action too.
+                                                await executeConfirm(confirmCard, false).catch(() => {});
                                                 setLocalMessages(prev => [
                                                     ...prev,
                                                     { id: `c_${confirmCard.action_id}`, sender: 'agent', content: 'Cancelled.', timestamp: new Date().toISOString() },
@@ -425,6 +442,7 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
                         </div>
                     </div>
                 )}
+              </div>
             </div>
             <CopilotInput
                 value={input}

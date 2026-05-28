@@ -618,8 +618,20 @@ async def create_recurring_meeting(
             if not twg_obj:
                 return json.dumps({"error": f"TWG {twg_id} not found"})
 
+            # Find a system user to attribute the series to. Prefer an ADMIN.
+            from app.models.models import User as _User, UserRole as _UserRole
+            sys_user_row = await session.execute(
+                select(_User).where(_User.role == _UserRole.ADMIN).limit(1)
+            )
+            sys_user = sys_user_row.scalar_one_or_none()
+            if not sys_user:
+                sys_user_row = await session.execute(select(_User).limit(1))
+                sys_user = sys_user_row.scalar_one_or_none()
+            if not sys_user:
+                return json.dumps({"error": "No user available to attribute the recurring series to."})
+
             service = RecurringMeetingService(session)
-            series = await service.create_series(payload, created_by=None)
+            series = await service.create_recurring_meeting(payload, user=sys_user)
             return json.dumps({
                 "success": True,
                 "series_id": str(series.id),

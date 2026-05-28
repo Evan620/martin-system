@@ -404,10 +404,12 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                     {/* Copilot side panel */}
                     {copilotOpen && (
                         <div
-                            className="hidden lg:flex w-[380px] shrink-0 overflow-hidden"
+                            className="hidden lg:flex w-[380px] shrink-0 overflow-hidden h-full min-h-0"
                             style={{ borderLeft: '1px solid var(--border)' }}
                         >
-                            <GlobalCopilot onClose={() => setCopilotOpen(false)} />
+                            <div className="flex flex-col w-full h-full min-h-0">
+                                <GlobalCopilot onClose={() => setCopilotOpen(false)} />
+                            </div>
                         </div>
                     )}
                 </div>

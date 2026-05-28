@@ -25,11 +25,13 @@ async def get_twg_info(twg_id: uuid.UUID) -> Dict[str, Any]:
     Fetch comprehensive details about a specific Technical Working Group.
     """
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(TWG).where(TWG.id == twg_id))
+        result = await session.execute(
+            select(TWG).where(TWG.id == twg_id).options(selectinload(TWG.members))
+        )
         twg = result.scalar_one_or_none()
         if not twg:
             return {"error": "TWG not found"}
-        
+
         return {
             "id": str(twg.id),
             "name": twg.name,
@@ -225,7 +227,10 @@ async def create_meeting_invite(
         await session.commit()
 
         # Auto-generate Google Meet link for virtual meetings
-        if not video_link and cleaned_location and 'virtual' in cleaned_location.lower():
+        # Gated by MEETING_AUTO_INVITES_ENABLED so testing doesn't create real
+        # calendar events with attached attendees.
+        from app.core.config import settings as _cfg
+        if _cfg.MEETING_AUTO_INVITES_ENABLED and not video_link and cleaned_location and 'virtual' in cleaned_location.lower():
             try:
                 import asyncio
                 from app.services.calendar_service import calendar_service
@@ -259,6 +264,18 @@ async def create_meeting_invite(
                 logger.warning(f"Could not auto-generate Meet link: {e}. Background job will retry.")
 
         # Auto-send invitation emails to all participants
+        # Gated by MEETING_AUTO_INVITES_ENABLED so testing doesn't email people.
+        if not _cfg.MEETING_AUTO_INVITES_ENABLED:
+            logger.info(f"[create_meeting_invite] MEETING_AUTO_INVITES_ENABLED=False — skipping invite emails for meeting {new_meeting.id}")
+            return {
+                "meeting_id": str(new_meeting.id),
+                "status": "created",
+                "video_link": video_link,
+                "scheduled_utc": utc_dt.isoformat(),
+                "scheduled_local": local_dt.strftime('%Y-%m-%d %H:%M %Z'),
+                "invites_sent": 0,
+                "invite_text_hint": f"(test mode) Would have invited participants to {title} on {local_dt.strftime('%Y-%m-%d %H:%M %Z')}",
+            }
         try:
             from app.services.email_service import email_service
 

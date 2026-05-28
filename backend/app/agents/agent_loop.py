@@ -117,6 +117,35 @@ class AgentLoop:
                     "content": result_str,
                 })
 
+            # Short-circuit: if any tool emitted a confirmation_required envelope,
+            # register the action in the pending-actions store (so /agents/execute
+            # can resolve it on Confirm) and return that JSON directly so the
+            # frontend renders the inline Confirm/Cancel card instead of letting
+            # the LLM paraphrase the payload.
+            _confirm_payload = None
+            for _, _, result_str in tool_results:
+                if '"status": "confirmation_required"' in result_str or '"status":"confirmation_required"' in result_str:
+                    _confirm_payload = result_str
+                    break
+            if _confirm_payload is not None:
+                try:
+                    import json as _json
+                    from app.tools._rbac import store_pending_action, get_user_for_thread
+                    parsed = _json.loads(_confirm_payload)
+                    _ctx = get_user_for_thread(thread_id)
+                    _uid_for_store = _ctx[0] if _ctx else ""
+                    store_pending_action(
+                        action_id=parsed["action_id"],
+                        user_id=_uid_for_store,
+                        action_type=parsed["action_type"],
+                        payload=parsed.get("payload", {}),
+                    )
+                    logger.info(f"[{self.agent_id}] stored pending action {parsed['action_id']} user={_uid_for_store} type={parsed['action_type']}")
+                except Exception as _e:
+                    logger.error(f"[{self.agent_id}] failed to register pending action: {_e}")
+                final_content = _confirm_payload
+                break
+
         else:
             final_content = final_content or "I reached my iteration limit. Please try a more specific question."
 
@@ -202,10 +231,12 @@ class AgentLoop:
                     if "user_timezone" in sig.parameters and user_timezone and "user_timezone" not in args:
                         args["user_timezone"] = user_timezone
                     # Auto-inject user context (set by /chat endpoints) so role-
-                    # gated write tools see who's calling.
+                    # gated write tools see who's calling. We resolve via the
+                    # thread-id keyed fallback so it survives supervisor → TWG
+                    # agent delegation hops where ContextVars get dropped.
                     if "user_id" in sig.parameters or "user_role" in sig.parameters:
-                        from app.tools._rbac import get_user_context
-                        _ctx = get_user_context()
+                        from app.tools._rbac import get_user_for_thread
+                        _ctx = get_user_for_thread(thread_id)
                         if _ctx is not None:
                             _uid, _urole = _ctx
                             if "user_id" in sig.parameters and "user_id" not in args:

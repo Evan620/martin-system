@@ -65,11 +65,23 @@ def _get_action(action_id: str, user_id: str) -> dict | None:
     if not entry:
         return None
     if datetime.utcnow() > datetime.fromisoformat(entry["expires_at"]):
-        del _pending_actions[action_id]
+        _finalize_action(action_id)
         return None
     if entry["user_id"] != str(user_id):
         return None
     return entry
+
+
+def _finalize_action(action_id: str) -> None:
+    """Drop the action from both the legacy in-route store and the shared
+    _rbac store. Used by all _execute_* helpers post-success so neither store
+    leaks the entry, regardless of which one held it."""
+    _pending_actions.pop(action_id, None)
+    try:
+        from app.tools._rbac import drop_pending_action as _drop
+        _drop(action_id)
+    except Exception:
+        pass
 
 
 def _extract_meeting_title(text: str) -> str:
@@ -261,7 +273,7 @@ async def chat_with_martin(
     """
     from langgraph.errors import GraphInterrupt
     from app.models.models import UserRole
-    from app.tools._rbac import set_user_context
+    from app.tools._rbac import set_user_context, set_user_for_thread
 
     # Bind user context for the lifetime of this request so role-gated tools
     # see who's calling them (auto-injected into tool kwargs by agent_loop).
@@ -271,6 +283,8 @@ async def chat_with_martin(
     user_timezone = request.headers.get("X-User-Timezone") if request else None
 
     conv_id = chat_in.conversation_id or uuid.uuid4()
+    # Thread-id-keyed fallback survives supervisor → TWG delegation hops.
+    set_user_for_thread(str(conv_id), str(current_user.id), current_user.role)
 
     try:
         # ROLE-BASED ROUTING
@@ -446,10 +460,11 @@ async def enhanced_chat(
     - Tool execution visibility
     - File attachment support
     """
-    from app.tools._rbac import set_user_context
+    from app.tools._rbac import set_user_context, set_user_for_thread
     set_user_context(str(current_user.id), current_user.role)
 
     conv_id = chat_in.conversation_id or uuid.uuid4()
+    set_user_for_thread(str(conv_id), str(current_user.id), current_user.role)
 
     try:
         # Get the supervisor agent
@@ -548,7 +563,10 @@ async def stream_chat_get(
     user_timezone = request.headers.get("X-User-Timezone") if request else None
 
     async def event_generator() -> AsyncGenerator[str, None]:
+        from app.tools._rbac import set_user_context, set_user_for_thread
         conv_id = conversation_id or str(uuid.uuid4())
+        set_user_context(str(current_user.id), current_user.role)
+        set_user_for_thread(conv_id, str(current_user.id), current_user.role)
 
         def _sse(data: dict) -> str:
             return f"data: {json.dumps(data)}\n\n"
@@ -702,11 +720,12 @@ async def stream_chat(
 
     async def event_generator() -> AsyncGenerator[str, None]:
         """Generate SSE events for streaming."""
-        from app.tools._rbac import set_user_context
+        from app.tools._rbac import set_user_context, set_user_for_thread
         set_user_context(str(current_user.id), current_user.role)
 
         # Ensure conv_id is always a string for JSON serialization
         conv_id = str(chat_in.conversation_id) if chat_in.conversation_id else str(uuid.uuid4())
+        set_user_for_thread(conv_id, str(current_user.id), current_user.role)
 
         # Extract user timezone from header
         user_timezone = request.headers.get("X-User-Timezone") if request else None
@@ -1324,13 +1343,20 @@ async def execute_action(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Execute a pending action (schedule meeting, create action item, draft document)."""
-    entry = _get_action(request.action_id, str(current_user.id))
+    """Execute a pending action (schedule meeting, create action item, draft document,
+    or any of the new pipeline-write actions stored via _rbac.store_pending_action)."""
+    from app.tools._rbac import get_pending_action, drop_pending_action
+
+    # Look in both stores: the legacy in-route dict (schedule_meeting /
+    # create_action_item) and the shared one used by the pipeline-write tools.
+    entry = _get_action(request.action_id, str(current_user.id)) or \
+            get_pending_action(request.action_id, str(current_user.id))
     if not entry:
         raise HTTPException(status_code=400, detail="Action expired or not found")
 
     if not request.confirmed:
-        del _pending_actions[request.action_id]
+        _pending_actions.pop(request.action_id, None)
+        drop_pending_action(request.action_id)
         return {"success": True, "cancelled": True, "message": "Action cancelled."}
 
     payload = {**entry["payload"], **request.edits}
@@ -1362,7 +1388,7 @@ async def execute_action(
             return await _execute_bulk_create_action_items(payload, current_user, db, request.action_id)
 
         elif action_type == "draft_document":
-            del _pending_actions[request.action_id]
+            _finalize_action(request.action_id)
             return {
                 "success": True,
                 "resource_id": None,
@@ -1413,7 +1439,7 @@ async def _execute_schedule_meeting(payload: dict, current_user: User, db: Async
     db.add(db_meeting)
     await db.commit()
 
-    del _pending_actions[action_id]
+    _finalize_action(action_id)
     return {"success": True, "resource_id": str(meeting_id), "message": f"Meeting '{title}' scheduled successfully."}
 
 
@@ -1423,8 +1449,19 @@ async def _execute_create_action_item(payload: dict, current_user: User, db: Asy
     from app.models.models import ActionItem as _ActionItem, ActionItemStatus as _ActionItemStatus, ActionItemPriority as _ActionItemPriority
 
     twg_id_raw = payload.get("twg_id")
+    # If no twg_id but a project_id was supplied (the new pipeline tool), derive
+    # twg_id from the project so action items can be attached to a project.
     if not twg_id_raw:
-        raise HTTPException(status_code=400, detail="twg_id is required to create an action item")
+        project_id_raw = payload.get("project_id")
+        if project_id_raw:
+            from app.models.models import Project as _Project
+            from sqlalchemy import select as __select
+            proj = (await db.execute(__select(_Project).where(_Project.id == uuid.UUID(str(project_id_raw))))).scalar_one_or_none()
+            if not proj:
+                raise HTTPException(status_code=404, detail="Project not found")
+            twg_id_raw = str(proj.twg_id)
+    if not twg_id_raw:
+        raise HTTPException(status_code=400, detail="twg_id or project_id is required to create an action item")
 
     twg_id = uuid.UUID(str(twg_id_raw))
     description = payload.get("title") or payload.get("description") or "Action Item"
@@ -1459,7 +1496,7 @@ async def _execute_create_action_item(payload: dict, current_user: User, db: Asy
     db.add(db_item)
     await db.commit()
 
-    del _pending_actions[action_id]
+    _finalize_action(action_id)
     return {"success": True, "resource_id": str(item_id), "message": f"Action item '{description}' created."}
 
 
@@ -1662,7 +1699,7 @@ async def _execute_advance_project_stage(
         summary=f"advance {before_value} -> {target.value}",
     )
     await db.commit()
-    del _pending_actions[action_id]
+    _finalize_action(action_id)
     return {"success": True, "resource_id": str(pid), "stage": target.value,
             "message": f"Project advanced to {target.value}."}
 
@@ -1692,7 +1729,7 @@ async def _execute_decline_project(
         summary=f"declined: {reason[:140]}",
     )
     await db.commit()
-    del _pending_actions[action_id]
+    _finalize_action(action_id)
     return {"success": True, "resource_id": str(pid), "message": "Project declined."}
 
 
@@ -1711,7 +1748,7 @@ async def _execute_mark_flagship(
         summary=f"flagship {before} -> {row.is_flagship}",
     )
     await db.commit()
-    del _pending_actions[action_id]
+    _finalize_action(action_id)
     return {"success": True, "resource_id": str(pid), "is_flagship": row.is_flagship,
             "message": f"Project {'marked' if row.is_flagship else 'unmarked'} as flagship."}
 
@@ -1732,7 +1769,7 @@ async def _execute_rescore_project(
         summary=f"rescored -> {afcen_float}",
     )
     await db.commit()
-    del _pending_actions[action_id]
+    _finalize_action(action_id)
     return {"success": True, "resource_id": str(pid), "afcen_score": afcen_float,
             "message": f"Project rescored: AfCEN {afcen_float}."}
 
@@ -1758,7 +1795,7 @@ async def _execute_graduate_from_incubation(
         summary="incubation -> draft",
     )
     await db.commit()
-    del _pending_actions[action_id]
+    _finalize_action(action_id)
     return {"success": True, "resource_id": str(pid),
             "message": "Project graduated from Incubation."}
 
@@ -1827,6 +1864,6 @@ async def _execute_bulk_create_action_items(
         summary=f"created {len(created_ids)} action items",
     )
     await db.commit()
-    del _pending_actions[action_id]
+    _finalize_action(action_id)
     return {"success": True, "count": len(created_ids), "ids": created_ids,
             "message": f"Created {len(created_ids)} action item(s)."}

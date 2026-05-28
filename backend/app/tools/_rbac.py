@@ -23,6 +23,73 @@ def get_user_context() -> Optional[Tuple[str, UserRole]]:
     """Return (user_id, user_role) or None if not set."""
     return _user_ctx.get()
 
+
+# Cross-task fallback: ContextVars don't always propagate across the supervisor's
+# delegation hops (consult_twg_agents_tool spawns new task chains). Stash user
+# context by chat thread_id, which the agent loop receives explicitly.
+_user_by_thread: dict[str, Tuple[str, UserRole]] = {}
+_MAX_THREADS = 256
+
+
+def set_user_for_thread(thread_id: str, user_id: str, user_role: UserRole) -> None:
+    """Stash user context keyed by chat thread_id for cross-task retrieval."""
+    if not thread_id:
+        return
+    # Bounded — drop the oldest entry when full. Good enough; we don't expect
+    # 256 concurrent active chats.
+    if len(_user_by_thread) >= _MAX_THREADS:
+        try:
+            _user_by_thread.pop(next(iter(_user_by_thread)))
+        except StopIteration:
+            pass
+    _user_by_thread[str(thread_id)] = (str(user_id), user_role)
+
+
+def get_user_for_thread(thread_id: Optional[str]) -> Optional[Tuple[str, UserRole]]:
+    """Resolve user context by thread_id, falling back to the ContextVar."""
+    if thread_id:
+        hit = _user_by_thread.get(str(thread_id))
+        if hit is not None:
+            return hit
+    return _user_ctx.get()
+
+
+# ---------------------------------------------------------------------------
+# Pending-action store — shared between agent_loop (writes) and the /execute
+# route (reads). Lives here to avoid a circular import: agent_loop is imported
+# transitively by routes.agents, so agent_loop cannot import from there.
+# ---------------------------------------------------------------------------
+from datetime import datetime as _dt, timedelta as _td
+
+_pending_actions: dict[str, dict] = {}
+_ACTION_TTL_MINUTES = 10
+
+
+def store_pending_action(action_id: str, user_id: str, action_type: str, payload: dict) -> None:
+    _pending_actions[action_id] = {
+        "action_id": action_id,
+        "user_id": str(user_id),
+        "action_type": action_type,
+        "payload": payload,
+        "expires_at": (_dt.utcnow() + _td(minutes=_ACTION_TTL_MINUTES)).isoformat(),
+    }
+
+
+def get_pending_action(action_id: str, user_id: str) -> Optional[dict]:
+    entry = _pending_actions.get(action_id)
+    if not entry:
+        return None
+    if _dt.utcnow() > _dt.fromisoformat(entry["expires_at"]):
+        _pending_actions.pop(action_id, None)
+        return None
+    if entry["user_id"] != str(user_id):
+        return None
+    return entry
+
+
+def drop_pending_action(action_id: str) -> None:
+    _pending_actions.pop(action_id, None)
+
 # Mirrors frontend RBAC groups so the agent's writes match what the UI allows.
 EDIT_ROLES: Set[UserRole] = {
     UserRole.ADMIN, UserRole.SECRETARIAT_LEAD, UserRole.TWG_FACILITATOR,

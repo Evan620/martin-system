@@ -174,6 +174,52 @@ railway run --service worker celery -A app.core.celery_app inspect scheduled
 railway run --service backend alembic upgrade head
 ```
 
+## Database migrations — operating rule
+
+Schema changes go through **Alembic only**. No more `metadata.create_all` or
+hand-rolled `ALTER TABLE` hotfixes on prod — they bypass version tracking and
+cause the deploy migration step to fail later with phantom-revision errors.
+
+### How a schema change ships
+
+1. Edit the SQLAlchemy model (`backend/app/models/models.py`).
+2. Add a migration in `backend/alembic/versions/`. Prefer idempotent DDL
+   (`ALTER TABLE … ADD COLUMN IF NOT EXISTS …`) so the same file is safe to
+   re-run if a deploy partially applied it.
+3. Test locally: `cd backend && alembic upgrade head` — must finish without
+   error.
+4. Commit migration + model change together.
+5. Deploy. The Dockerfile `CMD` already runs `alembic upgrade head` before
+   `uvicorn`, so the migration applies automatically.
+
+### One-time repair: phantom alembic marker
+
+If a DB's `alembic_version` row points at a revision id that no longer exists
+in `alembic/versions/` (this happens when someone ran `alembic stamp` with a
+typo, or when a DB was bootstrapped via `metadata.create_all`), every
+subsequent `alembic upgrade head` will fail with:
+
+> `Can't locate revision identified by '<phantom>'`
+
+Fix once per affected DB with the bundled script:
+
+```bash
+# Prod (laptop with Railway CLI):
+railway run -s backend bash backend/scripts/repair_alembic_state.sh
+
+# Local:
+cd backend && bash scripts/repair_alembic_state.sh
+```
+
+The script:
+- Reads `SELECT version_num FROM alembic_version`.
+- Compares it to the revision ids present in `alembic/versions/*.py`.
+- If the marker is real → exits 0 (no-op).
+- If the marker is phantom → runs `alembic stamp head --purge` so future
+  upgrades chain cleanly. The DB schema itself is not modified by the stamp.
+
+After repair, deploys resume normally.
+
 ## Cost Estimate (Railway Pro)
 
 - Base Pro Plan: $20/month

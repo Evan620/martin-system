@@ -16,11 +16,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "projects",
-        sa.Column("sector_details", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    # Idempotent: prod has historically had columns added via metadata.create_all
+    # or hand-rolled SQL hotfixes, so the column may already exist when this runs.
+    op.execute(
+        "ALTER TABLE projects ADD COLUMN IF NOT EXISTS sector_details JSONB"
     )
 
 
 def downgrade() -> None:
-    op.drop_column("projects", "sector_details")
+    op.execute("ALTER TABLE projects DROP COLUMN IF EXISTS sector_details")

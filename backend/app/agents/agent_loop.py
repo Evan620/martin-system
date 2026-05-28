@@ -201,6 +201,17 @@ class AgentLoop:
                         args["twg_id"] = self.twg_id
                     if "user_timezone" in sig.parameters and user_timezone and "user_timezone" not in args:
                         args["user_timezone"] = user_timezone
+                    # Auto-inject user context (set by /chat endpoints) so role-
+                    # gated write tools see who's calling.
+                    if "user_id" in sig.parameters or "user_role" in sig.parameters:
+                        from app.tools._rbac import get_user_context
+                        _ctx = get_user_context()
+                        if _ctx is not None:
+                            _uid, _urole = _ctx
+                            if "user_id" in sig.parameters and "user_id" not in args:
+                                args["user_id"] = _uid
+                            if "user_role" in sig.parameters and "user_role" not in args:
+                                args["user_role"] = _urole
                     if asyncio.iscoroutinefunction(func):
                         raw = await func(**args)
                     else:

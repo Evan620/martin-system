@@ -64,6 +64,26 @@ DEAL_PIPELINE_TOOLS: Set[str] = {
     "analyze_project_documents",
 }
 
+# Pipeline write tools — gated by user role (not by agent id). Exposed on the supervisor agent.
+PIPELINE_WRITE_TOOLS: Set[str] = {
+    "advance_project_stage",
+    "decline_project",
+    "mark_flagship",
+    "rescore_project",
+    "graduate_from_incubation",
+    "create_action_item",
+    "bulk_create_action_items",
+}
+
+# Pipeline read tools — no role gate beyond TWG scoping where applicable.
+PIPELINE_READ_TOOLS: Set[str] = {
+    "pipeline_summary",
+    "at_risk_projects",
+    "incubation_close_to_graduation",
+    "my_action_items",
+    "next_deadlines",
+}
+
 # Tools available to all authenticated agents (no TWG scope needed)
 UNRESTRICTED_TOOLS: Set[str] = {
     "search_knowledge_base",
@@ -352,7 +372,7 @@ class ToolRegistry:
                     "type": "string",
                     "description": param_desc,
                 }
-            
+
             handler = tool.get("function") or tool.get("coroutine")
             self.register(
                 name=tool["name"],
@@ -360,6 +380,65 @@ class ToolRegistry:
                 parameters=properties,
                 handler=handler,
                 required_params=list(tool["parameters"].keys()),
+            )
+
+        # Pipeline write tools (Tier 1) — confirm-then-execute moves on projects.
+        from app.tools.pipeline_write_tools import (
+            advance_project_stage, decline_project, mark_flagship, rescore_project,
+            graduate_from_incubation, create_action_item, bulk_create_action_items,
+        )
+        # Pipeline read tools (Tier 1) — read-only aggregates and lists.
+        from app.tools.pipeline_read_tools import (
+            pipeline_summary, at_risk_projects, incubation_close_to_graduation,
+            my_action_items, next_deadlines,
+        )
+
+        pipeline_extras = [
+            (advance_project_stage, "advance_project_stage",
+             "Move a project to a new pipeline stage. Returns confirmation_required on first call."),
+            (decline_project, "decline_project",
+             "Decline a project with a reason. Confirm-then-execute."),
+            (mark_flagship, "mark_flagship",
+             "Mark or unmark a project as flagship. Confirm-then-execute."),
+            (rescore_project, "rescore_project",
+             "Update a project's score. Confirm-then-execute."),
+            (graduate_from_incubation, "graduate_from_incubation",
+             "Graduate a project from incubation to the next stage. Confirm-then-execute."),
+            (create_action_item, "create_action_item",
+             "Create an action item / task linked to a project or meeting."),
+            (bulk_create_action_items, "bulk_create_action_items",
+             "Create several action items in one call."),
+            (pipeline_summary, "pipeline_summary",
+             "Counts by stage, total investment, and period delta. Scope: all|twg|mine."),
+            (at_risk_projects, "at_risk_projects",
+             "List projects that are stalled or otherwise at risk."),
+            (incubation_close_to_graduation, "incubation_close_to_graduation",
+             "List incubation projects close to graduating."),
+            (my_action_items, "my_action_items",
+             "List action items assigned to the calling user."),
+            (next_deadlines, "next_deadlines",
+             "Upcoming project / action-item deadlines within a window."),
+        ]
+        for fn, name, desc in pipeline_extras:
+            sig = inspect.signature(fn)
+            properties: Dict[str, Any] = {}
+            required: List[str] = []
+            for param_name, param in sig.parameters.items():
+                # Skip auto-injected / framework params
+                if param_name in {"user_id", "user_role"}:
+                    continue
+                properties[param_name] = {
+                    "type": "string",
+                    "description": f"{param_name} parameter",
+                }
+                if param.default is inspect.Parameter.empty:
+                    required.append(param_name)
+            self.register(
+                name=name,
+                description=desc,
+                parameters=properties,
+                handler=fn,
+                required_params=required,
             )
 
     def _register_supervisor_tools(self) -> None:
@@ -431,6 +510,16 @@ class ToolRegistry:
         if tool_name in DEAL_PIPELINE_TOOLS and agent_id != "resource_mobilization":
             raise ToolAccessDenied(
                 f"Tool '{tool_name}' is restricted to the Resource Mobilization agent. "
+                f"Agent '{agent_id}' does not have access."
+            )
+
+        # Pipeline write/read tools — user-role gating happens inside each tool body via
+        # _rbac.require_role. Here we only gate by agent: supervisor_v1 or any twg_* agent.
+        if tool_name in PIPELINE_WRITE_TOOLS or tool_name in PIPELINE_READ_TOOLS:
+            if agent_id == "supervisor_v1" or (agent_id and agent_id.startswith("twg_")):
+                return True
+            raise ToolAccessDenied(
+                f"Tool '{tool_name}' is restricted to supervisor_v1 / TWG agents. "
                 f"Agent '{agent_id}' does not have access."
             )
 

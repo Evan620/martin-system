@@ -1281,3 +1281,21 @@ class ProjectGeospatialData(Base):
     raw_response: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     project: Mapped["Project"] = relationship(back_populates="geospatial_data")
+
+
+class AgentAuditLog(Base):
+    """One row per Martin-executed write. Pairs with project_status_history
+    for stage moves but is the catch-all for everything else."""
+    __tablename__ = "agent_audit_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_role: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    action_id: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
+    tool_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    target_type: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    target_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    before_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    after_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

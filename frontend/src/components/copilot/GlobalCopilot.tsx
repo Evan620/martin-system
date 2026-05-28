@@ -225,6 +225,39 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
         setInput(text);
     };
 
+    type ConfirmCard = {
+        status: 'confirmation_required';
+        type?: string;
+        action_id: string;
+        action_type: string;
+        summary: string;
+        payload: Record<string, any>;
+        irreversible?: boolean;
+        confirm_endpoint: string;
+    };
+
+    function tryParseConfirm(content: string): ConfirmCard | null {
+        const trimmed = content.trim();
+        if (!trimmed.startsWith('{')) return null;
+        try {
+            const j = JSON.parse(trimmed);
+            if (j && j.status === 'confirmation_required' && j.action_id && j.confirm_endpoint) return j as ConfirmCard;
+        } catch { /* not JSON */ }
+        return null;
+    }
+
+    async function executeConfirm(card: ConfirmCard): Promise<string> {
+        const resp = await fetch(card.confirm_endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ action_id: card.action_id, action_type: card.action_type, payload: card.payload }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) return `Action failed: ${data.detail || resp.statusText}`;
+        return data.status === 'ok' ? 'Done.' : JSON.stringify(data);
+    }
+
     const handleClearHistory = () => {
         setLocalMessages([]);
         setConversationId(undefined);
@@ -276,6 +309,58 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
                             fontFamily: "'Source Serif 4', serif", fontSize: 11, color: 'var(--accent)', flexShrink: 0,
                         }}>M</div>
                     );
+                    const confirmCard = msg.sender !== 'user' ? tryParseConfirm(msg.content) : null;
+                    if (confirmCard) {
+                        return (
+                            <div
+                                key={msg.id}
+                                style={{
+                                    display: 'flex', gap: 8, width: '100%', overflow: 'hidden', flexDirection: 'row',
+                                }}
+                            >
+                                {monogram}
+                                <div style={{
+                                    padding: 12, border: '1px solid var(--border)', background: 'var(--ink-50)',
+                                    fontFamily: "'Geist', 'Inter', system-ui, sans-serif", maxWidth: '90%', minWidth: 0,
+                                }}>
+                                    <div style={{
+                                        fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
+                                        fontWeight: 600, color: confirmCard.irreversible ? 'var(--terra)' : 'var(--accent)', marginBottom: 8,
+                                    }}>
+                                        {confirmCard.irreversible ? 'Irreversible action' : 'Confirm action'}
+                                    </div>
+                                    <div style={{ fontSize: 13, color: 'var(--ink-900)', marginBottom: 12 }}>{confirmCard.summary}</div>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button
+                                            onClick={async () => {
+                                                const result = await executeConfirm(confirmCard);
+                                                setLocalMessages(prev => [
+                                                    ...prev,
+                                                    { id: `r_${confirmCard.action_id}`, sender: 'agent', content: result, timestamp: new Date().toISOString() },
+                                                ]);
+                                            }}
+                                            style={{
+                                                background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)',
+                                                padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                                            }}
+                                        >Confirm</button>
+                                        <button
+                                            onClick={() => {
+                                                setLocalMessages(prev => [
+                                                    ...prev,
+                                                    { id: `c_${confirmCard.action_id}`, sender: 'agent', content: 'Cancelled.', timestamp: new Date().toISOString() },
+                                                ]);
+                                            }}
+                                            style={{
+                                                background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)',
+                                                padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                                            }}
+                                        >Cancel</button>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }
                     return (
                         <div
                             key={msg.id}

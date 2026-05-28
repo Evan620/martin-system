@@ -261,10 +261,15 @@ async def chat_with_martin(
     """
     from langgraph.errors import GraphInterrupt
     from app.models.models import UserRole
-    
+    from app.tools._rbac import set_user_context
+
+    # Bind user context for the lifetime of this request so role-gated tools
+    # see who's calling them (auto-injected into tool kwargs by agent_loop).
+    set_user_context(str(current_user.id), current_user.role)
+
     # Extract user timezone from header
     user_timezone = request.headers.get("X-User-Timezone") if request else None
-    
+
     conv_id = chat_in.conversation_id or uuid.uuid4()
 
     try:
@@ -441,6 +446,9 @@ async def enhanced_chat(
     - Tool execution visibility
     - File attachment support
     """
+    from app.tools._rbac import set_user_context
+    set_user_context(str(current_user.id), current_user.role)
+
     conv_id = chat_in.conversation_id or uuid.uuid4()
 
     try:
@@ -694,9 +702,12 @@ async def stream_chat(
 
     async def event_generator() -> AsyncGenerator[str, None]:
         """Generate SSE events for streaming."""
+        from app.tools._rbac import set_user_context
+        set_user_context(str(current_user.id), current_user.role)
+
         # Ensure conv_id is always a string for JSON serialization
         conv_id = str(chat_in.conversation_id) if chat_in.conversation_id else str(uuid.uuid4())
-        
+
         # Extract user timezone from header
         user_timezone = request.headers.get("X-User-Timezone") if request else None
         
@@ -1332,6 +1343,24 @@ async def execute_action(
         elif action_type == "create_action_item":
             return await _execute_create_action_item(payload, current_user, db, request.action_id)
 
+        elif action_type == "advance_project_stage":
+            return await _execute_advance_project_stage(payload, current_user, db, request.action_id)
+
+        elif action_type == "decline_project":
+            return await _execute_decline_project(payload, current_user, db, request.action_id)
+
+        elif action_type == "mark_flagship":
+            return await _execute_mark_flagship(payload, current_user, db, request.action_id)
+
+        elif action_type == "rescore_project":
+            return await _execute_rescore_project(payload, current_user, db, request.action_id)
+
+        elif action_type == "graduate_from_incubation":
+            return await _execute_graduate_from_incubation(payload, current_user, db, request.action_id)
+
+        elif action_type == "bulk_create_action_items":
+            return await _execute_bulk_create_action_items(payload, current_user, db, request.action_id)
+
         elif action_type == "draft_document":
             del _pending_actions[request.action_id]
             return {
@@ -1565,3 +1594,239 @@ async def send_project_memo_email(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send email: {str(e)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Pipeline-write execution helpers (confirm-then-execute via /agents/execute)
+# ---------------------------------------------------------------------------
+
+from sqlalchemy import select as _select
+from app.models.models import (
+    AgentAuditLog as _AgentAuditLog,
+    ActionItem as _ActionItemModel,
+    ActionItemStatus as _ActionItemStatusModel,
+    ActionItemPriority as _ActionItemPriorityModel,
+    Project as _Project,
+    ProjectStatus as _ProjectStatus,
+    ProjectStatusHistory as _ProjectStatusHistory,
+)
+
+
+async def _audit(
+    db: AsyncSession,
+    *,
+    user: User,
+    action_id: str,
+    tool_name: str,
+    target_id,
+    before,
+    after,
+    summary: str,
+) -> None:
+    """Append a single AgentAuditLog row in the caller's transaction."""
+    role_value = user.role.value if hasattr(user.role, "value") else str(user.role)
+    db.add(_AgentAuditLog(
+        user_id=user.id,
+        user_role=role_value,
+        action_id=action_id,
+        tool_name=tool_name,
+        target_type="project",
+        target_id=str(target_id) if target_id else None,
+        before_json=before,
+        after_json=after,
+        summary=summary,
+    ))
+
+
+async def _execute_advance_project_stage(
+    payload: dict, current_user: User, db: AsyncSession, action_id: str
+) -> dict:
+    pid = uuid.UUID(str(payload["project_id"]))
+    target = _ProjectStatus(payload["target_stage"])
+    row = (await db.execute(_select(_Project).where(_Project.id == pid))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+    before_stage = row.status if row.status else None
+    before_value = before_stage.value if before_stage else None
+    row.status = target
+    db.add(_ProjectStatusHistory(
+        project_id=pid,
+        previous_status=before_stage,
+        new_status=target,
+        changed_by_id=current_user.id,
+        notes=payload.get("notes") or "",
+    ))
+    await _audit(
+        db, user=current_user, action_id=action_id, tool_name="advance_project_stage",
+        target_id=pid, before={"status": before_value}, after={"status": target.value},
+        summary=f"advance {before_value} -> {target.value}",
+    )
+    await db.commit()
+    del _pending_actions[action_id]
+    return {"success": True, "resource_id": str(pid), "stage": target.value,
+            "message": f"Project advanced to {target.value}."}
+
+
+async def _execute_decline_project(
+    payload: dict, current_user: User, db: AsyncSession, action_id: str
+) -> dict:
+    pid = uuid.UUID(str(payload["project_id"]))
+    reason = (payload.get("reason") or "").strip()
+    row = (await db.execute(_select(_Project).where(_Project.id == pid))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+    before_stage = row.status if row.status else None
+    before_value = before_stage.value if before_stage else None
+    row.status = _ProjectStatus.DECLINED
+    db.add(_ProjectStatusHistory(
+        project_id=pid,
+        previous_status=before_stage,
+        new_status=_ProjectStatus.DECLINED,
+        changed_by_id=current_user.id,
+        reason=reason,
+        notes=reason,
+    ))
+    await _audit(
+        db, user=current_user, action_id=action_id, tool_name="decline_project",
+        target_id=pid, before={"status": before_value}, after={"status": "DECLINED"},
+        summary=f"declined: {reason[:140]}",
+    )
+    await db.commit()
+    del _pending_actions[action_id]
+    return {"success": True, "resource_id": str(pid), "message": "Project declined."}
+
+
+async def _execute_mark_flagship(
+    payload: dict, current_user: User, db: AsyncSession, action_id: str
+) -> dict:
+    pid = uuid.UUID(str(payload["project_id"]))
+    row = (await db.execute(_select(_Project).where(_Project.id == pid))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+    before = bool(getattr(row, "is_flagship", False))
+    row.is_flagship = bool(payload["is_flagship"])
+    await _audit(
+        db, user=current_user, action_id=action_id, tool_name="mark_flagship",
+        target_id=pid, before={"is_flagship": before}, after={"is_flagship": row.is_flagship},
+        summary=f"flagship {before} -> {row.is_flagship}",
+    )
+    await db.commit()
+    del _pending_actions[action_id]
+    return {"success": True, "resource_id": str(pid), "is_flagship": row.is_flagship,
+            "message": f"Project {'marked' if row.is_flagship else 'unmarked'} as flagship."}
+
+
+async def _execute_rescore_project(
+    payload: dict, current_user: User, db: AsyncSession, action_id: str
+) -> dict:
+    from app.services.project_pipeline_service import ProjectPipelineService
+    pid = uuid.UUID(str(payload["project_id"]))
+    service = ProjectPipelineService(db)
+    # assess_project_readiness is the in-process WAIIS scoring path; it persists
+    # afcen_score / readiness_score / strategic_alignment_score onto the Project row.
+    afcen = await service.assess_project_readiness(pid)
+    afcen_float = float(afcen) if afcen is not None else None
+    await _audit(
+        db, user=current_user, action_id=action_id, tool_name="rescore_project",
+        target_id=pid, before=None, after={"afcen_score": afcen_float},
+        summary=f"rescored -> {afcen_float}",
+    )
+    await db.commit()
+    del _pending_actions[action_id]
+    return {"success": True, "resource_id": str(pid), "afcen_score": afcen_float,
+            "message": f"Project rescored: AfCEN {afcen_float}."}
+
+
+async def _execute_graduate_from_incubation(
+    payload: dict, current_user: User, db: AsyncSession, action_id: str
+) -> dict:
+    pid = uuid.UUID(str(payload["project_id"]))
+    row = (await db.execute(_select(_Project).where(_Project.id == pid))).scalar_one_or_none()
+    if not row or row.status != _ProjectStatus.INCUBATION:
+        raise HTTPException(status_code=409, detail="Project is not in Incubation")
+    row.status = _ProjectStatus.DRAFT
+    db.add(_ProjectStatusHistory(
+        project_id=pid,
+        previous_status=_ProjectStatus.INCUBATION,
+        new_status=_ProjectStatus.DRAFT,
+        changed_by_id=current_user.id,
+        notes="Graduated from Incubation via Martin.",
+    ))
+    await _audit(
+        db, user=current_user, action_id=action_id, tool_name="graduate_from_incubation",
+        target_id=pid, before={"status": "INCUBATION"}, after={"status": "DRAFT"},
+        summary="incubation -> draft",
+    )
+    await db.commit()
+    del _pending_actions[action_id]
+    return {"success": True, "resource_id": str(pid),
+            "message": "Project graduated from Incubation."}
+
+
+async def _execute_bulk_create_action_items(
+    payload: dict, current_user: User, db: AsyncSession, action_id: str
+) -> dict:
+    import datetime as _dt
+    meeting_id_raw = payload.get("meeting_id")
+    if not meeting_id_raw:
+        raise HTTPException(status_code=400, detail="meeting_id is required")
+    meeting_id = uuid.UUID(str(meeting_id_raw))
+
+    # Look up the meeting's twg_id since ActionItem.twg_id is NOT NULL.
+    from app.models.models import Meeting as _Meeting
+    meeting_row = (await db.execute(
+        _select(_Meeting).where(_Meeting.id == meeting_id)
+    )).scalar_one_or_none()
+    if not meeting_row:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    twg_id = meeting_row.twg_id
+
+    created_ids: list[str] = []
+    for it in payload.get("items", []):
+        description = (it.get("description") or "").strip()
+        if not description:
+            continue
+
+        due_raw = it.get("due_date")
+        if due_raw and isinstance(due_raw, str):
+            try:
+                due_date = _dt.datetime.fromisoformat(due_raw.replace("Z", "+00:00")).replace(tzinfo=None)
+            except ValueError:
+                due_date = None
+        elif isinstance(due_raw, _dt.datetime):
+            due_date = due_raw.replace(tzinfo=None)
+        else:
+            due_date = None
+
+        priority_raw = str(it.get("priority", "medium")).lower()
+        try:
+            priority = _ActionItemPriorityModel(priority_raw)
+        except ValueError:
+            priority = _ActionItemPriorityModel.MEDIUM
+
+        owner_id_raw = it.get("owner_user_id") or it.get("owner_id") or it.get("assignee_id")
+        owner_id = uuid.UUID(str(owner_id_raw)) if owner_id_raw else None
+
+        item_id = uuid.uuid4()
+        db.add(_ActionItemModel(
+            id=item_id,
+            twg_id=twg_id,
+            meeting_id=meeting_id,
+            description=description,
+            owner_id=owner_id,
+            due_date=due_date,
+            priority=priority,
+            status=_ActionItemStatusModel.PENDING,
+        ))
+        created_ids.append(str(item_id))
+
+    await db.flush()
+    await _audit(
+        db, user=current_user, action_id=action_id, tool_name="bulk_create_action_items",
+        target_id=meeting_id, before=None, after={"count": len(created_ids)},
+        summary=f"created {len(created_ids)} action items",
+    )
+    await db.commit()
+    del _pending_actions[action_id]
+    return {"success": True, "count": len(created_ids), "ids": created_ids,
+            "message": f"Created {len(created_ids)} action item(s)."}

@@ -22,7 +22,9 @@ export const SECTORS: SectorConfig[] = [
   {
     pillarValue: 'Agribusiness and Food Systems Transformation',
     label: 'Agribusiness & Food Systems',
-    filterToken: 'agribusiness',
+    // Matches both 'Agribusiness and Food Systems Transformation' (human label)
+    // and 'agriculture_food_systems' (enum key) — historic projects use both.
+    filterToken: 'agri',
     usesOfftake: true,
     legacyAgri: true,
     fields: [],

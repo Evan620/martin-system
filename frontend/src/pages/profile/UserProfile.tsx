@@ -72,7 +72,7 @@ export default function UserProfile() {
                                 <h2 className="text-xl font-bold text-[#0d121b] dark:text-white">
                                     {user?.full_name || 'Admin User'}
                                 </h2>
-                                <p className="text-sm text-[#4c669a] dark:text-[#a0aec0]">ECOWAS Summit Administrator</p>
+                                <p className="text-sm text-[#4c669a] dark:text-[#a0aec0]">WAIIS Administrator</p>
                                 <div className="mt-4 flex flex-wrap justify-center gap-2">
                                     <span className="px-2 py-1 bg-blue-50 text-blue-600 dark:bg-blue-900/20 text-blue-400 text-xs font-bold rounded uppercase">
                                         {user?.role || 'ADMIN'}

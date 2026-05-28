@@ -170,10 +170,10 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                         color: 'var(--accent-ink)',
                         fontFamily: "'Source Serif 4', serif",
                         fontSize: 14, fontWeight: 600,
-                    }}>E</div>
+                    }}>W</div>
                     <div>
                         <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 14, color: 'var(--ink-900)', lineHeight: 1.1, letterSpacing: '-0.01em' }}>
-                            ECOWAS Summit
+                            WAIIS
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--ink-500)', letterSpacing: '0.04em' }}>
                             TWG Workspace
@@ -348,7 +348,7 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                             style={{ background: 'var(--surface)', borderRight: '1px solid var(--border)' }}
                         >
                             <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border)' }}>
-                                <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 15, color: 'var(--ink-900)' }}>ECOWAS Summit</div>
+                                <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 15, color: 'var(--ink-900)' }}>WAIIS</div>
                                 <button onClick={() => setIsMobileMenuOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-500)' }}>
                                     <span className="material-symbols-outlined">close</span>
                                 </button>

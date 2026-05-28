@@ -264,7 +264,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                     <div className="text-center pt-8 pb-4">
                         <p className="text-xs text-[#9ca3af] dark:text-gray-500">
                             Changes to Security settings may require users to re-login. <br />
-                            ECOWAS Summit TWG Support System v2.4.0
+                            WAIIS TWG Support System v2.4.0
                         </p>
                     </div>
                 </div>

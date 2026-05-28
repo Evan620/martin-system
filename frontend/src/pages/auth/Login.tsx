@@ -116,11 +116,11 @@ export default function Login() {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0,
                 }}>
-                    <span style={{ color: 'var(--accent)', fontFamily: serif, fontSize: 15, fontWeight: 600 }}>E</span>
+                    <span style={{ color: 'var(--accent)', fontFamily: serif, fontSize: 15, fontWeight: 600 }}>W</span>
                 </div>
                 <div>
                     <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-800)', lineHeight: 1.2 }}>
-                        ECOWAS Summit
+                        WAIIS
                     </div>
                     <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-400)' }}>
                         TWG Platform
@@ -259,7 +259,7 @@ export default function Login() {
             {/* Footer */}
             <div style={{ marginTop: 28, textAlign: 'center' }}>
                 <p style={{ fontFamily: mono, fontSize: 9, color: 'var(--ink-400)', letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 2 }}>
-                    ECOWAS Summit © 2026 · Authorized Personnel Only
+                    WAIIS © 2026 · Authorized Personnel Only
                 </p>
             </div>
 

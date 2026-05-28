@@ -264,7 +264,7 @@ export default function PublicInvitationRespond() {
                 {/* Footer */}
                 <div className="mt-8 text-center">
                     <p className="text-sm text-[#4c669a]">
-                        ECOWAS Summit Technical Working Group Platform
+                        WAIIS Technical Working Group Platform
                     </p>
                 </div>
             </div>

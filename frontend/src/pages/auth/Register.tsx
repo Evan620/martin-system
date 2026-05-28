@@ -191,9 +191,9 @@ export default function Register() {
                 <div className="relative z-10 flex flex-col justify-end p-16 space-y-6">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                            <span className="font-bold text-lg">E</span>
+                            <span className="font-bold text-lg">W</span>
                         </div>
-                        <span className="text-xl font-display font-semibold">ECOWAS SUMMIT TWG</span>
+                        <span className="text-xl font-display font-semibold">WAIIS TWG</span>
                     </div>
                     <h1 className="text-5xl font-display font-bold leading-tight">
                         Join the Future of Regional Collaboration
@@ -321,7 +321,7 @@ export default function Register() {
 
                     <div className="pt-6 border-t border-slate-800 text-center">
                         <p className="text-xs text-slate-500">
-                            ECOWAS Summit © 2024. Authorized Personnel Only.
+                            WAIIS © 2024. Authorized Personnel Only.
                         </p>
                         <p className="text-xs text-slate-600 mt-1">
                             By creating an account, you agree to our Terms of Service and Privacy Policy.

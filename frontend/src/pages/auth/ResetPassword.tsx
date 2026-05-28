@@ -129,9 +129,9 @@ export default function ResetPassword() {
                 <div className="relative z-10 flex flex-col justify-end p-16 space-y-6 text-white">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/20">
-                            <span className="font-bold text-lg">E</span>
+                            <span className="font-bold text-lg">W</span>
                         </div>
-                        <span className="text-xl font-display font-semibold">ECOWAS SUMMIT TWG</span>
+                        <span className="text-xl font-display font-semibold">WAIIS TWG</span>
                     </div>
                     <h1 className="text-5xl font-display font-bold leading-tight">
                         Create a New Password
@@ -235,7 +235,7 @@ export default function ResetPassword() {
 
                     <div className="pt-8 border-t border-slate-100 text-center">
                         <p className="text-xs text-slate-400">
-                            ECOWAS Summit © 2026. Authorized Personnel Only.
+                            WAIIS © 2026. Authorized Personnel Only.
                         </p>
                     </div>
                 </div>

@@ -38,7 +38,7 @@ export default function PendingApproval() {
                 </Card>
 
                 <p className="mt-8 text-center text-xs text-slate-600">
-                    ECOWAS Summit © 2026. Authorized Personnel Only.
+                    WAIIS © 2026. Authorized Personnel Only.
                 </p>
             </div>
         </div>

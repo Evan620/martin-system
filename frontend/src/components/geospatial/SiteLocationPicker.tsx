@@ -143,7 +143,8 @@ export default function SiteLocationPicker({ value, onChange, height = 320, disa
                     disabled={disabled || busy}
                     style={{
                         flex: 1, padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border, #d1d5db)',
-                        background: 'var(--surface, #fff)', color: 'var(--text-primary, #111)', fontSize: 14,
+                        background: 'var(--surface, #fff)', color: 'var(--ink-900, #111)', fontSize: 14,
+                        outline: 'none',
                     }}
                 />
                 <button
@@ -183,7 +184,7 @@ export default function SiteLocationPicker({ value, onChange, height = 320, disa
                 </MapContainer>
             </div>
 
-            <div style={{ fontSize: 12, color: 'var(--text-secondary, #6b7280)', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ fontSize: 12, color: 'var(--ink-500, #6b7280)', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                 <span>
                     {hasPin
                         ? `Pinned at ${value.lat!.toFixed(4)}, ${value.lon!.toFixed(4)}`

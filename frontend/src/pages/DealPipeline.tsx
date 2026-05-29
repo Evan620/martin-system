@@ -580,6 +580,21 @@ const DealPipeline: React.FC = () => {
       </div>
 
       {/* ── Table ───────────────────────────────────────────── */}
+      {/* Mobile (card) view: let long project titles wrap instead of clipping. */}
+      <style>{`
+        @media (max-width: 767px) {
+          .resp-table-mobile .dp-card-title {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+          }
+          .resp-table-mobile .dp-card-eyebrow {
+            flex-wrap: wrap !important;
+          }
+        }
+      `}</style>
       <div className="resp-table-mobile" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
         {/* Column headers */}
         <div
@@ -643,7 +658,7 @@ const DealPipeline: React.FC = () => {
             >
               {/* Project */}
               <div data-label="primary" style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <div className="dp-card-eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                   {(project as any).flagship && (
                     <span style={{ fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600 }}>
                       ★ Flagship
@@ -662,7 +677,7 @@ const DealPipeline: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <div style={{
+                <div className="dp-card-title" style={{
                   fontSize: 14, color: 'var(--ink-900)', fontWeight: 500,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>{project.name}</div>

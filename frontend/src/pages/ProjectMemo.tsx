@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { pipelineService } from '../services/pipelineService';
 
 
 // UUID generator function
@@ -25,50 +26,64 @@ const ProjectMemo: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [memoContent, setMemoContent] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [projectData, setProjectData] = useState<ProjectData | null>(null);
+  const [hasGenerated, setHasGenerated] = useState(false);
 
-  // Project data mapping
-  const projectsData: Record<string, ProjectData> = {
-    '#ECW-2024-001': {
-      id: '#ECW-2024-001',
-      name: 'West African Rail Link',
-      pillar: 'Infrastructure',
-      fundingAsk: '$1.2B',
-      leadCountry: 'Nigeria',
-    },
-    '#ECW-2024-042': {
-      id: '#ECW-2024-042',
-      name: 'Solar Grid Expansion',
-      pillar: 'Energy',
-      fundingAsk: '$450M',
-      leadCountry: 'Ghana',
-    },
-    '#ECW-2024-088': {
-      id: '#ECW-2024-088',
-      name: 'Agribusiness Hub',
-      pillar: 'Agribusiness and Food Systems Transformation',
-      fundingAsk: '$85M',
-      leadCountry: "Côte d'Ivoire",
-    },
-    '#ECW-2024-102': {
-      id: '#ECW-2024-102',
-      name: 'Tech City Phase 1',
-      pillar: 'Technology',
-      fundingAsk: '$2.1B',
-      leadCountry: 'Senegal',
-    },
+  const fmtMoney = (amount?: number) => {
+    if (!amount) return 'N/A';
+    if (amount >= 1e9) return `$${(amount / 1e9).toFixed(1)}B`;
+    if (amount >= 1e6) return `$${(amount / 1e6).toFixed(0)}M`;
+    return `$${amount.toLocaleString()}`;
   };
 
-  const projectData = projectsData[decodeURIComponent(projectId || '')] || projectsData['#ECW-2024-001'];
-
+  // Fetch the real project for this route, then auto-generate the memo.
   useEffect(() => {
-    // Auto-generate memo when page loads
-    generateMemo();
+    let cancelled = false;
+    const id = decodeURIComponent(projectId || '');
+
+    const load = async () => {
+      try {
+        const project = await pipelineService.getProject(id);
+        if (cancelled) return;
+        const data: ProjectData = {
+          id: project.id || id,
+          name: project.name || id,
+          pillar: project.pillar || 'N/A',
+          fundingAsk: fmtMoney(project.investment_size),
+          leadCountry: project.lead_country || 'N/A',
+        };
+        setProjectData(data);
+        generateMemo(data);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Error loading project:', err);
+        // Graceful fallback: show the id rather than a fake name.
+        const data: ProjectData = {
+          id,
+          name: id,
+          pillar: 'N/A',
+          fundingAsk: 'N/A',
+          leadCountry: 'N/A',
+        };
+        setProjectData(data);
+        generateMemo(data);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [projectId]);
 
-  const generateMemo = async () => {
+  const generateMemo = async (project?: ProjectData) => {
+    const target = project || projectData;
+    if (!target) return;
+
     setIsGenerating(true);
     setError('');
     setMemoContent('');
+    setHasGenerated(false);
 
     try {
       // Use API_URL from services/api to ensure HTTPS and authorization
@@ -81,7 +96,7 @@ const ProjectMemo: React.FC = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
         body: JSON.stringify({
-          message: `Write a 500-word investment memo for ${projectData.name} (ID: ${projectData.id}, Sector: ${projectData.pillar}, Investment: ${projectData.fundingAsk}, Country: ${projectData.leadCountry}).
+          message: `Write a 500-word investment memo for ${target.name} (ID: ${target.id}, Sector: ${target.pillar}, Investment: ${target.fundingAsk}, Country: ${target.leadCountry}).
 
 Include: Executive Summary, Strategic Rationale (3-4 bullets), Financial Overview, Regional Impact (2-3 bullets), Risk Considerations (2-3 risks), Recommendation.
 
@@ -142,6 +157,7 @@ Use formal business language, clear headings, bullet points. No emojis.`,
       setError(errorMessage);
     } finally {
       setIsGenerating(false);
+      setHasGenerated(true);
     }
   };
 
@@ -150,7 +166,7 @@ Use formal business language, clear headings, bullet points. No emojis.`,
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${projectData.name.replace(/\s+/g, '_')}_Investment_Memo.txt`;
+    a.download = `${(projectData?.name || 'Project').replace(/\s+/g, '_')}_Investment_Memo.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -174,10 +190,10 @@ Use formal business language, clear headings, bullet points. No emojis.`,
         </button>
         <span className="material-symbols-outlined text-[16px]">chevron_right</span>
         <button
-          onClick={() => navigate(`/deal-pipeline/${encodeURIComponent(projectData.id)}`)}
+          onClick={() => navigate(`/deal-pipeline/${encodeURIComponent(projectData?.id || decodeURIComponent(projectId || ''))}`)}
           className="hover:text-primary transition-colors"
         >
-          {projectData.name}
+          {projectData?.name || 'Project'}
         </button>
         <span className="material-symbols-outlined text-[16px]">chevron_right</span>
         <span className="text-slate-900 dark:text-white font-medium">Investment Memo</span>
@@ -198,7 +214,7 @@ Use formal business language, clear headings, bullet points. No emojis.`,
             )}
           </div>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
-            AI-Generated Investment Analysis for {projectData.name}
+            AI-Generated Investment Analysis for {projectData?.name || 'this project'}
           </p>
         </div>
         <div className="flex gap-3">
@@ -219,7 +235,7 @@ Use formal business language, clear headings, bullet points. No emojis.`,
             Export
           </button>
           <button
-            onClick={generateMemo}
+            onClick={() => generateMemo()}
             disabled={isGenerating}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -277,14 +293,35 @@ Use formal business language, clear headings, bullet points. No emojis.`,
             </div>
           )}
 
-          {!isGenerating && !memoContent && !error && (
+          {!isGenerating && !memoContent && !error && hasGenerated && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <span className="material-symbols-outlined text-6xl text-amber-400 dark:text-amber-500 mb-4">
+                error_outline
+              </span>
+              <p className="text-slate-700 dark:text-slate-300 font-medium">
+                The memo generator returned no content
+              </p>
+              <p className="text-sm text-slate-500 dark:text-slate-500 mt-2 max-w-md">
+                The AI completed without producing a memo. This is usually a temporary issue &mdash; try regenerating.
+              </p>
+              <button
+                onClick={() => generateMemo()}
+                className="mt-4 flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]">refresh</span>
+                Regenerate
+              </button>
+            </div>
+          )}
+
+          {!isGenerating && !memoContent && !error && !hasGenerated && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600 mb-4">
                 description
               </span>
               <p className="text-slate-600 dark:text-slate-400 font-medium">No memo generated yet</p>
               <button
-                onClick={generateMemo}
+                onClick={() => generateMemo()}
                 className="mt-4 flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-blue-700 transition-colors"
               >
                 <span className="material-symbols-outlined text-[18px]">auto_awesome</span>

@@ -130,65 +130,12 @@ export default function AgentAssistant() {
                             Active Context
                         </h3>
                         <div className="space-y-6">
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-600 uppercase">Current Session</label>
-                                <div className="bg-blue-600/10 border border-blue-500/20 rounded-xl p-4 space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <Badge variant="success" className="bg-green-900/40 text-green-400 border-green-500/20 text-[8px] font-black tracking-widest">LIVE</Badge>
-                                        <span className="text-[8px] font-bold text-slate-500">Starts in 24h</span>
-                                    </div>
-                                    <h4 className="text-sm font-bold leading-tight">Infrastructure TWG Summit</h4>
-                                    <div className="flex -space-x-2">
-                                        <div className="w-7 h-7 rounded-full bg-slate-700 border-2 border-[#0B0F1A]"></div>
-                                        <div className="w-7 h-7 rounded-full bg-slate-600 border-2 border-[#0B0F1A]"></div>
-                                        <div className="w-7 h-7 rounded-full bg-slate-500 border-2 border-[#0B0F1A] flex items-center justify-center text-[8px] font-bold">+4</div>
-                                    </div>
-                                </div>
-                            </div>
-
                             <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-[10px] font-black text-slate-600 uppercase">References</label>
-                                    <button className="text-[10px] font-bold text-blue-400 hover:underline">Add New</button>
+                                <label className="text-[10px] font-black text-slate-600 uppercase">References</label>
+                                <div className="bg-slate-800/30 border border-dashed border-slate-700/50 rounded-xl p-4 text-center">
+                                    <p className="text-[11px] font-bold text-slate-500">No references attached</p>
+                                    <p className="text-[9px] text-slate-600 font-bold uppercase mt-1">Files you share with the agent will appear here</p>
                                 </div>
-                                <div className="space-y-3">
-                                    {[
-                                        { name: 'Lagos_Minutes_Final.pdf', time: 'Added 2 hours ago', icon: 'file' },
-                                        { name: 'Budget_Allocation_Q3.xlsx', time: 'Added yesterday', icon: 'table' },
-                                        { name: 'Transport Corridor Data', time: 'External API Source', icon: 'link' }
-                                    ].map((ref, i) => (
-                                        <div key={i} className="flex gap-3 group cursor-pointer">
-                                            <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500 group-hover:bg-blue-600/20 group-hover:text-blue-400 transition-all">
-                                                {ref.icon === 'file' ? (
-                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                                                ) : ref.icon === 'table' ? (
-                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                                                ) : (
-                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                                                )}
-                                            </div>
-                                            <div>
-                                                <p className="text-[11px] font-bold group-hover:text-blue-400 transition-colors">{ref.name}</p>
-                                                <p className="text-[9px] text-slate-500 font-bold uppercase">{ref.time}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Agent Status */}
-                    <div className="space-y-4 pt-10">
-                        <label className="text-[10px] font-black text-slate-600 uppercase">Agent Status</label>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-800/50">
-                                <p className="text-[8px] font-bold text-slate-500 uppercase mb-1">Tokens Used</p>
-                                <p className="text-xl font-black">1,240</p>
-                            </div>
-                            <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-800/50">
-                                <p className="text-[8px] font-bold text-slate-500 uppercase mb-1">Accuracy</p>
-                                <p className="text-xl font-black text-green-500">98%</p>
                             </div>
                         </div>
                     </div>

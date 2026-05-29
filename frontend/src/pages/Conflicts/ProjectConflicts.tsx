@@ -7,6 +7,11 @@ import Input from '../../components/ui/Input';
 import api from '../../services/api';
 import ComingSoonOverlay from '../../components/common/ComingSoonOverlay';
 
+// Feature is gated behind the COMING SOON overlay. While gated, skip the
+// data fetch/poll so we don't hit the conflicts endpoints (which require a
+// live conflicts dataset) and spam the console with errors every 30s.
+const FEATURE_ENABLED = false;
+
 
 interface Conflict {
     id: string;
@@ -43,6 +48,7 @@ const ProjectConflicts: React.FC = () => {
     };
 
     useEffect(() => {
+        if (!FEATURE_ENABLED) return; // Don't poll while feature is gated (COMING SOON)
         fetchConflicts();
         const interval = setInterval(fetchConflicts, 30000); // Poll every 30s
         return () => clearInterval(interval);

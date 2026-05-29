@@ -14,6 +14,7 @@ import ThinkingTimeline, { ThinkingStep } from '../../components/agent/ThinkingT
 import WorkspaceContextPanel from '../../components/workspace/WorkspaceContextPanel';
 import StreamingChatView from '../../components/agent/StreamingChatView';
 import { useAgentStream } from '../../hooks/useAgentStream';
+import { tryParseConfirm, executeConfirm } from '../../utils/confirmAction';
 import { CommandAutocompleteResult } from '../../types/agent';
 import { UserRole } from '../../types/auth';
 
@@ -677,6 +678,29 @@ export default function TwgAgent() {
         }, 50);
     };
 
+    // Resolve a confirm-then-execute card (e.g. create_action_item) and append
+    // the result as an agent message so the TWG chat mirrors the GlobalCopilot.
+    const [resolvedCards, setResolvedCards] = useState<Record<string, 'success' | 'cancelled'>>({});
+    const handleConfirmAction = async (
+        card: ReturnType<typeof tryParseConfirm>,
+        confirmed: boolean,
+    ) => {
+        if (!card) return;
+        const result = await executeConfirm(card, confirmed).catch(
+            (e) => `Action failed: ${e?.message || e}`,
+        );
+        setResolvedCards((prev) => ({ ...prev, [card.action_id]: confirmed ? 'success' : 'cancelled' }));
+        setMessages((prev) => [
+            ...prev,
+            {
+                id: `confirm-${card.action_id}-${confirmed ? 'ok' : 'no'}`,
+                role: 'agent',
+                content: result,
+                timestamp: new Date(),
+            },
+        ]);
+    };
+
     const [hoveredChip, setHoveredChip] = useState<string | null>(null);
 
     return (
@@ -852,16 +876,61 @@ export default function TwgAgent() {
                                 </div>
                             </div>
                         ) : (
-                            messages.map((message) => (
-                                <EnhancedMessageBubble
-                                    key={message.id}
-                                    message={{ ...message, approvalRequest: message.approvalRequest }}
-                                    onReact={handleReact}
-                                    onApprove={message.approvalRequest ? (id, mods) => handleEmailApprovalResolve(true, id, mods) : undefined}
-                                    onDecline={message.approvalRequest ? (id) => handleEmailApprovalResolve(false, id) : undefined}
-                                    onSuggestionClick={handleSuggestionClick}
-                                />
-                            ))
+                            messages.map((message) => {
+                                const confirmCard = message.role === 'agent' ? tryParseConfirm(message.content) : null;
+                                if (confirmCard) {
+                                    const resolution = resolvedCards[confirmCard.action_id];
+                                    return (
+                                        <div key={message.id} style={{
+                                            border: '1px solid var(--border)', background: 'var(--ink-50)',
+                                            borderRadius: 8, padding: 12, maxWidth: 520,
+                                        }}>
+                                            <div style={{
+                                                fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase',
+                                                color: confirmCard.irreversible ? 'var(--terra)' : 'var(--accent)', marginBottom: 6,
+                                            }}>
+                                                {confirmCard.irreversible ? 'Irreversible Action' : 'Confirm Action'}
+                                            </div>
+                                            <div style={{ fontSize: 13, color: 'var(--ink-900)', marginBottom: 10 }}>
+                                                {confirmCard.summary}
+                                            </div>
+                                            {resolution ? (
+                                                <div style={{ fontSize: 12, color: 'var(--ink-500)' }}>
+                                                    {resolution === 'success' ? 'Done.' : 'Cancelled.'}
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', gap: 8 }}>
+                                                    <button
+                                                        onClick={() => handleConfirmAction(confirmCard, true)}
+                                                        style={{
+                                                            background: 'var(--accent)', color: '#fff', border: 'none',
+                                                            borderRadius: 6, padding: '6px 14px', fontSize: 12, cursor: 'pointer',
+                                                        }}
+                                                    >Confirm</button>
+                                                    <button
+                                                        onClick={() => handleConfirmAction(confirmCard, false)}
+                                                        style={{
+                                                            background: 'transparent', color: 'var(--ink-500)',
+                                                            border: '1px solid var(--border)', borderRadius: 6,
+                                                            padding: '6px 14px', fontSize: 12, cursor: 'pointer',
+                                                        }}
+                                                    >Cancel</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                }
+                                return (
+                                    <EnhancedMessageBubble
+                                        key={message.id}
+                                        message={{ ...message, approvalRequest: message.approvalRequest }}
+                                        onReact={handleReact}
+                                        onApprove={message.approvalRequest ? (id, mods) => handleEmailApprovalResolve(true, id, mods) : undefined}
+                                        onDecline={message.approvalRequest ? (id) => handleEmailApprovalResolve(false, id) : undefined}
+                                        onSuggestionClick={handleSuggestionClick}
+                                    />
+                                );
+                            })
                         )}
                         {(isLoading || thinkingSteps.length > 0) && !isStreaming && (
                             <ThinkingTimeline

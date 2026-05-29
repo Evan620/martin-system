@@ -38,11 +38,20 @@ def validate_email_addresses(emails: Union[str, List[str]]) -> bool:
         True if all emails are valid
     """
     email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    email_list = [emails] if isinstance(emails, str) else emails
+    # A single string may itself be a comma/semicolon-separated list of
+    # recipients (the agent commonly passes "a@x.com,b@y.com"). Split before
+    # validating so a multi-recipient string isn't rejected as one malformed
+    # address.
+    if isinstance(emails, str):
+        email_list = re.split(r'[,;]', emails)
+    else:
+        email_list = list(emails)
 
     for email in email_list:
         # Strip whitespace and common trailing punctuation from LLM parsing
         cleaned = email.strip().rstrip('.,;:!?…')
+        if not cleaned:
+            continue
         if not re.match(email_pattern, cleaned):
             logger.warning(f"Invalid email address: '{email}' (cleaned: '{cleaned}')")
             return False
@@ -134,13 +143,24 @@ async def send_email(
         if bcc and not validate_email_addresses(bcc):
             return {"status": "error", "error": "Invalid BCC email address"}
 
-        # Clean and convert to lists
+        # Clean and convert to lists. A string recipient field may carry several
+        # comma/semicolon-separated addresses, so split before cleaning.
         def _clean_email(e: str) -> str:
             return e.strip().rstrip('.,;:!?…')
 
-        to_list = [_clean_email(to)] if isinstance(to, str) else [_clean_email(e) for e in to]
-        cc_list = [_clean_email(cc)] if isinstance(cc, str) and cc else ([_clean_email(e) for e in cc] if cc else None)
-        bcc_list = [_clean_email(bcc)] if isinstance(bcc, str) and bcc else ([_clean_email(e) for e in bcc] if bcc else None)
+        def _to_list(val) -> Optional[List[str]]:
+            if not val:
+                return None
+            if isinstance(val, str):
+                parts = re.split(r'[,;]', val)
+            else:
+                parts = val
+            cleaned = [_clean_email(e) for e in parts if e and _clean_email(e)]
+            return cleaned or None
+
+        to_list = _to_list(to) or []
+        cc_list = _to_list(cc)
+        bcc_list = _to_list(bcc)
 
         # Handle flexible attachments input (string, list, or None)
         attachments_list = []

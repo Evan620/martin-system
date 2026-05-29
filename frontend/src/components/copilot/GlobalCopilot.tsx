@@ -10,7 +10,7 @@ import CopilotHeader from './CopilotHeader';
 import SuggestedActions from './SuggestedActions';
 import CopilotInput from './CopilotInput';
 import { getBriefing, BriefingData } from '../../services/martinService';
-import api from '../../services/api';
+import { tryParseConfirm, executeConfirm } from '../../utils/confirmAction';
 
 interface GlobalCopilotProps {
     onClose: () => void;
@@ -225,51 +225,6 @@ export default function GlobalCopilot({ onClose }: GlobalCopilotProps) {
     const handleFillInput = (text: string) => {
         setInput(text);
     };
-
-    type ConfirmCard = {
-        status: 'confirmation_required';
-        type?: string;
-        action_id: string;
-        action_type: string;
-        summary: string;
-        payload: Record<string, any>;
-        irreversible?: boolean;
-        confirm_endpoint: string;
-    };
-
-    function tryParseConfirm(content: string): ConfirmCard | null {
-        const trimmed = content.trim();
-        if (!trimmed.startsWith('{')) return null;
-        try {
-            const j = JSON.parse(trimmed);
-            if (j && j.status === 'confirmation_required' && j.action_id && j.confirm_endpoint) return j as ConfirmCard;
-        } catch { /* not JSON */ }
-        return null;
-    }
-
-    async function executeConfirm(card: ConfirmCard, confirmed: boolean): Promise<string> {
-        // The backend emits confirm_endpoint as "/api/v1/agents/execute" (an
-        // origin-relative path), but the Vite proxy strips the "/api" prefix,
-        // so calling it directly yields 404. Resolve via the api service base
-        // URL so the request lands on the FastAPI router cleanly.
-        const base = (api.defaults.baseURL || '').replace(/\/$/, '');
-        const path = card.confirm_endpoint.replace(/^\/api\/v1/, '').replace(/^\//, '');
-        const url = `${base}/${path}`;
-        const token = localStorage.getItem('token');
-        const resp = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({ action_id: card.action_id, confirmed, edits: {} }),
-        });
-        const data = await resp.json().catch(() => ({}));
-        if (!resp.ok) return `Action failed: ${data.detail || resp.statusText}`;
-        if (data.cancelled) return 'Cancelled.';
-        if (data.success === true || data.status === 'ok') return 'Done.';
-        return JSON.stringify(data);
-    }
 
     const handleClearHistory = () => {
         setLocalMessages([]);

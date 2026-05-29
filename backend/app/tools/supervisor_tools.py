@@ -403,6 +403,26 @@ def request_booking_tool(
             result = session.execute(twg_query, {"twg_name": f"%{twg_name}%"})
             twg_row = result.fetchone()
 
+            # Fall back to agent-key resolution. Agent keys like "agriculture"
+            # don't substring-match the display name "Agribusiness and Food
+            # Systems Transformation", so a plain ILIKE misses. Also accept a
+            # raw UUID passed as twg_name.
+            if not twg_row:
+                from app.agents.utils import get_twg_id_by_agent_id
+                resolved_id = get_twg_id_by_agent_id(twg_name.strip().lower())
+                if not resolved_id:
+                    try:
+                        import uuid as _uuid
+                        _uuid.UUID(str(twg_name))
+                        resolved_id = str(twg_name)
+                    except (ValueError, AttributeError):
+                        resolved_id = None
+                if resolved_id:
+                    twg_row = session.execute(
+                        text("SELECT id, name FROM twgs WHERE id = :tid LIMIT 1"),
+                        {"tid": resolved_id},
+                    ).fetchone()
+
             if not twg_row:
                 return f"Error: TWG '{twg_name}' not found."
 

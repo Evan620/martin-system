@@ -1387,6 +1387,9 @@ async def execute_action(
         elif action_type == "bulk_create_action_items":
             return await _execute_bulk_create_action_items(payload, current_user, db, request.action_id)
 
+        elif action_type in ("send_whatsapp_message", "send_whatsapp_to_group"):
+            return await _execute_send_whatsapp(payload, current_user, db, request.action_id)
+
         elif action_type == "draft_document":
             _finalize_action(request.action_id)
             return {
@@ -1441,6 +1444,25 @@ async def _execute_schedule_meeting(payload: dict, current_user: User, db: Async
 
     _finalize_action(action_id)
     return {"success": True, "resource_id": str(meeting_id), "message": f"Meeting '{title}' scheduled successfully."}
+
+
+async def _execute_send_whatsapp(payload: dict, current_user: User, db: AsyncSession, action_id: str) -> dict:
+    """Deliver a confirmed WhatsApp message via the gateway."""
+    from app.services.whatsapp_service import get_whatsapp_service
+
+    chat_id = payload.get("chat_id") or payload.get("to") or payload.get("group")
+    message = payload.get("message", "")
+    if not chat_id or not message:
+        raise HTTPException(status_code=400, detail="chat_id and message are required")
+
+    result = await get_whatsapp_service().send_text(chat_id, message)
+    _finalize_action(action_id)
+
+    if result.get("status") == "error":
+        return {"success": False, "message": f"WhatsApp send failed: {result.get('error')}", "data": result}
+    if result.get("status") == "simulated":
+        return {"success": True, "message": "WhatsApp is disabled — message simulated, not delivered.", "data": result}
+    return {"success": True, "message": "WhatsApp message sent.", "data": result}
 
 
 async def _execute_create_action_item(payload: dict, current_user: User, db: AsyncSession, action_id: str) -> dict:

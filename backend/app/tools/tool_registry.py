@@ -187,6 +187,7 @@ class ToolRegistry:
         self._register_database_tools()
         self._register_deal_pipeline_tools()
         self._register_supervisor_tools()
+        self._register_whatsapp_tools()
         # Note: knowledge_tools are used for RAG in _process_query_node,
         # not as LLM-callable tools. They remain separate for now.
 
@@ -229,6 +230,20 @@ class ToolRegistry:
                 parameters=schema.get("properties", {}),
                 handler=handler,
                 required_params=schema.get("required", []),
+            )
+
+    def _register_whatsapp_tools(self) -> None:
+        """Register WhatsApp tools (sends are confirm-then-execute)."""
+        from app.tools.whatsapp_tools import WHATSAPP_TOOLS
+
+        for tool_def, handler in WHATSAPP_TOOLS:
+            func_def = tool_def["function"]
+            self.register(
+                name=func_def["name"],
+                description=func_def["description"],
+                parameters=func_def["parameters"].get("properties", {}),
+                handler=handler,
+                required_params=func_def["parameters"].get("required", []),
             )
 
     def _register_email_tools(self) -> None:

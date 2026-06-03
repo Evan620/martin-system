@@ -954,7 +954,7 @@ async def get_readiness_gap(
 # Excel Import helpers
 # ---------------------------------------------------------------------------
 
-from app.models.models import TWGPillar
+from app.models.models import TWGPillar, TWG
 
 
 _PILLAR_KEYWORDS: dict[str, TWGPillar] = {
@@ -988,13 +988,20 @@ _STAGE_MAP: dict[str, ProjectStatus] = {
 }
 
 
-def _match_pillar(raw: str) -> TWGPillar:
-    """Map a free-text sector string to the nearest TWGPillar enum value."""
-    lowered = raw.strip().lower()
+def _match_pillar(raw: str) -> Optional[TWGPillar]:
+    """Map a free-text sector string to a TWGPillar, or None if unrecognized.
+
+    Returns None (NOT a Digital default) so the caller can fall back to the
+    importing TWG's pillar. The old silent Digital default is what sent every
+    Energy project from a ministry sheet into Digital Transformation.
+    """
+    lowered = (raw or "").strip().lower()
+    if not lowered:
+        return None
     for keyword, pillar in _PILLAR_KEYWORDS.items():
         if keyword in lowered:
             return pillar
-    return TWGPillar.digital_economy_transformation
+    return None
 
 
 def _map_status(raw: str) -> ProjectStatus:
@@ -1030,77 +1037,95 @@ def _col_matches(header: str, *patterns: str) -> bool:
     return any(p in lowered for p in patterns)
 
 
+# A real header row matches at least this many known columns. A lone
+# "Project Title" banner row matches 1, so this lets us skip banners/sections.
+_MIN_HEADER_FIELDS = 3
+
+
+def _build_col_map(header_cells_lower: list[str]) -> dict[str, int]:
+    """Map known field names to 0-based column indices for one candidate row."""
+    col_map: dict[str, int] = {}
+    for col_idx, header in enumerate(header_cells_lower):
+        if not header:
+            continue
+        if _col_matches(header, "project name", "project/programme name", "project title"):
+            col_map.setdefault("name", col_idx)
+        elif _col_matches(header, "country") and "lead country" not in header:
+            col_map.setdefault("lead_country", col_idx)
+        elif _col_matches(header, "cross-border", "national or cross-border", "cross border", "regional dimension"):
+            col_map.setdefault("is_cross_border", col_idx)
+        elif _col_matches(header, "sector") and "subsector" not in header:
+            col_map.setdefault("pillar", col_idx)
+        elif _col_matches(header, "subsector"):
+            col_map.setdefault("subsector", col_idx)
+        elif _col_matches(header, "project sponsor", "sponsor"):
+            col_map.setdefault("project_sponsor", col_idx)
+        elif _col_matches(header, "name of key contact", "key contact"):
+            col_map.setdefault("key_contact_name", col_idx)
+        elif _col_matches(header, "email of key contact", "email of key", "contact email"):
+            col_map.setdefault("key_contact_email", col_idx)
+        elif _col_matches(header, "stage of development"):
+            col_map.setdefault("status", col_idx)
+        elif _col_matches(header, "technical studies", "completed studies"):
+            col_map.setdefault("technical_studies", col_idx)
+        elif _col_matches(header, "permits", "licences", "licenses"):
+            col_map.setdefault("permits_licences", col_idx)
+        elif _col_matches(header, "land status", "land_status"):
+            col_map.setdefault("land_status", col_idx)
+        elif _col_matches(header, "investment size", "estimated investment", "capital required"):
+            col_map.setdefault("investment_size", col_idx)
+        elif _col_matches(header, "financing structure"):
+            col_map.setdefault("financing_structure", col_idx)
+        elif _col_matches(header, "investment stage"):
+            col_map.setdefault("investment_stage_label", col_idx)
+        elif _col_matches(header, "revenue model", "revenue_model"):
+            col_map.setdefault("revenue_model", col_idx)
+        elif _col_matches(header, "macroeconomic roi", "macro", "economic roi"):
+            col_map.setdefault("macroeconomic_roi", col_idx)
+        elif _col_matches(header, "climate", "esg"):
+            col_map.setdefault("climate_impact", col_idx)
+        elif _col_matches(header, "ghg", "tco2", "emissions"):
+            col_map.setdefault("ghg_avoided_target", col_idx)
+        elif _col_matches(header, "jobs", "construction") and "o&m" not in header and "ongoing" not in header:
+            col_map.setdefault("jobs_construction", col_idx)
+        elif _col_matches(header, "jobs", "o&m") or _col_matches(header, "jobs", "ongoing"):
+            col_map.setdefault("jobs_om", col_idx)
+        elif _col_matches(header, "electricity connect"):
+            col_map.setdefault("electricity_connections", col_idx)
+        elif _col_matches(header, "digital connect", "smes digitized"):
+            col_map.setdefault("digital_connections", col_idx)
+        elif _col_matches(header, "smallholder", "farmers reached"):
+            col_map.setdefault("smallholder_farmers_reached", col_idx)
+        elif _col_matches(header, "submitted by"):
+            col_map.setdefault("submitted_by", col_idx)
+    return col_map
+
+
 def _find_header_row(ws):
     """
-    Scan rows until one contains a cell with 'project name' or 'project/programme name'.
-    Returns (row_index_1based, col_map) where col_map maps field names to 0-based col indices.
-    Returns (None, None) if not found.
+    Find the real header row by SCORING every row on how many known columns it
+    matches, then picking the best (>= _MIN_HEADER_FIELDS). This is robust to
+    ministry sheets that put a lone 'Project Title' banner (and Section A–D
+    banners) above the actual header — those score 0–1 and are skipped.
+
+    Returns (row_index_1based, col_map) or (None, None). If the winning header
+    has no name cell (some sheets drop 'Project Title' from the real header row
+    and float it into a banner), the name defaults to column 0 — the project
+    title is the first column in every variant of this template.
     """
+    best_idx = None
+    best_map: dict[str, int] = {}
+    best_score = 0
     for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
-        cells = [str(c).strip() if c is not None else "" for c in row]
-        header_cells_lower = [c.lower() for c in cells]
-        is_header = any(
-            "project name" in cell or "project/programme name" in cell or "project title" in cell
-            for cell in header_cells_lower
-        )
-        if not is_header:
-            continue
-        col_map: dict[str, int] = {}
-        for col_idx, header in enumerate(header_cells_lower):
-            if not header:
-                continue
-            if _col_matches(header, "project name", "project/programme name", "project title"):
-                col_map.setdefault("name", col_idx)
-            elif _col_matches(header, "country") and "lead country" not in header:
-                col_map.setdefault("lead_country", col_idx)
-            elif _col_matches(header, "cross-border", "national or cross-border", "cross border", "regional dimension"):
-                col_map.setdefault("is_cross_border", col_idx)
-            elif _col_matches(header, "sector") and "subsector" not in header:
-                col_map.setdefault("pillar", col_idx)
-            elif _col_matches(header, "subsector"):
-                col_map.setdefault("subsector", col_idx)
-            elif _col_matches(header, "project sponsor", "sponsor"):
-                col_map.setdefault("project_sponsor", col_idx)
-            elif _col_matches(header, "name of key contact", "key contact"):
-                col_map.setdefault("key_contact_name", col_idx)
-            elif _col_matches(header, "email of key contact", "email of key", "contact email"):
-                col_map.setdefault("key_contact_email", col_idx)
-            elif _col_matches(header, "stage of development"):
-                col_map.setdefault("status", col_idx)
-            elif _col_matches(header, "technical studies", "completed studies"):
-                col_map.setdefault("technical_studies", col_idx)
-            elif _col_matches(header, "permits", "licences", "licenses"):
-                col_map.setdefault("permits_licences", col_idx)
-            elif _col_matches(header, "land status", "land_status"):
-                col_map.setdefault("land_status", col_idx)
-            elif _col_matches(header, "investment size", "estimated investment", "capital required"):
-                col_map.setdefault("investment_size", col_idx)
-            elif _col_matches(header, "financing structure"):
-                col_map.setdefault("financing_structure", col_idx)
-            elif _col_matches(header, "investment stage"):
-                col_map.setdefault("investment_stage_label", col_idx)
-            elif _col_matches(header, "revenue model", "revenue_model"):
-                col_map.setdefault("revenue_model", col_idx)
-            elif _col_matches(header, "macroeconomic roi", "macro", "economic roi"):
-                col_map.setdefault("macroeconomic_roi", col_idx)
-            elif _col_matches(header, "climate", "esg"):
-                col_map.setdefault("climate_impact", col_idx)
-            elif _col_matches(header, "ghg", "tco2", "emissions"):
-                col_map.setdefault("ghg_avoided_target", col_idx)
-            elif _col_matches(header, "jobs", "construction") and "o&m" not in header and "ongoing" not in header:
-                col_map.setdefault("jobs_construction", col_idx)
-            elif _col_matches(header, "jobs", "o&m") or _col_matches(header, "jobs", "ongoing"):
-                col_map.setdefault("jobs_om", col_idx)
-            elif _col_matches(header, "electricity connect"):
-                col_map.setdefault("electricity_connections", col_idx)
-            elif _col_matches(header, "digital connect", "smes digitized"):
-                col_map.setdefault("digital_connections", col_idx)
-            elif _col_matches(header, "smallholder", "farmers reached"):
-                col_map.setdefault("smallholder_farmers_reached", col_idx)
-            elif _col_matches(header, "submitted by"):
-                col_map.setdefault("submitted_by", col_idx)
-        return row_idx, col_map
-    return None, None
+        cells = [str(c).strip().lower() if c is not None else "" for c in row]
+        col_map = _build_col_map(cells)
+        if len(col_map) > best_score:
+            best_score, best_idx, best_map = len(col_map), row_idx, col_map
+    if best_idx is None or best_score < _MIN_HEADER_FIELDS:
+        return None, None
+    if "name" not in best_map:
+        best_map["name"] = 0
+    return best_idx, best_map
 
 
 def _cell(row: tuple, col_map: dict, field: str) -> str:
@@ -1110,6 +1135,129 @@ def _cell(row: tuple, col_map: dict, field: str) -> str:
         return ""
     val = row[idx]
     return str(val).strip() if val is not None else ""
+
+
+# Names that are template scaffolding, not real projects.
+_JUNK_NAME_MARKERS = (
+    "full name of the project", "add further rows", "↓", "copy formatting",
+    "complete one row per project", "section a", "section b", "section c",
+    "section d", "basic project information", "project development status",
+    "project title", "project name",
+)
+
+
+def _is_junk_project_row(name: str, row: tuple, col_map: dict) -> bool:
+    """A row is scaffolding (not a project) if its name is boilerplate, or it
+    has neither a sector nor a country (description/blank rows)."""
+    nl = name.strip().lower()
+    if any(marker in nl for marker in _JUNK_NAME_MARKERS):
+        return True
+    has_sector = bool(_cell(row, col_map, "pillar"))
+    has_country = bool(_cell(row, col_map, "lead_country"))
+    return not (has_sector or has_country)
+
+
+def _select_pipeline_sheet(wb):
+    """Pick the worksheet most likely to hold the project rows: a preferred tab
+    name first, otherwise the sheet whose best header row scores highest."""
+    for sheet_name in ("Investment Opportunities", "Projects", "Pipeline"):
+        if sheet_name in wb.sheetnames:
+            return wb[sheet_name]
+    best_ws, best_score = None, -1
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        _, col_map = _find_header_row(ws)
+        score = len(col_map) if col_map else 0
+        if score > best_score:
+            best_ws, best_score = ws, score
+    return best_ws or wb.active
+
+
+def parse_pipeline_workbook(wb, fallback_pillar: str):
+    """Pure parser: turn a pipeline workbook into a list of Project-kwarg dicts.
+
+    `fallback_pillar` (a TWGPillar value string) is used when a row's Sector is
+    blank or unrecognized — this is the importing TWG's pillar, so an Energy
+    sheet imported into the Energy TWG never silently becomes Digital.
+
+    Returns (project_dicts, skipped_count, errors).
+    """
+    ws = _select_pipeline_sheet(wb)
+    header_row_idx, col_map = _find_header_row(ws)
+    if header_row_idx is None:
+        # Fall back to scanning every sheet for a usable header.
+        for sheet_name in wb.sheetnames:
+            candidate = wb[sheet_name]
+            header_row_idx, col_map = _find_header_row(candidate)
+            if header_row_idx is not None:
+                ws = candidate
+                break
+    if header_row_idx is None:
+        return [], 0, ["Could not find a header row (need Sector + at least two other known columns)."]
+
+    projects: list[dict] = []
+    skipped = 0
+    errors: list[str] = []
+
+    rows = list(ws.iter_rows(values_only=True))
+    data_rows = rows[header_row_idx:]  # header_row_idx is 1-based -> slice skips the header row
+
+    for row_offset, row in enumerate(data_rows, start=header_row_idx + 2):
+        name = _cell(row, col_map, "name")
+        if not name or _is_junk_project_row(name, row, col_map):
+            skipped += 1
+            continue
+        try:
+            matched = _match_pillar(_cell(row, col_map, "pillar"))
+            pillar = matched.value if matched else fallback_pillar
+
+            raw_status = _cell(row, col_map, "status")
+            status = _map_status(raw_status) if raw_status else ProjectStatus.DRAFT
+
+            raw_investment = _cell(row, col_map, "investment_size")
+            investment_size = _parse_investment(raw_investment) if raw_investment else 0.0
+
+            is_cross_border = "cross" in _cell(row, col_map, "is_cross_border").lower()
+
+            def _get(field: str) -> Optional[str]:
+                v = _cell(row, col_map, field)
+                return v if v and v.upper() not in ("TBC", "N/A", "NA", "NONE", "-") else None
+
+            projects.append({
+                "name": name,
+                "description": "",
+                "investment_size": investment_size or 0,
+                "currency": "USD",
+                "status": status,
+                "pillar": pillar,
+                "lead_country": _cell(row, col_map, "lead_country") or None,
+                "subsector": _get("subsector"),
+                "project_sponsor": _get("project_sponsor"),
+                "is_cross_border": is_cross_border,
+                "key_contact_name": _get("key_contact_name"),
+                "key_contact_email": _get("key_contact_email"),
+                "technical_studies": _get("technical_studies"),
+                "permits_licences": _get("permits_licences"),
+                "land_status": _get("land_status"),
+                "financing_structure": _get("financing_structure"),
+                "investment_stage_label": _get("investment_stage_label"),
+                "revenue_model": _get("revenue_model"),
+                "macroeconomic_roi": _get("macroeconomic_roi"),
+                "climate_impact": _get("climate_impact"),
+                "esg_compliance": None,
+                "ghg_avoided_target": _get("ghg_avoided_target"),
+                "jobs_construction": _get("jobs_construction"),
+                "jobs_om": _get("jobs_om"),
+                "electricity_connections": _get("electricity_connections"),
+                "digital_connections": _get("digital_connections"),
+                "smallholder_farmers_reached": _get("smallholder_farmers_reached"),
+                "submitted_by": _get("submitted_by"),
+            })
+        except Exception as exc:
+            errors.append(f"Row {row_offset}: {exc}")
+            skipped += 1
+
+    return projects, skipped, errors
 
 
 @router.post("/import-excel")
@@ -1140,110 +1288,25 @@ async def import_projects_from_excel(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Cannot parse Excel file: {exc}")
 
-    # Try "Investment Opportunities" tab first, then fall back to scanning all sheets
-    target_sheet_names = ["Investment Opportunities", "Projects", "Pipeline"]
-    ws = None
-    for sheet_name in target_sheet_names:
-        if sheet_name in wb.sheetnames:
-            ws = wb[sheet_name]
-            break
-    if ws is None:
-        ws = wb.active
+    # Resolve the importing TWG's pillar — used as the fallback when a row's
+    # Sector is blank/unrecognized, so projects land in the TWG they were
+    # imported into rather than silently defaulting to Digital.
+    twg = (await db.execute(select(TWG).where(TWG.id == parsed_twg_id))).scalar_one_or_none()
+    if twg is None:
+        raise HTTPException(status_code=404, detail="TWG not found.")
+    fallback_pillar = twg.pillar.value if hasattr(twg.pillar, "value") else str(twg.pillar)
 
-    header_row_idx, col_map = _find_header_row(ws)
-
-    # If not found in preferred sheet, scan all sheets
-    if header_row_idx is None:
-        for sheet_name in wb.sheetnames:
-            candidate = wb[sheet_name]
-            header_row_idx, col_map = _find_header_row(candidate)
-            if header_row_idx is not None:
-                ws = candidate
-                break
-
-    if header_row_idx is None:
+    project_dicts, skipped, errors = parse_pipeline_workbook(wb, fallback_pillar)
+    if not project_dicts and not errors:
         raise HTTPException(
             status_code=422,
-            detail="Could not find a header row containing 'Project Name' or 'Project Title'.",
+            detail="No project rows found. Check the sheet has a header row with Sector and Country columns.",
         )
 
     imported = 0
-    skipped = 0
-    errors: list[str] = []
-
-    rows = list(ws.iter_rows(values_only=True))
-    data_rows = rows[header_row_idx:]  # slice past the header row (0-based)
-
-    for row_offset, row in enumerate(data_rows, start=header_row_idx + 2):
-        name = _cell(row, col_map, "name")
-        if not name:
-            skipped += 1
-            continue
-        # Skip template description/example rows and footer instructions
-        name_lower = name.lower()
-        if any(x in name_lower for x in ("full name of the project", "add further rows", "↓", "copy formatting")):
-            skipped += 1
-            continue
-
-        try:
-            raw_pillar = _cell(row, col_map, "pillar")
-            pillar = _match_pillar(raw_pillar).value if raw_pillar else TWGPillar.digital_economy_transformation.value
-
-            raw_status = _cell(row, col_map, "status")
-            status = _map_status(raw_status) if raw_status else ProjectStatus.DRAFT
-
-            raw_investment = _cell(row, col_map, "investment_size")
-            investment_size = _parse_investment(raw_investment) if raw_investment else 0.0
-
-            raw_cross = _cell(row, col_map, "is_cross_border").lower()
-            is_cross_border = "cross" in raw_cross
-
-            def _get(field: str) -> Optional[str]:
-                v = _cell(row, col_map, field)
-                return v if v and v.upper() not in ("TBC", "N/A", "NA", "NONE", "-") else None
-
-            project = Project(
-                id=uuid.uuid4(),
-                twg_id=parsed_twg_id,
-                name=name,
-                description="",
-                investment_size=investment_size or 0,
-                currency="USD",
-                status=status,
-                pillar=pillar,
-                # Section A
-                lead_country=_cell(row, col_map, "lead_country") or None,
-                subsector=_get("subsector"),
-                project_sponsor=_get("project_sponsor"),
-                is_cross_border=is_cross_border,
-                key_contact_name=_get("key_contact_name"),
-                key_contact_email=_get("key_contact_email"),
-                # Section B
-                technical_studies=_get("technical_studies"),
-                permits_licences=_get("permits_licences"),
-                land_status=_get("land_status"),
-                # Section C
-                financing_structure=_get("financing_structure"),
-                investment_stage_label=_get("investment_stage_label"),
-                revenue_model=_get("revenue_model"),
-                macroeconomic_roi=_get("macroeconomic_roi"),
-                # Section D
-                climate_impact=_get("climate_impact"),
-                esg_compliance=None,
-                ghg_avoided_target=_get("ghg_avoided_target"),
-                jobs_construction=_get("jobs_construction"),
-                jobs_om=_get("jobs_om"),
-                electricity_connections=_get("electricity_connections"),
-                digital_connections=_get("digital_connections"),
-                smallholder_farmers_reached=_get("smallholder_farmers_reached"),
-                # Metadata
-                submitted_by=_get("submitted_by"),
-            )
-            db.add(project)
-            imported += 1
-        except Exception as exc:
-            errors.append(f"Row {row_offset}: {exc}")
-            skipped += 1
+    for d in project_dicts:
+        db.add(Project(id=uuid.uuid4(), twg_id=parsed_twg_id, **d))
+        imported += 1
 
     try:
         await db.commit()

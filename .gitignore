@@ -130,3 +130,6 @@ backend/credentials.json
 backend/uploads/*.pdf
 backend/uploads/
 vllm-env/
+
+# Local Claude/ruflo agent tooling — not project code
+.claude-flow/

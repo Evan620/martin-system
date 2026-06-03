@@ -259,6 +259,9 @@ async def create_meeting(
             _bg_twg_id = str(meeting_in.twg_id)
 
             async def _bg_sync_and_email():
+                # Use the Meet link generated below (if any) in the invite email,
+                # not the (usually empty) link captured before the event existed.
+                effective_video_link = _bg_video_link
                 try:
                     from app.services.calendar_service import calendar_service
                     from app.services.recurring_meeting_service import _gcal_executor
@@ -281,6 +284,7 @@ async def create_meeting(
                             )
                             video_link = calendar_event.get('hangoutLink')
                             if video_link:
+                                effective_video_link = video_link
                                 async with get_db_session_context() as bg_db:
                                     from sqlalchemy import update as sql_update
                                     await bg_db.execute(
@@ -319,7 +323,7 @@ async def create_meeting(
                             "meeting_date": meeting_date_str,
                             "meeting_time": meeting_time_str,
                             "location": _bg_location or "Virtual",
-                            "video_link": _bg_video_link,
+                            "video_link": effective_video_link,
                             "pillar_name": _bg_twg_name,
                             "portal_url": settings.FRONTEND_URL + "/schedule",
                         },
@@ -328,7 +332,7 @@ async def create_meeting(
                             "meeting_id": _bg_meeting_id,
                             "start_time": _bg_scheduled_at,
                             "duration": _bg_duration,
-                            "location": _bg_video_link or _bg_location or "Virtual",
+                            "location": effective_video_link or _bg_location or "Virtual",
                         }
                     )
                     logger.info(f"Sent meeting invites to {len(_bg_emails)} participants")
@@ -3982,6 +3986,11 @@ async def sync_meeting_to_calendar(
         elif p.email:
             participant_emails.append(p.email)
     participant_emails = list(set(participant_emails))
+
+    # SAFETY: in test-redirect mode, never sync real people onto the calendar
+    # event (this path uses sendUpdates='all', which bypasses the email guard).
+    if getattr(settings, 'EMAIL_TEST_REDIRECT_TO', None):
+        participant_emails = [settings.EMAIL_TEST_REDIRECT_TO]
 
     if not participant_emails:
         raise HTTPException(status_code=400, detail="No participants with emails found")

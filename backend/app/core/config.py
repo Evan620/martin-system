@@ -293,6 +293,53 @@ class Settings(BaseSettings):
         description="Sender name for emails"
     )
 
+    # Calendar identity (decoupled from the email sender above).
+    # CALENDAR_ORGANIZER_EMAIL is written as the ORGANIZER in the .ics we attach,
+    # so attendees see meetings as organized by this address regardless of who
+    # the email is sent FROM. Should be a real Google Workspace account.
+    CALENDAR_ORGANIZER_EMAIL: str = Field(
+        default="noreply@ecowasiisummit.net",
+        description="Address used as the iCalendar ORGANIZER on meeting invites"
+    )
+    CALENDAR_ORGANIZER_NAME: str = Field(
+        default="ECOWAS Summit",
+        description="Display name for the iCalendar ORGANIZER"
+    )
+    # When False, Google does NOT email attendees directly (sendUpdates='none');
+    # we deliver invites/updates/cancellations ourselves via Resend with an .ics
+    # attachment, so messages come from EMAIL_FROM (e.g. Joseph) rather than the
+    # calendar account. Set True to let Google send its own native invites.
+    CALENDAR_SEND_NATIVE_INVITES: bool = Field(
+        default=False,
+        description="If True, let Google Calendar email attendees directly (sendUpdates='all')"
+    )
+    # Google Workspace account the calendar integration acts as, via a service
+    # account with domain-wide delegation. Keeps events off any personal calendar.
+    GOOGLE_IMPERSONATE_EMAIL: Optional[str] = Field(
+        default=None,
+        description="Workspace user the service account impersonates for Calendar"
+    )
+
+    # WhatsApp (self-hosted OpenWA gateway) — lets Martin send WhatsApp messages
+    # and participate in groups as agent tools. Disabled by default: when False,
+    # sends are simulated (logged, not delivered) like EMAILS_ENABLED.
+    WHATSAPP_ENABLED: bool = Field(
+        default=False,
+        description="If False, WhatsApp sends are simulated (not delivered)"
+    )
+    WHATSAPP_GATEWAY_URL: Optional[str] = Field(
+        default=None,
+        description="Base URL of the OpenWA gateway API, e.g. https://host/api"
+    )
+    WHATSAPP_API_KEY: Optional[str] = Field(
+        default=None,
+        description="Gateway API key, sent as the X-API-Key header"
+    )
+    WHATSAPP_SESSION_ID: Optional[str] = Field(
+        default=None,
+        description="OpenWA session id the messages are sent through"
+    )
+
     # Storage
     UPLOAD_DIR: str = Field(
         default="./uploads",

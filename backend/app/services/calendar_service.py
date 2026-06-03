@@ -72,7 +72,7 @@ class CalendarService:
                 
                 # Check for impersonation (Domain-Wide Delegation)
                 # Required for Service Accounts to generate Meet links (needs Workspace license)
-                impersonate_email = os.environ.get("GOOGLE_IMPERSONATE_EMAIL")
+                impersonate_email = settings.GOOGLE_IMPERSONATE_EMAIL or os.environ.get("GOOGLE_IMPERSONATE_EMAIL")
                 if impersonate_email and hasattr(self.creds, 'with_subject'):
                     logger.info(f"Impersonating user: {impersonate_email}")
                     self.creds = self.creds.with_subject(impersonate_email)
@@ -83,7 +83,21 @@ class CalendarService:
         except Exception as e:
             logger.debug(f"CalendarService initialization deferred: {e}")
             return False
-    def create_meeting_event(self, 
+
+    def _send_updates_mode(self) -> str:
+        """
+        Whether Google should email attendees directly about this change.
+
+        We normally deliver invites/updates/cancellations ourselves via Resend
+        (with an .ics attachment) so messages come from EMAIL_FROM rather than the
+        calendar account. So this returns 'none' unless native invites are enabled.
+        Always 'none' in TEST_MODE so no calendar mail reaches real people.
+        """
+        if settings.TEST_MODE or not settings.CALENDAR_SEND_NATIVE_INVITES:
+            return 'none'
+        return 'all'
+
+    def create_meeting_event(self,
                              title: str, 
                              start_time: datetime.datetime, 
                              duration_minutes: int, 
@@ -141,8 +155,7 @@ class CalendarService:
 
         try:
             # conferenceDataVersion=1 is REQUIRED for creating Meet links
-            # Use sendUpdates='none' in TEST_MODE so no calendar invites reach real people
-            send_updates = 'none' if settings.TEST_MODE else 'all'
+            send_updates = self._send_updates_mode()
             created_event = self.service.events().insert(
                 calendarId='primary',
                 body=event,
@@ -267,8 +280,8 @@ class CalendarService:
 
             event['attendees'] = existing_attendees
             
-            # 4. Patch the event — skip invite notifications in TEST_MODE
-            send_updates = 'none' if settings.TEST_MODE else 'all'
+            # 4. Patch the event
+            send_updates = self._send_updates_mode()
             self.service.events().patch(
                 calendarId='primary',
                 eventId=event_id,
@@ -342,7 +355,7 @@ class CalendarService:
                 return True
             
             # 3. Patch the event
-            send_updates = 'none' if settings.TEST_MODE else 'all'
+            send_updates = self._send_updates_mode()
             self.service.events().patch(
                 calendarId='primary',
                 eventId=event_id,
@@ -385,11 +398,11 @@ class CalendarService:
             # Delete ALL matching events (handles duplicates)
             for event in events:
                 event_id = event['id']
-                send_updates = 'none' if settings.TEST_MODE else 'all'
+                send_updates = self._send_updates_mode()
                 self.service.events().delete(
                     calendarId='primary',
                     eventId=event_id,
-                    sendUpdates=send_updates  # Notify attendees of cancellation (skipped in TEST_MODE)
+                    sendUpdates=send_updates  # Cancellation is delivered via our own email/.ics unless native invites are on
                 ).execute()
                 logger.info(f"Cancelled calendar event {event_id} for meeting {meeting_id}")
 

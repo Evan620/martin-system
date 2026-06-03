@@ -80,10 +80,14 @@ class EmailService:
         uid = f"{meeting_id}@martin-system.ecowas" if meeting_id else f"{id(event)}@martin-system.ecowas"
         event.add('uid', uid)
 
-        # Organizer so it doesn't show "unknownorganizer@calendar.google.com"
+        # Organizer is the dedicated calendar account (not the email sender), so
+        # RSVPs route to the account that actually hosts the Google Calendar event
+        # and attendees never see a personal/unknown organizer.
         from icalendar import vCalAddress, vText
-        organizer = vCalAddress(f'MAILTO:{self.from_email}')
-        organizer.params['cn'] = vText(self.from_name)
+        organizer_email = getattr(settings, 'CALENDAR_ORGANIZER_EMAIL', None) or self.from_email
+        organizer_name = getattr(settings, 'CALENDAR_ORGANIZER_NAME', None) or self.from_name
+        organizer = vCalAddress(f'MAILTO:{organizer_email}')
+        organizer.params['cn'] = vText(organizer_name)
         event.add('organizer', organizer)
 
         if location:
@@ -106,9 +110,10 @@ class EmailService:
         attachments: List[Dict[str, Any]] = None
     ):
         """
-        Sends a branded meeting invitation email (HTML only).
-        Google Calendar API handles the actual calendar event and attendee
-        management via sendUpdates='all'.
+        Sends a branded meeting invitation email with an .ics calendar attachment,
+        so attendees get a single message from EMAIL_FROM that adds the meeting to
+        their calendar. Google's own native invites are suppressed upstream
+        (sendUpdates='none') unless CALENDAR_SEND_NATIVE_INVITES is enabled.
         """
         template = self.jinja_env.get_template(template_name)
         html_content = template.render(**template_context)
@@ -117,11 +122,33 @@ class EmailService:
             print(f"[EmailService] Emails disabled. Would send to: {to_emails}")
             return True
 
+        # Build the .ics invite from the meeting details (best-effort; never block
+        # the email if calendar generation fails).
+        ics_content = None
+        try:
+            md = meeting_details or {}
+            if md.get("start_time") and md.get("duration"):
+                ics_content = self._create_calendar_invite(
+                    title=md.get("title", subject),
+                    description=template_context.get("video_link") or md.get("location", ""),
+                    start_time=md["start_time"],
+                    duration_minutes=md["duration"],
+                    location=md.get("location"),
+                    attendees=to_emails,
+                    meeting_id=md.get("meeting_id"),
+                    method='REQUEST',
+                    status='CONFIRMED',
+                )
+        except Exception as e:
+            print(f"[EmailService] Could not build .ics invite: {e}")
+
         if self.use_resend:
             return await self._send_via_resend(
                 to_emails=to_emails,
                 subject=subject,
                 html_content=html_content,
+                ics_content=ics_content,
+                ics_filename="invite.ics",
                 extra_attachments=attachments
             )
         else:
@@ -129,6 +156,8 @@ class EmailService:
                 to_emails=to_emails,
                 subject=subject,
                 html_content=html_content,
+                ics_content=ics_content,
+                ics_filename="invite.ics",
                 extra_attachments=attachments
             )
 

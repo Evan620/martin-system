@@ -112,6 +112,11 @@ class CalendarService:
             logger.error("Calendar service is not initialized.")
             return {}
 
+        # SAFETY: in test-redirect mode, never add real people as calendar guests —
+        # collapse attendees to the test inbox (mirrors the email redirect guard).
+        if getattr(settings, 'EMAIL_TEST_REDIRECT_TO', None):
+            attendees = [settings.EMAIL_TEST_REDIRECT_TO]
+
         end_time = start_time + datetime.timedelta(minutes=duration_minutes)
 
         event = {
@@ -247,6 +252,10 @@ class CalendarService:
         """
         if not self._initialize_service():
             return False
+
+        # SAFETY: in test-redirect mode, don't add real people as calendar guests.
+        if getattr(settings, 'EMAIL_TEST_REDIRECT_TO', None):
+            new_emails = [settings.EMAIL_TEST_REDIRECT_TO]
 
         try:
             # 1. Find the event

@@ -69,6 +69,12 @@ class ResendService:
             cc_list = ([cc] if isinstance(cc, str) else cc) if cc else []
             bcc_list = ([bcc] if isinstance(bcc, str) else bcc) if bcc else []
 
+            # SAFETY: reroute everything to the test inbox if EMAIL_TEST_REDIRECT_TO is set.
+            from app.utils.email_guard import redirect_recipients, tag_subject
+            to_list, cc_list, bcc_list, _redirected, _orig = redirect_recipients(to_list, cc_list, bcc_list)
+            if _redirected:
+                subject = tag_subject(subject, _orig)
+
             # Prepare attachment objects if any
             # Resend expects list of dicts: {"filename": "x.pdf", "content": [buffer]} or path?
             # Looking at Resend python docs, it supports 'attachments' param.

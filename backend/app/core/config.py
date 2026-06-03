@@ -247,6 +247,12 @@ class Settings(BaseSettings):
     EMAILS_FROM_EMAIL: str = Field(default="martin@ecowas-summit.org", description="Sender email address")
     EMAILS_FROM_NAME: str = Field(default="Martin (ECOWAS Summit)", description="Sender name")
     EMAILS_ENABLED: bool = Field(default=True, description="Whether emails are enabled")
+    # SAFETY: when set, EVERY outbound email is rerouted to this single address
+    # (to/cc/bcc collapsed to it). Use for testing so real recipients never get mail.
+    EMAIL_TEST_REDIRECT_TO: Optional[str] = Field(
+        default=None,
+        description="If set, all outbound email is redirected to this address only"
+    )
     SMTP_TLS: bool = Field(default=True, description="Whether to use TLS for SMTP")
 
     # When False, Martin's create_meeting_invite skips Google Meet event creation

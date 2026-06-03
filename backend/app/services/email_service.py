@@ -410,6 +410,12 @@ class EmailService:
         Send email using Resend API (works on Railway).
         """
         import base64
+        from app.utils.email_guard import redirect_recipients, tag_subject
+
+        # SAFETY: reroute to the test inbox if EMAIL_TEST_REDIRECT_TO is set.
+        to_emails, _cc, _bcc, _redirected, _orig = redirect_recipients(to_emails)
+        if _redirected:
+            subject = tag_subject(subject, _orig)
 
         attachments = []
 
@@ -467,6 +473,12 @@ class EmailService:
         from email.mime.multipart import MIMEMultipart
         from email.mime.base import MIMEBase
         from email import encoders
+        from app.utils.email_guard import redirect_recipients, tag_subject
+
+        # SAFETY: reroute to the test inbox if EMAIL_TEST_REDIRECT_TO is set.
+        to_emails, _cc, _bcc, _redirected, _orig = redirect_recipients(to_emails)
+        if _redirected:
+            subject = tag_subject(subject, _orig)
 
         message = MIMEMultipart("mixed")
         message["Subject"] = subject

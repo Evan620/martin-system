@@ -128,3 +128,11 @@ WHATSAPP_TOOLS = [
     (LIST_WHATSAPP_GROUPS_TOOL, list_whatsapp_groups),
     (CHECK_WHATSAPP_NUMBER_TOOL, check_whatsapp_number),
 ]
+
+# The exact tool names registered by ToolRegistry._register_whatsapp_tools (it
+# iterates WHATSAPP_TOOLS). Derived from the single source of truth above so it
+# can NEVER drift from the actually-registered names — tests import THIS instead
+# of hardcoding the four strings.
+WHATSAPP_TOOL_NAMES: set[str] = {
+    tool_def["function"]["name"] for tool_def, _handler in WHATSAPP_TOOLS
+}

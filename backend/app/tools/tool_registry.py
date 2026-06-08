@@ -91,6 +91,33 @@ UNRESTRICTED_TOOLS: Set[str] = {
     "get_knowledge_base_stats",
 }
 
+# Tools available to TWG_MEMBER sessions via the `member` agent scope.
+# Spec §6: read everything relevant to the member + perform the member's PERSONAL
+# actions only. Never facilitator/admin powers (create-for-others, email, broadcast,
+# pipeline edits, investor matching, user mgmt). This set is the single source of
+# truth for the member allowlist; validate_tool_access enforces it.
+MEMBER_TOOLS: Set[str] = {
+    # Read: my meetings / agenda / time / join link
+    "get_schedule",
+    "get_past_meetings",
+    # Find + summarize documents shared with my TWG
+    "search_documents",
+    "retrieve_document_content",
+    # Read meeting summaries / decisions
+    "get_meeting_minutes",
+    # My action items + mark my own done
+    "get_action_items",
+    "update_action_item_status",
+    # Knowledge base (registered as RAG helpers today; listed for forward-compat)
+    "search_knowledge_base",
+    "get_relevant_context",
+    "get_knowledge_base_stats",
+    # Personal actions (created in this plan)
+    "rsvp_meeting",
+    "set_reminder",
+    "get_notifications",
+}
+
 
 class ToolAccessDenied(Exception):
     """Raised when a tool execution fails access validation."""
@@ -500,6 +527,23 @@ class ToolRegistry:
         Raises:
             ToolAccessDenied: If access is denied
         """
+        # Member scope: TWG_MEMBER app sessions. Strictly the member allowlist.
+        # Anything not in MEMBER_TOOLS is denied here, before any broader branch
+        # can grant it — this is the safety line from spec §3.
+        if agent_id == "member":
+            if tool_name in MEMBER_TOOLS:
+                # TWG-scoped member reads still require a twg_id, mirroring the
+                # general TWG_SCOPED_TOOLS rule below.
+                if tool_name in TWG_SCOPED_TOOLS and not twg_id:
+                    raise ToolAccessDenied(
+                        f"Tool '{tool_name}' requires TWG scope for member sessions."
+                    )
+                return True
+            raise ToolAccessDenied(
+                f"Tool '{tool_name}' is not part of the member toolset. "
+                f"Members cannot perform facilitator/admin actions."
+            )
+
         # Pipeline write/read tools — checked first so supervisor + TWG agents both get them.
         # User-role gating happens inside each tool body via _rbac.require_role.
         if tool_name in PIPELINE_WRITE_TOOLS or tool_name in PIPELINE_READ_TOOLS:

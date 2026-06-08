@@ -232,6 +232,19 @@ class MeetingParticipant(Base):
     meeting: Mapped["Meeting"] = relationship(back_populates="participants")
     user: Mapped[Optional["User"]] = relationship(back_populates="meeting_participations")
 
+
+class Reminder(Base):
+    __tablename__ = "reminders"
+    __table_args__ = {'extend_existing': True}
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    message: Mapped[str] = mapped_column(String(500))
+    remind_at: Mapped[datetime] = mapped_column(DateTime)
+    meeting_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("meetings.id", ondelete="SET NULL"), nullable=True)
+    is_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
 # --- Models ---
 
 class User(Base):

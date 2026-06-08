@@ -112,6 +112,18 @@ class CalendarService:
             logger.error("Calendar service is not initialized.")
             return {}
 
+        # IDEMPOTENCY: if a Google Calendar event already exists for this meeting_id,
+        # return it instead of inserting a duplicate. The create_meeting background
+        # task and the continuous_monitor job both create events; the shared
+        # gcal_executor is single-threaded (max_workers=1), so this check-then-insert
+        # is serialised against the monitor's creation path and cannot race into two
+        # events for one meeting.
+        if meeting_id:
+            existing = self.get_meeting_event(str(meeting_id))
+            if existing:
+                logger.info(f"GCal event already exists for meeting {meeting_id}; returning existing (no duplicate).")
+                return existing
+
         # SAFETY: in test-redirect mode, never add real people as calendar guests —
         # collapse attendees to the test inbox (mirrors the email redirect guard).
         if getattr(settings, 'EMAIL_TEST_REDIRECT_TO', None):

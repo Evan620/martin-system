@@ -52,6 +52,7 @@ class EmailService:
         location: Optional[str] = None,
         attendees: List[str] = None,
         meeting_id: Optional[str] = None,
+        ical_uid: Optional[str] = None,
         sequence: int = 0,
         method: str = 'REQUEST',
         status: str = 'CONFIRMED',
@@ -76,8 +77,12 @@ class EmailService:
         event.add('status', status)
         event.add('sequence', sequence)
 
-        # Stable UID so email clients link updates to the original invite
-        uid = f"{meeting_id}@martin-system.ecowas" if meeting_id else f"{id(event)}@martin-system.ecowas"
+        # Prefer the Google Calendar event's real iCalUID so this .ics MERGES with
+        # the attendee's existing Google event (they are already added as a guest)
+        # instead of Gmail importing it as a SECOND, duplicate event. Fall back to a
+        # stable meeting-derived UID when no Google event exists (e.g. in-person
+        # meetings, or before the event has been created).
+        uid = ical_uid or (f"{meeting_id}@martin-system.ecowas" if meeting_id else f"{id(event)}@martin-system.ecowas")
         event.add('uid', uid)
 
         # Organizer is the dedicated calendar account (not the email sender), so
@@ -128,6 +133,27 @@ class EmailService:
         try:
             md = meeting_details or {}
             if md.get("start_time") and md.get("duration"):
+                # Resolve the Google Calendar event's real iCalUID so the .ics MERGES
+                # with the attendee's existing Google event instead of duplicating it.
+                # Callers may pass it directly via meeting_details["ical_uid"]; otherwise
+                # look it up by meeting_id (the event is created before this email is
+                # sent on every invite path). No event found -> deterministic fallback.
+                ical_uid = md.get("ical_uid")
+                if not ical_uid and md.get("meeting_id"):
+                    try:
+                        import asyncio
+                        from app.services.calendar_service import calendar_service
+                        from app.services.gcal_executor import gcal_executor
+                        loop = asyncio.get_running_loop()
+                        existing = await loop.run_in_executor(
+                            gcal_executor,
+                            lambda: calendar_service.get_meeting_event(str(md["meeting_id"]))
+                        )
+                        if existing:
+                            ical_uid = existing.get("iCalUID")
+                    except Exception as e:
+                        print(f"[EmailService] Could not resolve Google iCalUID for .ics dedup: {e}")
+
                 ics_content = self._create_calendar_invite(
                     title=md.get("title", subject),
                     description=template_context.get("video_link") or md.get("location", ""),
@@ -136,6 +162,7 @@ class EmailService:
                     location=md.get("location"),
                     attendees=to_emails,
                     meeting_id=md.get("meeting_id"),
+                    ical_uid=ical_uid,
                     method='REQUEST',
                     status='CONFIRMED',
                 )

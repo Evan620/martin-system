@@ -371,9 +371,14 @@ must hold):
 cd /Users/evan/ravishing-presence/backend && .venv/bin/python -m pytest tests/test_tool_registry.py tests/test_member_tool_scope.py -v
 ```
 
-Expected: all existing `test_tool_registry.py` tests pass (the member branch only
-triggers when `agent_id == "member"`, which no existing test uses) AND all 5
-`test_member_tool_scope.py` tests pass.
+Expected: all 5 `test_member_tool_scope.py` tests pass. For `test_tool_registry.py`,
+expect the SAME pre-existing baseline as a clean checkout — exactly **two** KNOWN
+failures, `TestAccessControl::test_supervisor_has_full_access` and
+`TestToolRetrieval::test_supervisor_gets_all_tools` (stale assertions against the
+now-restrictive supervisor logic, UNRELATED to this change) — and **no other**
+failures. The member branch only triggers when `agent_id == "member"` (a value no
+existing test uses), so it cannot change any existing result. If ANY other
+`test_tool_registry.py` test newly fails, STOP and use superpowers:systematic-debugging.
 
 - [ ] If anything fails, STOP and use superpowers:systematic-debugging before proceeding. Do not edit tests to make them pass.
 
@@ -1691,7 +1696,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 cd /Users/evan/ravishing-presence/backend && .venv/bin/python -m pytest tests/test_member_tool_scope.py tests/test_member_tools.py tests/test_member_chat_endpoint.py tests/test_tool_registry.py -v
 ```
 
-Expected: all pass.
+Expected: all `test_member_*` tests pass; `test_tool_registry.py` shows ONLY the two
+known pre-existing failures (`test_supervisor_has_full_access`,
+`test_supervisor_gets_all_tools`) and no new ones.
 
 - [ ] Run the broader agent/tool tests to confirm no regression to other agents:
 

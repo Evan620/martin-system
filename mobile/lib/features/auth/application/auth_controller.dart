@@ -2,9 +2,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:local_auth/local_auth.dart';
 import '../../../core/network/api_client.dart';
 import '../data/auth_models.dart';
 import '../data/auth_repository.dart';
+import '../data/biometric_service.dart';
 import '../data/token_storage.dart';
 
 sealed class AuthState {
@@ -50,6 +52,9 @@ final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => AuthRepository(dio: ref.watch(dioProvider), tokens: ref.watch(tokenStorageProvider)),
 );
 
+final biometricServiceProvider =
+    Provider<BiometricService>((_) => BiometricService(LocalAuthentication()));
+
 class AuthController extends Notifier<AuthState> {
   @override
   AuthState build() => const AuthState.unknown();
@@ -61,6 +66,11 @@ class AuthController extends Notifier<AuthState> {
   Future<void> bootstrap() async {
     final t = await _tokens.read();
     if (t == null) {
+      state = const AuthState.unauthenticated();
+      return;
+    }
+    final unlocked = await ref.read(biometricServiceProvider).authenticate();
+    if (!unlocked) {
       state = const AuthState.unauthenticated();
       return;
     }

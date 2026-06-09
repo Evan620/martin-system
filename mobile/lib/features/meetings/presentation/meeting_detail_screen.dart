@@ -361,7 +361,7 @@ class _DetailBody extends StatelessWidget {
     if (context.canPop()) {
       context.pop();
     } else {
-      context.go('/');
+      context.go('/meetings');
     }
   }
 }

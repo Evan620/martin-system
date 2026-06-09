@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../features/auth/application/auth_controller.dart';
 import '../features/auth/presentation/login_screen.dart';
+import '../features/meetings/presentation/meeting_detail_screen.dart';
 import '../shell/app_shell.dart';
 
 /// Pure redirect logic — unit-testable without a widget tree.
@@ -24,6 +25,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/', builder: (_, __) => const AppShell()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(
+        path: '/meetings/:id',
+        builder: (_, st) =>
+            MeetingDetailScreen(meetingId: st.pathParameters['id']!),
+      ),
     ],
   );
 });

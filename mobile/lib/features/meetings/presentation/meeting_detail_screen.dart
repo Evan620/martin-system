@@ -1,13 +1,20 @@
 // lib/features/meetings/presentation/meeting_detail_screen.dart
 //
-// Meeting detail — Sovereign glass full view of a single meeting, fetched by id.
+// Meeting detail — Sovereign Layout B: dense-data full view of a single meeting.
 //
-// A ConsumerStatefulWidget that loads GET /meetings/{id} via the repository in
-// initState (held as a Future and rendered with a FutureBuilder), showing
-// loading / error+retry / data states. The data body shows the serif title,
-// full date/time + duration, location, a gold Join pill (url_launcher) when a
-// video_link is present, an attendees list with each participant's RSVP, and —
-// for participants only — the member's own RSVP control. RSVP goes through
+// A ConsumerStatefulWidget that loads the meeting (GET /meetings/{id}) plus its
+// agenda (GET /meetings/{id}/agenda) and minutes (GET /meetings/{id}/minutes) in
+// initState, held as a single Future<_DetailData> and rendered with a
+// FutureBuilder (loading / error+retry / data). Agenda + minutes tolerate null
+// (404 = "none").
+//
+// The data body is an ambient navy+gold backdrop behind a CustomScrollView:
+//   * a collapsing SliverAppBar header — TWG eyebrow + serif title + status badge
+//   * expandable sections (Agenda / Attendees / Documents / Minutes) with counts
+//   * a pinned bottom action bar (Join + RSVP) that sits above the floating nav.
+//
+// Documents rows are display-only this pass (tapping shows a SnackBar);
+// full open/preview ships with the Documents sub-project. RSVP goes through
 // meetingsController.setRsvp so the list screen stays in sync; on success we
 // re-fetch the detail so this screen reflects the new state.
 import 'package:flutter/material.dart';
@@ -22,6 +29,14 @@ import '../application/meetings_controller.dart';
 import '../data/meetings_models.dart';
 import '../data/meetings_repository.dart';
 
+/// The meeting plus its (optional) agenda + minutes, loaded together.
+class _DetailData {
+  const _DetailData({required this.meeting, this.agenda, this.minutes});
+  final Meeting meeting;
+  final String? agenda;
+  final String? minutes;
+}
+
 /// Full detail view for one meeting, loaded by [meetingId].
 class MeetingDetailScreen extends ConsumerStatefulWidget {
   const MeetingDetailScreen({super.key, required this.meetingId});
@@ -34,7 +49,7 @@ class MeetingDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _MeetingDetailScreenState extends ConsumerState<MeetingDetailScreen> {
-  late Future<Meeting> _future;
+  late Future<_DetailData> _future;
 
   @override
   void initState() {
@@ -42,8 +57,13 @@ class _MeetingDetailScreenState extends ConsumerState<MeetingDetailScreen> {
     _future = _load();
   }
 
-  Future<Meeting> _load() =>
-      ref.read(meetingsRepositoryProvider).meetingDetail(widget.meetingId);
+  Future<_DetailData> _load() async {
+    final repo = ref.read(meetingsRepositoryProvider);
+    final meeting = await repo.meetingDetail(widget.meetingId);
+    final agenda = await repo.meetingAgenda(widget.meetingId);
+    final minutes = await repo.meetingMinutes(widget.meetingId);
+    return _DetailData(meeting: meeting, agenda: agenda, minutes: minutes);
+  }
 
   void _reload() {
     setState(() => _future = _load());
@@ -76,135 +96,360 @@ class _MeetingDetailScreenState extends ConsumerState<MeetingDetailScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: SafeArea(
-        child: FutureBuilder<Meeting>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(
-                child: CircularProgressIndicator(color: SovereignColors.gold),
-              );
-            }
-            if (snapshot.hasError) {
-              final err = snapshot.error;
-              final message = err is MeetingException
-                  ? err.message
-                  : 'Could not open this meeting.';
-              return _DetailError(message: message, onRetry: _reload);
-            }
-            final meeting = snapshot.data!;
-            return _DetailBody(
-              meeting: meeting,
-              userId: userId,
-              onJoin: () => _join(meeting),
-              onRsvp: (rsvp) => _setRsvp(meeting, rsvp, userId),
+      body: FutureBuilder<_DetailData>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(
+              child: CircularProgressIndicator(color: SovereignColors.gold),
             );
-          },
-        ),
+          }
+          if (snapshot.hasError) {
+            final err = snapshot.error;
+            final message = err is MeetingException
+                ? err.message
+                : 'Could not open this meeting.';
+            return SafeArea(
+              child: _DetailError(message: message, onRetry: _reload),
+            );
+          }
+          final data = snapshot.data!;
+          return _DetailBody(
+            data: data,
+            userId: userId,
+            onJoin: () => _join(data.meeting),
+            onRsvp: (rsvp) => _setRsvp(data.meeting, rsvp, userId),
+          );
+        },
       ),
     );
   }
 }
 
-/// The loaded detail content (title, time, location, Join, attendees, RSVP).
+/// The loaded detail content — ambient backdrop, collapsing header, expandable
+/// sections, and a pinned Join + RSVP bar.
 class _DetailBody extends StatelessWidget {
   const _DetailBody({
-    required this.meeting,
+    required this.data,
     required this.userId,
     required this.onJoin,
     required this.onRsvp,
   });
 
-  final Meeting meeting;
+  final _DetailData data;
   final String userId;
   final VoidCallback onJoin;
   final ValueChanged<MeetingRsvp> onRsvp;
 
   static final _fmt = DateFormat('EEEE, d MMMM · HH:mm');
 
+  Meeting get _meeting => data.meeting;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final meeting = _meeting;
     final isParticipant = meeting.isParticipant(userId);
     final myRsvp = meeting.myRsvp(userId);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Back affordance.
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _BackButton(onTap: () => _back(context)),
-          ),
-          const SizedBox(height: 12),
-          if ((meeting.twgName ?? '').isNotEmpty) ...[
-            Text(
-              meeting.twgName!.toUpperCase(),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: SovereignColors.gold,
-                letterSpacing: 3,
-                fontSize: 10,
-              ),
-            ),
-            const SizedBox(height: 6),
-          ],
-          Text(
-            meeting.title,
-            style: theme.textTheme.displaySmall?.copyWith(fontSize: 30),
-          ),
-          const SizedBox(height: 16),
+    final agendaLines = (data.agenda ?? '')
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    final hasAgenda = agendaLines.isNotEmpty;
+    final hasMinutes = (data.minutes ?? '').trim().isNotEmpty;
 
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _IconRow(
-                  icon: Icons.schedule,
-                  text:
-                      '${_fmt.format(meeting.scheduledAt)} · ${meeting.durationMinutes} min',
-                ),
-                if ((meeting.location ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  _IconRow(icon: Icons.place_outlined, text: meeting.location!),
-                ],
-                if (meeting.hasVideo) ...[
-                  const SizedBox(height: 16),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: _JoinPill(onTap: onJoin),
+    final showActions = meeting.hasVideo || isParticipant;
+
+    return _AmbientBackdrop(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: CustomScrollView(
+              slivers: [
+                SliverAppBar(
+                  pinned: true,
+                  expandedHeight: 150,
+                  backgroundColor: Colors.transparent,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 0,
+                  leadingWidth: 64,
+                  leading: Padding(
+                    padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
+                    child: _BackButton(onTap: () => _back(context)),
                   ),
-                ],
+                  flexibleSpace: FlexibleSpaceBar(
+                    titlePadding:
+                        const EdgeInsets.only(left: 20, right: 20, bottom: 14),
+                    title: Text(
+                      meeting.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontFamily: 'serif',
+                        color: SovereignColors.ivory,
+                        fontSize: 19,
+                      ),
+                    ),
+                    background: SafeArea(
+                      bottom: false,
+                      child: Padding(
+                        padding:
+                            const EdgeInsets.fromLTRB(20, 12, 20, 44),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if ((meeting.twgName ?? '').isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Text(
+                                  meeting.twgName!.toUpperCase(),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: SovereignColors.gold,
+                                    letterSpacing: 3,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ),
+                            _StatusBadge(status: meeting.status),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                    child: GlassCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _IconRow(
+                            icon: Icons.schedule,
+                            text:
+                                '${_fmt.format(meeting.scheduledAt)} · ${meeting.durationMinutes} min',
+                          ),
+                          if ((meeting.location ?? '').isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            _IconRow(
+                                icon: Icons.place_outlined,
+                                text: meeting.location!),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (hasAgenda)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                      child: _ExpandableSection(
+                        label: 'Agenda',
+                        count: agendaLines.length,
+                        initiallyOpen: true,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (final line in agendaLines)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Text(
+                                  line,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: SovereignColors.ivory
+                                        .withValues(alpha: 0.85),
+                                    fontSize: 13.5,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                if (meeting.participants.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                      child: _ExpandableSection(
+                        label: 'Attendees',
+                        count: meeting.participants.length,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (var i = 0;
+                                i < meeting.participants.length;
+                                i++) ...[
+                              if (i > 0) const SizedBox(height: 10),
+                              _AttendeeRow(
+                                  participant: meeting.participants[i]),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                if (meeting.documents.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                      child: _ExpandableSection(
+                        label: 'Documents',
+                        count: meeting.documents.length,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (var i = 0;
+                                i < meeting.documents.length;
+                                i++) ...[
+                              if (i > 0) const SizedBox(height: 10),
+                              _DocumentRow(document: meeting.documents[i]),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                if (hasMinutes)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                      child: _ExpandableSection(
+                        label: 'Minutes',
+                        count: null,
+                        child: Text(
+                          data.minutes!.trim(),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color:
+                                SovereignColors.ivory.withValues(alpha: 0.85),
+                            fontSize: 13.5,
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                // Clear the pinned action bar (~84) + the floating nav (~92).
+                const SliverToBoxAdapter(child: SizedBox(height: 200)),
               ],
             ),
           ),
-
-          // Attendees.
-          if (meeting.participants.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            const _SectionLabel('Attendees'),
-            const SizedBox(height: 8),
-            GlassCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (var i = 0; i < meeting.participants.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 10),
-                    _AttendeeRow(participant: meeting.participants[i]),
-                  ],
-                ],
+          if (showActions)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 92, // sit above the floating nav
+              child: _ActionBar(
+                meeting: meeting,
+                isParticipant: isParticipant,
+                myRsvp: myRsvp,
+                onJoin: onJoin,
+                onRsvp: onRsvp,
               ),
             ),
-          ],
+        ],
+      ),
+    );
+  }
 
-          // The member's own RSVP control (participants only).
-          if (isParticipant) ...[
-            const SizedBox(height: 16),
-            const _SectionLabel('Your RSVP'),
-            const SizedBox(height: 8),
-            GlassCard(
-              child: Row(
+  void _back(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/');
+    }
+  }
+}
+
+/// Ambient Sovereign backdrop — navy gradient with a top-right gold radial glow.
+class _AmbientBackdrop extends StatelessWidget {
+  const _AmbientBackdrop({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            SovereignColors.navyRaised,
+            SovereignColors.navy,
+            SovereignColors.navyDeep,
+          ],
+          stops: [0, 0.45, 1],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -120,
+            right: -90,
+            child: Container(
+              width: 320,
+              height: 320,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    SovereignColors.gold.withValues(alpha: 0.18),
+                    SovereignColors.gold.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+/// The pinned bottom action bar: a Join pill (when video) + the three RSVP
+/// chips (participants only), in a glass surface above the floating nav.
+class _ActionBar extends StatelessWidget {
+  const _ActionBar({
+    required this.meeting,
+    required this.isParticipant,
+    required this.myRsvp,
+    required this.onJoin,
+    required this.onRsvp,
+  });
+
+  final Meeting meeting;
+  final bool isParticipant;
+  final MeetingRsvp myRsvp;
+  final VoidCallback onJoin;
+  final ValueChanged<MeetingRsvp> onRsvp;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: GlassSurface(
+        borderRadius: 24,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        goldGlow: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (meeting.hasVideo)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _JoinPill(onTap: onJoin),
+              ),
+            if (meeting.hasVideo && isParticipant)
+              const SizedBox(height: 10),
+            if (isParticipant)
+              Row(
                 children: [
                   _RsvpChip(
                     label: 'Going',
@@ -225,19 +470,108 @@ class _DetailBody extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A collapsible glass section card with a tappable header + count badge.
+class _ExpandableSection extends StatefulWidget {
+  const _ExpandableSection({
+    required this.label,
+    required this.count,
+    required this.child,
+    this.initiallyOpen = false,
+  });
+
+  final String label;
+  final int? count;
+  final Widget child;
+  final bool initiallyOpen;
+
+  @override
+  State<_ExpandableSection> createState() => _ExpandableSectionState();
+}
+
+class _ExpandableSectionState extends State<_ExpandableSection> {
+  late bool _open = widget.initiallyOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => setState(() => _open = !_open),
+            child: Row(
+              children: [
+                _SectionLabel(widget.count == null
+                    ? widget.label
+                    : '${widget.label} · ${widget.count}'),
+                const Spacer(),
+                AnimatedRotation(
+                  turns: _open ? 0.25 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const Icon(Icons.chevron_right,
+                      color: SovereignColors.gold, size: 18),
+                ),
+              ],
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: _open
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: widget.child)
+                : const SizedBox(width: double.infinity),
+          ),
         ],
       ),
     );
   }
+}
 
-  void _back(BuildContext context) {
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go('/');
-    }
+/// A gold-outline status pill mapping the backend status to a member label.
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = switch (status.toUpperCase()) {
+      'SCHEDULED' => 'Scheduled',
+      'IN_PROGRESS' => 'In progress',
+      'COMPLETED' => 'Completed',
+      'CANCELLED' => 'Cancelled',
+      _ => status,
+    };
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(
+            color: SovereignColors.gold.withValues(alpha: 0.55), width: 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        child: Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            color: SovereignColors.gold,
+            fontSize: 10,
+            letterSpacing: 1.6,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -286,6 +620,48 @@ class _IconRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// One attached document: a type badge + file name (display-only this pass).
+class _DocumentRow extends StatelessWidget {
+  const _DocumentRow({required this.document});
+
+  final MeetingDocument document;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+              const SnackBar(content: Text('Opens in Documents')));
+      },
+      child: Row(
+        children: [
+          Icon(Icons.insert_drive_file_outlined,
+              size: 16, color: SovereignColors.gold),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              document.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: SovereignColors.ivory.withValues(alpha: 0.88),
+                fontSize: 13.5,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.chevron_right,
+              size: 16, color: SovereignColors.gold),
+        ],
+      ),
     );
   }
 }

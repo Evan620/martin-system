@@ -8,7 +8,7 @@ import '../features/deals/presentation/deals_screen.dart';
 import '../features/documents/presentation/documents_screen.dart';
 import '../features/documents/presentation/pdf_viewer_screen.dart';
 import '../features/home/presentation/home_screen.dart';
-import '../features/home/presentation/martin_chat_placeholder.dart';
+import '../features/home/presentation/martin_chat_screen.dart';
 import '../features/meetings/presentation/meetings_screen.dart';
 import '../features/meetings/presentation/meeting_detail_screen.dart';
 import '../features/profile/presentation/me_screen.dart';
@@ -36,7 +36,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       // covers the nav. Reached via the floating ✦ Martin FAB (context.push).
       GoRoute(
         path: '/martin',
-        pageBuilder: (context, st) => sovereignPage(child: const MartinChatPlaceholder()),
+        pageBuilder: (context, st) => sovereignPage(
+          child: MartinChatScreen(seed: st.uri.queryParameters['q']),
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) => AppShell(navigationShell: navigationShell),
@@ -73,8 +75,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               ],
             ),
           ]),
-          // 2 Home (the raised centre)
-          StatefulShellBranch(routes: [GoRoute(path: '/home', builder: (_, _) => const HomeScreen())]),
+          // 2 Home (the raised centre) — with a nested Martin chat so the nav
+          // persists. `?q=` seeds an auto-sent first prompt.
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/home',
+              builder: (_, _) => const HomeScreen(),
+              routes: [
+                GoRoute(
+                  path: 'chat',
+                  pageBuilder: (context, st) => sovereignPage(
+                    child: MartinChatScreen(seed: st.uri.queryParameters['q']),
+                  ),
+                ),
+              ],
+            ),
+          ]),
           // 3 Deals (Phase 2)
           StatefulShellBranch(routes: [GoRoute(path: '/deals', builder: (_, _) => const DealsScreen())]),
           // 4 Me

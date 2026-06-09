@@ -106,7 +106,7 @@ void main() {
     expect(find.text('Shared with you'), findsWidgets); // DocumentsScreen subtitle
   });
 
-  testWidgets('tapping the Martin FAB pushes the Martin chat placeholder',
+  testWidgets('tapping the Martin FAB opens the streaming Martin chat screen',
       (tester) async {
     final container = await buildContainer();
     addTearDown(container.dispose);
@@ -121,6 +121,8 @@ void main() {
     await tester.tap(find.byKey(const Key('martin-fab')));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Martin is coming'), findsOneWidget);
+    // The real chat screen renders: the ✦ Martin header + the input bar.
+    expect(find.text('✦ Martin'), findsOneWidget);
+    expect(find.byKey(const Key('martin-chat-input')), findsOneWidget);
   });
 }

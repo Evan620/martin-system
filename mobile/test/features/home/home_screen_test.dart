@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:member_app/features/auth/application/auth_controller.dart';
 import 'package:member_app/features/auth/data/auth_models.dart';
@@ -68,23 +69,52 @@ void main() {
     expect(find.textContaining('1 action item'), findsOneWidget);
   });
 
-  testWidgets('Ask Martin bar shows a coming-soon SnackBar (no /home/chat yet)',
-      (tester) async {
+  testWidgets('Ask Martin bar pushes /home/chat with the seed', (tester) async {
     final repo = _MockRepo();
     when(() => repo.getBriefing()).thenAnswer((_) async => _briefing());
+
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(
+          path: '/home',
+          builder: (_, _) => const HomeScreen(),
+          routes: [
+            GoRoute(
+              path: 'chat',
+              builder: (_, st) =>
+                  _ProbeChatScreen(seed: st.uri.queryParameters['q']),
+            ),
+          ],
+        ),
+      ],
+    );
 
     await tester.pumpWidget(ProviderScope(
       overrides: [
         homeRepositoryProvider.overrideWithValue(repo),
         authControllerProvider.overrideWith(_AuthedController.new),
       ],
-      child: const MaterialApp(home: HomeScreen()),
+      child: MaterialApp.router(routerConfig: router),
     ));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    await tester.tap(find.text('Ask Martin…'));
-    await tester.pump();
-    expect(find.text('Martin chat is coming.'), findsOneWidget);
+    // Tapping a suggestion chip seeds the chat with that prompt.
+    await tester.tap(find.text('Brief me'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('seed=Brief me'), findsOneWidget);
   });
+}
+
+/// A tiny stand-in for the chat screen that just echoes the seed it received,
+/// so the Home wiring test can assert the route + query param without pulling
+/// in the chat controller / Dio.
+class _ProbeChatScreen extends StatelessWidget {
+  const _ProbeChatScreen({required this.seed});
+  final String? seed;
+  @override
+  Widget build(BuildContext context) =>
+      Scaffold(body: Center(child: Text('seed=$seed')));
 }

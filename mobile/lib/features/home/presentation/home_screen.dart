@@ -18,11 +18,12 @@
 // depth (outer raised card holding lighter inner rows, and an inner gold mic
 // inside the ask bar).
 //
-// NOTE (Part 4a): the `/home/chat` route does NOT exist yet — it lands in 4b.
-// Until then, the Ask-Martin bar + suggestion chips show a SnackBar stub
-// ('Martin chat is coming.'); 4b rewires them to push '/home/chat?q=<seed>'.
+// The Ask-Martin bar + suggestion chips push the nested `/home/chat?q=<seed>`
+// route (the nav persists), which opens the streaming Martin chat and auto-sends
+// the seed.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/glass/glass.dart';
 import '../../../core/theme/sovereign_colors.dart';
@@ -52,12 +53,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
   }
 
-  /// 4a stub: until the `/home/chat` route lands in 4b, the ask bar + chips
-  /// surface a coming-soon SnackBar instead of pushing an unknown route.
+  /// Opens the streaming Martin chat, seeding it with [seed] (URL-encoded) when
+  /// a suggestion chip / the ask bar carries a prompt. The nested `/home/chat`
+  /// route keeps the bottom nav in place.
   void _askMartin(String seed) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('Martin chat is coming.')));
+    final trimmed = seed.trim();
+    final suffix =
+        trimmed.isEmpty ? '' : '?q=${Uri.encodeQueryComponent(trimmed)}';
+    context.push('/home/chat$suffix');
   }
 
   @override

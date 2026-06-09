@@ -311,15 +311,20 @@ async def chat_with_martin(
                     detail="You do not have access to this TWG"
                 )
             
-            # Route to TWG-specific agent (using Supervisor with strict TWG context)
+            # Route to TWG-specific agent (using Supervisor with strict TWG context).
+            # SAFETY LINE: TWG_MEMBER chats run under the member-scoped agent
+            # (agent_id="member", gated to MEMBER_TOOLS) bound to the caller's twg_id —
+            # NOT the facilitator/pillar agent. Facilitators keep the existing routing.
             supervisor = get_supervisor()
+            force_agent_id = "member" if current_user.role == UserRole.TWG_MEMBER else None
             raw_response = await supervisor.chat_with_tools(
                 chat_in.message,
                 twg_id=str(chat_in.twg_id),
                 thread_id=str(conv_id),
-                user_timezone=user_timezone
+                user_timezone=user_timezone,
+                force_agent_id=force_agent_id,
             )
-            agent_id = f"twg_{chat_in.twg_id}_agent"
+            agent_id = "member" if current_user.role == UserRole.TWG_MEMBER else f"twg_{chat_in.twg_id}_agent"
             
         else:
             # Other roles (e.g., SECRETARIAT_LEAD) don't have agent access yet
@@ -590,6 +595,7 @@ async def stream_chat_get(
             yield _sse({"type": "routing", "content": "Analysing query..."})
 
             # RBAC — mirror the POST /chat logic
+            force_agent_id = None
             if current_user.role == UserRole.ADMIN:
                 twg_context = twg_id
             elif current_user.role in [UserRole.TWG_FACILITATOR, UserRole.TWG_MEMBER]:
@@ -601,6 +607,10 @@ async def stream_chat_get(
                     yield _sse({"type": "error", "message": "You do not have access to this TWG."})
                     return
                 twg_context = twg_id
+                # SAFETY LINE: TWG_MEMBER chats run under the member-scoped agent
+                # (agent_id="member", gated to MEMBER_TOOLS) bound to the caller's twg_id.
+                if current_user.role == UserRole.TWG_MEMBER:
+                    force_agent_id = "member"
             else:
                 yield _sse({"type": "error", "message": "Insufficient permissions to access AI agents."})
                 return
@@ -615,6 +625,7 @@ async def stream_chat_get(
                     twg_id=twg_context,
                     thread_id=conv_id,
                     user_timezone=user_timezone,
+                    force_agent_id=force_agent_id,
                 )
             )
 
@@ -745,6 +756,11 @@ async def stream_chat(
             # Use singleton supervisor to ensure memory persistence (MemorySaver)
             supervisor = get_supervisor()
 
+            # SAFETY LINE: TWG_MEMBER streaming chats run under the member-scoped
+            # agent (agent_id="member", gated to MEMBER_TOOLS) bound to the caller's
+            # twg_id — never the facilitator/pillar agent. Threaded into the
+            # natural-language streaming path below via force_agent_id.
+            force_agent_id = "member" if current_user.role == UserRole.TWG_MEMBER else None
 
             # Parse message for commands and mentions
             parsed = command_parser.parse_message(chat_in.message)
@@ -827,7 +843,7 @@ async def stream_chat(
                 citations = []
                 
                 # Stream events from LangGraph
-                async for event in supervisor.stream_chat_events(chat_in.message, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=conv_id, user_timezone=user_timezone):
+                async for event in supervisor.stream_chat_events(chat_in.message, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=conv_id, user_timezone=user_timezone, force_agent_id=force_agent_id):
                     if event["type"] == "node_update":
                         node = event["node"]
                         status_msg = f"Processing step: {node}"

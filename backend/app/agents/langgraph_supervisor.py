@@ -65,6 +65,10 @@ class LangGraphSupervisor:
             "digital": create_langgraph_digital_agent(keep_history=True),
             "protocol": create_langgraph_protocol_agent(keep_history=True),
             "resource_mobilization": create_langgraph_resource_mobilization_agent(keep_history=True),
+            # Member-scoped agent (gated to MEMBER_TOOLS). Registered with no TWG
+            # binding; the caller's twg_id is supplied per-request via chat_with_tools
+            # (force_agent_id="member" + twg_id) so TWG-scoped member reads are granted.
+            "member": LangGraphBaseAgent(agent_id="member", keep_history=True),
         }
         for aid, agent in agents.items():
             self._twg_agents[aid] = agent
@@ -86,6 +90,7 @@ class LangGraphSupervisor:
         thread_id: Optional[str] = None,
         twg_id: Optional[str] = None,
         user_timezone: Optional[str] = None,
+        force_agent_id: Optional[str] = None,
     ) -> dict:
         loop = self._get_loop()
         resp = await loop.run(
@@ -93,6 +98,7 @@ class LangGraphSupervisor:
             thread_id=thread_id or self.session_id,
             twg_id=twg_id,
             user_timezone=user_timezone,
+            force_agent_id=force_agent_id,
         )
         return {
             "response": resp.content,
@@ -111,6 +117,7 @@ class LangGraphSupervisor:
         thread_id: Optional[str] = None,
         twg_id: Optional[str] = None,
         user_timezone: Optional[str] = None,
+        force_agent_id: Optional[str] = None,
     ) -> AsyncGenerator[Dict, None]:
         loop = self._get_loop()
         async for event in loop.stream(
@@ -118,6 +125,7 @@ class LangGraphSupervisor:
             thread_id=thread_id or self.session_id,
             twg_id=twg_id,
             user_timezone=user_timezone,
+            force_agent_id=force_agent_id,
         ):
             yield event
 

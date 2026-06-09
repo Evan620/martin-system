@@ -34,13 +34,18 @@ class LangGraphBaseAgent:
         session_id: Optional[str] = None,
         use_redis: bool = False,
         memory_ttl: Optional[int] = None,
+        twg_id: Optional[str] = None,
     ):
         self.agent_id = agent_id
         self.session_id = session_id or "default"
         self.keep_history = keep_history
         self.max_history = max_history
 
-        self.twg_id = get_twg_id_by_agent_id(agent_id)
+        # The member agent is NOT pillar-mapped, so get_twg_id_by_agent_id("member")
+        # is None and would deny the TWG-scoped member reads. Callers therefore pass
+        # the calling member's twg_id explicitly. For pillar agents twg_id stays None
+        # here and resolves from the agent_id, preserving existing behaviour.
+        self.twg_id = twg_id if twg_id is not None else get_twg_id_by_agent_id(agent_id)
         self.system_prompt = get_prompt(agent_id)
         self.llm_service = get_llm_service()
 

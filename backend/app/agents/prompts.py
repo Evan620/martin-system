@@ -20,7 +20,8 @@ AVAILABLE_AGENTS = [
     "minerals",
     "digital",
     "protocol",
-    "resource_mobilization"
+    "resource_mobilization",
+    "member",
 ]
 
 

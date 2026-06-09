@@ -47,6 +47,21 @@ class SupervisorLoop:
         self.twg_agents = twg_agents
         self.supervisor_agent = supervisor_agent
 
+    def _build_member_agent(self, twg_id: Optional[str]):
+        """Build a per-request, member-scoped agent bound to the CALLER's twg_id.
+
+        The "member" agent is not pillar-mapped, so a statically-registered member
+        agent would have twg_id=None and be denied the TWG-scoped member reads. We
+        therefore construct it per-request with the caller's twg_id so
+        get_tools_for_agent("member", twg_id) grants those reads while facilitator/
+        admin tools stay denied (tool_registry's agent_id=="member" gate).
+        """
+        from app.agents.langgraph_base_agent import LangGraphBaseAgent
+        member_agent = LangGraphBaseAgent(
+            agent_id="member", keep_history=True, twg_id=twg_id,
+        )
+        return member_agent._loop
+
     async def run(
         self,
         query: str,
@@ -54,7 +69,19 @@ class SupervisorLoop:
         twg_id: Optional[str] = None,
         user_timezone: Optional[str] = None,
         stream_callback: Optional[Callable] = None,
+        force_agent_id: Optional[str] = None,
     ) -> AgentResponse:
+        # Member-scoped routing (the safety line): a TWG_MEMBER chat runs under the
+        # "member" agent (gated to MEMBER_TOOLS) bound to the caller's twg_id —
+        # NOT the pillar/facilitator agent. Bypasses the twg_id → pillar routing below.
+        if force_agent_id == "member":
+            logger.info(f"[SUPERVISOR] Member-scoped routing → member (twg={twg_id})")
+            member_loop = self._build_member_agent(twg_id)
+            return await member_loop.run(
+                query, thread_id, user_timezone=user_timezone,
+                stream_callback=stream_callback,
+            )
+
         if twg_id:
             forced = get_agent_id_by_twg_id(twg_id)
             if forced and forced in self.twg_agents:
@@ -92,6 +119,7 @@ class SupervisorLoop:
         thread_id: str,
         twg_id: Optional[str] = None,
         user_timezone: Optional[str] = None,
+        force_agent_id: Optional[str] = None,
     ) -> AsyncGenerator[Dict, None]:
         tokens: asyncio.Queue = asyncio.Queue()
 
@@ -99,7 +127,10 @@ class SupervisorLoop:
             await tokens.put({"type": "token", "content": t})
 
         async def run_task():
-            resp = await self.run(query, thread_id, twg_id, user_timezone, stream_callback=on_token)
+            resp = await self.run(
+                query, thread_id, twg_id, user_timezone,
+                stream_callback=on_token, force_agent_id=force_agent_id,
+            )
             await tokens.put({"type": "done", "response": resp})
 
         task = asyncio.create_task(run_task())

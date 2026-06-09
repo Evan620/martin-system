@@ -212,6 +212,12 @@ class _DetailBody extends StatelessWidget {
                         ],
                       ),
                     ),
+                    // Persistent info header — stays visible across all tabs so
+                    // the member always sees the essentials up top.
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                      child: _InfoHeader(meeting: meeting, fmt: _fmt),
+                    ),
                     // Segmented tab bar.
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -240,66 +246,57 @@ class _DetailBody extends StatelessWidget {
                       child: TabBarView(
                         children: [
                           // ---- Overview ----
+                          // Facts moved to the persistent header; Overview now
+                          // leads with the minutes/summary in its own inner panel.
                           _TabScroll(children: [
-                            GlassCard(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _IconRow(
-                                    icon: Icons.schedule,
-                                    text:
-                                        '${_fmt.format(meeting.scheduledAt)} · ${meeting.durationMinutes} min',
+                            _OuterSection(
+                              label: 'Minutes',
+                              children: [
+                                if (hasMinutes)
+                                  _InnerPanel(
+                                    child: Text(
+                                      data.minutes!.trim(),
+                                      style:
+                                          theme.textTheme.bodyMedium?.copyWith(
+                                        color: SovereignColors.ivory
+                                            .withValues(alpha: 0.85),
+                                        fontSize: 13.5,
+                                        height: 1.45,
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  _InnerPanel(
+                                    child: Text(
+                                      'No minutes yet.',
+                                      style:
+                                          theme.textTheme.bodyMedium?.copyWith(
+                                        color: SovereignColors.ivory
+                                            .withValues(alpha: 0.5),
+                                        fontSize: 13,
+                                        height: 1.4,
+                                      ),
+                                    ),
                                   ),
-                                  if ((meeting.location ?? '').isNotEmpty) ...[
-                                    const SizedBox(height: 10),
-                                    _IconRow(
-                                        icon: Icons.place_outlined,
-                                        text: meeting.location!),
-                                  ],
-                                ],
-                              ),
+                              ],
                             ),
-                            if (hasMinutes) ...[
-                              const SizedBox(height: 14),
-                              const _SectionLabel('Minutes'),
-                              const SizedBox(height: 8),
-                              GlassCard(
-                                child: Text(
-                                  data.minutes!.trim(),
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: SovereignColors.ivory
-                                        .withValues(alpha: 0.85),
-                                    fontSize: 13.5,
-                                    height: 1.45,
-                                  ),
-                                ),
-                              ),
-                            ],
                           ]),
                           // ---- Agenda ----
                           _TabScroll(children: [
                             if (hasAgenda)
-                              GlassCard(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    for (final line in agendaLines)
-                                      Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 8),
-                                        child: Text(
-                                          line,
-                                          style: theme.textTheme.bodyMedium
-                                              ?.copyWith(
-                                            color: SovereignColors.ivory
-                                                .withValues(alpha: 0.85),
-                                            fontSize: 13.5,
-                                            height: 1.4,
-                                          ),
-                                        ),
+                              _OuterSection(
+                                label: 'Agenda',
+                                children: [
+                                  for (var i = 0;
+                                      i < agendaLines.length;
+                                      i++)
+                                    _InnerPanel(
+                                      child: _AgendaRow(
+                                        number: i + 1,
+                                        text: agendaLines[i],
                                       ),
-                                  ],
-                                ),
+                                    ),
+                                ],
                               )
                             else
                               const _EmptyTab('No agenda yet.'),
@@ -307,20 +304,14 @@ class _DetailBody extends StatelessWidget {
                           // ---- People ----
                           _TabScroll(children: [
                             if (meeting.participants.isNotEmpty)
-                              GlassCard(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    for (var i = 0;
-                                        i < meeting.participants.length;
-                                        i++) ...[
-                                      if (i > 0) const SizedBox(height: 12),
-                                      _AttendeeRow(
-                                          participant:
-                                              meeting.participants[i]),
-                                    ],
-                                  ],
-                                ),
+                              _OuterSection(
+                                label: 'Attendees',
+                                children: [
+                                  for (final p in meeting.participants)
+                                    _InnerPanel(
+                                      child: _AttendeeRow(participant: p),
+                                    ),
+                                ],
                               )
                             else
                               const _EmptyTab('No attendees listed.'),
@@ -328,19 +319,14 @@ class _DetailBody extends StatelessWidget {
                           // ---- Docs ----
                           _TabScroll(children: [
                             if (meeting.documents.isNotEmpty)
-                              GlassCard(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    for (var i = 0;
-                                        i < meeting.documents.length;
-                                        i++) ...[
-                                      if (i > 0) const SizedBox(height: 12),
-                                      _DocumentRow(
-                                          document: meeting.documents[i]),
-                                    ],
-                                  ],
-                                ),
+                              _OuterSection(
+                                label: 'Documents',
+                                children: [
+                                  for (final d in meeting.documents)
+                                    _InnerPanel(
+                                      child: _DocumentRow(document: d),
+                                    ),
+                                ],
                               )
                             else
                               const _EmptyTab('No documents attached.'),
@@ -588,11 +574,143 @@ class _BackButton extends StatelessWidget {
   }
 }
 
-/// A gold-icon + text row used for time / location.
-class _IconRow extends StatelessWidget {
-  const _IconRow({required this.icon, required this.text});
+/// The persistent info header — an outer [GlassCard] wrapping a [Wrap] of
+/// glass-inside-glass fact chips (date·time, duration, location/Virtual,
+/// attendee count). Stays visible across all tabs, kept compact (1–2 rows).
+class _InfoHeader extends StatelessWidget {
+  const _InfoHeader({required this.meeting, required this.fmt});
+
+  final Meeting meeting;
+  final DateFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final location = (meeting.location ?? '').trim();
+    final locationLabel = location.isNotEmpty
+        ? location
+        : (meeting.hasVideo ? 'Virtual' : null);
+    final attendees = meeting.participants.length;
+
+    return GlassCard(
+      padding: const EdgeInsets.all(12),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _FactChip(
+            icon: Icons.event,
+            text: fmt.format(meeting.scheduledAt),
+          ),
+          _FactChip(
+            icon: Icons.schedule,
+            text: '${meeting.durationMinutes} min',
+          ),
+          if (locationLabel != null)
+            _FactChip(
+              icon: locationLabel == 'Virtual'
+                  ? Icons.videocam_outlined
+                  : Icons.place_outlined,
+              text: locationLabel,
+            ),
+          if (attendees > 0)
+            _FactChip(
+              icon: Icons.group_outlined,
+              text: '$attendees attending',
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A compact glass-inside-glass fact chip: small gold icon + short text, in a
+/// recessed [GlassSurface.inner] panel. Used inside [_InfoHeader].
+class _FactChip extends StatelessWidget {
+  const _FactChip({required this.icon, required this.text});
 
   final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassSurface.inner(
+      borderRadius: 12,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: SovereignColors.gold),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(
+              color: SovereignColors.ivory,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// An outer tab section frame — an optional gold [_SectionLabel] above a
+/// [GlassCard] that holds one [_InnerPanel] per logical item, stacked with
+/// ~10px gaps. This is the "frame-inside-frame" shell for tab content.
+class _OuterSection extends StatelessWidget {
+  const _OuterSection({this.label, required this.children});
+
+  final String? label;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label != null) ...[
+          _SectionLabel(label!),
+          const SizedBox(height: 8),
+        ],
+        GlassCard(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                if (i > 0) const SizedBox(height: 10),
+                children[i],
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A single recessed inner panel — one logical item inside an [_OuterSection].
+class _InnerPanel extends StatelessWidget {
+  const _InnerPanel({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassSurface.inner(
+      borderRadius: 14,
+      padding: const EdgeInsets.all(12),
+      child: SizedBox(width: double.infinity, child: child),
+    );
+  }
+}
+
+/// One numbered agenda line: a small gold number badge + the line text.
+class _AgendaRow extends StatelessWidget {
+  const _AgendaRow({required this.number, required this.text});
+
+  final int number;
   final String text;
 
   @override
@@ -601,14 +719,32 @@ class _IconRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 15, color: SovereignColors.gold),
-        const SizedBox(width: 8),
+        Container(
+          width: 22,
+          height: 22,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+                color: SovereignColors.gold.withValues(alpha: 0.55), width: 1),
+          ),
+          child: Text(
+            '$number',
+            style: const TextStyle(
+              color: SovereignColors.gold,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
         Expanded(
           child: Text(
             text,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: SovereignColors.ivory.withValues(alpha: 0.82),
-              fontSize: 13,
+              color: SovereignColors.ivory.withValues(alpha: 0.85),
+              fontSize: 13.5,
+              height: 1.4,
             ),
           ),
         ),

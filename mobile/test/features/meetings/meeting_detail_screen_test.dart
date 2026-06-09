@@ -61,5 +61,9 @@ void main() {
     expect(find.text('Agenda'), findsOneWidget);
     expect(find.text('Overview'), findsOneWidget);
     expect(find.text('Going'), findsOneWidget); // pinned RSVP (participant)
+    // Persistent info header: duration fact chip + attendee count fact chip
+    // stay visible regardless of the selected tab.
+    expect(find.text('60 min'), findsOneWidget);
+    expect(find.text('1 attending'), findsOneWidget);
   });
 }

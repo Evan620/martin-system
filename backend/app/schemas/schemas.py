@@ -514,6 +514,22 @@ class ActionItemRead(ActionItemBase):
     updated_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
+# --- Reminder Schemas ---
+
+class ReminderBase(SchemaBase):
+    message: str
+    remind_at: datetime
+    meeting_id: Optional[uuid.UUID] = None
+
+class ReminderCreate(ReminderBase):
+    pass
+
+class ReminderRead(ReminderBase):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    is_sent: bool = False
+    created_at: Optional[datetime] = None
+
 # --- Project Schemas ---
 
 class ProjectBase(SchemaBase):

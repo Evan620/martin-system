@@ -21,7 +21,7 @@ logger.add(
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users, notifications, supervisor, debug, pipeline, conflicts, settings as settings_router, shared_documents, organization_invitations, public_invitations, recurring_meetings, subgroups, martin
+from app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users, notifications, supervisor, debug, pipeline, conflicts, settings as settings_router, shared_documents, organization_invitations, public_invitations, recurring_meetings, subgroups, martin, reminders
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -253,6 +253,7 @@ app.include_router(subgroups.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(meetings.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(projects.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(action_items.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(reminders.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(documents.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(audit.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(agents.router, prefix=f"{settings.API_V1_STR}")

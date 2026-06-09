@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/application/auth_controller.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/documents/presentation/documents_screen.dart';
+import '../features/documents/presentation/pdf_viewer_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/meetings/presentation/meetings_screen.dart';
 import '../features/meetings/presentation/meeting_detail_screen.dart';
@@ -46,8 +47,24 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               ],
             ),
           ]),
-          // 1 Documents
-          StatefulShellBranch(routes: [GoRoute(path: '/documents', builder: (_, __) => const DocumentsScreen())]),
+          // 1 Documents (with nested in-app PDF viewer)
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/documents',
+              builder: (_, __) => const DocumentsScreen(),
+              routes: [
+                GoRoute(
+                  path: ':id/pdf',
+                  pageBuilder: (context, st) => sovereignPage(
+                    child: PdfViewerScreen(
+                      documentId: st.pathParameters['id']!,
+                      title: st.uri.queryParameters['name'] ?? 'Document',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ]),
           // 2 Home / Martin (centre)
           StatefulShellBranch(routes: [GoRoute(path: '/home', builder: (_, __) => const HomeScreen())]),
           // 3 Me

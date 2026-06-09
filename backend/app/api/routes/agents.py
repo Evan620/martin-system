@@ -478,6 +478,39 @@ async def enhanced_chat(
         # Parse message for commands and mentions (Phase 2)
         parsed = command_parser.parse_message(chat_in.message)
 
+        # SECURITY (member gate): /chat/enhanced has no role-based routing of its
+        # own, so a TWG_MEMBER could reach handle_command/handle_mention (which
+        # call chat_with_tools WITHOUT force_agent_id) and land on the
+        # facilitator/pillar agent — the same MEMBER_TOOLS-bypass class as
+        # /chat/stream. For a member: require + verify twg_id, force NATURAL so
+        # the request flows through chat_with_tools, and thread
+        # force_agent_id="member" + twg_id so it runs under the member-scoped
+        # agent (gated to MEMBER_TOOLS) bound to the caller's TWG.
+        force_agent_id = None
+        member_twg_context = None
+        if current_user.role == UserRole.TWG_MEMBER:
+            if not chat_in.twg_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="TWG ID required for TWG member access.",
+                )
+            # EnhancedChatRequest.twg_id is a str; has_twg_access compares against
+            # user.twg_ids (List[uuid.UUID]), so coerce before the membership check.
+            try:
+                member_twg_uuid = uuid.UUID(str(chat_in.twg_id))
+            except (ValueError, AttributeError, TypeError):
+                raise HTTPException(status_code=400, detail="Invalid TWG ID.")
+            if not has_twg_access(current_user, member_twg_uuid):
+                raise HTTPException(status_code=403, detail="You do not have access to this TWG")
+            force_agent_id = "member"
+            member_twg_context = str(chat_in.twg_id)
+            if parsed["type"] != MessageParseType.NATURAL:
+                logger.warning(
+                    f"Member {current_user.id} sent a {parsed['type']} message to /chat/enhanced; "
+                    f"forcing NATURAL so it runs under the member-scoped agent."
+                )
+                parsed["type"] = MessageParseType.NATURAL
+
         # SECURITY: Strict RBAC for Mentions
         if current_user.role != UserRole.ADMIN and parsed["type"] in [MessageParseType.MENTION, MessageParseType.MIXED]:
              if parsed["type"] == MessageParseType.MENTION:
@@ -497,8 +530,19 @@ async def enhanced_chat(
             response_text = await handle_command(supervisor, parsed, chat_in.message, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=str(conv_id))
             message_type = ChatMessageType.COMMAND_RESULT
         else:
-            # Natural language - regular chat
-            response_text = await supervisor.chat_with_tools(chat_in.message, thread_id=str(conv_id))
+            # Natural language - regular chat. Members are scoped to the
+            # member agent bound to their TWG via force_agent_id.
+            raw_response = await supervisor.chat_with_tools(
+                chat_in.message,
+                twg_id=member_twg_context,
+                thread_id=str(conv_id),
+                force_agent_id=force_agent_id,
+            )
+            # chat_with_tools may return a dict (response + citations) or a str.
+            if isinstance(raw_response, dict):
+                response_text = raw_response.get("response", "")
+            else:
+                response_text = str(raw_response)
             message_type = ChatMessageType.AGENT_TEXT
 
         # Create the agent response message
@@ -525,6 +569,10 @@ async def enhanced_chat(
             conversation_id=conv_id
         )
 
+    except HTTPException:
+        # RBAC gate denials (missing/forbidden twg_id) must surface as real
+        # HTTP errors, not be masked as a 200 agent message by the catch-all.
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -764,6 +812,22 @@ async def stream_chat(
 
             # Parse message for commands and mentions
             parsed = command_parser.parse_message(chat_in.message)
+
+            # SECURITY (member gate): a TWG_MEMBER must NEVER reach the
+            # COMMAND/MENTION/MIXED branches below — those call
+            # handle_command/handle_mention, which invoke chat_with_tools
+            # WITHOUT force_agent_id. With twg_id set + force_agent_id=None,
+            # SupervisorLoop.run routes to the facilitator/pillar agent (granted
+            # send_email, create_meeting_invite, advance_project_stage, etc.),
+            # fully bypassing the MEMBER_TOOLS gate. Force every parse type to
+            # NATURAL so the member always flows through the natural-language
+            # branch, which threads force_agent_id="member" into the stream.
+            if current_user.role == UserRole.TWG_MEMBER and parsed["type"] != MessageParseType.NATURAL:
+                logger.warning(
+                    f"Member {current_user.id} sent a {parsed['type']} message; forcing NATURAL "
+                    f"so it runs under the member-scoped agent (not the pillar agent)."
+                )
+                parsed["type"] = MessageParseType.NATURAL
 
             # SECURITY: Strict RBAC for Mentions
             # Non-admins cannot use @mentions to switch agents. They are locked to their assigned TWG agent.

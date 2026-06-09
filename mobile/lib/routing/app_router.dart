@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../features/auth/application/auth_controller.dart';
 import '../features/auth/presentation/login_screen.dart';
+import '../features/deals/presentation/deals_screen.dart';
 import '../features/documents/presentation/documents_screen.dart';
 import '../features/documents/presentation/pdf_viewer_screen.dart';
 import '../features/home/presentation/home_screen.dart';
+import '../features/home/presentation/martin_chat_placeholder.dart';
 import '../features/meetings/presentation/meetings_screen.dart';
 import '../features/meetings/presentation/meeting_detail_screen.dart';
 import '../features/profile/presentation/me_screen.dart';
@@ -30,6 +32,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: _AuthRefresh(ref),
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      // Martin chat — a top-level pushed route (NOT a shell branch), so it
+      // covers the nav. Reached via the floating ✦ Martin FAB (context.push).
+      GoRoute(
+        path: '/martin',
+        pageBuilder: (context, st) => sovereignPage(child: const MartinChatPlaceholder()),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) => AppShell(navigationShell: navigationShell),
         branches: [
@@ -65,9 +73,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               ],
             ),
           ]),
-          // 2 Home / Martin (centre)
+          // 2 Home (the raised centre)
           StatefulShellBranch(routes: [GoRoute(path: '/home', builder: (_, __) => const HomeScreen())]),
-          // 3 Me
+          // 3 Deals (Phase 2)
+          StatefulShellBranch(routes: [GoRoute(path: '/deals', builder: (_, __) => const DealsScreen())]),
+          // 4 Me
           StatefulShellBranch(routes: [GoRoute(path: '/me', builder: (_, __) => const MeScreen())]),
         ],
       ),

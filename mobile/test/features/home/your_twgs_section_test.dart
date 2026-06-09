@@ -17,7 +17,7 @@ class _Auth extends AuthController {
 
 Widget _harness(List<Twg> twgs, {required void Function(String) onNav}) {
   final router = GoRouter(routes: [
-    GoRoute(path: '/', builder: (_, __) => const Scaffold(body: YourTwgsSection())),
+    GoRoute(path: '/', builder: (_, _) => const Scaffold(body: YourTwgsSection())),
     GoRoute(
         path: '/home/workspace/:id',
         builder: (_, st) {

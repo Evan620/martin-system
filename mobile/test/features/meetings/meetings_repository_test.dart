@@ -43,4 +43,16 @@ void main() {
     );
     expect(() => repo.listMeetings(), throwsA(isA<MeetingException>()));
   });
+
+  test('meetingAgenda returns content, null on 404', () async {
+    when(() => dio.get('/meetings/m1/agenda'))
+        .thenAnswer((_) async => resp<Map<String, dynamic>>({'content': '1. Open\n2. Close'}));
+    expect(await repo.meetingAgenda('m1'), '1. Open\n2. Close');
+
+    when(() => dio.get('/meetings/m2/agenda')).thenThrow(DioException(
+      requestOptions: RequestOptions(path: '/meetings/m2/agenda'),
+      response: Response(statusCode: 404, requestOptions: RequestOptions(path: '/meetings/m2/agenda')),
+    ));
+    expect(await repo.meetingAgenda('m2'), isNull);
+  });
 }

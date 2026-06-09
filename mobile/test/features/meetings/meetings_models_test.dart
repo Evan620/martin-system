@@ -42,4 +42,17 @@ void main() {
     expect(m.myRsvp('u2'), MeetingRsvp.pending);
     expect(m.isParticipant('zzz'), isFalse);
   });
+
+  test('Meeting.fromJson parses attached documents', () {
+    final m = Meeting.fromJson({
+      'id': 'm1', 'title': 'T', 'scheduled_at': '2026-06-10T14:00:00Z',
+      'status': 'SCHEDULED', 'meeting_type': 'virtual',
+      'participants': const [],
+      'documents': [
+        {'id': 'd1', 'file_name': 'Policy.pdf', 'file_type': 'application/pdf', 'file_path': '/uploads/policy.pdf'},
+      ],
+    });
+    expect(m.documents.single.name, 'Policy.pdf');
+    expect(m.documents.single.id, 'd1');
+  });
 }

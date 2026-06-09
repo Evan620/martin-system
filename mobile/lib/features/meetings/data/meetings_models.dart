@@ -44,6 +44,20 @@ class MeetingParticipant {
       );
 }
 
+class MeetingDocument {
+  const MeetingDocument({required this.id, required this.name, required this.type, required this.url});
+  final String id;
+  final String name;
+  final String? type;
+  final String? url;
+  factory MeetingDocument.fromJson(Map<String, dynamic> j) => MeetingDocument(
+        id: j['id'].toString(),
+        name: (j['file_name'] ?? j['name'] ?? 'Document').toString(),
+        type: j['file_type']?.toString(),
+        url: (j['file_path'] ?? j['url'])?.toString(),
+      );
+}
+
 class Meeting {
   const Meeting({
     required this.id,
@@ -56,6 +70,7 @@ class Meeting {
     required this.videoLink,
     required this.twgName,
     required this.participants,
+    this.documents = const [],
   });
 
   final String id;
@@ -68,6 +83,7 @@ class Meeting {
   final String? videoLink;
   final String? twgName;
   final List<MeetingParticipant> participants;
+  final List<MeetingDocument> documents;
 
   bool get isPast => scheduledAt.isBefore(DateTime.now());
   bool get hasVideo => (videoLink ?? '').isNotEmpty;
@@ -94,6 +110,9 @@ class Meeting {
         twgName: (json['twg'] as Map?)?['name']?.toString(),
         participants: ((json['participants'] as List?) ?? const [])
             .map((e) => MeetingParticipant.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        documents: ((json['documents'] as List?) ?? const [])
+            .map((e) => MeetingDocument.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
 }

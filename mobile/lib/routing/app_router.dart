@@ -12,6 +12,7 @@ import '../features/home/presentation/martin_chat_screen.dart';
 import '../features/meetings/presentation/meetings_screen.dart';
 import '../features/meetings/presentation/meeting_detail_screen.dart';
 import '../features/profile/presentation/me_screen.dart';
+import '../features/workspace/presentation/workspace_screen.dart';
 import '../shell/app_shell.dart';
 import 'sovereign_page.dart';
 
@@ -92,6 +93,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                       seed: st.uri.queryParameters['q'],
                       twgId: st.uri.queryParameters['twg'],
                     ),
+                  ),
+                ),
+                GoRoute(
+                  path: 'workspace/:twgId',
+                  pageBuilder: (context, st) => sovereignPage(
+                    child: WorkspaceScreen(twgId: st.pathParameters['twgId']!),
                   ),
                 ),
               ],

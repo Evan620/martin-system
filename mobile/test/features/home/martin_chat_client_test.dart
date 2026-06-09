@@ -101,6 +101,41 @@ void main() {
       expect(events.last, isA<DoneEvent>());
     });
 
+    test('survives a multi-byte UTF-8 char split across two byte chunks',
+        () async {
+      // 'é' is 0xC3 0xA9 in UTF-8 — a 2-byte sequence. Cut a frame so the
+      // split lands BETWEEN those two bytes. A per-chunk allowMalformed decode
+      // would emit U+FFFD; a stateful chunked decoder reassembles 'é'.
+      final whole = _frame({'type': 'token', 'content': 'Bagré'});
+      // Byte index of 0xC3 (lead byte of 'é') in the encoded frame.
+      final lead = whole.indexOf(0xC3);
+      expect(lead, greaterThan(0));
+      expect(whole[lead + 1], 0xA9); // confirm it really is the 'é' sequence
+      final source = Stream<List<int>>.fromIterable([
+        whole.sublist(0, lead + 1), // ends mid-char, on the 0xC3 lead byte
+        whole.sublist(lead + 1), // starts with the 0xA9 trailing byte
+        _frame({'type': 'done'}),
+      ]);
+
+      final events = await decodeSseByteStream(source).toList();
+      expect(events.whereType<TokenEvent>().single.text, 'Bagré');
+      expect(events.last, isA<DoneEvent>());
+    });
+
+    test('reassembles accented names split across many tiny chunks', () async {
+      // One byte per chunk is the worst case for cross-chunk UTF-8 framing.
+      final whole = <int>[
+        ..._frame({'type': 'token', 'content': 'PAI-GDIZ à Bagré'}),
+        ..._frame({'type': 'done'}),
+      ];
+      final source = Stream<List<int>>.fromIterable(
+        whole.map((b) => <int>[b]),
+      );
+      final events = await decodeSseByteStream(source).toList();
+      expect(events.whereType<TokenEvent>().single.text, 'PAI-GDIZ à Bagré');
+      expect(events.last, isA<DoneEvent>());
+    });
+
     test('handles two frames glued into one chunk', () async {
       final glued = <int>[
         ..._frame({'type': 'token', 'content': 'a'}),

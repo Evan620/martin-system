@@ -84,16 +84,46 @@ Stream<ChatEvent> decodeSseByteStream(Stream<List<int>> bytes) async* {
     if (event != null) yield event;
   }
 
+  // ONE chunked UTF-8 decode for the whole stream. startChunkedConversion
+  // returns a sink that retains an incomplete trailing multi-byte sequence and
+  // prepends it to the next chunk, so a UTF-8 char (é/à/è — 'Bagré',
+  // 'PAI-GDIZ') split across TCP chunks is reassembled instead of corrupted
+  // into U+FFFD. A per-chunk `utf8.decode(chunk, allowMalformed: true)` would
+  // mangle the split char into replacement chars before the line buffer ever
+  // saw it.
+  //
+  // We drive the sink manually rather than `bytes.transform(utf8.decoder)`:
+  // the concrete stream is a `Stream<Uint8List>` and `Stream.transform` casts
+  // the transformer to `StreamTransformer<Uint8List, String>`, which throws
+  // because `Utf8Decoder` is `StreamTransformer<List<int>, String>` (invariant
+  // input). The sink's `add` accepts `List<int>` directly and sidesteps that.
+  final decoded = _CollectingStringSink();
+  final sink = const Utf8Decoder(allowMalformed: true)
+      .startChunkedConversion(decoded);
+
+  Iterable<ChatEvent> drainBuffer() sync* {
+    var newline = buffer.indexOf('\n');
+    while (newline != -1) {
+      final line = buffer.substring(0, newline);
+      buffer = buffer.substring(newline + 1);
+      yield* emitLine(line);
+      newline = buffer.indexOf('\n');
+    }
+  }
+
   try {
     await for (final chunk in bytes) {
-      buffer += utf8.decode(chunk, allowMalformed: true);
-      var newline = buffer.indexOf('\n');
-      while (newline != -1) {
-        final line = buffer.substring(0, newline);
-        buffer = buffer.substring(newline + 1);
-        yield* Stream<ChatEvent>.fromIterable(emitLine(line));
-        newline = buffer.indexOf('\n');
+      sink.add(chunk);
+      if (decoded.isNotEmpty) {
+        buffer += decoded.takeAll();
+        yield* Stream<ChatEvent>.fromIterable(drainBuffer());
       }
+    }
+    // Closing flushes any genuinely truncated trailing bytes as U+FFFD.
+    sink.close();
+    if (decoded.isNotEmpty) {
+      buffer += decoded.takeAll();
+      yield* Stream<ChatEvent>.fromIterable(drainBuffer());
     }
     // Flush any trailing line that lacked a final newline.
     if (buffer.trim().isNotEmpty) {
@@ -102,4 +132,25 @@ Stream<ChatEvent> decodeSseByteStream(Stream<List<int>> bytes) async* {
   } catch (_) {
     yield const ErrorEvent('Lost connection to Martin.');
   }
+}
+
+/// A minimal `Sink<String>` that accumulates the chunked UTF-8 decoder's
+/// output so [decodeSseByteStream] can pull decoded text out incrementally.
+class _CollectingStringSink implements Sink<String> {
+  final StringBuffer _buf = StringBuffer();
+
+  bool get isNotEmpty => _buf.isNotEmpty;
+
+  @override
+  void add(String data) => _buf.write(data);
+
+  /// Returns everything decoded so far and resets the buffer.
+  String takeAll() {
+    final out = _buf.toString();
+    _buf.clear();
+    return out;
+  }
+
+  @override
+  void close() {}
 }

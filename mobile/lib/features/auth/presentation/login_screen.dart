@@ -34,7 +34,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('ECOWAS SUMMIT 2026',
+              Text('WAIIS',
                   style: TextStyle(color: SovereignColors.gold, letterSpacing: 3, fontSize: 11)),
               const SizedBox(height: 10),
               Text('Welcome',

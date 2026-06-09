@@ -30,6 +30,7 @@ import '../../../core/theme/sovereign_colors.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/home_controller.dart';
 import '../data/briefing_models.dart';
+import 'your_twgs_section.dart';
 
 /// Quick prompts offered under the briefing. Each seeds a Martin chat (4b).
 const _suggestions = <String>['Brief me', 'RSVP', 'Find a doc', "What's due?"];
@@ -136,7 +137,9 @@ class _DataView extends StatelessWidget {
           _Greeting(greeting: briefing.greeting, firstName: firstName),
           const SizedBox(height: 24),
           _MartinBriefingCard(briefing: briefing),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
+          const YourTwgsSection(),
+          const SizedBox(height: 22),
           _SuggestionChips(onTap: onAsk),
           const SizedBox(height: 28),
           _AskMartinBar(onTap: () => onAsk('')),

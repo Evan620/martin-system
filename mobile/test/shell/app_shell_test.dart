@@ -79,7 +79,7 @@ void main() {
     ]);
   }
 
-  testWidgets('shell shows 5 destinations + raised Home + Martin FAB; tab switch works',
+  testWidgets('shell shows 5 expanding-pill destinations + Martin FAB; tab switch works',
       (tester) async {
     final container = await buildContainer();
     addTearDown(container.dispose);
@@ -91,18 +91,17 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // The four side-item labels.
-    expect(find.text('Meetings'), findsWidgets);
-    expect(find.text('Documents'), findsWidgets);
-    expect(find.text('Deals'), findsWidgets);
-    expect(find.text('Me'), findsWidgets);
-
-    // Raised Home centre + floating Martin FAB.
-    expect(find.byKey(const Key('home-center')), findsOneWidget);
+    // All five expanding-pill destinations (keyed nav-0..nav-4).
+    for (var i = 0; i < 5; i++) {
+      expect(find.byKey(Key('nav-$i')), findsOneWidget);
+    }
+    // The active pill reveals its label (default branch = Home).
+    expect(find.text('Home'), findsWidgets);
+    // Floating Martin ✦ FAB.
     expect(find.byKey(const Key('martin-fab')), findsOneWidget);
 
-    // Switching to the Documents branch.
-    await tester.tap(find.text('Documents').first);
+    // Switching to the Documents branch via its pill.
+    await tester.tap(find.byKey(const Key('nav-1')));
     await tester.pumpAndSettle();
     expect(find.text('Shared with you'), findsWidgets); // DocumentsScreen subtitle
   });

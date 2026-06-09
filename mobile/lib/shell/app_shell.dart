@@ -30,23 +30,12 @@ class AppShell extends StatelessWidget {
         children: [
           Positioned.fill(child: navigationShell),
 
-          // The floating glass nav bar (with a centre gap for the Home disc).
+          // The floating glass nav bar — Dribbble-style expanding pills.
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
             child: SafeArea(top: false, child: _glassNav()),
-          ),
-
-          // Raised Home centre — rendered OUTSIDE the glass so it can protrude
-          // above the bar's top edge. Horizontally centred; sits raised so the
-          // disc overlaps/rises above the nav.
-          Positioned(
-            left: 0,
-            right: 0,
-            // Lift the disc so roughly its lower half overlaps the bar.
-            bottom: navTop - 28,
-            child: Center(child: _homeCenter()),
           ),
 
           // Floating Martin ✦ FAB — bottom-right, floating just over the bar's
@@ -63,11 +52,11 @@ class AppShell extends StatelessWidget {
 
   // Floating, pill-shaped, glassmorphic bottom nav — Sovereign navy glass + gold.
   //
-  // No highlight pill: the active destination is shown by the icon itself
-  // *growing* and turning gold. Tapping another tab smoothly hands the emphasis
-  // over — the old icon shrinks back to ivory as the new one grows to gold.
-  // The CENTRE slot is an empty spacer: the raised gold Home disc lives in the
-  // AppShell Stack so it can protrude above this bar.
+  // Dribbble-style expanding pills: every destination is icon-only when
+  // inactive; the active one expands into a gold pill that reveals its label.
+  // Tapping another tab hands the emphasis over — the old pill collapses back to
+  // an icon as the new one expands. The Martin ✦ FAB floats separately, above
+  // the bar's right end (see [_martinFab]).
   Widget _glassNav() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 0, 18, _navBottomGap),
@@ -75,96 +64,88 @@ class AppShell extends StatelessWidget {
         borderRadius: 34,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         goldGlow: true, // faint gold halo so it reads as Sovereign, not generic
-        child: SizedBox(
-          height: 52,
-          child: Row(
-            children: [
-              _item(Icons.event_rounded, 'Meetings', 0),
-              _item(Icons.description_rounded, 'Documents', 1),
-              // Centre spacer — the raised Home disc sits above this gap.
-              const Expanded(child: SizedBox()),
-              _item(Icons.handshake_outlined, 'Deals', 3),
-              _item(Icons.person_rounded, 'Me', 4),
-            ],
-          ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _pillItem(Icons.event_rounded, 'Meetings', 0),
+            _pillItem(Icons.description_rounded, 'Documents', 1),
+            _pillItem(Icons.home_rounded, 'Home', 2),
+            _pillItem(Icons.handshake_outlined, 'Deals', 3),
+            _pillItem(Icons.person_rounded, 'Me', 4),
+          ],
         ),
       ),
     );
   }
 
-  Widget _item(IconData icon, String label, int i) {
+  // A Dribbble-style nav item: icon-only when inactive; when active it expands
+  // into a gold pill that reveals its label (navy icon + text). One tween drives
+  // the whole morph — the pill fill fades in, the icon recolours ivory→navy, and
+  // the label slides open from zero width.
+  Widget _pillItem(IconData icon, String label, int i) {
     final on = navigationShell.currentIndex == i;
-    return Expanded(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => _select(i),
-        // A single tween drives the whole transition: as `on` flips, the icon
-        // grows (24→30) and crossfades ivory→gold, and the label follows. The
-        // de-selected tab runs the same tween in reverse at the same time, so
-        // the emphasis appears to glide smoothly from one icon to the next.
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(end: on ? 1.0 : 0.0),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
-          builder: (context, t, _) {
-            final color = Color.lerp(
-              SovereignColors.ivory.withValues(alpha: 0.5),
-              SovereignColors.gold,
-              t,
-            )!;
-            return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+    return GestureDetector(
+      key: Key('nav-$i'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _select(i),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: on ? 1.0 : 0.0),
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+        builder: (context, t, _) {
+          return Container(
+            padding: EdgeInsets.symmetric(horizontal: 11 + 7 * t, vertical: 10),
+            decoration: BoxDecoration(
+              color: Color.lerp(Colors.transparent, SovereignColors.gold, t),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: t < 0.5
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: SovereignColors.gold.withValues(alpha: 0.28 * t),
+                        blurRadius: 12,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 24 + 6 * t, color: color),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.lerp(FontWeight.w400, FontWeight.w700, t),
+                Icon(
+                  icon,
+                  size: 22,
+                  color: Color.lerp(
+                      SovereignColors.ivory.withValues(alpha: 0.6),
+                      SovereignColors.navy,
+                      t),
+                ),
+                // Label reveals: width 0→full (ClipRect + Align widthFactor) and
+                // fades transparent→navy as the pill opens.
+                ClipRect(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: t,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 7),
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.clip,
+                        style: TextStyle(
+                          color: Color.lerp(
+                              Colors.transparent, SovereignColors.navy, t),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  // The raised Home centre — a gold gradient disc with a navy home glyph that
-  // sits raised above the nav's top edge. Its gold halo blooms when Home is
-  // the active branch.
-  Widget _homeCenter() {
-    final on = navigationShell.currentIndex == 2;
-    return GestureDetector(
-      key: const Key('home-center'),
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _select(2),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFE6C766), SovereignColors.gold],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: SovereignColors.gold.withValues(alpha: on ? 0.62 : 0.40),
-              blurRadius: on ? 24 : 16,
-              spreadRadius: on ? 2 : 1,
             ),
-          ],
-        ),
-        child: const Center(
-          child: Icon(Icons.home_rounded, color: SovereignColors.navy, size: 26),
-        ),
+          );
+        },
       ),
     );
   }

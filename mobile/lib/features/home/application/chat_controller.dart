@@ -77,11 +77,11 @@ class ChatController extends Notifier<ChatState> {
   }
 
   /// Sends [text] to Martin and streams the reply into a new Martin message.
-  Future<void> send(String text) async {
+  Future<void> send(String text, {String? overrideTwgId}) async {
     final message = text.trim();
     if (message.isEmpty || state.streaming) return;
 
-    final twgId = _twgId;
+    final twgId = overrideTwgId ?? _twgId;
     if (twgId == null) {
       state = state.copyWith(
         error: "You're not assigned to a TWG yet, so Martin can't help here.",

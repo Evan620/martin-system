@@ -37,7 +37,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/martin',
         pageBuilder: (context, st) => sovereignPage(
-          child: MartinChatScreen(seed: st.uri.queryParameters['q']),
+          child: MartinChatScreen(
+            seed: st.uri.queryParameters['q'],
+            twgId: st.uri.queryParameters['twg'],
+          ),
         ),
       ),
       StatefulShellRoute.indexedStack(
@@ -85,7 +88,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 GoRoute(
                   path: 'chat',
                   pageBuilder: (context, st) => sovereignPage(
-                    child: MartinChatScreen(seed: st.uri.queryParameters['q']),
+                    child: MartinChatScreen(
+                      seed: st.uri.queryParameters['q'],
+                      twgId: st.uri.queryParameters['twg'],
+                    ),
                   ),
                 ),
               ],

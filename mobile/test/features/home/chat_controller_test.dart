@@ -175,6 +175,21 @@ void main() {
     await notifier.send('two');
     expect(client.lastConversationId, 'conv-9');
   });
+
+  test('send(overrideTwgId:) uses the override instead of the first TWG',
+      () async {
+    final fakeClient = _FakeClient(const [
+      FinalEvent('ok', conversationId: 'conv-2'),
+      DoneEvent(),
+    ]);
+    // Authed user is in TWG 'first-twg'; the override must win.
+    final container = _container(fakeClient,
+        twgs: const [Twg(id: 'first-twg', name: 'First TWG')]);
+    final controller = container.read(chatControllerProvider.notifier);
+
+    await controller.send('hi', overrideTwgId: 'other-twg');
+    expect(fakeClient.lastTwgId, 'other-twg');
+  });
 }
 
 /// Client backed by a live StreamController so a test can observe mid-stream

@@ -32,10 +32,14 @@ import '../data/chat_models.dart';
 /// When [seed] is non-null and non-empty, it is auto-sent once on first build
 /// (so a Home suggestion chip / ask bar lands the member straight in a reply).
 class MartinChatScreen extends ConsumerStatefulWidget {
-  const MartinChatScreen({super.key, this.seed});
+  const MartinChatScreen({super.key, this.seed, this.twgId});
 
   /// Optional prompt to auto-send once when the screen first appears.
   final String? seed;
+
+  /// Optional TWG to scope this chat to (workspace Ask-Martin). When null the
+  /// controller falls back to the member's first TWG.
+  final String? twgId;
 
   @override
   ConsumerState<MartinChatScreen> createState() => _MartinChatScreenState();
@@ -54,7 +58,9 @@ class _MartinChatScreenState extends ConsumerState<MartinChatScreen> {
       // tree are ready and the post-send state lands on a built widget).
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        ref.read(chatControllerProvider.notifier).send(seed);
+        ref
+            .read(chatControllerProvider.notifier)
+            .send(seed, overrideTwgId: widget.twgId);
       });
     }
   }
@@ -70,7 +76,9 @@ class _MartinChatScreenState extends ConsumerState<MartinChatScreen> {
     final text = _input.text.trim();
     if (text.isEmpty) return;
     _input.clear();
-    ref.read(chatControllerProvider.notifier).send(text);
+    ref
+        .read(chatControllerProvider.notifier)
+        .send(text, overrideTwgId: widget.twgId);
   }
 
   // Keep the newest turn in view as the transcript grows / tokens stream in.

@@ -25,13 +25,13 @@ void main() {
     when(() => store.save(any())).thenAnswer((_) async {});
   });
 
-  Response<T> _resp<T>(T data, {int code = 200}) =>
+  Response<T> resp<T>(T data, {int code = 200}) =>
       Response<T>(data: data, statusCode: code, requestOptions: RequestOptions(path: '/'));
 
   test('login posts credentials, stores tokens, returns user from /me', () async {
     when(() => dio.post('/auth/login', data: any(named: 'data'))).thenAnswer((_) async =>
-        _resp<Map<String, dynamic>>({'access_token': 'a', 'refresh_token': 'r', 'token_type': 'bearer'}));
-    when(() => dio.get('/auth/me')).thenAnswer((_) async => _resp<Map<String, dynamic>>({
+        resp<Map<String, dynamic>>({'access_token': 'a', 'refresh_token': 'r', 'token_type': 'bearer'}));
+    when(() => dio.get('/auth/me')).thenAnswer((_) async => resp<Map<String, dynamic>>({
           'id': '1', 'email': 'amina@example.org', 'full_name': 'Amina', 'role': 'TWG_MEMBER', 'twgs': [],
         }));
 

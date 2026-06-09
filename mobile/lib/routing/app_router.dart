@@ -31,7 +31,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, st) => redirectFor(ref.read(authControllerProvider), st.matchedLocation),
     refreshListenable: _AuthRefresh(ref),
     routes: [
-      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       // Martin chat — a top-level pushed route (NOT a shell branch), so it
       // covers the nav. Reached via the floating ✦ Martin FAB (context.push).
       GoRoute(
@@ -45,7 +45,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(routes: [
             GoRoute(
               path: '/meetings',
-              builder: (_, __) => const MeetingsScreen(),
+              builder: (_, _) => const MeetingsScreen(),
               routes: [
                 GoRoute(
                   path: ':id',
@@ -59,7 +59,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(routes: [
             GoRoute(
               path: '/documents',
-              builder: (_, __) => const DocumentsScreen(),
+              builder: (_, _) => const DocumentsScreen(),
               routes: [
                 GoRoute(
                   path: ':id/pdf',
@@ -74,11 +74,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             ),
           ]),
           // 2 Home (the raised centre)
-          StatefulShellBranch(routes: [GoRoute(path: '/home', builder: (_, __) => const HomeScreen())]),
+          StatefulShellBranch(routes: [GoRoute(path: '/home', builder: (_, _) => const HomeScreen())]),
           // 3 Deals (Phase 2)
-          StatefulShellBranch(routes: [GoRoute(path: '/deals', builder: (_, __) => const DealsScreen())]),
+          StatefulShellBranch(routes: [GoRoute(path: '/deals', builder: (_, _) => const DealsScreen())]),
           // 4 Me
-          StatefulShellBranch(routes: [GoRoute(path: '/me', builder: (_, __) => const MeScreen())]),
+          StatefulShellBranch(routes: [GoRoute(path: '/me', builder: (_, _) => const MeScreen())]),
         ],
       ),
     ],
@@ -88,6 +88,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 /// Bridges Riverpod auth changes into go_router refreshes.
 class _AuthRefresh extends ChangeNotifier {
   _AuthRefresh(Ref ref) {
-    ref.listen(authControllerProvider, (_, __) => notifyListeners());
+    ref.listen(authControllerProvider, (_, _) => notifyListeners());
   }
 }

@@ -26,7 +26,7 @@ class AuthAuthenticated extends AuthState {
   const AuthAuthenticated(this.user);
   final AppUser user;
   @override
-  bool operator ==(Object o) => o is AuthAuthenticated && o.user.id == user.id;
+  bool operator ==(Object other) => other is AuthAuthenticated && other.user.id == user.id;
   @override
   int get hashCode => user.id.hashCode;
 }
@@ -35,7 +35,7 @@ class AuthError extends AuthState {
   const AuthError(this.message);
   final String message;
   @override
-  bool operator ==(Object o) => o is AuthError && o.message == message;
+  bool operator ==(Object other) => other is AuthError && other.message == message;
   @override
   int get hashCode => message.hashCode;
 }

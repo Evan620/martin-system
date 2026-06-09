@@ -15,7 +15,7 @@ class HomeException implements Exception {
 }
 
 class HomeRepository {
-  HomeRepository({required Dio dio}) : _dio = dio;
+  HomeRepository({required this._dio});
   final Dio _dio;
 
   Future<Briefing> getBriefing() async {

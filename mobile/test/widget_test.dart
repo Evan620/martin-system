@@ -76,7 +76,7 @@ void main() {
     ));
     await tester.pump();
 
-    // The raised Home centre is the fixed anchor of the nav shell.
-    expect(find.byKey(const Key('home-center')), findsOneWidget);
+    // The Home pill (branch index 2) is the fixed anchor of the nav shell.
+    expect(find.byKey(const Key('nav-2')), findsOneWidget);
   });
 }

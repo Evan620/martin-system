@@ -10,7 +10,7 @@ class DocumentException implements Exception {
 }
 
 class DocumentsRepository {
-  DocumentsRepository({required Dio dio}) : _dio = dio;
+  DocumentsRepository({required this._dio});
   final Dio _dio;
 
   Future<List<Document>> listDocuments() async {

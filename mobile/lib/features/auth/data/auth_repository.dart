@@ -11,8 +11,7 @@ class AuthException implements Exception {
 }
 
 class AuthRepository {
-  AuthRepository({required Dio dio, required TokenStorage tokens})
-      : _dio = dio, _tokens = tokens;
+  AuthRepository({required this._dio, required this._tokens});
   final Dio _dio;
   final TokenStorage _tokens;
 

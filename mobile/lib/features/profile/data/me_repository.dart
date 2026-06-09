@@ -10,7 +10,7 @@ class MeException implements Exception {
 }
 
 class MeRepository {
-  MeRepository({required Dio dio}) : _dio = dio;
+  MeRepository({required this._dio});
   final Dio _dio;
 
   Future<List<ActionItem>> listActionItems() async {

@@ -10,7 +10,7 @@ class MeetingException implements Exception {
 }
 
 class MeetingsRepository {
-  MeetingsRepository({required Dio dio}) : _dio = dio;
+  MeetingsRepository({required this._dio});
   final Dio _dio;
 
   Future<List<Meeting>> listMeetings() async {

@@ -14,6 +14,7 @@ import '../../../core/glass/glass.dart';
 import '../../../core/theme/sovereign_colors.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_models.dart';
+import '../../documents/data/documents_models.dart';
 import '../../meetings/data/meetings_models.dart';
 import '../../profile/data/me_models.dart';
 import '../application/workspace_controller.dart';
@@ -106,9 +107,12 @@ class _Body extends ConsumerWidget {
                   fontSize: 30,
                   fontWeight: FontWeight.w500)),
           const SizedBox(height: 6),
-          Text('${detail.members.length} member${detail.members.length == 1 ? '' : 's'}',
-              style: TextStyle(
-                  color: SovereignColors.ivory.withValues(alpha: 0.6), fontSize: 13)),
+          Text(
+            '${detail.members.length} member${detail.members.length == 1 ? '' : 's'}'
+            '${detail.openActions > 0 ? ' · ${detail.openActions} open action${detail.openActions == 1 ? '' : 's'}' : ''}',
+            style: TextStyle(
+                color: SovereignColors.ivory.withValues(alpha: 0.6), fontSize: 13),
+          ),
           const SizedBox(height: 18),
 
           // Next meeting.
@@ -125,29 +129,9 @@ class _Body extends ConsumerWidget {
             label: 'DOCUMENTS',
             child: detail.documents.isEmpty
                 ? const _Empty('No documents yet.')
-                : Column(
-                    children: [
-                      for (var i = 0; i < detail.documents.length && i < 5; i++) ...[
-                        if (i > 0) const SizedBox(height: 10),
-                        GlassSurface.inner(
-                          borderRadius: 12,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                          child: Row(children: [
-                            const Icon(Icons.insert_drive_file_outlined,
-                                size: 16, color: SovereignColors.gold),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(detail.documents[i].name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                      color: SovereignColors.ivory.withValues(alpha: 0.9),
-                                      fontSize: 13.5)),
-                            ),
-                          ]),
-                        ),
-                      ],
-                    ],
+                : _CappedList(
+                    total: detail.documents.length,
+                    builder: (i) => _DocRow(document: detail.documents[i]),
                   ),
           ),
           const SizedBox(height: 14),
@@ -157,13 +141,9 @@ class _Body extends ConsumerWidget {
             label: 'YOUR TASKS',
             child: data.tasks.isEmpty
                 ? const _Empty('No tasks for you here.')
-                : Column(
-                    children: [
-                      for (var i = 0; i < data.tasks.length; i++) ...[
-                        if (i > 0) const SizedBox(height: 10),
-                        _TaskRow(item: data.tasks[i]),
-                      ],
-                    ],
+                : _CappedList(
+                    total: data.tasks.length,
+                    builder: (i) => _TaskRow(item: data.tasks[i]),
                   ),
           ),
           const SizedBox(height: 14),
@@ -265,6 +245,72 @@ class _TaskRow extends StatelessWidget {
   }
 }
 
+/// Renders up to [cap] rows (10px gaps) with a muted "+N more" line when the
+/// list is longer — keeps documents and tasks symmetric and bounded.
+class _CappedList extends StatelessWidget {
+  const _CappedList({required this.total, required this.builder});
+  final int total;
+  final Widget Function(int index) builder;
+  static const cap = 5;
+  @override
+  Widget build(BuildContext context) {
+    final shown = total < cap ? total : cap;
+    return Column(
+      children: [
+        for (var i = 0; i < shown; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          builder(i),
+        ],
+        if (total > cap)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('+${total - cap} more',
+                  style: TextStyle(
+                      color: SovereignColors.ivory.withValues(alpha: 0.5), fontSize: 12)),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// One document row. Tappable: full preview/open lives in the Documents tab, so
+/// we point the member there (mirrors the meeting-detail doc rows) rather than
+/// hijacking the bottom-nav branch from inside the workspace.
+class _DocRow extends StatelessWidget {
+  const _DocRow({required this.document});
+  final Document document;
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text('Open it from the Documents tab.')));
+      },
+      child: GlassSurface.inner(
+        borderRadius: 12,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        child: Row(children: [
+          const Icon(Icons.insert_drive_file_outlined, size: 16, color: SovereignColors.gold),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(document.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    color: SovereignColors.ivory.withValues(alpha: 0.9), fontSize: 13.5)),
+          ),
+          Icon(Icons.chevron_right, size: 16, color: SovereignColors.gold.withValues(alpha: 0.8)),
+        ]),
+      ),
+    );
+  }
+}
+
 class _Switcher extends StatelessWidget {
   const _Switcher({required this.current, required this.twgs});
   final String current;
@@ -278,12 +324,12 @@ class _Switcher extends StatelessWidget {
       color: SovereignColors.navyRaised,
       onSelected: (id) => context.replace('/home/workspace/$id'),
       itemBuilder: (_) => [
-        for (final t in twgs)
+        // List only the member's OTHER TWGs — selecting the current one would be
+        // a no-op self-replace.
+        for (final t in twgs.where((t) => t.id != current))
           PopupMenuItem<String>(
             value: t.id,
-            child: Text(t.name,
-                style: TextStyle(
-                    color: t.id == current ? SovereignColors.gold : SovereignColors.ivory)),
+            child: Text(t.name, style: const TextStyle(color: SovereignColors.ivory)),
           ),
       ],
       child: GlassSurface(

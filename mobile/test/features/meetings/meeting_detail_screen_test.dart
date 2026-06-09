@@ -37,7 +37,7 @@ void main() {
     expect(find.text('Steering Committee'), findsOneWidget);
   });
 
-  testWidgets('detail shows title, an expandable section, and pinned RSVP', (tester) async {
+  testWidgets('detail shows title, the Agenda tab, and pinned RSVP', (tester) async {
     final repo = _MockRepo();
     when(() => repo.meetingDetail('m1')).thenAnswer((_) async => Meeting.fromJson({
       'id': 'm1', 'title': 'Steering Committee', 'scheduled_at': '2031-06-10T10:00:00Z',
@@ -57,8 +57,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Steering Committee'), findsOneWidget);
-    // _SectionLabel uppercases its text, so the rendered label is "AGENDA · 2".
-    expect(find.textContaining('AGENDA'), findsWidgets);
+    // Tabbed layout: Overview/Agenda/People/Docs tab labels are present.
+    expect(find.text('Agenda'), findsOneWidget);
+    expect(find.text('Overview'), findsOneWidget);
     expect(find.text('Going'), findsOneWidget); // pinned RSVP (participant)
   });
 }

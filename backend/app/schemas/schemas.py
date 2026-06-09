@@ -327,6 +327,9 @@ class MeetingParticipantCreate(SchemaBase):
 class MeetingParticipantUpdate(SchemaBase):
     rsvp_status: Optional[RsvpStatus] = None
 
+class MyRsvpRequest(SchemaBase):
+    rsvp_status: RsvpStatus
+
 class DependencySource(str, enum.Enum):
     TWG_PACKET = "twg_packet"
     AI_INFERRED = "ai_inferred"

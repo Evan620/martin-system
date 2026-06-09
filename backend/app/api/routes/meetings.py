@@ -20,10 +20,11 @@ from app.schemas.schemas import (
     AgendaCreate, AgendaRead, MinutesCreate, MinutesRead, MinutesUpdate, MinutesRejectionRequest,
     MinutesVersionRead, MinutesUpdateWithVersion,
     ActionItemCreate, ActionItemRead, MeetingParticipantCreate, MeetingParticipantRead,
-    MeetingParticipantUpdate, MeetingDependencyRead,
+    MeetingParticipantUpdate, MeetingDependencyRead, MyRsvpRequest,
     DependencyType as DependencyTypeSchema
 )
 from app.api.deps import get_current_active_user, require_facilitator, require_twg_access, has_twg_access
+from app.services.rsvp_service import apply_member_rsvp
 from app.services.email_service import email_service
 from app.core.config import settings
 from sqlalchemy.orm import selectinload
@@ -1956,6 +1957,20 @@ async def update_participant_rsvp(
     await db.commit()
     await db.refresh(db_p)
     return db_p
+
+
+@router.put("/{meeting_id}/my-rsvp", response_model=MeetingParticipantRead)
+async def set_my_rsvp(
+    meeting_id: uuid.UUID,
+    rsvp_in: MyRsvpRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """A member sets their OWN RSVP on a meeting they participate in."""
+    participant = await apply_member_rsvp(db, meeting_id, current_user.id, rsvp_in.rsvp_status)
+    if participant is None:
+        raise HTTPException(status_code=404, detail="You are not a participant of this meeting.")
+    return participant
 
 
 # ==================== AGENDA ENDPOINTS ====================

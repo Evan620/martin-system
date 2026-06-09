@@ -26,7 +26,15 @@ class MeController extends Notifier<MeState> {
     state = const MeLoading();
     try {
       final items = await _repo.listActionItems();
-      final reminders = await _repo.listReminders();
+      // Reminders are best-effort: a failure (e.g. the /reminders route not yet
+      // deployed to prod) must not blank the whole screen — show tasks with no
+      // reminders rather than a full "could not load" error.
+      List<Reminder> reminders = const [];
+      try {
+        reminders = await _repo.listReminders();
+      } on MeException {
+        reminders = const [];
+      }
       state = MeData(items: items, reminders: reminders);
     } on MeException catch (e) {
       state = MeError(e.message);

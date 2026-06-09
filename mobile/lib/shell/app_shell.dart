@@ -1,30 +1,15 @@
 // lib/shell/app_shell.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../core/glass/glass.dart';
 import '../core/theme/sovereign_colors.dart';
-import '../features/documents/presentation/documents_screen.dart';
-import '../features/home/presentation/home_screen.dart';
-import '../features/meetings/presentation/meetings_screen.dart';
-import '../features/profile/presentation/me_screen.dart';
 
-class AppShell extends StatefulWidget {
-  const AppShell({super.key});
-  @override
-  State<AppShell> createState() => _AppShellState();
-}
+class AppShell extends StatelessWidget {
+  const AppShell({super.key, required this.navigationShell});
+  final StatefulNavigationShell navigationShell;
 
-class _AppShellState extends State<AppShell> {
-  // 0 Meetings, 1 Documents, 2 Martin (home), 3 Me
-  int _index = 2;
-
-  static const _screens = [
-    MeetingsScreen(),
-    DocumentsScreen(),
-    HomeScreen(),
-    MeScreen(),
-  ];
-
-  void _select(int i) => setState(() => _index = i);
+  void _select(int i) =>
+      navigationShell.goBranch(i, initialLocation: i == navigationShell.currentIndex);
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +18,7 @@ class _AppShellState extends State<AppShell> {
       extendBody: true,
       body: Stack(
         children: [
-          Positioned.fill(child: IndexedStack(index: _index, children: _screens)),
+          Positioned.fill(child: navigationShell),
           Positioned(
             left: 0,
             right: 0,
@@ -74,7 +59,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget _item(IconData icon, String label, int i) {
-    final on = _index == i;
+    final on = navigationShell.currentIndex == i;
     return Expanded(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -117,7 +102,7 @@ class _AppShellState extends State<AppShell> {
   // The glowing gold Martin disc — the fixed centre of the app. Its halo
   // blooms when home is active.
   Widget _martin() {
-    final on = _index == 2;
+    final on = navigationShell.currentIndex == 2;
     return Expanded(
       child: GestureDetector(
         key: const Key('martin-center'),

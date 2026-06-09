@@ -2,7 +2,7 @@
 //
 // The scaffolded counter test was replaced when Task 13 wired the real app
 // entry (ProviderScope + MemberApp). It boots through the router into the
-// navigation shell while the session bootstrap runs.
+// StatefulShellRoute navigation shell while the session bootstrap runs.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,8 +18,9 @@ class _MockRepo extends Mock implements MeetingsRepository {}
 void main() {
   testWidgets('app boots and wires the router into the navigation shell',
       (WidgetTester tester) async {
-    // The shell's IndexedStack mounts MeetingsScreen at boot; stub its repo so
-    // its initState load() resolves instead of leaving a pending network timer.
+    // The shell opens on the Martin (home) branch; the Meetings branch is built
+    // lazily by the indexed stack. Stub the repo anyway so any load() resolves
+    // instead of leaving a pending network timer.
     final repo = _MockRepo();
     when(() => repo.listMeetings()).thenAnswer((_) async => []);
 

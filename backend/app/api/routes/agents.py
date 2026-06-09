@@ -1043,16 +1043,19 @@ async def stream_chat(
     )
 
 
-async def run_background_task(task_id: str, prompt: str, twg_id: str, user_timezone: str):
+async def run_background_task(task_id: str, prompt: str, twg_id: str, user_timezone: str, force_agent_id: str | None = None):
     try:
         logger.info(f"[{task_id}] Starting background task logic...")
         supervisor = get_supervisor()
-        # Execute the heavy lifting using the supervisor
+        # Execute the heavy lifting using the supervisor. force_agent_id="member"
+        # (set by assign_agent_task for TWG_MEMBER callers) keeps the task gated
+        # to MEMBER_TOOLS; None preserves the existing admin/facilitator routing.
         await supervisor.chat_with_tools(
-            prompt, 
-            twg_id=twg_id, 
-            thread_id=task_id, 
-            user_timezone=user_timezone
+            prompt,
+            twg_id=twg_id,
+            thread_id=task_id,
+            user_timezone=user_timezone,
+            force_agent_id=force_agent_id,
         )
         logger.info(f"[{task_id}] Background task finished successfully.")
     except Exception as e:
@@ -1072,17 +1075,31 @@ async def assign_agent_task(
     """
     task_id = str(uuid.uuid4())
     user_timezone = request.headers.get("X-User-Timezone", "UTC")
-    
-    # We pass the user's role/twg context so the background agent retains proper scoping.
-    twg_context = str(task_in.twg_id) if hasattr(task_in, 'twg_id') and task_in.twg_id else "global"
-    
+
+    # AgentTaskRequest.twg_id is a required uuid.UUID.
+    twg_context = str(task_in.twg_id)
+
+    # SECURITY (member gate): this endpoint dispatches run_background_task ->
+    # chat_with_tools. Without force_agent_id, a TWG_MEMBER's task would run
+    # under the facilitator/pillar agent (granted send_email,
+    # create_meeting_invite, advance_project_stage, ...), bypassing the
+    # MEMBER_TOOLS gate — the same escalation class fixed for the chat endpoints.
+    # Scope a member to agent_id="member" bound to their verified TWG; leave
+    # admin/facilitator routing unchanged (force_agent_id=None).
+    force_agent_id = None
+    if current_user.role == UserRole.TWG_MEMBER:
+        if not has_twg_access(current_user, task_in.twg_id):
+            raise HTTPException(status_code=403, detail="You do not have access to this TWG")
+        force_agent_id = "member"
+
     # Dispatch it to the background
     background_tasks.add_task(
         run_background_task,
         task_id=task_id,
         prompt=task_in.title,  # Basic mapping, in reality we'd have a full prompt field
         twg_id=twg_context,
-        user_timezone=user_timezone
+        user_timezone=user_timezone,
+        force_agent_id=force_agent_id,
     )
     
     return {

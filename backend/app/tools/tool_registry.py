@@ -118,6 +118,17 @@ MEMBER_TOOLS: Set[str] = {
     "get_notifications",
 }
 
+# Member personal-action tools — they act on the *calling* member's own data
+# (own RSVP / reminders / notifications) and have no meaning for facilitator,
+# supervisor, or TWG agents. They are exclusively part of the member toolset:
+# non-member agents are denied here so the allowlist doesn't silently leak them
+# through the "unknown tool → allow by default" branch.
+MEMBER_ONLY_TOOLS: Set[str] = {
+    "rsvp_meeting",
+    "set_reminder",
+    "get_notifications",
+}
+
 
 class ToolAccessDenied(Exception):
     """Raised when a tool execution fails access validation."""
@@ -209,6 +220,7 @@ class ToolRegistry:
             return
 
         self._register_calendar_tools()
+        self._register_member_tools()
         self._register_email_tools()
         self._register_document_tools()
         self._register_database_tools()
@@ -258,6 +270,19 @@ class ToolRegistry:
                 handler=handler,
                 required_params=schema.get("required", []),
             )
+
+    def _register_member_tools(self) -> None:
+        """Register member personal-action tools."""
+        from app.tools.member_tools import RSVP_MEETING_TOOL_DEF, rsvp_meeting
+
+        func_def = RSVP_MEETING_TOOL_DEF["function"]
+        self.register(
+            name=func_def["name"],
+            description=func_def["description"],
+            parameters=func_def["parameters"].get("properties", {}),
+            handler=rsvp_meeting,
+            required_params=func_def["parameters"].get("required", []),
+        )
 
     def _register_whatsapp_tools(self) -> None:
         """Register WhatsApp tools (sends are confirm-then-execute)."""
@@ -542,6 +567,14 @@ class ToolRegistry:
             raise ToolAccessDenied(
                 f"Tool '{tool_name}' is not part of the member toolset. "
                 f"Members cannot perform facilitator/admin actions."
+            )
+
+        # Member personal-action tools are denied to every non-member agent.
+        # (The member branch above already granted/denied them for "member".)
+        if tool_name in MEMBER_ONLY_TOOLS:
+            raise ToolAccessDenied(
+                f"Tool '{tool_name}' is a member personal-action tool and is not "
+                f"available to agent '{agent_id}'."
             )
 
         # Pipeline write/read tools — checked first so supervisor + TWG agents both get them.

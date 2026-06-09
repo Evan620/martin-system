@@ -29,4 +29,10 @@ void main() {
     final r = await repo.addReminder('Prep', DateTime.utc(2026,6,10,9));
     expect(r.message, 'Prep');
   });
+  test('listActionItems(twgId:) adds twg_id alongside mine_only', () async {
+    when(() => dio.get('/action-items/', queryParameters: any(named: 'queryParameters')))
+        .thenAnswer((_) async => resp<List<dynamic>>([]));
+    await repo.listActionItems(twgId: 't1');
+    verify(() => dio.get('/action-items/', queryParameters: {'mine_only': true, 'twg_id': 't1'})).called(1);
+  });
 }

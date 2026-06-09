@@ -55,4 +55,15 @@ void main() {
     ));
     expect(await repo.meetingAgenda('m2'), isNull);
   });
+
+  test('listMeetings(twgId:) passes ?twg_id=', () async {
+    when(() => dio.get('/meetings/', queryParameters: any(named: 'queryParameters')))
+        .thenAnswer((_) async => Response(
+              data: <dynamic>[],
+              statusCode: 200,
+              requestOptions: RequestOptions(path: '/meetings/'),
+            ));
+    await repo.listMeetings(twgId: 't1');
+    verify(() => dio.get('/meetings/', queryParameters: {'twg_id': 't1'})).called(1);
+  });
 }

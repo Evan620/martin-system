@@ -13,9 +13,12 @@ class MeetingsRepository {
   MeetingsRepository({required this._dio});
   final Dio _dio;
 
-  Future<List<Meeting>> listMeetings() async {
+  Future<List<Meeting>> listMeetings({String? twgId}) async {
     try {
-      final res = await _dio.get('/meetings/');
+      final res = await _dio.get(
+        '/meetings/',
+        queryParameters: twgId == null ? null : {'twg_id': twgId},
+      );
       final data = (res.data as List).cast<Map<String, dynamic>>();
       return data.map(Meeting.fromJson).toList();
     } on DioException {

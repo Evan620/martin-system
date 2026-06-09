@@ -13,9 +13,12 @@ class MeRepository {
   MeRepository({required this._dio});
   final Dio _dio;
 
-  Future<List<ActionItem>> listActionItems() async {
+  Future<List<ActionItem>> listActionItems({String? twgId}) async {
     try {
-      final res = await _dio.get('/action-items/', queryParameters: {'mine_only': true});
+      final res = await _dio.get('/action-items/', queryParameters: {
+        'mine_only': true,
+        'twg_id': ?twgId,
+      });
       return (res.data as List).cast<Map<String, dynamic>>().map(ActionItem.fromJson).toList();
     } on DioException {
       throw MeException('Could not load your tasks.');

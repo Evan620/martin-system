@@ -38,6 +38,7 @@ class RsvpStatus(str, enum.Enum):
     PENDING = "PENDING"
     ACCEPTED = "ACCEPTED"
     DECLINED = "DECLINED"
+    TENTATIVE = "TENTATIVE"
 
 class MinutesStatus(str, enum.Enum):
     DRAFT = "DRAFT"

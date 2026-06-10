@@ -1,14 +1,69 @@
 // test/features/home/martin_chat_client_test.dart
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:member_app/features/auth/application/auth_controller.dart';
+import 'package:member_app/features/auth/data/auth_models.dart';
+import 'package:member_app/features/home/application/chat_controller.dart';
 import 'package:member_app/features/home/data/chat_models.dart';
 import 'package:member_app/features/home/data/martin_chat_client.dart';
 
 class _MockDio extends Mock implements Dio {}
+
+/// Reads a captured-from-the-real-backend SSE fixture as raw bytes and chops
+/// it into [chunkSize]-byte chunks, simulating TCP delivery that splits frames
+/// (and even multi-byte UTF-8 chars) at arbitrary boundaries.
+Stream<List<int>> _fixtureByteStream(String path, {int chunkSize = 7}) {
+  final bytes = File(path).readAsBytesSync();
+  final chunks = <List<int>>[];
+  for (var i = 0; i < bytes.length; i += chunkSize) {
+    chunks.add(bytes.sublist(
+        i, i + chunkSize > bytes.length ? bytes.length : i + chunkSize));
+  }
+  return Stream<List<int>>.fromIterable(chunks);
+}
+
+/// Replays a pre-decoded event list so the real [ChatController] can be driven
+/// by events that came out of the REAL captured bytes.
+class _ReplayClient implements MartinChatClient {
+  _ReplayClient(this.events);
+  final List<ChatEvent> events;
+
+  @override
+  Stream<ChatEvent> send({
+    required String message,
+    required String twgId,
+    String? conversationId,
+  }) =>
+      Stream.fromIterable(events);
+}
+
+class _AuthedController extends AuthController {
+  @override
+  AuthState build() => AuthAuthenticated(AppUser(
+        id: 'me',
+        email: 'demo@ecowas.int',
+        fullName: 'Amina Diallo',
+        role: UserRole.twgMember,
+        twgs: const [
+          Twg(id: '4a03ff0a-c6a2-4602-9e86-cb4212c0a0e2', name: 'Energy TWG'),
+        ],
+      ));
+}
+
+ProviderContainer _replayContainer(List<ChatEvent> events) {
+  final container = ProviderContainer(overrides: [
+    martinChatClientProvider.overrideWithValue(_ReplayClient(events)),
+    authControllerProvider.overrideWith(_AuthedController.new),
+  ]);
+  addTearDown(container.dispose);
+  return container;
+}
 
 /// Encodes events as the `data: {...}\n\n` SSE frames the backend sends.
 List<int> _frame(Map<String, dynamic> event) =>
@@ -338,6 +393,111 @@ void main() {
           await client.send(message: 'hello', twgId: 'twg-1').toList();
       expect(events, hasLength(1));
       expect(events.single, isA<ErrorEvent>());
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // REAL-BACKEND fixtures (captured 2026-06-10 from the local backend at
+  // http://localhost:8000, POST /api/v1/agents/chat/stream, authed as the
+  // demo TWG member, twg_id=4a03ff0a-c6a2-4602-9e86-cb4212c0a0e2).
+  //
+  // The .txt files under fixtures/ are the byte-for-byte `data:` frames curl
+  // captured off the wire — NOT hand-written JSON. They pin the two dialects
+  // the real member path speaks today:
+  //
+  //  * real_stream_frames.txt — "Introduce yourself in one short sentence.":
+  //    start → parsing → thinking×2 → token×22 → tool_complete →
+  //    response(content:"") → done. The answer travels ONLY in the tokens;
+  //    the terminal response frame is always empty on this path.
+  //
+  //  * real_stream_frames_silent.txt — "What is my next meeting?": the model
+  //    makes a tool call, the backend swallows the reply (zero tokens), and
+  //    the stream ends with the same empty response + done. The controller
+  //    must surface a graceful error — never silence / a blank bubble.
+  // -------------------------------------------------------------------------
+  group('real backend SSE fixtures (e2e capture)', () {
+    const tokensFixture = 'test/features/home/fixtures/real_stream_frames.txt';
+    const silentFixture =
+        'test/features/home/fixtures/real_stream_frames_silent.txt';
+
+    // Exactly what the 22 real token frames concatenate to (note the real
+    // U+2019 apostrophe and U+2014 em dash — they prove the UTF-8 path).
+    const expectedReply = 'Hi, I’m Martin — your personal assistant '
+        'for meetings, documents, action items, RSVPs, and reminders.';
+
+    test('token-streaming capture decodes to start + tokens + done', () async {
+      final events =
+          await decodeSseByteStream(_fixtureByteStream(tokensFixture)).toList();
+
+      // The start frame carries the real conversation id (multi-turn memory).
+      final start = events.whereType<StartEvent>().single;
+      expect(start.conversationId, '11825707-79c5-4572-8a44-2ab9d6df09a9');
+
+      // The reply travels exclusively in the token frames.
+      final tokens = events.whereType<TokenEvent>().map((e) => e.text).join();
+      expect(tokens, expectedReply);
+
+      // The backend's thinking frames surface as activity-chip ToolEvents.
+      expect(
+        events.whereType<ToolEvent>().map((e) => e.label).toList(),
+        ['✦ Processing your request...', '✦ Starting Supervisor...'],
+      );
+
+      // The terminal response frame has content:"" on this path → no
+      // FinalEvent may be emitted (it must never wipe the streamed tokens).
+      expect(events.whereType<FinalEvent>(), isEmpty);
+      expect(events.whereType<ErrorEvent>(), isEmpty);
+      expect(events.last, isA<DoneEvent>());
+    });
+
+    test('controller shows the full reply from the REAL captured bytes',
+        () async {
+      final events =
+          await decodeSseByteStream(_fixtureByteStream(tokensFixture)).toList();
+      final container = _replayContainer(events);
+
+      await container
+          .read(chatControllerProvider.notifier)
+          .send('Introduce yourself in one short sentence.');
+
+      final state = container.read(chatControllerProvider);
+      expect(state.streaming, isFalse);
+      expect(state.error, isNull);
+      expect(state.conversationId, '11825707-79c5-4572-8a44-2ab9d6df09a9');
+      expect(state.messages, hasLength(2));
+      expect(state.messages.last.role, ChatRole.martin);
+      expect(state.messages.last.text, expectedReply);
+      expect(state.messages.last.toolActivity, isNull);
+      expect(state.messages.last.interrupted, isFalse);
+    });
+
+    test('silent capture (swallowed reply) → graceful error, never silence',
+        () async {
+      final events =
+          await decodeSseByteStream(_fixtureByteStream(silentFixture)).toList();
+
+      // The real silent stream: start + thinking×2 + done — zero tokens, no
+      // FinalEvent (response content is ""), and crucially no ErrorEvent at
+      // the transport level.
+      expect(events.whereType<TokenEvent>(), isEmpty);
+      expect(events.whereType<FinalEvent>(), isEmpty);
+      expect(events.whereType<StartEvent>().single.conversationId,
+          'c0e02f1e-bcd6-41b7-8b6d-5e2eb56c4f78');
+      expect(events.last, isA<DoneEvent>());
+
+      final container = _replayContainer(events);
+      await container
+          .read(chatControllerProvider.notifier)
+          .send('What is my next meeting?');
+
+      final state = container.read(chatControllerProvider);
+      expect(state.streaming, isFalse);
+      // Never silence: the user sees a graceful error, not a blank bubble.
+      expect(state.error, isNotNull);
+      expect(state.error, isNotEmpty);
+      // No stranded empty Martin bubble — only the user's turn remains.
+      expect(state.messages, hasLength(1));
+      expect(state.messages.single.role, ChatRole.user);
     });
   });
 }

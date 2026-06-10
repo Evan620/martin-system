@@ -1,0 +1,60 @@
+data: {"type": "start", "conversation_id": "11825707-79c5-4572-8a44-2ab9d6df09a9"}
+
+data: {"type": "parsing", "result": {"message_type": "MessageParseType.NATURAL", "command": null, "mentions": []}}
+
+data: {"type": "thinking", "status": "Processing your request...", "step_id": "e3643295-e9d5-4f11-85ea-e01d7f5c8d86"}
+
+data: {"type": "thinking", "status": "Starting Supervisor...", "icon": "admin_panel_settings", "step_id": "25b6b297-519d-481f-83c8-ded9c4a85ef2"}
+
+data: {"type": "token", "content": "Hi"}
+
+data: {"type": "token", "content": ","}
+
+data: {"type": "token", "content": " I"}
+
+data: {"type": "token", "content": "\u2019m"}
+
+data: {"type": "token", "content": " Martin"}
+
+data: {"type": "token", "content": " \u2014"}
+
+data: {"type": "token", "content": " your"}
+
+data: {"type": "token", "content": " personal"}
+
+data: {"type": "token", "content": " assistant"}
+
+data: {"type": "token", "content": " for"}
+
+data: {"type": "token", "content": " meetings"}
+
+data: {"type": "token", "content": ","}
+
+data: {"type": "token", "content": " documents"}
+
+data: {"type": "token", "content": ","}
+
+data: {"type": "token", "content": " action"}
+
+data: {"type": "token", "content": " items"}
+
+data: {"type": "token", "content": ","}
+
+data: {"type": "token", "content": " RSV"}
+
+data: {"type": "token", "content": "Ps"}
+
+data: {"type": "token", "content": ","}
+
+data: {"type": "token", "content": " and"}
+
+data: {"type": "token", "content": " reminders"}
+
+data: {"type": "token", "content": "."}
+
+data: {"type": "tool_complete", "status": "Completed", "step_id": "842dc1db-0bb5-44b1-b682-fb592b12df57"}
+
+data: {"type": "response", "message": {"message_id": "8604eed0-7355-4fa2-835c-1d2757d954cc", "conversation_id": "11825707-79c5-4572-8a44-2ab9d6df09a9", "message_type": "agent_text", "content": "", "sender": "agent", "timestamp": "2026-06-10T06:41:54.114714", "metadata": null, "actions": [], "attachments": [], "suggestion_type": null, "suggestion_data": null, "request_type": null, "request_schema": null, "tool_name": null, "tool_status": null, "tool_result": null}}
+
+data: {"type": "done"}
+

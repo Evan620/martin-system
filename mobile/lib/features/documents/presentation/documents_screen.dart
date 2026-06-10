@@ -192,15 +192,24 @@ class _DataView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CascadeIn(
+          const CascadeIn(
             index: 0,
-            child: AppHeader(title: 'Documents', context_: twgLabel),
+            child: AppHeader(title: 'Documents'),
           ),
           const SizedBox(height: Insets.lg),
-          CascadeIn(index: 1, child: _SearchField(onChanged: onQueryChanged)),
+          CascadeIn(
+            index: 1,
+            child: _TwgInfoCard(
+              twgLabel: twgLabel,
+              docCount: all.length,
+              globalCount: all.where((d) => d.twgName == null).length,
+            ),
+          ),
+          const SizedBox(height: Insets.lg),
+          CascadeIn(index: 2, child: _SearchField(onChanged: onQueryChanged)),
           const SizedBox(height: Insets.md),
           CascadeIn(
-            index: 2,
+            index: 3,
             child: _FilterChips(
               present: present,
               selected: kind,
@@ -209,7 +218,7 @@ class _DataView extends StatelessWidget {
           ),
           const SizedBox(height: Insets.lg),
           CascadeIn(
-            index: 3,
+            index: 4,
             child: RowGroup(children: [
               if (shown.isEmpty)
                 const ListRow(
@@ -227,6 +236,88 @@ class _DataView extends StatelessWidget {
                     onTap: () => onOpen(doc),
                   ),
             ]),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A header card housing the member's TWG context for the Documents screen:
+/// a folder glyph, the TWG name (or multi-TWG label), and a document-count
+/// summary. Built entirely from data already on hand (no fetch).
+class _TwgInfoCard extends StatelessWidget {
+  const _TwgInfoCard({
+    required this.twgLabel,
+    required this.docCount,
+    required this.globalCount,
+  });
+
+  final String twgLabel;
+  final int docCount;
+  final int globalCount;
+
+  String get _summary {
+    final docs = '$docCount document${docCount == 1 ? '' : 's'}';
+    // Show the global split only when there's a meaningful mix of TWG + global.
+    if (globalCount > 0 && globalCount < docCount) {
+      return '$docs · $globalCount global';
+    }
+    return '$docs shared with you';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(Insets.lg),
+      decoration: BoxDecoration(
+        color: SovereignColors.navyRaised,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: SovereignColors.gold.withValues(alpha: 0.30)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: SovereignColors.gold.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.folder_shared_rounded,
+                size: 22, color: SovereignColors.gold),
+          ),
+          const SizedBox(width: Insets.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  twgLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: SovereignColors.ivory,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _summary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 12.5,
+                    color: SovereignColors.ivory
+                        .withValues(alpha: SovereignColors.alphaMid),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

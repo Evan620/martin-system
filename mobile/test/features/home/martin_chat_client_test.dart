@@ -52,9 +52,42 @@ void main() {
       expect(parseSseData('{"type":"done"}'), isA<DoneEvent>());
     });
 
-    test('start / thinking / unknown / empty → null', () {
-      expect(parseSseData('{"type":"start"}'), isNull);
+    test('start → StartEvent carrying the conversation id', () {
+      final e = parseSseData('{"type":"start","conversation_id":"c7"}');
+      expect(e, isA<StartEvent>());
+      expect((e as StartEvent).conversationId, 'c7');
+      // A start frame without an id still parses (id stays null).
+      final bare = parseSseData('{"type":"start"}');
+      expect(bare, isA<StartEvent>());
+      expect((bare as StartEvent).conversationId, isNull);
+    });
+
+    test("tool frames read the backend's 'tool' key as well as 'name'", () {
+      final e = parseSseData('{"type":"tool_start","tool":"get_schedule"}');
+      expect(e, isA<ToolEvent>());
+      expect((e as ToolEvent).label, '✦ get_schedule…');
+    });
+
+    test("thinking with a status → ToolEvent chip label; without → null", () {
+      final e = parseSseData(
+          '{"type":"thinking","status":"Consulting the energy specialist"}');
+      expect(e, isA<ToolEvent>());
+      expect((e as ToolEvent).label, '✦ Consulting the energy specialist');
       expect(parseSseData('{"type":"thinking"}'), isNull);
+      expect(parseSseData('{"type":"thinking","status":""}'), isNull);
+    });
+
+    test("response fallback frame → FinalEvent(message.content)", () {
+      final e = parseSseData(
+          '{"type":"response","message":{"content":"Full answer"}}');
+      expect(e, isA<FinalEvent>());
+      expect((e as FinalEvent).text, 'Full answer');
+      // An empty/odd fallback frame stays ignored.
+      expect(parseSseData('{"type":"response"}'), isNull);
+      expect(parseSseData('{"type":"response","message":{}}'), isNull);
+    });
+
+    test('unknown / empty → null', () {
       expect(parseSseData('{"type":"who_knows"}'), isNull);
       expect(parseSseData('{"type":"token","content":""}'), isNull);
       expect(parseSseData(''), isNull);

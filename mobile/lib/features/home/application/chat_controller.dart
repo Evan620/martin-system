@@ -67,6 +67,14 @@ class ChatController extends Notifier<ChatState> {
 
   MartinChatClient get _client => ref.read(martinChatClientProvider);
 
+  // The most recent send, kept so an inline Retry can re-issue the same turn
+  // (with the same TWG scope) after a failure.
+  String? _lastMessage;
+  String? _lastOverrideTwgId;
+
+  /// The last message the member attempted to send (null before any send).
+  String? get lastUserMessage => _lastMessage;
+
   /// The caller's TWG id (first TWG of the authed user), or null if none.
   String? get _twgId {
     final auth = ref.read(authControllerProvider);
@@ -80,6 +88,9 @@ class ChatController extends Notifier<ChatState> {
   Future<void> send(String text, {String? overrideTwgId}) async {
     final message = text.trim();
     if (message.isEmpty || state.streaming) return;
+
+    _lastMessage = message;
+    _lastOverrideTwgId = overrideTwgId;
 
     final twgId = overrideTwgId ?? _twgId;
     if (twgId == null) {
@@ -112,6 +123,12 @@ class ChatController extends Notifier<ChatState> {
         conversationId: state.conversationId,
       )) {
         switch (event) {
+          case StartEvent(:final conversationId):
+            // The member path never emits final_response, so the start frame
+            // is what carries the thread id (multi-turn memory).
+            if (conversationId != null && conversationId.isNotEmpty) {
+              state = state.copyWith(conversationId: conversationId);
+            }
           case TokenEvent(:final text):
             draft.text += text;
             // First content token supersedes any "doing X…" chip.
@@ -131,22 +148,12 @@ class ChatController extends Notifier<ChatState> {
             // Terminal marker; finalization happens after the loop.
             break;
           case ErrorEvent(:final message):
-            draft.toolActivity = null;
-            state = state.copyWith(
-              messages: List.of(state.messages),
-              streaming: false,
-              error: message,
-            );
+            _failDraft(draft, message);
             return;
         }
       }
     } catch (_) {
-      draft.toolActivity = null;
-      state = state.copyWith(
-        messages: List.of(state.messages),
-        streaming: false,
-        error: 'Something went wrong talking to Martin.',
-      );
+      _failDraft(draft, 'Something went wrong talking to Martin.');
       return;
     }
 
@@ -155,6 +162,40 @@ class ChatController extends Notifier<ChatState> {
     state = state.copyWith(
       messages: List.of(state.messages),
       streaming: false,
+    );
+  }
+
+  /// Re-sends [lastUserMessage] after a failure, removing the failed user turn
+  /// first so the transcript shows the re-asked question exactly once.
+  Future<void> retry() async {
+    final message = _lastMessage;
+    if (message == null || state.streaming) return;
+
+    final messages = List.of(state.messages);
+    if (messages.isNotEmpty &&
+        messages.last.role == ChatRole.user &&
+        messages.last.text == message) {
+      messages.removeLast();
+    }
+    state = state.copyWith(messages: messages, error: null);
+    await send(message, overrideTwgId: _lastOverrideTwgId);
+  }
+
+  /// Failure path: drop an empty draft entirely (no stranded empty bubble);
+  /// keep partial text but mark it interrupted. Surfaces [message] as the
+  /// user-facing error.
+  void _failDraft(ChatMessage draft, String message) {
+    draft.toolActivity = null;
+    final messages = List.of(state.messages);
+    if (draft.text.trim().isEmpty) {
+      messages.remove(draft);
+    } else {
+      draft.interrupted = true;
+    }
+    state = state.copyWith(
+      messages: messages,
+      streaming: false,
+      error: message,
     );
   }
 }

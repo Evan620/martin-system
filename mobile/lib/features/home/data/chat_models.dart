@@ -25,22 +25,41 @@ class ChatMessage {
     required this.role,
     this.text = '',
     this.toolActivity,
+    this.interrupted = false,
   });
 
   final ChatRole role;
   String text;
   String? toolActivity;
 
-  ChatMessage copyWith({String? text, String? toolActivity}) => ChatMessage(
+  /// True when a stream failed after partial text arrived — the UI renders a
+  /// quiet "— interrupted" suffix under the partial answer.
+  bool interrupted;
+
+  ChatMessage copyWith({
+    String? text,
+    String? toolActivity,
+    bool? interrupted,
+  }) =>
+      ChatMessage(
         role: role,
         text: text ?? this.text,
         toolActivity: toolActivity ?? this.toolActivity,
+        interrupted: interrupted ?? this.interrupted,
       );
 }
 
 /// Wire-level events emitted by [parseSseData] / the SSE client.
 sealed class ChatEvent {
   const ChatEvent();
+}
+
+/// The opening `start` frame. The member path's backend never emits
+/// `final_response`, so this is the only frame that reliably carries the
+/// `conversation_id` — parsing it is what keeps multi-turn memory alive.
+class StartEvent extends ChatEvent {
+  const StartEvent({this.conversationId});
+  final String? conversationId;
 }
 
 /// A streamed content token (`token` events). [text] is the delta to append.
@@ -105,22 +124,47 @@ ChatEvent? parseSseData(String dataJson) {
 ChatEvent? parseSseEvent(Map<String, dynamic> event) {
   final type = event['type']?.toString();
   switch (type) {
+    case 'start':
+      // Carries the conversation_id on the member path (which never emits
+      // final_response) — required for multi-turn memory.
+      return StartEvent(conversationId: event['conversation_id']?.toString());
     case 'token':
       final content = event['content']?.toString() ?? '';
       // Skip empty tokens so the UI never appends nothing.
       return content.isEmpty ? null : TokenEvent(content);
     case 'tool_call':
     case 'tool_start':
-      return ToolEvent(toolLabel(event['name']?.toString()));
+      // The backend payload keys are 'tool'/'status'; older frames used 'name'.
+      return ToolEvent(
+        toolLabel((event['tool'] ?? event['name'])?.toString()),
+      );
+    case 'thinking':
+      // Surface the thinking status as the activity chip label so the chip
+      // actually fires on the member path today.
+      final status = event['status']?.toString().trim() ?? '';
+      return status.isEmpty ? null : ToolEvent('✦ $status');
     case 'final_response':
       return FinalEvent(
         event['content']?.toString() ?? '',
         conversationId: event['conversation_id']?.toString(),
       );
+    case 'response':
+      // Terminal fallback frame ({'type':'response', message:{content}}) sent
+      // when no final_response was emitted — without parsing it the Martin
+      // bubble stays empty forever if token streaming ever fails upstream.
+      final message = event['message'];
+      final content =
+          message is Map ? (message['content']?.toString() ?? '') : '';
+      return content.isEmpty
+          ? null
+          : FinalEvent(
+              content,
+              conversationId: event['conversation_id']?.toString(),
+            );
     case 'done':
       return const DoneEvent();
     default:
-      // start / thinking / unknown → ignore.
+      // unknown → ignore.
       return null;
   }
 }

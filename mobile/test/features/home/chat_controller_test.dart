@@ -49,8 +49,27 @@ class _AuthedController extends AuthController {
       ));
 }
 
+/// Replays one script per call (last script repeats), recording each message —
+/// lets a test fail the first send and succeed the retry.
+class _SequenceClient implements MartinChatClient {
+  _SequenceClient(this.scripts);
+  final List<List<ChatEvent>> scripts;
+  final messages = <String>[];
+
+  @override
+  Stream<ChatEvent> send({
+    required String message,
+    required String twgId,
+    String? conversationId,
+  }) {
+    final i = messages.length.clamp(0, scripts.length - 1);
+    messages.add(message);
+    return Stream.fromIterable(scripts[i]);
+  }
+}
+
 ProviderContainer _container(
-  _FakeClient client, {
+  MartinChatClient client, {
   List<Twg> twgs = const [Twg(id: 't1', name: 'Energy TWG')],
 }) {
   final container = ProviderContainer(overrides: [
@@ -174,6 +193,85 @@ void main() {
 
     await notifier.send('two');
     expect(client.lastConversationId, 'conv-9');
+  });
+
+  test('StartEvent sets the conversationId so multi-turn memory survives',
+      () async {
+    final client = _FakeClient(const [
+      StartEvent(conversationId: 'conv-start'),
+      TokenEvent('hi'),
+      DoneEvent(),
+    ]);
+    final container = _container(client);
+    final notifier = container.read(chatControllerProvider.notifier);
+
+    await notifier.send('one');
+    expect(container.read(chatControllerProvider).conversationId, 'conv-start');
+
+    await notifier.send('two');
+    expect(client.lastConversationId, 'conv-start');
+  });
+
+  test('error removes the empty Martin draft from the transcript', () async {
+    final client = _FakeClient(const [ErrorEvent('boom')]);
+    final container = _container(client);
+
+    await container.read(chatControllerProvider.notifier).send('Hi');
+    final state = container.read(chatControllerProvider);
+    // Only the user's turn remains — no stranded empty bubble.
+    expect(state.messages, hasLength(1));
+    expect(state.messages.single.role, ChatRole.user);
+    expect(state.error, 'boom');
+  });
+
+  test('a partial draft survives an error and is marked interrupted',
+      () async {
+    final client = _FakeClient(const [
+      TokenEvent('partial answer'),
+      ErrorEvent('lost connection'),
+    ]);
+    final container = _container(client);
+
+    await container.read(chatControllerProvider.notifier).send('Hi');
+    final state = container.read(chatControllerProvider);
+    expect(state.messages, hasLength(2));
+    expect(state.messages.last.role, ChatRole.martin);
+    expect(state.messages.last.text, 'partial answer');
+    expect(state.messages.last.interrupted, isTrue);
+    expect(state.error, 'lost connection');
+  });
+
+  test('retry() re-sends the last user message without duplicating the turn',
+      () async {
+    final client = _SequenceClient([
+      const [ErrorEvent('boom')],
+      const [TokenEvent('Recovered'), DoneEvent()],
+    ]);
+    final container = _container(client);
+    final notifier = container.read(chatControllerProvider.notifier);
+
+    await notifier.send('Brief me');
+    expect(container.read(chatControllerProvider).error, 'boom');
+
+    await notifier.retry();
+    final state = container.read(chatControllerProvider);
+    expect(state.error, isNull);
+    expect(client.messages, ['Brief me', 'Brief me']);
+    // The user's turn renders once, followed by the recovered reply.
+    expect(state.messages, hasLength(2));
+    expect(state.messages.first.role, ChatRole.user);
+    expect(state.messages.first.text, 'Brief me');
+    expect(state.messages.last.role, ChatRole.martin);
+    expect(state.messages.last.text, 'Recovered');
+  });
+
+  test('retry() without a prior send is a no-op', () async {
+    final client = _FakeClient(const [TokenEvent('x'), DoneEvent()]);
+    final container = _container(client);
+
+    await container.read(chatControllerProvider.notifier).retry();
+    expect(container.read(chatControllerProvider).messages, isEmpty);
+    expect(client.lastMessage, isNull);
   });
 
   test('send(overrideTwgId:) uses the override instead of the first TWG',

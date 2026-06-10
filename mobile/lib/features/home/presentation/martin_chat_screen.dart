@@ -7,19 +7,20 @@
 // auto-sent once on first build, and `?twg=` scopes the chat to a TWG
 // (workspace entry).
 //
-// Layout (mirrors the placeholder's Sovereign backdrop + header so the two read
-// as the same surface):
-//   - an atmospheric navy field with a faint gold halo,
-//   - a header row: a glass back button + a ✦ Martin serif title,
-//   - a scrolling transcript (user = gold bubble; martin = glass bubble; while
-//     streaming the in-flight Martin draft shows its toolActivity as a gold
-//     `✦ …` chip plus an animated typing indicator),
-//   - an input bar pinned to the bottom (disabled while streaming) that calls
-//     chatController.send.
+// claude.ai-quality behaviors:
+//   - Martin's replies render as Sovereign-styled markdown (see
+//     martin_message_bubble.dart) with a pulsing gold caret while streaming.
+//   - Smart autoscroll: the transcript follows the stream only while the
+//     reader is pinned within ~80px of the bottom — never yanks them back
+//     while they re-read history; a glass scroll-to-bottom pill floats above
+//     the input bar when they've scrolled away.
+//   - Errors land in the transcript as a glass bubble with a Retry chip that
+//     re-sends the last user message.
 //
-// Everything leans on the Sovereign glass system (GlassSurface / GlassCard) and
-// SovereignColors so it stays on-brand: navy + gold, never sky-blue.
+// Everything leans on the Sovereign glass system (GlassSurface / GlassCard)
+// and SovereignColors so it stays on-brand: navy + gold, never sky-blue.
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -27,6 +28,19 @@ import '../../../core/glass/glass.dart';
 import '../../../core/theme/sovereign_colors.dart';
 import '../application/chat_controller.dart';
 import '../data/chat_models.dart';
+import 'martin_message_bubble.dart';
+
+/// The smart-autoscroll guard: the transcript only follows the stream while
+/// the reader sits within [threshold] px of the bottom. Pure so it can be
+/// unit-tested. An unscrollable transcript counts as pinned.
+bool isPinnedToBottom({
+  required double pixels,
+  required double maxScrollExtent,
+  double threshold = 80,
+}) {
+  if (maxScrollExtent <= 0) return true;
+  return (maxScrollExtent - pixels) <= threshold;
+}
 
 /// Full-screen streaming chat with the member-scoped Martin agent.
 ///
@@ -49,6 +63,17 @@ class MartinChatScreen extends ConsumerStatefulWidget {
 class _MartinChatScreenState extends ConsumerState<MartinChatScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
+
+  /// True while the reader sits near the bottom — the only state in which the
+  /// transcript auto-follows the stream.
+  bool _pinnedToBottom = true;
+
+  // What the autoscroll listener saw last — lets it detect growth even though
+  // the in-flight draft message is mutated in place by the controller.
+  int _seenCount = 0;
+  int _seenLastLen = 0;
+
+  double _lastBottomInset = 0;
 
   @override
   void initState() {
@@ -82,22 +107,84 @@ class _MartinChatScreenState extends ConsumerState<MartinChatScreen> {
         .send(text, overrideTwgId: widget.twgId);
   }
 
-  // Keep the newest turn in view as the transcript grows / tokens stream in.
-  void _scrollToEnd() {
+  void _retry() => ref.read(chatControllerProvider.notifier).retry();
+
+  /// Instant follow while tokens stream — jumpTo (not animateTo) so animation
+  /// queues never fight each other across token publishes.
+  void _jumpToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      _scroll.jumpTo(_scroll.position.maxScrollExtent);
+    });
+  }
+
+  /// A single smooth scroll for deliberate moments (own send / pill tap).
+  void _animateToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scroll.hasClients) return;
       _scroll.animateTo(
         _scroll.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 220),
+        duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
       );
     });
   }
 
+  /// Reacts to transcript growth (new turns / streaming draft text):
+  /// the member's own send always scrolls + re-pins; token growth only
+  /// follows while pinned.
+  void _onChatChanged(ChatState? prev, ChatState next) {
+    final count = next.messages.length;
+    final lastLen = count > 0 ? next.messages.last.text.length : 0;
+    final newTurn = count > _seenCount;
+    final grew = count != _seenCount || lastLen != _seenLastLen;
+    _seenCount = count;
+    _seenLastLen = lastLen;
+    if (!grew) return;
+
+    if (newTurn && next.streaming) {
+      // The member just sent (user turn + draft appended): re-pin + animate.
+      if (!_pinnedToBottom) setState(() => _pinnedToBottom = true);
+      _animateToBottom();
+    } else if (_pinnedToBottom) {
+      _jumpToBottom();
+    }
+  }
+
+  /// Tracks whether the reader is pinned near the bottom. Only user gestures
+  /// can unpin (drag updates / an upward fling); reaching the bottom — by any
+  /// means — re-pins.
+  bool _handleScroll(ScrollNotification notification) {
+    final m = notification.metrics;
+    bool? next;
+    if (isPinnedToBottom(pixels: m.pixels, maxScrollExtent: m.maxScrollExtent)) {
+      next = true;
+    } else if (notification is UserScrollNotification &&
+        notification.direction == ScrollDirection.forward) {
+      next = false;
+    } else if (notification is ScrollUpdateNotification &&
+        notification.dragDetails != null) {
+      next = false;
+    }
+    if (next != null && next != _pinnedToBottom) {
+      setState(() => _pinnedToBottom = next!);
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen<ChatState>(chatControllerProvider, _onChatChanged);
     final state = ref.watch(chatControllerProvider);
-    _scrollToEnd();
+
+    // Keyboard opening while pinned: keep the last turn visible.
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    if (bottomInset != _lastBottomInset) {
+      _lastBottomInset = bottomInset;
+      if (_pinnedToBottom) _jumpToBottom();
+    }
+
+    final showEmptyState = state.messages.isEmpty && state.error == null;
 
     return Scaffold(
       backgroundColor: SovereignColors.navyDeep,
@@ -111,18 +198,44 @@ class _MartinChatScreenState extends ConsumerState<MartinChatScreen> {
               children: [
                 const _ChatHeader(),
                 Expanded(
-                  child: state.messages.isEmpty
-                      ? const _EmptyState()
-                      : _Transcript(
-                          scroll: _scroll,
-                          messages: state.messages,
-                          streaming: state.streaming,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: showEmptyState
+                            ? const _EmptyState()
+                            : NotificationListener<ScrollNotification>(
+                                onNotification: _handleScroll,
+                                child: _Transcript(
+                                  scroll: _scroll,
+                                  messages: state.messages,
+                                  streaming: state.streaming,
+                                  error: state.error,
+                                  onRetry: _retry,
+                                ),
+                              ),
+                      ),
+                      // Scroll-to-bottom pill, 12px above the input bar.
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 12,
+                        child: Center(
+                          child: _ScrollToBottomPill(
+                            visible: !_pinnedToBottom,
+                            onTap: () {
+                              setState(() => _pinnedToBottom = true);
+                              _animateToBottom();
+                            },
+                          ),
                         ),
+                      ),
+                    ],
+                  ),
                 ),
-                if (state.error != null) _ErrorBanner(message: state.error!),
                 _InputBar(
                   controller: _input,
                   enabled: !state.streaming,
+                  keyboardOpen: bottomInset > 0,
                   onSend: _send,
                 ),
               ],
@@ -222,7 +335,7 @@ class _EmptyState extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Transcript — the scrolling list of turns.
+// Transcript — the scrolling list of turns (+ the inline error bubble).
 // ---------------------------------------------------------------------------
 
 class _Transcript extends StatelessWidget {
@@ -230,47 +343,74 @@ class _Transcript extends StatelessWidget {
     required this.scroll,
     required this.messages,
     required this.streaming,
+    required this.error,
+    required this.onRetry,
   });
 
   final ScrollController scroll;
   final List<ChatMessage> messages;
   final bool streaming;
+  final String? error;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      controller: scroll,
-      padding: const EdgeInsets.fromLTRB(18, 6, 18, 12),
-      itemCount: messages.length,
-      itemBuilder: (context, i) {
-        final msg = messages[i];
-        // The in-flight Martin draft is the last entry while streaming.
-        final isStreamingDraft =
-            streaming && i == messages.length - 1 && msg.role == ChatRole.martin;
-        return _MessageBubble(message: msg, streaming: isStreamingDraft);
-      },
-    );
+    // Bubble widths come from layout constraints, not MediaQuery.
+    return LayoutBuilder(builder: (context, constraints) {
+      final available = constraints.maxWidth - 36; // transcript H padding
+      final itemCount = messages.length + (error != null ? 1 : 0);
+      return ListView.builder(
+        controller: scroll,
+        padding: const EdgeInsets.fromLTRB(18, 6, 18, 12),
+        itemCount: itemCount,
+        itemBuilder: (context, i) {
+          // The error bubble trails the transcript at the failure site.
+          if (i == messages.length) {
+            return _ErrorBubble(
+              key: const ValueKey('chat-error'),
+              message: error!,
+              maxWidth: available * 0.86,
+              onRetry: onRetry,
+            );
+          }
+          final msg = messages[i];
+          // The in-flight Martin draft is the last entry while streaming.
+          final isStreamingDraft = streaming &&
+              i == messages.length - 1 &&
+              msg.role == ChatRole.martin;
+          return RepaintBoundary(
+            key: ValueKey('chat-msg-$i'),
+            child: _MessageRow(
+              message: msg,
+              streaming: isStreamingDraft,
+              // Assistant prose deserves more line length, like claude.ai.
+              maxWidth: available * (msg.role == ChatRole.user ? 0.78 : 0.86),
+            ),
+          );
+        },
+      );
+    });
   }
 }
 
-class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message, required this.streaming});
+class _MessageRow extends StatelessWidget {
+  const _MessageRow({
+    required this.message,
+    required this.streaming,
+    required this.maxWidth,
+  });
 
   final ChatMessage message;
   final bool streaming;
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
     final isUser = message.role == ChatRole.user;
-    final hasText = message.text.trim().isNotEmpty;
 
     final bubble = isUser
         ? _GoldBubble(text: message.text)
-        : _GlassBubble(
-            message: message,
-            streaming: streaming,
-            hasText: hasText,
-          );
+        : MartinMessageBubble(message: message, streaming: streaming);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -280,9 +420,7 @@ class _MessageBubble extends StatelessWidget {
         children: [
           Flexible(
             child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.78,
-              ),
+              constraints: BoxConstraints(maxWidth: maxWidth),
               child: bubble,
             ),
           ),
@@ -292,7 +430,8 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-/// The member's own turn — a solid gold bubble with navy text.
+/// The member's own turn — a solid gold bubble with navy text (plain text;
+/// markdown is an assistant affordance).
 class _GoldBubble extends StatelessWidget {
   const _GoldBubble({required this.text});
 
@@ -333,172 +472,133 @@ class _GoldBubble extends StatelessWidget {
   }
 }
 
-/// Martin's turn — a glass bubble. While streaming, shows the tool-activity
-/// chip and a typing indicator until content arrives.
-class _GlassBubble extends StatelessWidget {
-  const _GlassBubble({
+// ---------------------------------------------------------------------------
+// Error bubble — failure at the failure site, with a Retry chip beneath.
+// ---------------------------------------------------------------------------
+
+class _ErrorBubble extends StatelessWidget {
+  const _ErrorBubble({
+    super.key,
     required this.message,
-    required this.streaming,
-    required this.hasText,
+    required this.maxWidth,
+    required this.onRetry,
   });
 
-  final ChatMessage message;
-  final bool streaming;
-  final bool hasText;
+  final String message;
+  final double maxWidth;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final activity = message.toolActivity;
-    return GlassSurface(
-      borderRadius: 18,
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
         children: [
-          // Gold `✦ …` tool-activity chip while Martin works.
-          if (streaming && activity != null && activity.isNotEmpty) ...[
-            _ToolChip(label: activity),
-            if (hasText) const SizedBox(height: 8),
-          ],
-          if (hasText)
-            Text(
-              message.text,
-              style: TextStyle(
-                color: SovereignColors.ivory.withValues(alpha: 0.92),
-                fontSize: 15,
-                height: 1.42,
+          Flexible(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GlassSurface(
+                    borderRadius: 18,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 15, vertical: 12),
+                    ringColor: SovereignColors.danger,
+                    ringOpacity: 0.55,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline_rounded,
+                            size: 16, color: SovereignColors.gold),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            message,
+                            style: TextStyle(
+                              color:
+                                  SovereignColors.ivory.withValues(alpha: 0.9),
+                              fontSize: 13.5,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    key: const Key('martin-chat-retry'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onRetry,
+                    child: GlassSurface.inner(
+                      borderRadius: 12,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 7),
+                      ringColor: SovereignColors.gold,
+                      ringOpacity: 0.5,
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Retry',
+                            style: TextStyle(
+                              color: SovereignColors.gold,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          SizedBox(width: 6),
+                          Icon(Icons.refresh_rounded,
+                              size: 14, color: SovereignColors.gold),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            )
-          else if (streaming)
-            // No content yet — show a typing indicator (unless a chip is up
-            // already conveying activity).
-            if (activity == null || activity.isEmpty) const _TypingIndicator(),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-/// The gold `✦ get_schedule…` chip shown while Martin uses a tool.
-class _ToolChip extends StatelessWidget {
-  const _ToolChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassSurface.inner(
-      borderRadius: 12,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      ringColor: SovereignColors.gold,
-      ringOpacity: 0.5,
-      tintColors: [
-        SovereignColors.gold.withValues(alpha: 0.20),
-        SovereignColors.gold.withValues(alpha: 0.10),
-      ],
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: SovereignColors.gold,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.2,
-        ),
-      ),
-    );
-  }
-}
-
-/// A small three-dot animated typing indicator (gold dots).
-class _TypingIndicator extends StatefulWidget {
-  const _TypingIndicator();
-
-  @override
-  State<_TypingIndicator> createState() => _TypingIndicatorState();
-}
-
-class _TypingIndicatorState extends State<_TypingIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))
-        ..repeat();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 10,
-      child: AnimatedBuilder(
-        animation: _c,
-        builder: (context, _) {
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: List.generate(3, (i) {
-              // Stagger each dot's pulse across the cycle.
-              final phase = (_c.value + i * 0.22) % 1.0;
-              final t = (0.5 - (phase - 0.5).abs()) * 2; // 0→1→0 triangle
-              return Padding(
-                padding: const EdgeInsets.only(right: 5),
-                child: Opacity(
-                  opacity: 0.35 + 0.55 * t,
-                  child: Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                      color: SovereignColors.gold,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              );
-            }),
-          );
-        },
-      ),
-    );
-  }
-}
-
 // ---------------------------------------------------------------------------
-// Error banner — a quiet glass strip above the input bar.
+// Scroll-to-bottom pill — floats above the input bar while unpinned.
 // ---------------------------------------------------------------------------
 
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
+class _ScrollToBottomPill extends StatelessWidget {
+  const _ScrollToBottomPill({required this.visible, required this.onTap});
 
-  final String message;
+  final bool visible;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
-      child: GlassSurface(
-        borderRadius: 14,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        ringColor: SovereignColors.danger,
-        ringOpacity: 0.55,
-        child: Row(
-          children: [
-            const Icon(Icons.error_outline_rounded,
-                size: 16, color: SovereignColors.gold),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: TextStyle(
-                  color: SovereignColors.ivory.withValues(alpha: 0.9),
-                  fontSize: 13,
-                  height: 1.35,
-                ),
-              ),
+    return AnimatedOpacity(
+      opacity: visible ? 1 : 0,
+      duration: const Duration(milliseconds: 150),
+      child: IgnorePointer(
+        ignoring: !visible,
+        child: GestureDetector(
+          key: const Key('martin-scroll-to-bottom'),
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: GlassSurface.inner(
+            borderRadius: 19,
+            width: 38,
+            height: 38,
+            ringColor: SovereignColors.gold,
+            ringOpacity: 0.5,
+            child: const Icon(
+              Icons.arrow_downward_rounded,
+              size: 18,
+              color: SovereignColors.gold,
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -513,17 +613,20 @@ class _InputBar extends StatelessWidget {
   const _InputBar({
     required this.controller,
     required this.enabled,
+    required this.keyboardOpen,
     required this.onSend,
   });
 
   final TextEditingController controller;
   final bool enabled;
+  final bool keyboardOpen;
   final VoidCallback onSend;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 4, 18, 14),
+      // Bottom padding collapses while the keyboard is up.
+      padding: EdgeInsets.fromLTRB(18, 4, 18, keyboardOpen ? 6 : 14),
       child: GlassSurface(
         borderRadius: 18,
         padding: const EdgeInsets.fromLTRB(18, 8, 10, 8),
@@ -536,6 +639,7 @@ class _InputBar extends StatelessWidget {
                 key: const Key('martin-chat-input'),
                 controller: controller,
                 enabled: enabled,
+                keyboardType: TextInputType.multiline,
                 minLines: 1,
                 maxLines: 4,
                 textInputAction: TextInputAction.send,
@@ -548,7 +652,7 @@ class _InputBar extends StatelessWidget {
                 decoration: InputDecoration(
                   isDense: true,
                   border: InputBorder.none,
-                  hintText: enabled ? 'Ask Martin…' : 'Martin is thinking…',
+                  hintText: 'Ask Martin…',
                   hintStyle: TextStyle(
                     color: SovereignColors.ivory.withValues(alpha: 0.55),
                     fontSize: 14.5,

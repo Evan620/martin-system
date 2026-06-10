@@ -7,6 +7,10 @@ import '../theme/sovereign_spacing.dart';
 Future<T?> showSovereignSheet<T>(BuildContext context, {required Widget child}) {
   return showModalBottomSheet<T>(
     context: context,
+    // Root navigator: branch navigators render UNDER the shell's floating nav
+    // bar, so a sheet opened there is covered by the nav (hiding its actions).
+    // The root overlay sits above the whole shell.
+    useRootNavigator: true,
     backgroundColor: SovereignColors.navyRaised,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(

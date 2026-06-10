@@ -106,6 +106,40 @@ void main() {
     expect(find.text('Shared with you'), findsWidgets); // DocumentsScreen subtitle
   });
 
+  testWidgets(
+      'bottom sheets open ABOVE the floating nav (root navigator), not under it',
+      (tester) async {
+    final container = await buildContainer();
+    addTearDown(container.dispose);
+    final router = container.read(goRouterProvider);
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(routerConfig: router),
+    ));
+    await tester.pumpAndSettle();
+
+    // Go to Me → Reminders → open the add-reminder sheet.
+    await tester.tap(find.byKey(const Key('nav-4')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reminders').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add reminder'));
+    await tester.pumpAndSettle();
+    expect(find.text('New reminder'), findsOneWidget); // sheet is open
+
+    // The sheet (root-navigator overlay) must cover the floating nav: tapping
+    // where the Home pill sits should hit the sheet/barrier, NOT navigate.
+    // Before the fix the sheet lived in the BRANCH navigator's overlay, which
+    // renders under the shell's nav bar — so this tap switched branches.
+    await tester.tap(find.byKey(const Key('nav-2')), warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    // Still on Me with the sheet open — the nav never received the tap.
+    expect(find.text('Sign out'), findsOneWidget);
+    expect(find.text('New reminder'), findsOneWidget);
+  });
+
   testWidgets('tapping the Martin FAB opens the streaming Martin chat screen',
       (tester) async {
     final container = await buildContainer();

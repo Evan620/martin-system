@@ -750,9 +750,11 @@ class _FactChip extends StatelessWidget {
   }
 }
 
-/// An outer tab section frame — an optional [SectionHeader] above a
-/// [GlassCard] that holds one [_InnerPanel] per logical item, stacked with
-/// ~10px gaps. This is the "frame-inside-frame" shell for tab content.
+/// An outer tab section frame — an optional [SectionHeader] above a raised
+/// card (navyRaised + hairline border) that holds one [_InnerPanel] per
+/// logical item, stacked with ~8px gaps. The card-inside-card shell for tab
+/// content: this lighter raised frame pops from the navy backdrop while its
+/// inner panels recess into it.
 class _OuterSection extends StatelessWidget {
   const _OuterSection({this.label, required this.children});
 
@@ -765,8 +767,15 @@ class _OuterSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (label != null) SectionHeader(title: label!),
-        GlassCard(
+        Container(
+          width: double.infinity,
           padding: const EdgeInsets.all(Insets.md),
+          decoration: BoxDecoration(
+            color: SovereignColors.navyRaised,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: SovereignColors.ivory.withValues(alpha: 0.08)),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -783,6 +792,8 @@ class _OuterSection extends StatelessWidget {
 }
 
 /// A single recessed inner panel — one logical item inside an [_OuterSection].
+/// Deeper navy + its own hairline border so it clearly reads as a card nested
+/// inside the lighter outer frame.
 class _InnerPanel extends StatelessWidget {
   const _InnerPanel({required this.child});
 
@@ -790,10 +801,15 @@ class _InnerPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassSurface.inner(
-      borderRadius: 14,
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(Insets.md),
-      child: SizedBox(width: double.infinity, child: child),
+      decoration: BoxDecoration(
+        color: SovereignColors.navyDeep,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: SovereignColors.ivory.withValues(alpha: 0.06)),
+      ),
+      child: child,
     );
   }
 }

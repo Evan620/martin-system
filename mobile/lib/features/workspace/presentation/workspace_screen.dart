@@ -286,11 +286,12 @@ class _DocRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(content: Text('Open it from the Documents tab.')));
-      },
+      // Workspace is a pushed route under the Home branch, so a cross-branch
+      // push to the Documents shell's PDF viewer is unsafe. Open the document
+      // through Martin instead.
+      onTap: () => context.push(
+        '/martin?q=${Uri.encodeQueryComponent('Open the document ${document.name}')}',
+      ),
       child: GlassSurface.inner(
         borderRadius: 12,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),

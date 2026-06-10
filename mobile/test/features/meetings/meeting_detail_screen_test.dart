@@ -66,4 +66,38 @@ void main() {
     expect(find.text('60 min'), findsOneWidget);
     expect(find.text('1 attending'), findsOneWidget);
   });
+
+  testWidgets(
+      'deep-linked detail persists RSVP via the repository when the list never loaded',
+      (tester) async {
+    registerFallbackValue(MeetingRsvp.going);
+    final repo = _MockRepo();
+    when(() => repo.meetingDetail('m1')).thenAnswer((_) async => Meeting.fromJson({
+          'id': 'm1', 'title': 'Steering Committee',
+          'scheduled_at': '2031-06-10T10:00:00Z', 'status': 'SCHEDULED',
+          'meeting_type': 'virtual',
+          'participants': [{'id': 'p', 'user_id': 'me', 'rsvp_status': 'PENDING'}],
+        }));
+    when(() => repo.meetingAgenda(any())).thenAnswer((_) async => null);
+    when(() => repo.meetingMinutes(any())).thenAnswer((_) async => null);
+    when(() => repo.setMyRsvp(any(), any())).thenAnswer((_) async {});
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        meetingsRepositoryProvider.overrideWithValue(repo),
+        authControllerProvider.overrideWith(_MeController.new),
+      ],
+      // No meetings list was ever loaded → meetingsController stays in its
+      // initial (non-MeetingsData) state, so RSVP must persist via the repo.
+      child: const MaterialApp(home: MeetingDetailScreen(meetingId: 'm1')),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('Going'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    verify(() => repo.setMyRsvp('m1', MeetingRsvp.going)).called(1);
+  });
 }

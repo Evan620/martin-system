@@ -209,7 +209,7 @@ class _ProfileHeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = user?.fullName ?? 'Member';
-    final twg = (user?.twgs.isNotEmpty ?? false) ? user!.twgs.first.name : null;
+    final twg = user?.twgs.headerLabel;
     final role = _roleLabel(user?.role ?? UserRole.twgMember);
     final subtitle = twg != null ? '$twg · $role' : role;
 

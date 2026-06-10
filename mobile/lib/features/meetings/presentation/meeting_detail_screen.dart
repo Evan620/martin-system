@@ -67,7 +67,12 @@ class _MeetingDetailScreenState extends ConsumerState<MeetingDetailScreen> {
   }
 
   void _reload() {
-    setState(() => _future = _load());
+    // Block body (not an arrow) so the setState callback returns void rather
+    // than the Future from _load() — Flutter asserts on a Future-returning
+    // setState callback.
+    setState(() {
+      _future = _load();
+    });
   }
 
   Future<void> _join(Meeting m) async {
@@ -78,9 +83,18 @@ class _MeetingDetailScreenState extends ConsumerState<MeetingDetailScreen> {
 
   Future<void> _setRsvp(Meeting m, MeetingRsvp rsvp, String userId) async {
     try {
-      await ref
-          .read(meetingsControllerProvider.notifier)
-          .setRsvp(m.id, rsvp, userId);
+      // When the meetings list has loaded, route through the controller so the
+      // list screen stays in sync. On a deep-linked detail (the list never
+      // loaded → state isn't MeetingsData), the controller's setRsvp no-ops, so
+      // persist directly via the repository instead — the RSVP still saves.
+      final listState = ref.read(meetingsControllerProvider);
+      if (listState is MeetingsData) {
+        await ref
+            .read(meetingsControllerProvider.notifier)
+            .setRsvp(m.id, rsvp, userId);
+      } else {
+        await ref.read(meetingsRepositoryProvider).setMyRsvp(m.id, rsvp);
+      }
       // Keep this screen in sync with the persisted state.
       _reload();
     } on MeetingException catch (e) {
@@ -764,12 +778,12 @@ class _DocumentRow extends StatelessWidget {
     final theme = Theme.of(context);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-              const SnackBar(content: Text('Opens in Documents')));
-      },
+      // This detail screen is a top-level pushed route (not the Documents shell
+      // branch), so a cross-branch push to /documents/:id/pdf is unsafe. Open
+      // the document through Martin instead — works from any screen.
+      onTap: () => context.push(
+        '/martin?q=${Uri.encodeQueryComponent('Open the document ${document.name}')}',
+      ),
       child: Row(
         children: [
           Icon(Icons.insert_drive_file_outlined,

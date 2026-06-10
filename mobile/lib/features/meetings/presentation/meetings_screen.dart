@@ -20,6 +20,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/glass/glass.dart';
 import '../../../core/theme/sovereign_colors.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../auth/data/auth_models.dart';
 import '../application/meetings_controller.dart';
 import '../data/meetings_models.dart';
 import '../data/meetings_repository.dart';
@@ -98,12 +99,14 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
   }
 }
 
-/// The member's first TWG name, used as the header eyebrow (falls back to a
-/// neutral label when unknown).
+/// The member's TWG label, used as the header eyebrow (one TWG → its name,
+/// several → a compact multi-TWG label; falls back to a neutral label when
+/// unknown).
 String _headerSubtitle(WidgetRef ref) {
   final auth = ref.watch(authControllerProvider);
-  if (auth is AuthAuthenticated && auth.user.twgs.isNotEmpty) {
-    return auth.user.twgs.first.name;
+  if (auth is AuthAuthenticated) {
+    final label = auth.user.twgs.headerLabel;
+    if (label != null) return label;
   }
   return 'Your sessions';
 }

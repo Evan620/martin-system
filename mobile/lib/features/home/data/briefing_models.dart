@@ -11,12 +11,23 @@ class BriefingMeeting {
     required this.twgName,
     required this.startsAt,
     required this.minutesUntil,
+    this.videoLink,
+    this.meetingId,
   });
 
   final String title;
   final String? twgName;
   final DateTime? startsAt; // local time
   final int? minutesUntil;
+
+  /// The meeting's video/conference URL, when the briefing carries one
+  /// (`video_link`). Null until the WF-A prod deploy populates it; the Home
+  /// Join pill is hidden while null.
+  final String? videoLink;
+
+  /// The backend meeting id (`meeting_id`), when present — lets the Home
+  /// briefing deep-link into the meeting if needed.
+  final String? meetingId;
 
   factory BriefingMeeting.fromJson(Map<String, dynamic> j) => BriefingMeeting(
         title: (j['title'] ?? '').toString(),
@@ -25,6 +36,12 @@ class BriefingMeeting {
             ? DateTime.tryParse(j['starts_at'].toString())?.toLocal()
             : null,
         minutesUntil: j['minutes_until'] as int?,
+        videoLink: (j['video_link']?.toString().isNotEmpty ?? false)
+            ? j['video_link'].toString()
+            : null,
+        meetingId: (j['meeting_id']?.toString().isNotEmpty ?? false)
+            ? j['meeting_id'].toString()
+            : null,
       );
 }
 

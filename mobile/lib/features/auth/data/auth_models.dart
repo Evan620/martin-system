@@ -28,6 +28,21 @@ class Twg {
       Twg(id: j['id'].toString(), name: j['name'] as String);
 }
 
+extension TwgListLabel on List<Twg> {
+  /// A header label for the member's TWG membership, used as the gold eyebrow
+  /// across Meetings / Documents / Me:
+  ///   - empty  → null (caller supplies its own neutral fallback)
+  ///   - 1 TWG  → that TWG's name
+  ///   - 2 TWGs → "A · B"
+  ///   - 3+     → "A · B +N more" (kept bounded so the eyebrow stays one line)
+  String? get headerLabel {
+    if (isEmpty) return null;
+    if (length == 1) return first.name;
+    if (length == 2) return '${first.name} · ${this[1].name}';
+    return '${first.name} · ${this[1].name} +${length - 2} more';
+  }
+}
+
 class AppUser {
   const AppUser({
     required this.id,

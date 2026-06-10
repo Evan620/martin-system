@@ -102,6 +102,54 @@ void main() {
 
     expect(find.text('seed=Brief me'), findsOneWidget);
   });
+
+  testWidgets('Join pill is hidden when the briefing has no video link',
+      (tester) async {
+    final repo = _MockRepo();
+    when(() => repo.getBriefing()).thenAnswer((_) async => _briefing());
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        homeRepositoryProvider.overrideWithValue(repo),
+        authControllerProvider.overrideWith(_AuthedController.new),
+      ],
+      child: const MaterialApp(home: HomeScreen()),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // No video_link in the briefing → no Join pill on Home.
+    expect(find.text('Join'), findsNothing);
+  });
+
+  testWidgets('Join pill shows when the briefing carries a video link',
+      (tester) async {
+    final repo = _MockRepo();
+    when(() => repo.getBriefing()).thenAnswer((_) async => Briefing.fromJson({
+          'greeting': 'Good morning',
+          'upcoming_meetings': [
+            {
+              'title': 'TWG Energy Sync',
+              'minutes_until': 30,
+              'video_link': 'https://meet.example.org/abc',
+              'meeting_id': 'm-42',
+            },
+          ],
+          'overdue_items': const [],
+        }));
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        homeRepositoryProvider.overrideWithValue(repo),
+        authControllerProvider.overrideWith(_AuthedController.new),
+      ],
+      child: const MaterialApp(home: HomeScreen()),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Join'), findsOneWidget);
+  });
 }
 
 /// A tiny stand-in for the chat screen that just echoes the seed it received,

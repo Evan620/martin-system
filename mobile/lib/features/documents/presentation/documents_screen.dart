@@ -23,6 +23,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../../core/glass/glass.dart';
 import '../../../core/theme/sovereign_colors.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../auth/data/auth_models.dart';
 import '../application/documents_controller.dart';
 import '../data/documents_models.dart';
 import '../data/documents_repository.dart';
@@ -52,13 +53,11 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
     });
   }
 
-  /// ✦ Summarise — stubbed until Martin (#4); shows a hint, no backend call.
-  void _summariseStub() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(
-        content: Text('Martin summaries are coming with the assistant.'),
-      ));
+  /// ✦ Summarise — opens the Martin chat seeded with a summarise prompt for
+  /// this document (the canonical `/martin?q=<seed>` route auto-sends the seed).
+  void _summarise(Document d) {
+    final seed = 'Summarise the document: ${d.name}';
+    context.push('/martin?q=${Uri.encodeQueryComponent(seed)}');
   }
 
   /// Open a document: PDFs render in-app; other types download to a temp file
@@ -110,7 +109,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
               onQueryChanged: (v) => setState(() => _query = v),
               onKindChanged: (k) => setState(() => _kind = k),
               onOpen: _open,
-              onSummarise: _summariseStub,
+              onSummarise: _summarise,
             ),
         },
       ),
@@ -118,12 +117,14 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
   }
 }
 
-/// The member's first TWG name, used as the header eyebrow (falls back to a
-/// neutral label when unknown).
+/// The member's TWG label, used as the header eyebrow (one TWG → its name,
+/// several → a compact multi-TWG label; falls back to a neutral label when
+/// unknown).
 String _headerSubtitle(WidgetRef ref) {
   final auth = ref.watch(authControllerProvider);
-  if (auth is AuthAuthenticated && auth.user.twgs.isNotEmpty) {
-    return auth.user.twgs.first.name;
+  if (auth is AuthAuthenticated) {
+    final label = auth.user.twgs.headerLabel;
+    if (label != null) return label;
   }
   return 'Shared with you';
 }
@@ -149,7 +150,7 @@ class _DataView extends StatelessWidget {
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<DocKind?> onKindChanged;
   final ValueChanged<Document> onOpen;
-  final VoidCallback onSummarise;
+  final ValueChanged<Document> onSummarise;
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +211,7 @@ class _DataView extends StatelessWidget {
               _DocumentCard(
                 doc: doc,
                 onTap: () => onOpen(doc),
-                onSummarise: onSummarise,
+                onSummarise: () => onSummarise(doc),
               ),
               const SizedBox(height: 12),
             ],

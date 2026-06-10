@@ -31,4 +31,30 @@ void main() {
     });
     expect(u.role, UserRole.unknown);
   });
+
+  group('TwgListLabel.headerLabel', () {
+    test('empty → null', () {
+      expect(const <Twg>[].headerLabel, isNull);
+    });
+    test('single → its name', () {
+      expect(const [Twg(id: '1', name: 'Energy')].headerLabel, 'Energy');
+    });
+    test('two → joined with separator', () {
+      expect(
+        const [Twg(id: '1', name: 'Energy'), Twg(id: '2', name: 'Water')]
+            .headerLabel,
+        'Energy · Water',
+      );
+    });
+    test('three+ → first two plus a +N more suffix', () {
+      expect(
+        const [
+          Twg(id: '1', name: 'Energy'),
+          Twg(id: '2', name: 'Water'),
+          Twg(id: '3', name: 'Mining'),
+        ].headerLabel,
+        'Energy · Water +1 more',
+      );
+    });
+  });
 }

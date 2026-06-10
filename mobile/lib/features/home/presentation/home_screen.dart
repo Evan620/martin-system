@@ -24,6 +24,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/glass/glass.dart';
 import '../../../core/theme/sovereign_colors.dart';
@@ -356,11 +357,14 @@ class _MartinBriefingCard extends StatelessWidget {
             ],
           ),
 
-          if (next != null) ...[
+          // Join pill — only when the briefing carries a video link for the
+          // next meeting (null until prod deploy → pill hidden). Launches the
+          // link via url_launcher.
+          if (next?.videoLink != null) ...[
             const SizedBox(height: 14),
             Align(
               alignment: Alignment.centerLeft,
-              child: _JoinPill(meeting: next),
+              child: _JoinPill(videoLink: next!.videoLink!),
             ),
           ],
         ],
@@ -385,42 +389,53 @@ String _relativeTime(BriefingMeeting m) {
   return days == 1 ? 'tomorrow' : 'in $days days';
 }
 
-/// The gold "Join" call-to-action pill for the next meeting.
+/// The gold "Join" call-to-action pill for the next meeting. Launches the
+/// meeting's [videoLink] externally when tapped.
 class _JoinPill extends StatelessWidget {
-  const _JoinPill({required this.meeting});
+  const _JoinPill({required this.videoLink});
 
-  final BriefingMeeting meeting;
+  final String videoLink;
+
+  Future<void> _launch() async {
+    final uri = Uri.tryParse(videoLink);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: SovereignColors.gold,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: SovereignColors.gold.withValues(alpha: 0.28),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.videocam, size: 14, color: SovereignColors.navy),
-            SizedBox(width: 6),
-            Text(
-              'Join',
-              style: TextStyle(
-                color: SovereignColors.navy,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _launch,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: SovereignColors.gold,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: SovereignColors.gold.withValues(alpha: 0.28),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
             ),
           ],
+        ),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.videocam, size: 14, color: SovereignColors.navy),
+              SizedBox(width: 6),
+              Text(
+                'Join',
+                style: TextStyle(
+                  color: SovereignColors.navy,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

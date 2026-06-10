@@ -457,10 +457,10 @@ void main() {
       final container = _replayContainer(events);
 
       await container
-          .read(chatControllerProvider.notifier)
+          .read(chatControllerProvider(null).notifier)
           .send('Introduce yourself in one short sentence.');
 
-      final state = container.read(chatControllerProvider);
+      final state = container.read(chatControllerProvider(null));
       expect(state.streaming, isFalse);
       expect(state.error, isNull);
       expect(state.conversationId, '11825707-79c5-4572-8a44-2ab9d6df09a9');
@@ -487,10 +487,10 @@ void main() {
 
       final container = _replayContainer(events);
       await container
-          .read(chatControllerProvider.notifier)
+          .read(chatControllerProvider(null).notifier)
           .send('What is my next meeting?');
 
-      final state = container.read(chatControllerProvider);
+      final state = container.read(chatControllerProvider(null));
       expect(state.streaming, isFalse);
       // Never silence: the user sees a graceful error, not a blank bubble.
       expect(state.error, isNotNull);

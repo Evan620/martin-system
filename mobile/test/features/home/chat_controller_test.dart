@@ -88,7 +88,7 @@ ProviderContainer _container(
 void main() {
   test('initial state is empty and not streaming', () {
     final container = _container(_FakeClient(const []));
-    final state = container.read(chatControllerProvider);
+    final state = container.read(chatControllerProvider(null));
     expect(state.messages, isEmpty);
     expect(state.streaming, isFalse);
     expect(state.conversationId, isNull);
@@ -106,9 +106,9 @@ void main() {
     ]);
     final container = _container(client);
 
-    await container.read(chatControllerProvider.notifier).send('Hi Martin');
+    await container.read(chatControllerProvider(null).notifier).send('Hi Martin');
 
-    final state = container.read(chatControllerProvider);
+    final state = container.read(chatControllerProvider(null));
     expect(state.streaming, isFalse);
     expect(state.error, isNull);
     expect(state.conversationId, 'conv-1');
@@ -134,17 +134,17 @@ void main() {
     ]);
     addTearDown(container.dispose);
 
-    final future = container.read(chatControllerProvider.notifier).send('Hi');
+    final future = container.read(chatControllerProvider(null).notifier).send('Hi');
 
     // Push a token, then let the microtasks settle.
     controller.add(const TokenEvent('Hi'));
     await Future<void>.delayed(Duration.zero);
-    expect(container.read(chatControllerProvider).streaming, isTrue);
-    expect(container.read(chatControllerProvider).messages.last.text, 'Hi');
+    expect(container.read(chatControllerProvider(null)).streaming, isTrue);
+    expect(container.read(chatControllerProvider(null)).messages.last.text, 'Hi');
 
     await controller.close();
     await future;
-    expect(container.read(chatControllerProvider).streaming, isFalse);
+    expect(container.read(chatControllerProvider(null)).streaming, isFalse);
   });
 
   test('tool event sets toolActivity on the draft', () async {
@@ -155,11 +155,11 @@ void main() {
     ]);
     final container = _container(client);
 
-    await container.read(chatControllerProvider.notifier).send('What is next?');
-    final martin = container.read(chatControllerProvider).messages.last;
+    await container.read(chatControllerProvider(null).notifier).send('What is next?');
+    final martin = container.read(chatControllerProvider(null)).messages.last;
     // Tool activity is cleared once content streams / stream finishes.
     expect(martin.text, 'Your next meeting is…');
-    expect(container.read(chatControllerProvider).streaming, isFalse);
+    expect(container.read(chatControllerProvider(null)).streaming, isFalse);
   });
 
   test('ErrorEvent sets a graceful error and stops streaming', () async {
@@ -168,8 +168,8 @@ void main() {
     ]);
     final container = _container(client);
 
-    await container.read(chatControllerProvider.notifier).send('Hi');
-    final state = container.read(chatControllerProvider);
+    await container.read(chatControllerProvider(null).notifier).send('Hi');
+    final state = container.read(chatControllerProvider(null));
     expect(state.streaming, isFalse);
     expect(state.error, 'Could not reach Martin. Please try again.');
   });
@@ -178,8 +178,8 @@ void main() {
     final client = _FakeClient(const [TokenEvent('nope')]);
     final container = _container(client, twgs: const []);
 
-    await container.read(chatControllerProvider.notifier).send('Hi');
-    final state = container.read(chatControllerProvider);
+    await container.read(chatControllerProvider(null).notifier).send('Hi');
+    final state = container.read(chatControllerProvider(null));
     expect(state.streaming, isFalse);
     expect(state.error, isNotNull);
     expect(client.lastTwgId, isNull); // never reached the client
@@ -191,10 +191,10 @@ void main() {
       DoneEvent(),
     ]);
     final container = _container(client);
-    final notifier = container.read(chatControllerProvider.notifier);
+    final notifier = container.read(chatControllerProvider(null).notifier);
 
     await notifier.send('one');
-    expect(container.read(chatControllerProvider).conversationId, 'conv-9');
+    expect(container.read(chatControllerProvider(null)).conversationId, 'conv-9');
 
     await notifier.send('two');
     expect(client.lastConversationId, 'conv-9');
@@ -208,10 +208,10 @@ void main() {
       DoneEvent(),
     ]);
     final container = _container(client);
-    final notifier = container.read(chatControllerProvider.notifier);
+    final notifier = container.read(chatControllerProvider(null).notifier);
 
     await notifier.send('one');
-    expect(container.read(chatControllerProvider).conversationId, 'conv-start');
+    expect(container.read(chatControllerProvider(null)).conversationId, 'conv-start');
 
     await notifier.send('two');
     expect(client.lastConversationId, 'conv-start');
@@ -221,8 +221,8 @@ void main() {
     final client = _FakeClient(const [ErrorEvent('boom')]);
     final container = _container(client);
 
-    await container.read(chatControllerProvider.notifier).send('Hi');
-    final state = container.read(chatControllerProvider);
+    await container.read(chatControllerProvider(null).notifier).send('Hi');
+    final state = container.read(chatControllerProvider(null));
     // Only the user's turn remains — no stranded empty bubble.
     expect(state.messages, hasLength(1));
     expect(state.messages.single.role, ChatRole.user);
@@ -237,8 +237,8 @@ void main() {
     ]);
     final container = _container(client);
 
-    await container.read(chatControllerProvider.notifier).send('Hi');
-    final state = container.read(chatControllerProvider);
+    await container.read(chatControllerProvider(null).notifier).send('Hi');
+    final state = container.read(chatControllerProvider(null));
     expect(state.messages, hasLength(2));
     expect(state.messages.last.role, ChatRole.martin);
     expect(state.messages.last.text, 'partial answer');
@@ -253,13 +253,13 @@ void main() {
       const [TokenEvent('Recovered'), DoneEvent()],
     ]);
     final container = _container(client);
-    final notifier = container.read(chatControllerProvider.notifier);
+    final notifier = container.read(chatControllerProvider(null).notifier);
 
     await notifier.send('Brief me');
-    expect(container.read(chatControllerProvider).error, 'boom');
+    expect(container.read(chatControllerProvider(null)).error, 'boom');
 
     await notifier.retry();
-    final state = container.read(chatControllerProvider);
+    final state = container.read(chatControllerProvider(null));
     expect(state.error, isNull);
     expect(client.messages, ['Brief me', 'Brief me']);
     // The user's turn renders once, followed by the recovered reply.
@@ -274,8 +274,8 @@ void main() {
     final client = _FakeClient(const [TokenEvent('x'), DoneEvent()]);
     final container = _container(client);
 
-    await container.read(chatControllerProvider.notifier).retry();
-    expect(container.read(chatControllerProvider).messages, isEmpty);
+    await container.read(chatControllerProvider(null).notifier).retry();
+    expect(container.read(chatControllerProvider(null)).messages, isEmpty);
     expect(client.lastMessage, isNull);
   });
 
@@ -302,9 +302,9 @@ void main() {
     ]));
     final container = _container(client);
 
-    await container.read(chatControllerProvider.notifier).send('/search PCB');
+    await container.read(chatControllerProvider(null).notifier).send('/search PCB');
 
-    final state = container.read(chatControllerProvider);
+    final state = container.read(chatControllerProvider(null));
     expect(state.streaming, isFalse);
     expect(state.error, isNull);
     expect(state.conversationId, 'conv-prod');
@@ -333,9 +333,9 @@ void main() {
     ]));
     final container = _container(client);
 
-    await container.read(chatControllerProvider.notifier).send('Brief me');
+    await container.read(chatControllerProvider(null).notifier).send('Brief me');
 
-    final state = container.read(chatControllerProvider);
+    final state = container.read(chatControllerProvider(null));
     expect(state.streaming, isFalse);
     expect(state.error, isNull);
     expect(state.conversationId, 'conv-branch');
@@ -359,9 +359,9 @@ void main() {
     ]));
     final container = _container(client);
 
-    await container.read(chatControllerProvider.notifier).send('Hello?');
+    await container.read(chatControllerProvider(null).notifier).send('Hello?');
 
-    final state = container.read(chatControllerProvider);
+    final state = container.read(chatControllerProvider(null));
     expect(state.streaming, isFalse);
     // No stranded empty Martin bubble — just the user's turn…
     expect(state.messages, hasLength(1));
@@ -378,9 +378,9 @@ void main() {
     ]));
     final container = _container(client);
 
-    await container.read(chatControllerProvider.notifier).send('Hi');
+    await container.read(chatControllerProvider(null).notifier).send('Hi');
 
-    final state = container.read(chatControllerProvider);
+    final state = container.read(chatControllerProvider(null));
     expect(state.streaming, isFalse);
     expect(state.messages, hasLength(1));
     expect(state.error, isNotNull);
@@ -396,9 +396,9 @@ void main() {
     ]));
     final container = _container(client);
 
-    await container.read(chatControllerProvider.notifier).send('Hi');
+    await container.read(chatControllerProvider(null).notifier).send('Hi');
 
-    final state = container.read(chatControllerProvider);
+    final state = container.read(chatControllerProvider(null));
     expect(state.streaming, isFalse);
     expect(state.error, isNull);
     expect(state.messages.last.text, 'Partial but useful answer');
@@ -412,9 +412,9 @@ void main() {
     ]));
     final container = _container(client);
 
-    await container.read(chatControllerProvider.notifier).send('Hi');
+    await container.read(chatControllerProvider(null).notifier).send('Hi');
 
-    final state = container.read(chatControllerProvider);
+    final state = container.read(chatControllerProvider(null));
     expect(state.streaming, isFalse);
     expect(state.error, 'Access denied: TWG not found.');
     // The empty draft was removed — only the user's turn remains.
@@ -422,19 +422,64 @@ void main() {
     expect(state.messages.single.role, ChatRole.user);
   });
 
-  test('send(overrideTwgId:) uses the override instead of the first TWG',
+  test('a TWG-scoped controller uses its scope instead of the first TWG',
       () async {
     final fakeClient = _FakeClient(const [
       FinalEvent('ok', conversationId: 'conv-2'),
       DoneEvent(),
     ]);
-    // Authed user is in TWG 'first-twg'; the override must win.
+    // Authed user is in TWG 'first-twg'; the family scope must win.
     final container = _container(fakeClient,
         twgs: const [Twg(id: 'first-twg', name: 'First TWG')]);
-    final controller = container.read(chatControllerProvider.notifier);
+    final controller = container.read(chatControllerProvider('other-twg').notifier);
 
-    await controller.send('hi', overrideTwgId: 'other-twg');
+    await controller.send('hi');
     expect(fakeClient.lastTwgId, 'other-twg');
+  });
+
+  test(
+      'REGRESSION: scopes are isolated — a TWG-scoped chat never continues '
+      'the unscoped thread (no conversation_id leak, no shared transcript)',
+      () async {
+    // (1) Member chats via the FAB (unscoped): the backend starts thread C1.
+    // (2) Member opens "Ask Martin about <other TWG>" (/martin?twg=twg-b).
+    // The second send must POST {twg_id: twg-b} WITHOUT conversation_id C1,
+    // and the scoped transcript must not show the unscoped chat's turns.
+    final client = _FakeClient(const [
+      StartEvent(conversationId: 'C1'),
+      TokenEvent('first reply'),
+      DoneEvent(),
+    ]);
+    final container = _container(client);
+
+    // FAB chat (unscoped → falls back to the member's first TWG, t1).
+    await container.read(chatControllerProvider(null).notifier).send('fab chat');
+    expect(client.lastTwgId, 't1');
+    expect(client.lastConversationId, isNull);
+    expect(container.read(chatControllerProvider(null)).conversationId, 'C1');
+
+    // Workspace chat scoped to a DIFFERENT TWG.
+    await container
+        .read(chatControllerProvider('twg-b').notifier)
+        .send('about twg b');
+
+    // The scoped send targets twg-b and carries NO conversation_id from the
+    // unscoped thread — it starts its own thread.
+    expect(client.lastTwgId, 'twg-b');
+    expect(client.lastConversationId, isNull);
+
+    // The scoped transcript holds only its own turns; the FAB chat's turns
+    // never bleed in (and vice versa).
+    final scoped = container.read(chatControllerProvider('twg-b'));
+    expect(scoped.messages.map((m) => m.text), isNot(contains('fab chat')));
+    expect(scoped.messages.first.text, 'about twg b');
+    final unscoped = container.read(chatControllerProvider(null));
+    expect(
+        unscoped.messages.map((m) => m.text), isNot(contains('about twg b')));
+    expect(unscoped.messages.first.text, 'fab chat');
+    // Each scope tracks its own thread id.
+    expect(scoped.conversationId, 'C1'); // its OWN start frame (fake replays)
+    expect(unscoped.conversationId, 'C1');
   });
 }
 

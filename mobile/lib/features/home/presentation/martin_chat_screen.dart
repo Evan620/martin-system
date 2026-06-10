@@ -7,6 +7,12 @@
 // auto-sent once on first build, and `?twg=` scopes the chat to a TWG
 // (workspace entry).
 //
+// The screen watches `chatControllerProvider(widget.twgId)` — a family keyed
+// by the TWG scope — so each scope (each TWG, plus the unscoped FAB chat) has
+// its own transcript and conversationId. Opening "Ask Martin about TWG B"
+// after chatting in TWG A (or via the FAB) starts from that scope's own
+// thread, never the other one's.
+//
 // claude.ai-quality behaviors:
 //   - Martin's replies render as Sovereign-styled markdown (see
 //     martin_message_bubble.dart) with a pulsing gold caret while streaming.
@@ -64,6 +70,11 @@ class _MartinChatScreenState extends ConsumerState<MartinChatScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
 
+  /// The chat provider for THIS scope (the `?twg=` param; null = unscoped
+  /// FAB chat). Family-keyed so transcripts/threads never leak across scopes.
+  NotifierProvider<ChatController, ChatState> get _chat =>
+      chatControllerProvider(widget.twgId);
+
   /// True while the reader sits near the bottom — the only state in which the
   /// transcript auto-follows the stream.
   bool _pinnedToBottom = true;
@@ -84,9 +95,7 @@ class _MartinChatScreenState extends ConsumerState<MartinChatScreen> {
       // tree are ready and the post-send state lands on a built widget).
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        ref
-            .read(chatControllerProvider.notifier)
-            .send(seed, overrideTwgId: widget.twgId);
+        ref.read(_chat.notifier).send(seed);
       });
     }
   }
@@ -102,12 +111,10 @@ class _MartinChatScreenState extends ConsumerState<MartinChatScreen> {
     final text = _input.text.trim();
     if (text.isEmpty) return;
     _input.clear();
-    ref
-        .read(chatControllerProvider.notifier)
-        .send(text, overrideTwgId: widget.twgId);
+    ref.read(_chat.notifier).send(text);
   }
 
-  void _retry() => ref.read(chatControllerProvider.notifier).retry();
+  void _retry() => ref.read(_chat.notifier).retry();
 
   /// Instant follow while tokens stream — jumpTo (not animateTo) so animation
   /// queues never fight each other across token publishes.
@@ -174,8 +181,8 @@ class _MartinChatScreenState extends ConsumerState<MartinChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<ChatState>(chatControllerProvider, _onChatChanged);
-    final state = ref.watch(chatControllerProvider);
+    ref.listen<ChatState>(_chat, _onChatChanged);
+    final state = ref.watch(_chat);
 
     // Keyboard opening while pinned: keep the last turn visible.
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;

@@ -7,10 +7,15 @@
 // then streams tokens into that draft, reflects tool activity, finalizes on
 // `final_response`/`done`, and surfaces transport errors gracefully.
 //
-// The member agent must be scoped to the caller's TWG, so `twgId` is derived
-// from the authed user's first TWG (mirroring how other controllers read the
-// auth state). If the user has no TWG we fail gracefully without calling the
-// client.
+// The provider is a FAMILY keyed by the chat's TWG scope (`?twg=` on /martin;
+// null for the unscoped ✦ FAB entry), so each scope owns its own transcript
+// and conversationId — a workspace chat for TWG B can never continue (or
+// render) a server thread started under TWG A or under the unscoped chat.
+//
+// Within a scope the member agent must still be scoped to a TWG: the family
+// arg wins when present, otherwise `twgId` is derived from the authed user's
+// first TWG (mirroring how other controllers read the auth state). If neither
+// yields a TWG we fail gracefully without calling the client.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/auth_controller.dart';
@@ -62,21 +67,29 @@ class ChatState {
 }
 
 class ChatController extends Notifier<ChatState> {
+  ChatController(this.scopeTwgId);
+
+  /// The family argument: the TWG this chat is scoped to (`?twg=` on
+  /// /martin), or null for the unscoped ✦ FAB chat (falls back to the
+  /// member's first TWG).
+  final String? scopeTwgId;
+
   @override
   ChatState build() => const ChatState();
 
   MartinChatClient get _client => ref.read(martinChatClientProvider);
 
   // The most recent send, kept so an inline Retry can re-issue the same turn
-  // (with the same TWG scope) after a failure.
+  // after a failure (the TWG scope is fixed per controller instance).
   String? _lastMessage;
-  String? _lastOverrideTwgId;
 
   /// The last message the member attempted to send (null before any send).
   String? get lastUserMessage => _lastMessage;
 
-  /// The caller's TWG id (first TWG of the authed user), or null if none.
+  /// The TWG this chat talks to: the scope arg when present, otherwise the
+  /// authed user's first TWG, or null if neither exists.
   String? get _twgId {
+    if (scopeTwgId != null && scopeTwgId!.isNotEmpty) return scopeTwgId;
     final auth = ref.read(authControllerProvider);
     if (auth is AuthAuthenticated && auth.user.twgs.isNotEmpty) {
       return auth.user.twgs.first.id;
@@ -85,14 +98,13 @@ class ChatController extends Notifier<ChatState> {
   }
 
   /// Sends [text] to Martin and streams the reply into a new Martin message.
-  Future<void> send(String text, {String? overrideTwgId}) async {
+  Future<void> send(String text) async {
     final message = text.trim();
     if (message.isEmpty || state.streaming) return;
 
     _lastMessage = message;
-    _lastOverrideTwgId = overrideTwgId;
 
-    final twgId = overrideTwgId ?? _twgId;
+    final twgId = _twgId;
     if (twgId == null) {
       state = state.copyWith(
         error: "You're not assigned to a TWG yet, so Martin can't help here.",
@@ -191,7 +203,7 @@ class ChatController extends Notifier<ChatState> {
       messages.removeLast();
     }
     state = state.copyWith(messages: messages, error: null);
-    await send(message, overrideTwgId: _lastOverrideTwgId);
+    await send(message);
   }
 
   /// Failure path: drop an empty draft entirely (no stranded empty bubble);
@@ -213,5 +225,10 @@ class ChatController extends Notifier<ChatState> {
   }
 }
 
+/// Family keyed by the chat's TWG scope: `chatControllerProvider(twgId)` for
+/// a workspace-scoped chat, `chatControllerProvider(null)` for the unscoped
+/// ✦ FAB chat. Each scope keeps its own transcript + conversationId, so
+/// threads never leak between TWGs (or between a TWG and the unscoped chat).
 final chatControllerProvider =
-    NotifierProvider<ChatController, ChatState>(ChatController.new);
+    NotifierProvider.family<ChatController, ChatState, String?>(
+        ChatController.new);

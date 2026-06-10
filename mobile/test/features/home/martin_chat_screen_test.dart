@@ -46,10 +46,12 @@ class _LiveClient implements MartinChatClient {
       stream;
 }
 
-/// Records the twgId each send carried, so a test can assert the screen's
-/// `twgId` (the `?twg=` query param on /martin) reaches the client.
+/// Records the twgId + conversationId each send carried, so a test can assert
+/// the screen's `twgId` (the `?twg=` query param on /martin) reaches the
+/// client and that scoped chats never reuse another scope's thread id.
 class _CapturingClient implements MartinChatClient {
   final twgIds = <String>[];
+  final conversationIds = <String?>[];
   @override
   Stream<ChatEvent> send({
     required String message,
@@ -57,6 +59,7 @@ class _CapturingClient implements MartinChatClient {
     String? conversationId,
   }) {
     twgIds.add(twgId);
+    conversationIds.add(conversationId);
     return Stream.fromIterable(const [
       TokenEvent('Hello'),
       FinalEvent('Hello', conversationId: 'c1'),
@@ -288,5 +291,56 @@ void main() {
 
     expect(find.textContaining('Ask about your meetings'), findsOneWidget);
     expect(find.text('should not appear'), findsNothing);
+  });
+
+  testWidgets(
+      'REGRESSION: a TWG-scoped screen starts fresh — it never renders the '
+      'unscoped (FAB) transcript nor continues its thread', (tester) async {
+    final client = _CapturingClient();
+    final container = ProviderContainer(overrides: [
+      martinChatClientProvider.overrideWithValue(client),
+      authControllerProvider.overrideWith(_AuthedController.new),
+    ]);
+    addTearDown(container.dispose);
+
+    // (1) The member already chatted via the unscoped ✦ FAB entry: the
+    // backend started thread c1 for that scope.
+    await container
+        .read(chatControllerProvider(null).notifier)
+        .send('fab question');
+    expect(container.read(chatControllerProvider(null)).conversationId, 'c1');
+
+    // (2) They open "Ask Martin about TWG t9" (/martin?twg=t9).
+    final router = GoRouter(
+      initialLocation: '/martin',
+      routes: [
+        GoRoute(
+          path: '/martin',
+          builder: (_, _) => const MartinChatScreen(twgId: 't9'),
+        ),
+      ],
+    );
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(routerConfig: router),
+    ));
+    await tester.pumpAndSettle();
+
+    // Fresh scope: the empty-state invitation, never the stale FAB turns.
+    expect(find.textContaining('Ask about your meetings'), findsOneWidget);
+    expect(find.text('fab question'), findsNothing);
+
+    // (3) Sending here targets t9 and carries NO conversation_id from the
+    // FAB thread — the scoped chat starts its own server thread.
+    await tester.enterText(
+        find.byKey(const Key('martin-chat-input')), 'about t9');
+    await tester.tap(find.byKey(const Key('martin-chat-send')));
+    await tester.pumpAndSettle();
+
+    expect(client.twgIds, ['t1', 't9']); // FAB fell back to first TWG
+    expect(client.conversationIds, [null, null]); // no C1 leak into t9
+    // And the unscoped transcript stays untouched by the scoped chat.
+    final unscoped = container.read(chatControllerProvider(null));
+    expect(unscoped.messages.map((m) => m.text), isNot(contains('about t9')));
   });
 }

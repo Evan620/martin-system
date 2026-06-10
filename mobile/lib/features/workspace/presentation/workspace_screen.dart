@@ -50,8 +50,23 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       ref.read(workspaceControllerProvider(widget.twgId).notifier).load();
     });
+  }
+
+  @override
+  void didUpdateWidget(WorkspaceScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The TWG switcher replaces the route with a new :twgId, but the same
+    // State is reused (same widget type, no key) — so initState never re-runs
+    // and the new TWG's controller would stay on its skeleton forever.
+    if (oldWidget.twgId != widget.twgId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(workspaceControllerProvider(widget.twgId).notifier).load();
+      });
+    }
   }
 
   @override

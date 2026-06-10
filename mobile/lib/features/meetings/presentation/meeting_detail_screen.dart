@@ -37,6 +37,7 @@ import '../../../core/motion/skeleton.dart';
 import '../../../core/theme/sovereign_colors.dart';
 import '../../../core/theme/sovereign_spacing.dart';
 import '../../../core/theme/sovereign_type.dart';
+import '../../../core/ui/header_card.dart';
 import '../../../core/ui/section_header.dart';
 import '../application/meetings_controller.dart';
 import '../data/meetings_models.dart';
@@ -205,57 +206,67 @@ class _DetailBody extends StatelessWidget {
                     // Compact header: back + status chip, then a bold sans
                     // title with the TWG meta line under it (no serif, no
                     // eyebrow).
+                    // Back button (chrome) above the header card.
                     Padding(
                       padding: const EdgeInsets.fromLTRB(Insets.lg, Insets.sm, Insets.lg, 0),
-                      child: Row(
-                        children: [
-                          _BackButton(onTap: () => _back(context)),
-                          const Spacer(),
-                          _StatusBadge(status: meeting.status),
-                        ],
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _BackButton(onTap: () => _back(context)),
                       ),
                     ),
+                    // Header card: title + TWG meta, with the status badge.
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(Insets.gutter, Insets.lg, Insets.gutter, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Hero destination — keyed by the meeting id.
-                          Hero(
-                            tag: meetingHeroTag(meeting.id),
-                            flightShuttleBuilder: _heroShuttle,
-                            child: Material(
-                              type: MaterialType.transparency,
-                              child: Text(
-                                meeting.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 19,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.2,
-                                  color: SovereignColors.ivory,
-                                ),
+                      padding: const EdgeInsets.fromLTRB(Insets.gutter, Insets.md, Insets.gutter, 0),
+                      child: HeaderCard(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Hero destination — keyed by the meeting id.
+                                  Hero(
+                                    tag: meetingHeroTag(meeting.id),
+                                    flightShuttleBuilder: _heroShuttle,
+                                    child: Material(
+                                      type: MaterialType.transparency,
+                                      child: Text(
+                                        meeting.title,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 19,
+                                          fontWeight: FontWeight.w800,
+                                          height: 1.2,
+                                          color: SovereignColors.ivory,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if ((meeting.twgName ?? '').isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: Text(
+                                        meeting.twgName!,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 12,
+                                          color: SovereignColors.ivory.withValues(
+                                              alpha: SovereignColors.alphaMid),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                          ),
-                          if ((meeting.twgName ?? '').isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                meeting.twgName!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 12,
-                                  color: SovereignColors.ivory.withValues(
-                                      alpha: SovereignColors.alphaMid),
-                                ),
-                              ),
-                            ),
-                        ],
+                            const SizedBox(width: Insets.md),
+                            _StatusBadge(status: meeting.status),
+                          ],
+                        ),
                       ),
                     ),
                     // Persistent info header — stays visible across all tabs so

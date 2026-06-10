@@ -7,6 +7,7 @@ import 'package:member_app/core/ui/list_row.dart';
 import 'package:member_app/core/ui/section_header.dart';
 import 'package:member_app/core/ui/segmented.dart';
 import 'package:member_app/core/ui/count_badge.dart';
+import 'package:member_app/core/ui/header_card.dart';
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
@@ -59,5 +60,15 @@ void main() {
   testWidgets('CountBadge shows count', (tester) async {
     await tester.pumpWidget(_wrap(const CountBadge(count: 3)));
     expect(find.text('3'), findsOneWidget);
+  });
+
+  testWidgets('HeaderCard houses its child', (tester) async {
+    await tester.pumpWidget(_wrap(const HeaderCard(child: Text('Home'))));
+    expect(find.text('Home'), findsOneWidget);
+    // The child sits inside the card's own container (raised surface).
+    expect(
+      find.ancestor(of: find.text('Home'), matching: find.byType(Container)),
+      findsWidgets,
+    );
   });
 }

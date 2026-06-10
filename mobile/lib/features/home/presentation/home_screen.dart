@@ -32,6 +32,7 @@ import '../../../core/theme/sovereign_colors.dart';
 import '../../../core/theme/sovereign_spacing.dart';
 import '../../../core/theme/sovereign_type.dart';
 import '../../../core/ui/app_header.dart';
+import '../../../core/ui/header_card.dart';
 import '../../../core/ui/list_row.dart';
 import '../../../core/ui/section_header.dart';
 import '../../../core/ui/stat_tile.dart';
@@ -146,12 +147,14 @@ class _DataView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppHeader(
-            context_: DateFormat('EEE d MMM').format(DateTime.now()),
-            title: 'Home',
-            badgeCount: briefing.overdueCount,
-            initials: initials,
-            onAvatar: () => context.go('/me'),
+          HeaderCard(
+            child: AppHeader(
+              context_: DateFormat('EEE d MMM').format(DateTime.now()),
+              title: 'Home',
+              badgeCount: briefing.overdueCount,
+              initials: initials,
+              onAvatar: () => context.go('/me'),
+            ),
           ),
           const SizedBox(height: Insets.lg),
 

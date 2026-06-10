@@ -11,6 +11,7 @@ import '../../../core/theme/sovereign_colors.dart';
 import '../../../core/theme/sovereign_spacing.dart';
 import '../../../core/theme/sovereign_type.dart';
 import '../../../core/ui/app_header.dart';
+import '../../../core/ui/header_card.dart';
 
 /// The Deals tab — a Phase 2 placeholder until the real Deal Room ships.
 class DealsScreen extends StatelessWidget {
@@ -33,7 +34,9 @@ class DealsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const AppHeader(context_: 'Phase 2', title: 'Deal Room'),
+                  const HeaderCard(
+                    child: AppHeader(context_: 'Phase 2', title: 'Deal Room'),
+                  ),
                   const SizedBox(height: Insets.section),
                   GlassCard(
                     child: Row(

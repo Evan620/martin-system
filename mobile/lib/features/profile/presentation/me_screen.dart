@@ -31,6 +31,7 @@ import '../../../core/motion/skeleton.dart';
 import '../../../core/theme/sovereign_colors.dart';
 import '../../../core/theme/sovereign_spacing.dart';
 import '../../../core/theme/sovereign_type.dart';
+import '../../../core/ui/header_card.dart';
 import '../../../core/ui/list_row.dart';
 import '../../../core/ui/section_header.dart';
 import '../../../core/ui/segmented.dart';
@@ -241,7 +242,7 @@ class _DataView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CascadeIn(index: 0, child: _ProfileHeader(user: user)),
+          CascadeIn(index: 0, child: HeaderCard(child: _ProfileHeader(user: user))),
           const SizedBox(height: Insets.lg),
           CascadeIn(
             index: 1,

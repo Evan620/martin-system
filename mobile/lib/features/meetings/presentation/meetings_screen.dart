@@ -35,6 +35,7 @@ import '../../../core/theme/sovereign_colors.dart';
 import '../../../core/theme/sovereign_spacing.dart';
 import '../../../core/theme/sovereign_type.dart';
 import '../../../core/ui/app_header.dart';
+import '../../../core/ui/header_card.dart';
 import '../../../core/ui/list_row.dart';
 import '../../../core/ui/section_header.dart';
 import '../../../core/ui/sheet.dart';
@@ -250,7 +251,9 @@ class _DataView extends StatelessWidget {
         children: [
           CascadeIn(
             index: 0,
-            child: AppHeader(title: 'Meetings', context_: twgLabel),
+            child: HeaderCard(
+              child: AppHeader(title: 'Meetings', context_: twgLabel),
+            ),
           ),
           const SizedBox(height: Insets.lg),
           CascadeIn(

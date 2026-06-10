@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../features/auth/application/auth_controller.dart';
 import '../features/auth/presentation/login_screen.dart';
+import '../features/deals/presentation/deal_detail_screen.dart';
 import '../features/deals/presentation/deals_screen.dart';
 import '../features/documents/presentation/documents_screen.dart';
 import '../features/documents/presentation/pdf_viewer_screen.dart';
@@ -98,8 +99,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               ],
             ),
           ]),
-          // 3 Deals (Phase 2)
-          StatefulShellBranch(routes: [GoRoute(path: '/deals', builder: (_, _) => const DealsScreen())]),
+          // 3 Deals (with nested detail)
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/deals',
+              builder: (_, _) => const DealsScreen(),
+              routes: [
+                GoRoute(
+                  path: ':id',
+                  pageBuilder: (context, st) => sovereignPage(
+                      child:
+                          DealDetailScreen(projectId: st.pathParameters['id']!)),
+                ),
+              ],
+            ),
+          ]),
           // 4 Me
           StatefulShellBranch(routes: [GoRoute(path: '/me', builder: (_, _) => const MeScreen())]),
         ],

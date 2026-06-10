@@ -23,6 +23,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:table_calendar/table_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/glass/glass.dart';
@@ -36,7 +37,6 @@ import '../../../core/theme/sovereign_type.dart';
 import '../../../core/ui/app_header.dart';
 import '../../../core/ui/list_row.dart';
 import '../../../core/ui/section_header.dart';
-import '../../../core/ui/segmented.dart';
 import '../../../core/ui/sheet.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_models.dart';
@@ -58,14 +58,23 @@ class MeetingsScreen extends ConsumerStatefulWidget {
 }
 
 class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
-  /// 0 = Upcoming, 1 = Past — the segmented control's selection.
-  int _segment = 0;
+  /// The month the calendar is showing, and the day whose meetings are listed
+  /// below it. Both default to today.
+  DateTime _focusedDay = DateTime.now();
+  DateTime _selectedDay = DateTime.now();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(meetingsControllerProvider.notifier).load();
+    });
+  }
+
+  void _onDaySelected(DateTime selected, DateTime focused) {
+    setState(() {
+      _selectedDay = selected;
+      _focusedDay = focused;
     });
   }
 
@@ -126,8 +135,9 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
               MeetingsData(:final meetings) => _DataView(
                   key: const ValueKey('data'),
                   meetings: meetings,
-                  segment: _segment,
-                  onSegment: (i) => setState(() => _segment = i),
+                  focusedDay: _focusedDay,
+                  selectedDay: _selectedDay,
+                  onDaySelected: _onDaySelected,
                   userId: ref.watch(currentUserIdProvider),
                   twgLabel: _headerSubtitle(ref),
                   onJoin: _join,
@@ -173,13 +183,19 @@ String _rsvpMark(MeetingRsvp rsvp) => switch (rsvp) {
       MeetingRsvp.pending => '? RSVP',
     };
 
-/// Loaded list state: header, segmented control, then day-grouped row groups.
+/// A day key normalised to a date-only UTC value, so meetings group by calendar
+/// day regardless of their local time-of-day (used for calendar markers).
+DateTime _dayKey(DateTime at) => DateTime.utc(at.year, at.month, at.day);
+
+/// Loaded state: header, a month calendar with markers on days that have
+/// meetings, then the selected day's meetings (today by default).
 class _DataView extends StatelessWidget {
   const _DataView({
     super.key,
     required this.meetings,
-    required this.segment,
-    required this.onSegment,
+    required this.focusedDay,
+    required this.selectedDay,
+    required this.onDaySelected,
     required this.userId,
     required this.twgLabel,
     required this.onJoin,
@@ -188,8 +204,9 @@ class _DataView extends StatelessWidget {
   });
 
   final List<Meeting> meetings;
-  final int segment;
-  final ValueChanged<int> onSegment;
+  final DateTime focusedDay;
+  final DateTime selectedDay;
+  final void Function(DateTime selected, DateTime focused) onDaySelected;
   final String userId;
   final String twgLabel;
   final ValueChanged<Meeting> onJoin;
@@ -198,60 +215,31 @@ class _DataView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showPast = segment == 1;
-    final shown = meetings.where((m) => showPast ? m.isPast : !m.isPast).toList()
-      ..sort((a, b) => showPast
-          ? b.scheduledAt.compareTo(a.scheduledAt)
-          : a.scheduledAt.compareTo(b.scheduledAt));
+    // Bucket every meeting by its calendar day (for the marker dots) and find
+    // the calendar's bounds (pad a year either side so paging always works).
+    final byDay = <DateTime, List<Meeting>>{};
+    for (final m in meetings) {
+      byDay.putIfAbsent(_dayKey(m.scheduledAt), () => []).add(m);
+    }
+    final now = DateTime.now();
+    final first = DateTime.utc(now.year - 1, 1, 1);
+    final last = DateTime.utc(now.year + 2, 12, 31);
 
-    // The soonest upcoming session (first of the sorted Upcoming list) may
-    // carry the inline Join pill. In Past, nothing does.
-    final Meeting? soonest = (!showPast && shown.isNotEmpty) ? shown.first : null;
+    List<Meeting> eventsFor(DateTime day) => byDay[_dayKey(day)] ?? const [];
 
-    // Day groups, preserving the sorted order.
-    final groups = <String, List<Meeting>>{};
-    for (final m in shown) {
-      groups.putIfAbsent(_dayLabel(m.scheduledAt), () => []).add(m);
+    // The selected day's meetings, soonest first; the soonest still-upcoming
+    // one with video carries the inline Join pill (the screen's yellow action).
+    final dayMeetings = eventsFor(selectedDay).toList()
+      ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    Meeting? soonest;
+    for (final m in dayMeetings) {
+      if (!m.isPast && m.hasVideo) {
+        soonest = m;
+        break;
+      }
     }
 
-    // Header (0) and segmented (1) lead the cascade; groups follow.
-    final children = <Widget>[];
-    var cascade = 2;
-
-    if (shown.isEmpty) {
-      children.add(CascadeIn(
-        index: cascade++,
-        child: RowGroup(children: [
-          ListRow(
-            icon: Icons.event_available_rounded,
-            title: showPast ? 'No past meetings' : 'No upcoming meetings',
-            meta: "When your TWG schedules a session, it'll appear here.",
-          ),
-        ]),
-      ));
-    } else {
-      groups.forEach((label, items) {
-        children.add(CascadeIn(
-          index: cascade++,
-          child: SectionHeader(title: label),
-        ));
-        children.add(CascadeIn(
-          index: cascade++,
-          child: RowGroup(children: [
-            for (final m in items)
-              _MeetingRow(
-                meeting: m,
-                userId: userId,
-                showJoin: identical(m, soonest) && m.hasVideo,
-                onJoin: () => onJoin(m),
-                onLongPress: () => onLongPress(m),
-                onOpen: () => onOpen(m),
-              ),
-          ]),
-        ));
-        children.add(const SizedBox(height: Insets.lg));
-      });
-    }
+    final dayTitle = _dayLabel(selectedDay);
 
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -267,15 +255,139 @@ class _DataView extends StatelessWidget {
           const SizedBox(height: Insets.lg),
           CascadeIn(
             index: 1,
-            child: SovereignSegmented(
-              options: const ['Upcoming', 'Past'],
-              selected: segment,
-              onChanged: onSegment,
+            child: _CalendarCard(
+              meetings: meetings,
+              focusedDay: focusedDay,
+              selectedDay: selectedDay,
+              firstDay: first,
+              lastDay: last,
+              eventsFor: eventsFor,
+              onDaySelected: onDaySelected,
             ),
           ),
-          const SizedBox(height: Insets.lg),
-          ...children,
+          const SizedBox(height: Insets.section),
+          CascadeIn(index: 2, child: SectionHeader(title: dayTitle)),
+          CascadeIn(
+            index: 3,
+            child: RowGroup(children: [
+              if (dayMeetings.isEmpty)
+                const ListRow(
+                  icon: Icons.event_busy_rounded,
+                  title: 'No meetings this day',
+                  meta: 'Pick another day on the calendar above.',
+                )
+              else
+                for (final m in dayMeetings)
+                  _MeetingRow(
+                    meeting: m,
+                    userId: userId,
+                    showJoin: identical(m, soonest),
+                    onJoin: () => onJoin(m),
+                    onLongPress: () => onLongPress(m),
+                    onOpen: () => onOpen(m),
+                  ),
+            ]),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// The month calendar, themed Bright Sun on Big Stone: gold dot markers on days
+/// with meetings, a gold filled selected day, a subtle ring on today.
+class _CalendarCard extends StatelessWidget {
+  const _CalendarCard({
+    required this.meetings,
+    required this.focusedDay,
+    required this.selectedDay,
+    required this.firstDay,
+    required this.lastDay,
+    required this.eventsFor,
+    required this.onDaySelected,
+  });
+
+  final List<Meeting> meetings;
+  final DateTime focusedDay;
+  final DateTime selectedDay;
+  final DateTime firstDay;
+  final DateTime lastDay;
+  final List<Meeting> Function(DateTime) eventsFor;
+  final void Function(DateTime selected, DateTime focused) onDaySelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final ivory = SovereignColors.ivory;
+    final dim = ivory.withValues(alpha: SovereignColors.alphaMid);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(Insets.sm, Insets.sm, Insets.sm, Insets.md),
+      decoration: BoxDecoration(
+        color: SovereignColors.navyRaised,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ivory.withValues(alpha: 0.07)),
+      ),
+      child: TableCalendar<Meeting>(
+        firstDay: firstDay,
+        lastDay: lastDay,
+        focusedDay: focusedDay,
+        currentDay: DateTime.now(),
+        selectedDayPredicate: (d) => isSameDay(selectedDay, d),
+        onDaySelected: onDaySelected,
+        eventLoader: eventsFor,
+        calendarFormat: CalendarFormat.month,
+        availableCalendarFormats: const {CalendarFormat.month: 'Month'},
+        startingDayOfWeek: StartingDayOfWeek.monday,
+        daysOfWeekHeight: 22,
+        rowHeight: 44,
+        headerStyle: HeaderStyle(
+          formatButtonVisible: false,
+          titleCentered: true,
+          titleTextStyle: const TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: SovereignColors.ivory,
+          ),
+          leftChevronIcon:
+              const Icon(Icons.chevron_left_rounded, color: SovereignColors.gold),
+          rightChevronIcon:
+              const Icon(Icons.chevron_right_rounded, color: SovereignColors.gold),
+          headerPadding: const EdgeInsets.symmetric(vertical: Insets.xs),
+        ),
+        daysOfWeekStyle: DaysOfWeekStyle(
+          weekdayStyle: TextStyle(
+              fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w600, color: dim),
+          weekendStyle: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: ivory.withValues(alpha: SovereignColors.alphaLow)),
+        ),
+        calendarStyle: CalendarStyle(
+          isTodayHighlighted: true,
+          defaultTextStyle: TextStyle(fontFamily: 'Inter', fontSize: 13.5, color: ivory),
+          weekendTextStyle: TextStyle(fontFamily: 'Inter', fontSize: 13.5, color: dim),
+          outsideTextStyle: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 13.5,
+              color: ivory.withValues(alpha: SovereignColors.alphaLow)),
+          todayDecoration: BoxDecoration(
+            color: SovereignColors.gold.withValues(alpha: 0.14),
+            shape: BoxShape.circle,
+            border: Border.all(color: SovereignColors.gold.withValues(alpha: 0.6)),
+          ),
+          todayTextStyle: const TextStyle(
+              fontFamily: 'Inter', fontSize: 13.5, fontWeight: FontWeight.w700, color: SovereignColors.ivory),
+          selectedDecoration:
+              const BoxDecoration(color: SovereignColors.gold, shape: BoxShape.circle),
+          selectedTextStyle: const TextStyle(
+              fontFamily: 'Inter', fontSize: 13.5, fontWeight: FontWeight.w800, color: SovereignColors.navy),
+          markerDecoration:
+              const BoxDecoration(color: SovereignColors.gold, shape: BoxShape.circle),
+          markerSize: 5,
+          markersMaxCount: 3,
+          markerMargin: const EdgeInsets.symmetric(horizontal: 1),
+        ),
       ),
     );
   }

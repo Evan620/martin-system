@@ -116,6 +116,8 @@ MEMBER_TOOLS: Set[str] = {
     "rsvp_meeting",
     "set_reminder",
     "get_notifications",
+    # Email ME the .ics invite for a meeting I participate in
+    "add_meeting_to_calendar",
 }
 
 # Member personal-action tools — they act on the *calling* member's own data
@@ -127,6 +129,7 @@ MEMBER_ONLY_TOOLS: Set[str] = {
     "rsvp_meeting",
     "set_reminder",
     "get_notifications",
+    "add_meeting_to_calendar",
 }
 
 
@@ -273,16 +276,25 @@ class ToolRegistry:
 
     def _register_member_tools(self) -> None:
         """Register member personal-action tools."""
-        from app.tools.member_tools import RSVP_MEETING_TOOL_DEF, rsvp_meeting
-
-        func_def = RSVP_MEETING_TOOL_DEF["function"]
-        self.register(
-            name=func_def["name"],
-            description=func_def["description"],
-            parameters=func_def["parameters"].get("properties", {}),
-            handler=rsvp_meeting,
-            required_params=func_def["parameters"].get("required", []),
+        from app.tools.member_tools import (
+            RSVP_MEETING_TOOL_DEF, rsvp_meeting,
+            SET_REMINDER_TOOL_DEF, set_reminder,
+            ADD_MEETING_TO_CALENDAR_TOOL_DEF, add_meeting_to_calendar,
         )
+
+        for tool_def, handler in [
+            (RSVP_MEETING_TOOL_DEF, rsvp_meeting),
+            (SET_REMINDER_TOOL_DEF, set_reminder),
+            (ADD_MEETING_TO_CALENDAR_TOOL_DEF, add_meeting_to_calendar),
+        ]:
+            func_def = tool_def["function"]
+            self.register(
+                name=func_def["name"],
+                description=func_def["description"],
+                parameters=func_def["parameters"].get("properties", {}),
+                handler=handler,
+                required_params=func_def["parameters"].get("required", []),
+            )
 
     def _register_whatsapp_tools(self) -> None:
         """Register WhatsApp tools (sends are confirm-then-execute)."""

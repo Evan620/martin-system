@@ -8,18 +8,20 @@
 // FutureBuilder (loading → content-shaped skeleton / error+retry / data).
 // Agenda + minutes tolerate null (404 = "none").
 //
-// The data body is an ambient navy+gold backdrop behind a static header
-// (TWG eyebrow + serif title + status badge) and a segmented tab bar:
+// The data body is an ambient navy+gold backdrop behind a static compact
+// header (back + status chip, then a bold sans title + TWG meta line) and a
+// segmented tab bar:
 //   * Overview — minutes/summary (when present)
 //   * Agenda   — numbered items
 //   * People   — attendees + their RSVPs
 //   * Docs     — attached files (display-only; full open ships with Documents)
 // Join + RSVP stay in a pinned bottom action bar above the floating nav.
 //
-// The serif title is the destination of the Hero that begins on the meetings
-// list card (tag keyed by meeting id). The active tab's content cascades in;
-// loading shows a skeleton header + card (no spinner). The pinned Join pill is
-// the screen's ONE solid-gold action; RSVP chips are gold-outline-when-selected.
+// The title is the destination of the Hero keyed by meeting id (kept so a
+// list-side Hero can morph in if one exists). The active tab's content
+// cascades in; loading shows a skeleton header + card (no spinner). The pinned
+// Join pill is the screen's ONE filled-yellow action; RSVP chips are
+// gold-outline-when-selected.
 //
 // RSVP goes through meetingsController.setRsvp so the list screen stays in sync;
 // on success we re-fetch the detail so this screen reflects the new state.
@@ -35,6 +37,7 @@ import '../../../core/motion/skeleton.dart';
 import '../../../core/theme/sovereign_colors.dart';
 import '../../../core/theme/sovereign_spacing.dart';
 import '../../../core/theme/sovereign_type.dart';
+import '../../../core/ui/section_header.dart';
 import '../application/meetings_controller.dart';
 import '../data/meetings_models.dart';
 import '../data/meetings_repository.dart';
@@ -199,7 +202,9 @@ class _DetailBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header: back + status, then TWG eyebrow + serif title.
+                    // Compact header: back + status chip, then a bold sans
+                    // title with the TWG meta line under it (no serif, no
+                    // eyebrow).
                     Padding(
                       padding: const EdgeInsets.fromLTRB(Insets.lg, Insets.sm, Insets.lg, 0),
                       child: Row(
@@ -215,16 +220,7 @@ class _DetailBody extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if ((meeting.twgName ?? '').isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: Insets.sm),
-                              child: Text(
-                                meeting.twgName!.toUpperCase(),
-                                style: SovereignType.eyebrow,
-                              ),
-                            ),
-                          // Hero destination — the title morphs in from the list
-                          // card keyed by the meeting id.
+                          // Hero destination — keyed by the meeting id.
                           Hero(
                             tag: meetingHeroTag(meeting.id),
                             flightShuttleBuilder: _heroShuttle,
@@ -234,10 +230,31 @@ class _DetailBody extends StatelessWidget {
                                 meeting.title,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: SovereignType.title,
+                                style: const TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.2,
+                                  color: SovereignColors.ivory,
+                                ),
                               ),
                             ),
                           ),
+                          if ((meeting.twgName ?? '').isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                meeting.twgName!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 12,
+                                  color: SovereignColors.ivory.withValues(
+                                      alpha: SovereignColors.alphaMid),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -722,7 +739,7 @@ class _FactChip extends StatelessWidget {
   }
 }
 
-/// An outer tab section frame — an optional gold eyebrow label above a
+/// An outer tab section frame — an optional [SectionHeader] above a
 /// [GlassCard] that holds one [_InnerPanel] per logical item, stacked with
 /// ~10px gaps. This is the "frame-inside-frame" shell for tab content.
 class _OuterSection extends StatelessWidget {
@@ -736,10 +753,7 @@ class _OuterSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (label != null) ...[
-          Text(label!.toUpperCase(), style: SovereignType.eyebrow),
-          const SizedBox(height: Insets.sm),
-        ],
+        if (label != null) SectionHeader(title: label!),
         GlassCard(
           padding: const EdgeInsets.all(Insets.md),
           child: Column(

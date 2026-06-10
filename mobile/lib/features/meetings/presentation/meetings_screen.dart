@@ -1,24 +1,24 @@
 // lib/features/meetings/presentation/meetings_screen.dart
 //
-// Meetings — Sovereign glass list of the member's sessions, wired to live data.
+// Meetings — native dashboard (v2) list of the member's sessions, wired to
+// live data.
+//
+// Layout (top -> bottom), per the Native Dashboard v2 spec:
+//   - compact `AppHeader`: TWG label context over "Meetings" (no serif).
+//   - `SovereignSegmented` Upcoming | Past, filtering by `scheduledAt` vs now.
+//   - day-grouped rows (Today / Tomorrow / "EEE d MMM"): each group is a
+//     `SectionHeader` + `RowGroup` of dense rows — a 38px HH:mm time block,
+//     title, "TWG · location/Virtual · RSVP state" meta, trailing chevron.
+//     The SOONEST upcoming session carries the inline Join pill when it has
+//     video — THE screen's one filled-yellow action.
+//   - tapping a row pushes /meetings/:id (route unchanged); long-pressing it
+//     opens a `SovereignSheet` with the three RSVP options, wired to the
+//     existing controller `setRsvp` (optimistic; rolls back + snackbar on
+//     failure).
 //
 // Loads via meetingsControllerProvider.load() (post-frame), renders by sealed
 // state (loading / error / empty / data) inside an AnimatedSwitcher so the
-// skeleton cross-fades to content. An Upcoming|Past toggle filters the list;
-// meetings are grouped by day under gold eyebrow labels, and the soonest
-// upcoming session is rendered as an emphasized hero card (big serif time).
-//
-// One gold action per screen: the Join pill on the imminent (hero) card that
-// carries a video link. RSVP chips are gold-outline-when-selected (≥44px tall)
-// so they don't compete with the hero's solid gold. Tapping a card body pushes
-// /meetings/:id with a Hero transition keyed by meeting id.
-//
-// Motion: each card cascades in on first load; loading shows a SkeletonList;
-// pull-to-refresh re-runs load(); cards/chips give press feedback.
-//
-// Reuses the Sovereign glass design system (lib/core/glass/glass.dart) with
-// glass-inside-glass: each outer GlassCard holds lighter GlassSurface.inner
-// panels (the RSVP chips).
+// row-shaped skeleton cross-fades to content; pull-to-refresh re-runs load().
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -33,18 +33,23 @@ import '../../../core/motion/skeleton.dart';
 import '../../../core/theme/sovereign_colors.dart';
 import '../../../core/theme/sovereign_spacing.dart';
 import '../../../core/theme/sovereign_type.dart';
+import '../../../core/ui/app_header.dart';
+import '../../../core/ui/list_row.dart';
+import '../../../core/ui/section_header.dart';
+import '../../../core/ui/segmented.dart';
+import '../../../core/ui/sheet.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_models.dart';
 import '../application/meetings_controller.dart';
 import '../data/meetings_models.dart';
 import '../data/meetings_repository.dart';
 
-/// Hero tag for a meeting's title block — shared between this list and the
-/// detail screen so the title morphs across the push.
+/// Hero tag for a meeting's title — the detail screen's title Hero still keys
+/// off this (kept public for meeting_detail_screen.dart).
 String meetingHeroTag(String id) => 'meeting-title-$id';
 
-/// Meetings screen: serif title + a scrollable list of glass meeting cards,
-/// rendered from live data with an Upcoming|Past toggle.
+/// Meetings screen: compact header, Upcoming|Past segmented control, then
+/// day-grouped dense meeting rows rendered from live data.
 class MeetingsScreen extends ConsumerStatefulWidget {
   const MeetingsScreen({super.key});
 
@@ -53,8 +58,8 @@ class MeetingsScreen extends ConsumerStatefulWidget {
 }
 
 class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
-  /// Upcoming (false) vs Past (true) filter for the segmented toggle.
-  bool _showPast = false;
+  /// 0 = Upcoming, 1 = Past — the segmented control's selection.
+  int _segment = 0;
 
   @override
   void initState() {
@@ -83,6 +88,18 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
     await launchUrl(Uri.parse(link), mode: LaunchMode.externalApplication);
   }
 
+  /// Long-press affordance: a bottom sheet with the three RSVP options. The
+  /// chosen option flows through the same controller path as before.
+  Future<void> _openRsvpSheet(Meeting m) async {
+    final userId = ref.read(currentUserIdProvider);
+    final choice = await showSovereignSheet<MeetingRsvp>(
+      context,
+      child: _RsvpSheetBody(meeting: m, current: m.myRsvp(userId)),
+    );
+    if (choice == null || !mounted) return;
+    await _setRsvp(m, choice, userId);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(meetingsControllerProvider);
@@ -109,12 +126,12 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
               MeetingsData(:final meetings) => _DataView(
                   key: const ValueKey('data'),
                   meetings: meetings,
-                  showPast: _showPast,
-                  onToggle: (past) => setState(() => _showPast = past),
+                  segment: _segment,
+                  onSegment: (i) => setState(() => _segment = i),
                   userId: ref.watch(currentUserIdProvider),
-                  twgName: _headerSubtitle(ref),
+                  twgLabel: _headerSubtitle(ref),
                   onJoin: _join,
-                  onRsvp: _setRsvp,
+                  onLongPress: _openRsvpSheet,
                   onOpen: (m) => context.push('/meetings/${m.id}'),
                 ),
             },
@@ -125,9 +142,9 @@ class _MeetingsScreenState extends ConsumerState<MeetingsScreen> {
   }
 }
 
-/// The member's TWG label, used as the header eyebrow (one TWG → its name,
-/// several → a compact multi-TWG label; falls back to a neutral label when
-/// unknown).
+/// The member's TWG label, used as the header context line (one TWG → its
+/// name, several → a compact multi-TWG label; falls back to a neutral label
+/// when unknown).
 String _headerSubtitle(WidgetRef ref) {
   final auth = ref.watch(authControllerProvider);
   if (auth is AuthAuthenticated) {
@@ -137,81 +154,103 @@ String _headerSubtitle(WidgetRef ref) {
   return 'Your sessions';
 }
 
-/// Loaded list state: header, Upcoming|Past toggle, then day-grouped cards with
-/// the soonest upcoming session emphasized.
+/// "Today" / "Tomorrow" / "EEE d MMM" group label for a meeting's day.
+String _dayLabel(DateTime at) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(at.year, at.month, at.day);
+  final diff = day.difference(today).inDays;
+  if (diff == 0) return 'Today';
+  if (diff == 1) return 'Tomorrow';
+  return DateFormat('EEE d MMM').format(at);
+}
+
+/// Compact RSVP state for the row meta line (✓ / ? / ✗ per the v2 spec).
+String _rsvpMark(MeetingRsvp rsvp) => switch (rsvp) {
+      MeetingRsvp.going => '✓ Going',
+      MeetingRsvp.maybe => '? Maybe',
+      MeetingRsvp.no => '✗ No',
+      MeetingRsvp.pending => '? RSVP',
+    };
+
+/// Loaded list state: header, segmented control, then day-grouped row groups.
 class _DataView extends StatelessWidget {
   const _DataView({
     super.key,
     required this.meetings,
-    required this.showPast,
-    required this.onToggle,
+    required this.segment,
+    required this.onSegment,
     required this.userId,
-    required this.twgName,
+    required this.twgLabel,
     required this.onJoin,
-    required this.onRsvp,
+    required this.onLongPress,
     required this.onOpen,
   });
 
   final List<Meeting> meetings;
-  final bool showPast;
-  final ValueChanged<bool> onToggle;
+  final int segment;
+  final ValueChanged<int> onSegment;
   final String userId;
-  final String twgName;
+  final String twgLabel;
   final ValueChanged<Meeting> onJoin;
-  final void Function(Meeting, MeetingRsvp, String) onRsvp;
+  final ValueChanged<Meeting> onLongPress;
   final ValueChanged<Meeting> onOpen;
-
-  static final _dayFmt = DateFormat('EEEE, d MMMM');
 
   @override
   Widget build(BuildContext context) {
+    final showPast = segment == 1;
     final shown = meetings.where((m) => showPast ? m.isPast : !m.isPast).toList()
       ..sort((a, b) => showPast
           ? b.scheduledAt.compareTo(a.scheduledAt)
           : a.scheduledAt.compareTo(b.scheduledAt));
 
-    // The soonest upcoming session is the imminent hero (first of the sorted
-    // Upcoming list). In Past, nothing is emphasized.
-    final Meeting? hero = (!showPast && shown.isNotEmpty) ? shown.first : null;
+    // The soonest upcoming session (first of the sorted Upcoming list) may
+    // carry the inline Join pill. In Past, nothing does.
+    final Meeting? soonest = (!showPast && shown.isNotEmpty) ? shown.first : null;
 
-    // Build the column children: header, toggle, then day-grouped cards. A
-    // running index drives the cascade entrance across all cards.
+    // Day groups, preserving the sorted order.
+    final groups = <String, List<Meeting>>{};
+    for (final m in shown) {
+      groups.putIfAbsent(_dayLabel(m.scheduledAt), () => []).add(m);
+    }
+
+    // Header (0) and segmented (1) lead the cascade; groups follow.
     final children = <Widget>[];
-    var cascade = 0;
+    var cascade = 2;
 
     if (shown.isEmpty) {
-      children.add(_InlineEmpty(showPast: showPast));
+      children.add(CascadeIn(
+        index: cascade++,
+        child: RowGroup(children: [
+          ListRow(
+            icon: Icons.event_available_rounded,
+            title: showPast ? 'No past meetings' : 'No upcoming meetings',
+            meta: "When your TWG schedules a session, it'll appear here.",
+          ),
+        ]),
+      ));
     } else {
-      String? lastDayLabel;
-      for (final meeting in shown) {
-        final dayLabel = _dayFmt.format(meeting.scheduledAt).toUpperCase();
-        if (dayLabel != lastDayLabel) {
-          lastDayLabel = dayLabel;
-          children.add(Padding(
-            padding: EdgeInsets.only(
-              top: children.isEmpty ? 0 : Insets.lg,
-              bottom: Insets.sm,
-            ),
-            child: CascadeIn(
-              index: cascade++,
-              child: Text(dayLabel, style: SovereignType.eyebrow),
-            ),
-          ));
-        }
-        final isHero = identical(meeting, hero);
+      groups.forEach((label, items) {
         children.add(CascadeIn(
           index: cascade++,
-          child: _MeetingCard(
-            meeting: meeting,
-            userId: userId,
-            emphasized: isHero,
-            onJoin: () => onJoin(meeting),
-            onRsvp: (rsvp) => onRsvp(meeting, rsvp, userId),
-            onOpen: () => onOpen(meeting),
-          ),
+          child: SectionHeader(title: label),
         ));
-        children.add(const SizedBox(height: Insets.md));
-      }
+        children.add(CascadeIn(
+          index: cascade++,
+          child: RowGroup(children: [
+            for (final m in items)
+              _MeetingRow(
+                meeting: m,
+                userId: userId,
+                showJoin: identical(m, soonest) && m.hasVideo,
+                onJoin: () => onJoin(m),
+                onLongPress: () => onLongPress(m),
+                onOpen: () => onOpen(m),
+              ),
+          ]),
+        ));
+        children.add(const SizedBox(height: Insets.lg));
+      });
     }
 
     return SingleChildScrollView(
@@ -223,27 +262,16 @@ class _DataView extends StatelessWidget {
         children: [
           CascadeIn(
             index: 0,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(twgName.toUpperCase(), style: SovereignType.eyebrow),
-                const SizedBox(height: Insets.xs),
-                Text('Meetings', style: SovereignType.display),
-                const SizedBox(height: Insets.xs),
-                Text(
-                  showPast ? 'Your past sessions' : 'Your upcoming sessions',
-                  style: SovereignType.secondary.copyWith(
-                    color: SovereignColors.ivory
-                        .withValues(alpha: SovereignColors.alphaMid),
-                  ),
-                ),
-              ],
-            ),
+            child: AppHeader(title: 'Meetings', context_: twgLabel),
           ),
           const SizedBox(height: Insets.lg),
           CascadeIn(
             index: 1,
-            child: _UpcomingPastToggle(showPast: showPast, onToggle: onToggle),
+            child: SovereignSegmented(
+              options: const ['Upcoming', 'Past'],
+              selected: segment,
+              onChanged: onSegment,
+            ),
           ),
           const SizedBox(height: Insets.lg),
           ...children,
@@ -253,263 +281,103 @@ class _DataView extends StatelessWidget {
   }
 }
 
-/// Loading — content-shaped skeleton list (no spinner), cross-fades to content.
-class _LoadingView extends StatelessWidget {
-  const _LoadingView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(Insets.gutter, Insets.lg, Insets.gutter, 0)
-          .add(navClearance(context)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          SkeletonBlock(width: 140, height: 12),
-          SizedBox(height: Insets.md),
-          SkeletonBlock(width: 200, height: 34),
-          SizedBox(height: Insets.section),
-          SkeletonList(count: 4),
-        ],
-      ),
-    );
-  }
-}
-
-/// Segmented Upcoming | Past control built from two inner-glass tabs.
-class _UpcomingPastToggle extends StatelessWidget {
-  const _UpcomingPastToggle({required this.showPast, required this.onToggle});
-
-  final bool showPast;
-  final ValueChanged<bool> onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassSurface.inner(
-      borderRadius: 14,
-      padding: const EdgeInsets.all(4),
-      child: Row(
-        children: [
-          _ToggleTab(
-            label: 'Upcoming',
-            selected: !showPast,
-            onTap: () => onToggle(false),
-          ),
-          const SizedBox(width: Insets.xs),
-          _ToggleTab(
-            label: 'Past',
-            selected: showPast,
-            onTap: () => onToggle(true),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ToggleTab extends StatelessWidget {
-  const _ToggleTab({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: PressableScale(
-        onTap: onTap,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: selected ? SovereignColors.gold : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Center(
-              child: Text(
-                label,
-                style: SovereignType.caption.copyWith(
-                  color: selected
-                      ? SovereignColors.navy
-                      : SovereignColors.ivory
-                          .withValues(alpha: SovereignColors.alphaHigh),
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A single meeting rendered as a tappable raised GlassCard. The imminent
-/// (soonest upcoming) card is [emphasized]: a gold glow, a serif relative-time
-/// line, and — when it carries video — the screen's ONE solid-gold Join pill.
-/// Glass-inside-glass: the RSVP chip row is a lighter GlassSurface.inner layer.
-class _MeetingCard extends StatelessWidget {
-  const _MeetingCard({
+/// One dense meeting row: leading HH:mm time block, title, meta, trailing
+/// chevron (or the inline Join pill on the soonest upcoming session with
+/// video). Tap opens the detail; long-press opens the RSVP sheet.
+class _MeetingRow extends StatelessWidget {
+  const _MeetingRow({
     required this.meeting,
     required this.userId,
-    required this.emphasized,
+    required this.showJoin,
     required this.onJoin,
-    required this.onRsvp,
+    required this.onLongPress,
     required this.onOpen,
   });
 
   final Meeting meeting;
   final String userId;
-  final bool emphasized;
+  final bool showJoin;
   final VoidCallback onJoin;
-  final ValueChanged<MeetingRsvp> onRsvp;
+  final VoidCallback onLongPress;
   final VoidCallback onOpen;
 
-  static final _dateFmt = DateFormat('EEE d MMM · HH:mm');
+  String get _meta {
+    final location = (meeting.location ?? '').trim();
+    final parts = <String>[
+      if ((meeting.twgName ?? '').isNotEmpty) meeting.twgName!,
+      if (location.isNotEmpty)
+        location
+      else if (meeting.hasVideo)
+        'Virtual',
+      if (meeting.isParticipant(userId)) _rsvpMark(meeting.myRsvp(userId)),
+    ];
+    if (parts.isEmpty) return meeting.isPast ? 'Past session' : 'Upcoming';
+    return parts.join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isParticipant = meeting.isParticipant(userId);
-    final myRsvp = meeting.myRsvp(userId);
-    final location = (meeting.location ?? '').trim();
-    final subtitle = [
-      _dateFmt.format(meeting.scheduledAt),
-      if (location.isNotEmpty) location else if (meeting.hasVideo) 'Virtual',
-    ].join(' · ');
-
-    // Only the emphasized (imminent) card may carry the solid-gold Join — that
-    // is the screen's single gold action.
-    final showJoin = emphasized && meeting.hasVideo;
-
-    return PressableScale(
-      onTap: onOpen,
-      child: GlassCard(
-        goldGlow: emphasized,
-        borderRadius: emphasized ? 22 : 20,
-        padding: EdgeInsets.all(emphasized ? Insets.xl : Insets.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // The emphasized card leads with an eyebrow + a big serif relative
-            // time so the soonest session reads as the focal point.
-            if (emphasized) ...[
-              Text('NEXT UP', style: SovereignType.eyebrow),
-              const SizedBox(height: Insets.sm),
-              Text(_relativeTime(meeting), style: SovereignType.title),
-              const SizedBox(height: Insets.xs),
-            ],
-            // Title block (Hero destination keyed by id) + Join (emphasized only).
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Hero(
-                    tag: meetingHeroTag(meeting.id),
-                    flightShuttleBuilder: _heroShuttle,
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: Text(
-                        meeting.title,
-                        style: emphasized
-                            ? SovereignType.heading
-                            : SovereignType.section,
-                      ),
-                    ),
-                  ),
-                ),
-                if (showJoin) ...[
-                  const SizedBox(width: Insets.md),
-                  _JoinPill(onTap: onJoin),
-                ],
-              ],
-            ),
-            const SizedBox(height: Insets.sm),
-            Row(
-              children: [
-                const Icon(Icons.schedule, size: 13, color: SovereignColors.gold),
-                const SizedBox(width: Insets.sm),
-                Expanded(
-                  child: Text(
-                    subtitle,
-                    style: SovereignType.secondary.copyWith(
-                      color: SovereignColors.ivory
-                          .withValues(alpha: SovereignColors.alphaMid),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            // RSVP row — shown only to participants. Three inner-glass chips,
-            // the selected one gold-outline (so it doesn't compete with Join).
-            if (isParticipant) ...[
-              const SizedBox(height: Insets.lg),
-              Text('RSVP', style: SovereignType.eyebrow),
-              const SizedBox(height: Insets.sm),
-              Row(
-                children: [
-                  _RsvpChip(
-                    label: 'Going',
-                    selected: myRsvp == MeetingRsvp.going,
-                    onTap: () => onRsvp(MeetingRsvp.going),
-                  ),
-                  const SizedBox(width: Insets.sm),
-                  _RsvpChip(
-                    label: 'Maybe',
-                    selected: myRsvp == MeetingRsvp.maybe,
-                    onTap: () => onRsvp(MeetingRsvp.maybe),
-                  ),
-                  const SizedBox(width: Insets.sm),
-                  _RsvpChip(
-                    label: 'No',
-                    selected: myRsvp == MeetingRsvp.no,
-                    onTap: () => onRsvp(MeetingRsvp.no),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
+    return GestureDetector(
+      onLongPress: onLongPress,
+      child: ListRow(
+        leading: _TimeBlock(meeting: meeting),
+        title: meeting.title,
+        meta: _meta,
+        trailing: showJoin ? _JoinPill(onTap: onJoin) : null,
+        onTap: onOpen,
       ),
     );
   }
+}
 
-  /// Keeps the title legible (not double-shadowed) mid-flight.
-  static Widget _heroShuttle(
-    BuildContext flightContext,
-    Animation<double> animation,
-    HeroFlightDirection flightDirection,
-    BuildContext fromHeroContext,
-    BuildContext toHeroContext,
-  ) {
-    return DefaultTextStyle(
-      style: DefaultTextStyle.of(toHeroContext).style,
-      child: toHeroContext.widget,
+/// The row's leading 38px time block — HH:mm bold over the duration, in the
+/// kit's gold icon-container style.
+class _TimeBlock extends StatelessWidget {
+  const _TimeBlock({required this.meeting});
+
+  final Meeting meeting;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      padding: const EdgeInsets.symmetric(vertical: Insets.xs),
+      decoration: BoxDecoration(
+        color: SovereignColors.gold.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            DateFormat('HH:mm').format(meeting.scheduledAt),
+            style: const TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: SovereignColors.gold,
+              height: 1.1,
+            ),
+          ),
+          Text(
+            '${meeting.durationMinutes}m',
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: SovereignColors.gold
+                  .withValues(alpha: SovereignColors.alphaMid),
+              height: 1.2,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// A friendly relative time for an upcoming meeting (mirrors Home's hero copy).
-String _relativeTime(Meeting m) {
-  final mins = m.scheduledAt.difference(DateTime.now()).inMinutes;
-  if (mins <= 0) return 'Now';
-  if (mins < 60) return 'in $mins min';
-  final hours = mins ~/ 60;
-  if (hours < 24) {
-    final rem = mins % 60;
-    return rem == 0 ? 'in ${hours}h' : 'in ${hours}h ${rem}m';
-  }
-  final days = hours ~/ 24;
-  return days == 1 ? 'Tomorrow' : 'in $days days';
-}
-
-/// The gold "Join" call-to-action pill — the imminent card's single gold action.
+/// The yellow "Join" pill — the screen's ONE filled-yellow action, inline on
+/// the soonest upcoming row that carries video.
 class _JoinPill extends StatelessWidget {
   const _JoinPill({required this.onTap});
 
@@ -522,36 +390,29 @@ class _JoinPill extends StatelessWidget {
       label: 'Join meeting',
       child: PressableScale(
         onTap: onTap,
-        child: DecoratedBox(
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: Insets.md, vertical: Insets.xs + 2),
           decoration: BoxDecoration(
             color: SovereignColors.gold,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: SovereignColors.gold.withValues(alpha: 0.28),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.videocam_rounded,
+                  size: 14, color: SovereignColors.navy),
+              SizedBox(width: Insets.xs),
+              Text(
+                'Join',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  color: SovereignColors.navy,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
-          ),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.videocam, size: 14, color: SovereignColors.navy),
-                SizedBox(width: 6),
-                Text(
-                  'Join',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    color: SovereignColors.navy,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
@@ -559,53 +420,80 @@ class _JoinPill extends StatelessWidget {
   }
 }
 
-/// One RSVP option as a ≥44px tappable chip. When [selected], the chip reads as
-/// a gold-OUTLINE pill (gold ring + gold label) — not a solid fill — so the
-/// imminent card's Join stays the only solid gold on the screen.
-class _RsvpChip extends StatelessWidget {
-  const _RsvpChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+/// The long-press RSVP sheet body: the meeting name over the three RSVP
+/// options; each option pops the sheet with its [MeetingRsvp] choice (the
+/// caller then routes it through the existing controller).
+class _RsvpSheetBody extends StatelessWidget {
+  const _RsvpSheetBody({required this.meeting, required this.current});
 
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+  final Meeting meeting;
+  final MeetingRsvp current;
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = SovereignType.caption.copyWith(
-      color: selected
-          ? SovereignColors.gold
-          : SovereignColors.ivory.withValues(alpha: SovereignColors.alphaHigh),
-      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+    Widget mark(MeetingRsvp option) => option == current
+        ? const Icon(Icons.check_rounded, size: 18, color: SovereignColors.gold)
+        : const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SectionHeader(title: meeting.title),
+        RowGroup(children: [
+          ListRow(
+            icon: Icons.check_circle_outline_rounded,
+            title: 'Going',
+            trailing: mark(MeetingRsvp.going),
+            onTap: () => Navigator.of(context).pop(MeetingRsvp.going),
+          ),
+          ListRow(
+            icon: Icons.help_outline_rounded,
+            title: 'Maybe',
+            trailing: mark(MeetingRsvp.maybe),
+            onTap: () => Navigator.of(context).pop(MeetingRsvp.maybe),
+          ),
+          ListRow(
+            icon: Icons.close_rounded,
+            title: 'No',
+            trailing: mark(MeetingRsvp.no),
+            onTap: () => Navigator.of(context).pop(MeetingRsvp.no),
+          ),
+        ]),
+      ],
     );
+  }
+}
 
-    final content = SizedBox(
-      height: 44, // ≥44px touch target
-      child: Center(child: Text(label, style: labelStyle)),
-    );
+/// Loading — header/segmented/row-shaped skeletons (no spinner), cross-fading
+/// to content.
+class _LoadingView extends StatelessWidget {
+  const _LoadingView({super.key});
 
-    final Widget chip = selected
-        ? DecoratedBox(
-            decoration: BoxDecoration(
-              color: SovereignColors.gold.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: SovereignColors.gold.withValues(alpha: 0.85),
-                width: 1.4,
-              ),
-            ),
-            child: content,
-          )
-        : GlassSurface.inner(borderRadius: 12, child: content);
-
-    return Expanded(
-      child: Semantics(
-        button: true,
-        label: 'RSVP $label${selected ? ', selected' : ''}',
-        child: PressableScale(onTap: onTap, child: chip),
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(Insets.gutter, Insets.lg, Insets.gutter, 0)
+          .add(navClearance(context)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          SkeletonBlock(width: 90, height: 12),
+          SizedBox(height: Insets.sm),
+          SkeletonBlock(width: 150, height: 22),
+          SizedBox(height: Insets.lg),
+          SkeletonBlock(width: double.infinity, height: 44, radius: 12),
+          SizedBox(height: Insets.lg),
+          SkeletonBlock(width: 70, height: 12),
+          SizedBox(height: Insets.sm),
+          RowGroup(children: [
+            SkeletonRow(),
+            SkeletonRow(),
+            SkeletonRow(),
+            SkeletonRow(),
+          ]),
+        ],
       ),
     );
   }
@@ -694,31 +582,6 @@ class _EmptyView extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Inline empty state shown under the toggle when one side has no meetings.
-class _InlineEmpty extends StatelessWidget {
-  const _InlineEmpty({required this.showPast});
-
-  final bool showPast;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: Insets.sm),
-          child: Text(
-            showPast ? 'No past meetings.' : 'No upcoming meetings.',
-            style: SovereignType.secondary.copyWith(
-              color: SovereignColors.ivory
-                  .withValues(alpha: SovereignColors.alphaMid),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

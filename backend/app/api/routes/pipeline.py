@@ -6,7 +6,8 @@ from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timezone
 UTC = timezone.utc
 import uuid
@@ -14,8 +15,8 @@ import io
 import re
 
 from app.core.database import get_db
-from app.api.deps import get_current_user, require_facilitator, require_admin
-from app.models.models import User, Project, ProjectStatus, UserRole
+from app.api.deps import get_current_user, require_facilitator, require_admin, has_twg_access
+from app.models.models import User, Project, ProjectStatus, UserRole, ProjectInterest
 
 # Roles allowed to see INCUBATION-status projects. All other roles (TWG_MEMBER,
 # any future investor role) get incubation projects filtered out at the API.
@@ -32,6 +33,7 @@ from app.schemas.pipeline_schemas import (
     DFIWindowRead, DFIMatchRead, DFIMatchStatusUpdate, FinancingMemoResponse,
     IncubationChecklistRead, IncubationChecklistItem,
     ProjectGeospatialRead, ImpactLogEntryCreate, ImpactLogEntryRead, ImpactSummaryRead,
+    ProjectMemberRead, ProjectInterestState,
 )
 from app.models.models import Document, ImpactLogEntry, ProjectGeospatialData
 from app.core.constants import INCUBATION_CHECKLIST_ITEMS, canonical_code_for
@@ -142,6 +144,154 @@ async def list_pipeline_projects(
     projects = result.scalars().all()
 
     return [_project_to_read(p, current_user) for p in projects]
+
+
+# ---------------------------------------------------------------------------
+# Member Deal Room — TWG-scoped read + interest (follow) toggle.
+# NOTE: /member MUST be registered before /{project_id} (UUID path) below.
+# ---------------------------------------------------------------------------
+
+def _project_to_member_read(p: "Project", interest_count: int, is_following: bool) -> ProjectMemberRead:
+    """Member-safe projection — NO key contacts / financing internals."""
+    return ProjectMemberRead(
+        id=p.id,
+        name=p.name,
+        sector=p.pillar,
+        status=p.status,
+        investment_size=p.investment_size,
+        currency=p.currency or "USD",
+        readiness_score=p.readiness_score or 0.0,
+        afcen_score=p.afcen_score,
+        strategic_alignment_score=p.strategic_alignment_score,
+        location=p.lead_country or p.site_location_name,
+        description=p.description,
+        is_following=is_following,
+        interest_count=interest_count,
+    )
+
+
+@router.get("/member", response_model=List[ProjectMemberRead])
+async def list_member_projects(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Member-facing Deal Room list: projects linked to the caller's TWG(s).
+
+    Unlike the staff pipeline list above, this shows ALL lifecycle stages —
+    including INCUBATION — because members may see their OWN TWG's early
+    projects; what they may never see is other TWGs' projects. ARCHIVED is
+    excluded. Serialization is member-safe (ProjectMemberRead) only.
+    """
+    query = select(Project).where(Project.status != ProjectStatus.ARCHIVED)
+
+    # Admin / Secretariat see everything; everyone else only their TWGs.
+    if current_user.role not in (UserRole.ADMIN, UserRole.SECRETARIAT_LEAD):
+        twg_ids = [twg.id for twg in current_user.twgs]
+        if not twg_ids:
+            return []
+        query = query.where(Project.twg_id.in_(twg_ids))
+
+    result = await db.execute(query.order_by(Project.name))
+    projects = result.scalars().all()
+    if not projects:
+        return []
+
+    project_ids = [p.id for p in projects]
+    count_rows = await db.execute(
+        select(ProjectInterest.project_id, func.count(ProjectInterest.id))
+        .where(ProjectInterest.project_id.in_(project_ids))
+        .group_by(ProjectInterest.project_id)
+    )
+    counts = dict(count_rows.all())
+    mine_rows = await db.execute(
+        select(ProjectInterest.project_id).where(
+            ProjectInterest.user_id == current_user.id,
+            ProjectInterest.project_id.in_(project_ids),
+        )
+    )
+    mine = set(mine_rows.scalars().all())
+
+    return [_project_to_member_read(p, counts.get(p.id, 0), p.id in mine) for p in projects]
+
+
+async def _get_member_project_or_404(
+    project_id: uuid.UUID, db: AsyncSession, current_user: User
+) -> Project:
+    """Load a project the caller's TWGs grant access to.
+
+    Cross-TWG (and nonexistent) projects both return 404 — not 403 — so
+    members cannot enumerate other TWGs' deal flow.
+    """
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project or not has_twg_access(current_user, project.twg_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+async def _interest_count(db: AsyncSession, project_id: uuid.UUID) -> int:
+    result = await db.execute(
+        select(func.count()).select_from(ProjectInterest)
+        .where(ProjectInterest.project_id == project_id)
+    )
+    return result.scalar_one()
+
+
+@router.post("/{project_id}/interest", response_model=ProjectInterestState)
+async def express_project_interest(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Follow / express interest in a project (idempotent). TWG-checked."""
+    project = await _get_member_project_or_404(project_id, db, current_user)
+
+    existing = (await db.execute(
+        select(ProjectInterest).where(
+            ProjectInterest.project_id == project.id,
+            ProjectInterest.user_id == current_user.id,
+        )
+    )).scalar_one_or_none()
+    if not existing:
+        db.add(ProjectInterest(project_id=project.id, user_id=current_user.id))
+        try:
+            await db.commit()
+        except IntegrityError:
+            # Concurrent double-tap — the unique constraint already holds the row.
+            await db.rollback()
+
+    return ProjectInterestState(
+        project_id=project.id,
+        is_following=True,
+        interest_count=await _interest_count(db, project.id),
+    )
+
+
+@router.delete("/{project_id}/interest", response_model=ProjectInterestState)
+async def remove_project_interest(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Unfollow a project (idempotent). TWG-checked."""
+    project = await _get_member_project_or_404(project_id, db, current_user)
+
+    existing = (await db.execute(
+        select(ProjectInterest).where(
+            ProjectInterest.project_id == project.id,
+            ProjectInterest.user_id == current_user.id,
+        )
+    )).scalar_one_or_none()
+    if existing:
+        await db.delete(existing)
+        await db.commit()
+
+    return ProjectInterestState(
+        project_id=project.id,
+        is_following=False,
+        interest_count=await _interest_count(db, project.id),
+    )
+
 
 @router.post("/ingest", response_model=ProjectPipelineRead)
 async def ingest_project(

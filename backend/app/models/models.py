@@ -3,7 +3,7 @@ import enum
 from datetime import datetime, date
 from typing import List, Optional
 from decimal import Decimal
-from sqlalchemy import String, DateTime, Date, Enum, ForeignKey, Column, Table, Text, Numeric, Float, Boolean, JSON, Uuid, Integer, ARRAY
+from sqlalchemy import String, DateTime, Date, Enum, ForeignKey, Column, Table, Text, Numeric, Float, Boolean, JSON, Uuid, Integer, ARRAY, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 try:
@@ -686,6 +686,29 @@ class Project(Base):
     documents: Mapped[List["Document"]] = relationship(foreign_keys="[Document.project_id]", back_populates="project")
     score_details: Mapped[List["ProjectScoreDetail"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     status_history: Mapped[List["ProjectStatusHistory"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+
+class ProjectInterest(Base):
+    """A member following / expressing interest in a Deal Room project.
+
+    One row per (project, user) — the unique constraint makes the
+    POST /pipeline/{id}/interest endpoint idempotent at the DB level.
+    """
+    __tablename__ = "project_interests"
+    __table_args__ = (
+        UniqueConstraint("project_id", "user_id", name="uq_project_interest_project_user"),
+        {'extend_existing': True},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    project: Mapped["Project"] = relationship("Project")
+    user: Mapped["User"] = relationship("User")
+
 
 class ProjectStatusHistory(Base):
     __tablename__ = "project_status_history"

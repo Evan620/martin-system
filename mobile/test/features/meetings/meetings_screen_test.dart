@@ -28,10 +28,19 @@ class _MeController extends AuthController {
       twgs: []));
 }
 
-/// An ISO-UTC string for a meeting at [offset] from now (defaults to +2h today),
-/// so it lands on *today* and the calendar shows it by default.
+/// A meeting moment that always lands on *today* in local time: [offset] from
+/// now, clamped to 23:59 so late-evening test runs don't roll into tomorrow.
+DateTime _todayAt({Duration offset = const Duration(hours: 2)}) {
+  final now = DateTime.now();
+  final t = now.add(offset);
+  return DateUtils.isSameDay(t, now)
+      ? t
+      : DateTime(now.year, now.month, now.day, 23, 59);
+}
+
+/// ISO-UTC string for [_todayAt], so the calendar shows it by default.
 String _todayIso({Duration offset = const Duration(hours: 2)}) =>
-    DateTime.now().add(offset).toUtc().toIso8601String();
+    _todayAt(offset: offset).toUtc().toIso8601String();
 
 Map<String, dynamic> _meetingJson({
   String id = 'm1',
@@ -84,8 +93,7 @@ void main() {
     // Today's section + the meeting row (today is selected by default).
     expect(find.text('Today'), findsOneWidget);
     expect(find.text('Energy Sync'), findsOneWidget);
-    final at = DateTime.now().add(const Duration(hours: 2));
-    expect(find.text(DateFormat('HH:mm').format(at)), findsOneWidget);
+    expect(find.text(DateFormat('HH:mm').format(_todayAt())), findsOneWidget);
 
     // The soonest upcoming session with video carries the one yellow Join.
     expect(find.text('Join'), findsOneWidget);

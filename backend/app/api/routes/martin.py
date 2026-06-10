@@ -70,10 +70,12 @@ async def _query_briefing_data(
         minutes_until = max(0, int((sched - now).total_seconds() / 60))
         upcoming_meetings.append(
             {
+                "meeting_id": str(m.id),
                 "title": m.title,
                 "twg_name": m.twg.name if m.twg else "",
                 "starts_at": sched.isoformat(),
                 "minutes_until": minutes_until,
+                "video_link": m.video_link,
             }
         )
 

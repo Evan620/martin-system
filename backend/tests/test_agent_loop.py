@@ -81,6 +81,109 @@ async def test_agent_loop_history_preserved():
     assert any(m.get("content") == "First question" for m in second_call_msgs)
 
 
+class _FakeToolFunction:
+    def __init__(self, name, arguments):
+        self.name = name
+        self.arguments = arguments  # JSON string (OpenAI wire shape)
+
+
+class _FakeToolCall:
+    def __init__(self, id, function):
+        self.id = id
+        self.function = function
+
+
+class _FakeResponseWrapper:
+    """Mimics llm_service._AnthropicResponseWrapper (returned by stream_tokens)."""
+    def __init__(self, content, tool_calls):
+        self.content = content
+        self.tool_calls = tool_calls if tool_calls else None
+
+
+class StreamShapeMockLLM:
+    """Mimics the REAL stream_tokens contract: returns a plain string when
+    there are no tool calls, and an OpenAI-shaped wrapper object (NOT a dict)
+    when the model calls a tool. Regression for the empty-answer bug where
+    AgentLoop only unpacked dict results, so streaming tool turns never
+    executed tools and returned the wrapper's repr as the answer."""
+
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self._calls = []
+
+    async def complete(self, messages, tools=None, system_prompt=None):
+        raise AssertionError("streaming path must use stream_tokens")
+
+    async def stream_tokens(self, messages, system_prompt=None, on_token=None, tools=None, **kw):
+        self._calls.append(messages)
+        resp = self._responses.pop(0)
+        if on_token and isinstance(resp, str):
+            await on_token(resp)
+        return resp
+
+
+@pytest.mark.asyncio
+async def test_agent_loop_streaming_tool_call_then_respond():
+    """A tool-call turn on the STREAMING path (stream_callback set) must
+    execute the tool and return the second-pass answer — not the wrapper repr."""
+    from app.agents.agent_loop import AgentLoop
+    AgentLoop._history.clear()
+    mock_tool = AsyncMock(return_value="3 meetings tomorrow")
+    llm = StreamShapeMockLLM([
+        _FakeResponseWrapper(
+            content="",
+            tool_calls=[_FakeToolCall("tc1", _FakeToolFunction("get_my_meetings", '{"when": "next"}'))],
+        ),
+        "Your next meeting is tomorrow at 10am.",
+    ])
+    tokens = []
+
+    async def on_token(t):
+        tokens.append(t)
+
+    loop = AgentLoop(
+        agent_id="member",
+        system_prompt="You are Martin.",
+        tools=[{"type": "function", "function": {"name": "get_my_meetings"}}],
+        tool_map={"get_my_meetings": mock_tool},
+        llm=llm,
+        max_iterations=5,
+    )
+    resp = await loop.run("What is my next meeting?", thread_id="ts1", stream_callback=on_token)
+
+    mock_tool.assert_called_once_with(when="next")
+    assert resp.content == "Your next meeting is tomorrow at 10am."
+    assert resp.tool_calls_made == ["get_my_meetings"]
+    assert "object at 0x" not in resp.content
+    # second-pass tokens streamed
+    assert "".join(tokens) == "Your next meeting is tomorrow at 10am."
+    # second LLM pass received the tool result in history
+    second_msgs = llm._calls[1]
+    assert any(m.get("role") == "tool" and "3 meetings" in m.get("content", "") for m in second_msgs)
+
+
+@pytest.mark.asyncio
+async def test_agent_loop_streaming_plain_string_response():
+    """No-tool streaming turns return the plain string stream_tokens gives back."""
+    from app.agents.agent_loop import AgentLoop
+    AgentLoop._history.clear()
+    llm = StreamShapeMockLLM(["Hi, I'm Martin."])
+
+    async def on_token(t):
+        pass
+
+    loop = AgentLoop(
+        agent_id="member",
+        system_prompt="You are Martin.",
+        tools=[],
+        tool_map={},
+        llm=llm,
+        max_iterations=5,
+    )
+    resp = await loop.run("hello", thread_id="ts2", stream_callback=on_token)
+    assert resp.content == "Hi, I'm Martin."
+
+
 @pytest.mark.asyncio
 async def test_agent_loop_max_iterations():
     from app.agents.agent_loop import AgentLoop

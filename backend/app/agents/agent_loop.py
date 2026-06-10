@@ -96,8 +96,7 @@ class AgentLoop:
                 final_content = f"I encountered an error: {str(e)}"
                 break
 
-            content = result.get("content", "") if isinstance(result, dict) else str(result)
-            tool_calls = result.get("tool_calls") if isinstance(result, dict) else None
+            content, tool_calls = self._parse_llm_result(result)
 
             assistant_msg: Dict[str, Any] = {"role": "assistant", "content": content}
             if tool_calls:
@@ -179,6 +178,44 @@ class AgentLoop:
             if event["type"] == "done":
                 break
         await task
+
+    @staticmethod
+    def _parse_llm_result(result: Any) -> tuple:
+        """Normalize an LLM result into (content, tool_calls).
+
+        complete() returns a dict {"content", "tool_calls"} with compact
+        tool_calls ({"id","name","args"}), but stream_tokens() returns either
+        a plain string (no tool calls) or an OpenAI-shaped response object
+        (.content + .tool_calls[i].function.name/.arguments), e.g.
+        llm_service._AnthropicResponseWrapper. The old dict-only parsing
+        treated that object as a final string answer (its repr), silently
+        dropping every tool call on the streaming path — Martin chat tool
+        turns returned empty answers.
+        """
+        if isinstance(result, dict):
+            return result.get("content", "") or "", result.get("tool_calls")
+        if isinstance(result, str):
+            return result, None
+
+        content = getattr(result, "content", "") or ""
+        raw_tcs = getattr(result, "tool_calls", None) or []
+        tool_calls: List[Dict] = []
+        for tc in raw_tcs:
+            if isinstance(tc, dict):
+                tool_calls.append(tc)
+                continue
+            fn = getattr(tc, "function", None)
+            args_raw = getattr(fn, "arguments", "{}") if fn else "{}"
+            try:
+                args = json.loads(args_raw) if isinstance(args_raw, str) else (args_raw or {})
+            except Exception:
+                args = {}
+            tool_calls.append({
+                "id": getattr(tc, "id", ""),
+                "name": getattr(fn, "name", "") if fn else "",
+                "args": args if isinstance(args, dict) else {},
+            })
+        return content, (tool_calls or None)
 
     def _get_history(self, thread_id: str) -> List[Dict]:
         if thread_id not in AgentLoop._history:

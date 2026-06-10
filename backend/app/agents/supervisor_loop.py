@@ -131,6 +131,13 @@ class SupervisorLoop:
                 query, thread_id, twg_id, user_timezone,
                 stream_callback=on_token, force_agent_id=force_agent_id,
             )
+            # The API route (POST /agents/chat/stream) only understands
+            # "final_response" — a bare "done" carrying the AgentResponse was
+            # silently dropped, so the client never received the answer.
+            await tokens.put({
+                "type": "final_response",
+                "content": {"response": resp.content, "citations": resp.citations},
+            })
             await tokens.put({"type": "done", "response": resp})
 
         task = asyncio.create_task(run_task())

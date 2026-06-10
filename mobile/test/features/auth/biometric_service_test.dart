@@ -25,4 +25,12 @@ void main() {
     final svc = BiometricService(la);
     expect(await svc.authenticate(), isTrue);
   });
+
+  test('does not crash / lock out when isDeviceSupported throws (web MissingPluginException)', () async {
+    final la = _MockLocalAuth();
+    when(() => la.isDeviceSupported()).thenThrow(Exception('MissingPluginException'));
+    final svc = BiometricService(la);
+    // Before the fix this throw escaped (unguarded) and rejected the Future.
+    expect(await svc.authenticate(), isTrue);
+  });
 }

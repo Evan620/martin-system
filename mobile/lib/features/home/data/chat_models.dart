@@ -149,22 +149,52 @@ ChatEvent? parseSseEvent(Map<String, dynamic> event) {
         conversationId: event['conversation_id']?.toString(),
       );
     case 'response':
-      // Terminal fallback frame ({'type':'response', message:{content}}) sent
-      // when no final_response was emitted — without parsing it the Martin
-      // bubble stays empty forever if token streaming ever fails upstream.
+      // Terminal fallback frame sent when no final_response was emitted —
+      // on old prod's command/mention paths it is the ONLY carrier of the
+      // answer text. Dialects vary: prod nests it as message.content, others
+      // put it at the top level as content/response. Accept all three.
       final message = event['message'];
-      final content =
-          message is Map ? (message['content']?.toString() ?? '') : '';
-      return content.isEmpty
-          ? null
-          : FinalEvent(
-              content,
-              conversationId: event['conversation_id']?.toString(),
-            );
+      final content = _firstNonEmpty([
+        if (message is Map) message['content'],
+        event['content'],
+        event['response'],
+      ]);
+      if (content == null) return null;
+      final conversationId = _firstNonEmpty([
+        if (message is Map) message['conversation_id'],
+        event['conversation_id'],
+      ]);
+      return FinalEvent(content, conversationId: conversationId);
+    case 'error':
+      // Backend exception frame ({'type':'error', error, message}) — without
+      // mapping it any server-side failure ends as Martin going silent.
+      return ErrorEvent(
+        _firstNonEmpty([event['message'], event['error']]) ??
+            'Martin ran into a problem. Please try again.',
+      );
     case 'done':
       return const DoneEvent();
+    case 'parsing':
+    case 'interrupt':
+    case 'action_required':
+    case 'tool_complete':
+    case 'command_detected':
+    case 'agent_routing':
+    case 'mixed_execution':
+    case 'tool_result':
+      // Known but not user-visible in this client — ignored on purpose.
+      return null;
     default:
       // unknown → ignore.
       return null;
   }
+}
+
+/// First value in [candidates] whose string form is non-empty, else null.
+String? _firstNonEmpty(List<Object?> candidates) {
+  for (final c in candidates) {
+    final s = c?.toString().trim() ?? '';
+    if (s.isNotEmpty) return s;
+  }
+  return null;
 }

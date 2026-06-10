@@ -68,6 +68,11 @@ class _SequenceClient implements MartinChatClient {
   }
 }
 
+/// Runs raw SSE frame payloads through the real parser so the dialect tests
+/// exercise the full parse→fold pipeline, not hand-built events.
+List<ChatEvent> _parseFrames(List<String> frames) =>
+    frames.map(parseSseData).whereType<ChatEvent>().toList();
+
 ProviderContainer _container(
   MartinChatClient client, {
   List<Twg> twgs = const [Twg(id: 't1', name: 'Energy TWG')],
@@ -272,6 +277,149 @@ void main() {
     await container.read(chatControllerProvider.notifier).retry();
     expect(container.read(chatControllerProvider).messages, isEmpty);
     expect(client.lastMessage, isNull);
+  });
+
+  // ---------------------------------------------------------------------
+  // Backend-dialect end-to-end scenarios: raw SSE frame payloads are pushed
+  // through the real parser (parseSseData) and the resulting events through
+  // the controller, proving the user gets the reply text whichever dialect
+  // the server speaks.
+  // ---------------------------------------------------------------------
+
+  test(
+      'prod dialect (command path): answer arrives only in the terminal '
+      "'response' frame and becomes the Martin reply", () async {
+    // Old prod for `/search …`: no token events at all — the only carrier of
+    // the answer text is the terminal {'type':'response'} fallback frame.
+    final client = _FakeClient(_parseFrames([
+      '{"type":"start","conversation_id":"conv-prod"}',
+      '{"type":"parsing","result":{"message_type":"command"}}',
+      '{"type":"command_detected","command":"/search"}',
+      '{"type":"tool_start","tool":"search_documents","status":"running"}',
+      '{"type":"tool_complete","status":"ok","step_id":"s1"}',
+      '{"type":"response","message":{"content":"Here are the search results.","conversation_id":"conv-prod"}}',
+      '{"type":"done"}',
+    ]));
+    final container = _container(client);
+
+    await container.read(chatControllerProvider.notifier).send('/search PCB');
+
+    final state = container.read(chatControllerProvider);
+    expect(state.streaming, isFalse);
+    expect(state.error, isNull);
+    expect(state.conversationId, 'conv-prod');
+    expect(state.messages, hasLength(2));
+    expect(state.messages.last.role, ChatRole.martin);
+    expect(state.messages.last.text, 'Here are the search results.');
+    expect(state.messages.last.interrupted, isFalse);
+  });
+
+  test(
+      'branch dialect (member natural path): tokens carry the answer; the '
+      "empty terminal 'response' frame never wipes it", () async {
+    // Branch member path: thinking ×2, token*, tool_complete, then the
+    // terminal response frame whose content is ALWAYS '' on the natural path,
+    // and a bare done. The streamed tokens must survive as the reply.
+    final client = _FakeClient(_parseFrames([
+      '{"type":"start","conversation_id":"conv-branch"}',
+      '{"type":"parsing","result":{"message_type":"natural"}}',
+      '{"type":"thinking","status":"Reading your TWG context","step_id":"t1"}',
+      '{"type":"thinking","status":"Drafting a reply","step_id":"t2"}',
+      '{"type":"token","content":"The Bagré "}',
+      '{"type":"token","content":"deal is on track."}',
+      '{"type":"tool_complete","status":"ok","step_id":"t2"}',
+      '{"type":"response","message":{"content":""}}',
+      '{"type":"done"}',
+    ]));
+    final container = _container(client);
+
+    await container.read(chatControllerProvider.notifier).send('Brief me');
+
+    final state = container.read(chatControllerProvider);
+    expect(state.streaming, isFalse);
+    expect(state.error, isNull);
+    expect(state.conversationId, 'conv-branch');
+    expect(state.messages.last.role, ChatRole.martin);
+    expect(state.messages.last.text, 'The Bagré deal is on track.');
+    expect(state.messages.last.toolActivity, isNull);
+    expect(state.messages.last.interrupted, isFalse);
+  });
+
+  test(
+      'silent stream (zero tokens, empty response, bare done) → graceful '
+      'error instead of a blank bubble', () async {
+    // Prod swallowing the answer ("Access denied: TWG not found." etc.):
+    // tool_complete + response('') + done with no token and no error frame.
+    final client = _FakeClient(_parseFrames([
+      '{"type":"start","conversation_id":"conv-silent"}',
+      '{"type":"parsing","result":{"message_type":"natural"}}',
+      '{"type":"tool_complete","status":"ok","step_id":"s1"}',
+      '{"type":"response","message":{"content":""}}',
+      '{"type":"done"}',
+    ]));
+    final container = _container(client);
+
+    await container.read(chatControllerProvider.notifier).send('Hello?');
+
+    final state = container.read(chatControllerProvider);
+    expect(state.streaming, isFalse);
+    // No stranded empty Martin bubble — just the user's turn…
+    expect(state.messages, hasLength(1));
+    expect(state.messages.single.role, ChatRole.user);
+    // …and a graceful, user-facing error (rendered as the error bubble).
+    expect(state.error, isNotNull);
+    expect(state.error, isNotEmpty);
+  });
+
+  test('silent EOF with no done frame also surfaces the graceful error',
+      () async {
+    final client = _FakeClient(_parseFrames([
+      '{"type":"start","conversation_id":"c"}',
+    ]));
+    final container = _container(client);
+
+    await container.read(chatControllerProvider.notifier).send('Hi');
+
+    final state = container.read(chatControllerProvider);
+    expect(state.streaming, isFalse);
+    expect(state.messages, hasLength(1));
+    expect(state.error, isNotNull);
+  });
+
+  test('streamed text with no Final is finalized on EOF, never discarded',
+      () async {
+    // Stream dies after tokens without final/response/done — the partial
+    // text must still be committed as the reply.
+    final client = _FakeClient(_parseFrames([
+      '{"type":"token","content":"Partial but "}',
+      '{"type":"token","content":"useful answer"}',
+    ]));
+    final container = _container(client);
+
+    await container.read(chatControllerProvider.notifier).send('Hi');
+
+    final state = container.read(chatControllerProvider);
+    expect(state.streaming, isFalse);
+    expect(state.error, isNull);
+    expect(state.messages.last.text, 'Partial but useful answer');
+  });
+
+  test('backend error frame → ErrorEvent surfaces its message to the user',
+      () async {
+    final client = _FakeClient(_parseFrames([
+      '{"type":"start","conversation_id":"c"}',
+      '{"type":"error","error":"HTTPException","message":"Access denied: TWG not found."}',
+    ]));
+    final container = _container(client);
+
+    await container.read(chatControllerProvider.notifier).send('Hi');
+
+    final state = container.read(chatControllerProvider);
+    expect(state.streaming, isFalse);
+    expect(state.error, 'Access denied: TWG not found.');
+    // The empty draft was removed — only the user's turn remains.
+    expect(state.messages, hasLength(1));
+    expect(state.messages.single.role, ChatRole.user);
   });
 
   test('send(overrideTwgId:) uses the override instead of the first TWG',

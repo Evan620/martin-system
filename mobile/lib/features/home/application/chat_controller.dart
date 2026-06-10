@@ -157,7 +157,20 @@ class ChatController extends Notifier<ChatState> {
       return;
     }
 
-    // Normal completion.
+    // Stream ended (done frame or EOF) without an ErrorEvent.
+    //
+    // Silent server: no tokens streamed and no Final carried text (old prod
+    // swallows the answer internally on several paths and sends only
+    // tool_complete + response('') + done). Surface a graceful error instead
+    // of a blank Martin bubble — this is the "no response" symptom.
+    if (draft.text.trim().isEmpty) {
+      _failDraft(draft, "Martin didn't send a reply. Please try again.");
+      return;
+    }
+
+    // Normal completion: whatever text accumulated (tokens and/or a Final) is
+    // the reply — streamed text is never discarded just because no
+    // final_response frame arrived (neither backend version emits one).
     draft.toolActivity = null;
     state = state.copyWith(
       messages: List.of(state.messages),

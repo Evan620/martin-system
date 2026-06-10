@@ -87,6 +87,59 @@ void main() {
       expect(parseSseData('{"type":"response","message":{}}'), isNull);
     });
 
+    test("response frame carries the conversation_id into the FinalEvent", () {
+      final e = parseSseData(
+          '{"type":"response","message":{"content":"hi","conversation_id":"c3"}}');
+      expect((e as FinalEvent).conversationId, 'c3');
+      // Top-level conversation_id also works.
+      final e2 = parseSseData(
+          '{"type":"response","conversation_id":"c4","message":{"content":"hi"}}');
+      expect((e2 as FinalEvent).conversationId, 'c4');
+    });
+
+    test("bare response frame with top-level content/response → FinalEvent",
+        () {
+      // Some backend dialects send the text at the top level instead of
+      // nested under message — the parser must accept both.
+      final e = parseSseData('{"type":"response","content":"Top answer"}');
+      expect(e, isA<FinalEvent>());
+      expect((e as FinalEvent).text, 'Top answer');
+
+      final e2 = parseSseData('{"type":"response","response":"Alt answer"}');
+      expect(e2, isA<FinalEvent>());
+      expect((e2 as FinalEvent).text, 'Alt answer');
+    });
+
+    test("error frame → ErrorEvent (message preferred, error as fallback)",
+        () {
+      final e = parseSseData(
+          '{"type":"error","error":"LLMError","message":"Model unavailable"}');
+      expect(e, isA<ErrorEvent>());
+      expect((e as ErrorEvent).message, 'Model unavailable');
+
+      // Without a human message, fall back to the error field.
+      final e2 = parseSseData('{"type":"error","error":"RBAC denied"}');
+      expect((e2 as ErrorEvent).message, 'RBAC denied');
+
+      // A bare error frame still surfaces a graceful generic message.
+      final e3 = parseSseData('{"type":"error"}');
+      expect(e3, isA<ErrorEvent>());
+      expect((e3 as ErrorEvent).message, isNotEmpty);
+    });
+
+    test('parsing / interrupt / action_required are safely ignored', () {
+      expect(
+        parseSseData('{"type":"parsing","result":{"message_type":"natural"}}'),
+        isNull,
+      );
+      expect(parseSseData('{"type":"interrupt","payload":{}}'), isNull);
+      expect(
+        parseSseData('{"type":"action_required","action_id":"a1"}'),
+        isNull,
+      );
+      expect(parseSseData('{"type":"tool_complete","status":"ok"}'), isNull);
+    });
+
     test('unknown / empty → null', () {
       expect(parseSseData('{"type":"who_knows"}'), isNull);
       expect(parseSseData('{"type":"token","content":""}'), isNull);

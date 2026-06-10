@@ -10,7 +10,9 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-10-sovereign-redesign-design.md`
 
-**Conventions (verified):** `SovereignColors` (navy 0xFF0A1F44, navyDeep 0x08152F, navyRaised 0x0E2A55, gold 0xFFC9A227, ivory 0xFFF6F1E7, danger 0x9B3A2E, success 0x2F6B4F) in `lib/core/theme/sovereign_colors.dart`. `SovereignTheme.dark()` in `sovereign_theme.dart` currently maps displaySmall/headlineMedium/titleLarge to **unbundled** 'Georgia'. Nav constants in `lib/shell/app_shell.dart`: `_navInner = 52 + 16`, `_navBottomGap = 14`. Page transition: `sovereignPage()` in `lib/routing/sovereign_page.dart`. `main.dart` runs `runApp` with a ProviderScope override.
+**NEW PALETTE (T1 redefines these; keep the constant NAMES so all references update for free):** `gold` = **0xFFFCDB32** (Bright Sun), `navy` = **0xFF141D38** (Big Stone), `navyDeep` = **0xFF0D1426**, `navyRaised` = **0xFF1F2A4A**, `ivory` = **0xFFF6F1E7** (kept), `danger`/`success` kept; add `sunDeep` = **0xFFE6C229** for gold gradients/pressed/FAB tint. Any hardcoded old-gold hex in code (e.g. the FAB gradient `0xFFE6C766` in `app_shell.dart`) must be re-pointed to `gold`/`sunDeep` during T7/T8 sweep — the nav + FAB keep their shape/behavior but adopt Bright Sun.
+
+**Conventions (verified):** `SovereignColors` lives in `lib/core/theme/sovereign_colors.dart`. `SovereignTheme.dark()` in `sovereign_theme.dart` currently maps displaySmall/headlineMedium/titleLarge to **unbundled** 'Georgia'. Nav constants in `lib/shell/app_shell.dart`: `_navInner = 52 + 16`, `_navBottomGap = 14`. Page transition: `sovereignPage()` in `lib/routing/sovereign_page.dart`. `main.dart` runs `runApp` with a ProviderScope override.
 
 **Sequencing:** This is WF-E; it runs **after** WF-B (client P0) merges and **after** the Martin-chat consolidation workflow merges. The Martin chat screen is therefore OWNED by that workflow — this plan only token-sweeps it (T6), never restructures it.
 
@@ -83,14 +85,30 @@ Expected: six `.ttf` files, each > 50 KB. (If the CDN path 404s, fall back to `h
 ```
 Run `flutter pub get`.
 
-- [ ] **Step 3: Add alpha tokens to `sovereign_colors.dart`** — append inside the class:
+- [ ] **Step 3: Redefine the palette + add alpha tokens in `sovereign_colors.dart`** — replace the color constants with the NEW palette (Bright Sun + Big Stone) and append the alpha tokens. Keep the constant NAMES so every `SovereignColors.gold/.navy/...` reference across the app updates automatically:
 
 ```dart
+// lib/core/theme/sovereign_colors.dart
+import 'package:flutter/material.dart';
+
+/// Sovereign palette — Bright Sun on Big Stone: vivid gold accent over deep cool navy.
+abstract final class SovereignColors {
+  static const navy = Color(0xFF141D38);       // Big Stone — base surface
+  static const navyDeep = Color(0xFF0D1426);   // deepest — gradient bottoms / recessed
+  static const navyRaised = Color(0xFF1F2A4A); // elevated — glass cards
+  static const gold = Color(0xFFFCDB32);       // Bright Sun — the one action / accents
+  static const sunDeep = Color(0xFFE6C229);    // deeper sun — gold gradients / pressed / FAB tint
+  static const ivory = Color(0xFFF6F1E7);      // primary text/light on navy
+  static const danger = Color(0xFF9B3A2E);
+  static const success = Color(0xFF2F6B4F);
+
   /// Text/opacity tokens (AA-safe for body sizes on navy).
   static const double alphaHigh = 0.87; // primary text
   static const double alphaMid = 0.70;  // secondary text (AA floor)
   static const double alphaLow = 0.45;  // decorative only — never body copy
+}
 ```
+> Bright Sun is vivid — keep it for the single action + small accents/eyebrows; never flood large areas with it (ivory is the text color, navy the field). Re-verify contrast: Bright Sun `#FCDB32` text/fills on navy `#141D38` and navy text on Bright Sun fills both exceed AA.
 
 - [ ] **Step 4: Write the failing test** `test/core/theme/sovereign_type_test.dart`
 

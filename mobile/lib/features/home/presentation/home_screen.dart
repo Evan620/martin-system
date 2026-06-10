@@ -1,44 +1,45 @@
 // lib/features/home/presentation/home_screen.dart
 //
-// Home · Martin — the AI-first home of the Sovereign member app, wired to the
-// live member-scoped briefing (`GET /martin/briefing`).
+// Home · Martin — the editorial, AI-first home of the Sovereign member app,
+// wired to the live member-scoped briefing (`GET /martin/briefing`).
 //
-// Layout (top -> bottom), matching the approved Sovereign mockup:
-//   - gold eyebrow "WAIIS"
-//   - large serif greeting "<briefing.greeting>, <member first name>"
-//   - a glass Martin briefing card (chat-message style): the next meeting title
-//     + a relative time + a gold "Join" pill when present, plus an
-//     "N action items due" line derived from overdueCount
-//   - a row of suggestion chips (small glass pills)
-//   - a glass "Ask Martin…" input bar with a gold mic
+// Layout (top -> bottom), per the Sovereign redesign (editorial hero):
+//   - gold eyebrow "WAIIS · <weekday, d MMM>"
+//   - large serif greeting "<briefing.greeting>,\n<member first name>" (display)
+//   - a prominent hero "NEXT" meeting card: eyebrow (NEXT · TWG/meeting), a big
+//     serif relative time, a secondary location/virtual·attending line, and the
+//     screen's ONE solid-gold action — a gold "Join" pill (only when a video
+//     link is present). When there is no next meeting, a calm body card with no
+//     gold instead.
+//   - a "THEN" section: an action-items summary row (overdueCount) + the
+//     Your-TWGs section, each a quiet glass row (navy-raised, no gold fill).
+//   - a gold-OUTLINE "Ask Martin…" bar (the hero owns the gold; this is outline).
 //
-// Loads via homeControllerProvider.load() (post-frame) and renders by sealed
-// state (loading / error / data). Everything sits on a navy background; cards
-// use the Sovereign glass system, leaning on glass-inside-glass for layered
-// depth (outer raised card holding lighter inner rows, and an inner gold mic
-// inside the ask bar).
-//
-// The Ask-Martin bar + suggestion chips push the canonical full-screen
-// `/martin?q=<seed>` route (covering the nav), which opens the streaming
-// Martin chat and auto-sends the seed.
+// Loads via homeControllerProvider.load() (post-frame), renders by sealed state
+// (loading → content-shaped skeleton / error / data). Sections cascade in;
+// pull-to-refresh re-runs load(); tappable rows give press feedback.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/glass/glass.dart';
+import '../../../core/motion/cascade_in.dart';
+import '../../../core/motion/motion.dart';
+import '../../../core/motion/pressable.dart';
+import '../../../core/motion/skeleton.dart';
 import '../../../core/theme/sovereign_colors.dart';
+import '../../../core/theme/sovereign_spacing.dart';
+import '../../../core/theme/sovereign_type.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/home_controller.dart';
 import '../data/briefing_models.dart';
 import 'your_twgs_section.dart';
 
-/// Quick prompts offered under the briefing. Each seeds a Martin chat (4b).
-const _suggestions = <String>['Brief me', 'RSVP', 'Find a doc', "What's due?"];
-
 /// The AI-first member home. Greets the member, surfaces what matters via a
-/// live Martin briefing, offers quick suggestions, and pins an "Ask Martin"
-/// bar near the bottom.
+/// live Martin briefing, and pins a gold-outline "Ask Martin" bar near the
+/// bottom.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -56,8 +57,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   /// Opens the streaming Martin chat, seeding it with [seed] (URL-encoded) when
-  /// a suggestion chip / the ask bar carries a prompt. The top-level `/martin`
-  /// route presents the chat full-screen, covering the nav.
+  /// the ask bar carries a prompt. The top-level `/martin` route presents the
+  /// chat full-screen, covering the nav.
   void _askMartin(String seed) {
     final trimmed = seed.trim();
     final suffix =
@@ -78,21 +79,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const _AmbientBackground(),
           SafeArea(
             bottom: false,
-            child: switch (state) {
-              HomeLoading() => const Center(
-                  child: CircularProgressIndicator(color: SovereignColors.gold),
-                ),
-              HomeError(:final message) => _ErrorView(
-                  message: message,
-                  onRetry: () =>
-                      ref.read(homeControllerProvider.notifier).load(),
-                ),
-              HomeData(:final briefing) => _DataView(
-                  briefing: briefing,
-                  firstName: _firstName(ref),
-                  onAsk: _askMartin,
-                ),
-            },
+            child: RefreshIndicator(
+              color: SovereignColors.gold,
+              backgroundColor: SovereignColors.navyRaised,
+              onRefresh: () => ref.read(homeControllerProvider.notifier).load(),
+              child: AnimatedSwitcher(
+                duration: Motion.base,
+                child: switch (state) {
+                  HomeLoading() => const _LoadingView(key: ValueKey('loading')),
+                  HomeError(:final message) => _ErrorView(
+                      key: const ValueKey('error'),
+                      message: message,
+                      onRetry: () =>
+                          ref.read(homeControllerProvider.notifier).load(),
+                    ),
+                  HomeData(:final briefing) => _DataView(
+                      key: const ValueKey('data'),
+                      briefing: briefing,
+                      firstName: _firstName(ref),
+                      onAsk: _askMartin,
+                    ),
+                },
+              ),
+            ),
           ),
         ],
       ),
@@ -112,11 +121,12 @@ String _firstName(WidgetRef ref) {
 }
 
 // ---------------------------------------------------------------------------
-// Loaded state — the live briefing.
+// Loaded state — the live briefing, editorial layout.
 // ---------------------------------------------------------------------------
 
 class _DataView extends StatelessWidget {
   const _DataView({
+    super.key,
     required this.briefing,
     required this.firstName,
     required this.onAsk,
@@ -129,21 +139,57 @@ class _DataView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 104),
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(Insets.gutter, Insets.lg, Insets.gutter, 0)
+          .add(navClearance(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Eyebrow(),
-          const SizedBox(height: 14),
-          _Greeting(greeting: briefing.greeting, firstName: firstName),
-          const SizedBox(height: 24),
-          _MartinBriefingCard(briefing: briefing),
-          const SizedBox(height: 22),
-          const YourTwgsSection(),
-          const SizedBox(height: 22),
-          _SuggestionChips(onTap: onAsk),
-          const SizedBox(height: 28),
-          _AskMartinBar(onTap: () => onAsk('')),
+          CascadeIn(index: 0, child: const _Eyebrow()),
+          const SizedBox(height: Insets.md),
+          CascadeIn(
+            index: 1,
+            child: _Greeting(greeting: briefing.greeting, firstName: firstName),
+          ),
+          const SizedBox(height: Insets.section),
+          CascadeIn(index: 2, child: _HeroMeetingCard(briefing: briefing)),
+          const SizedBox(height: Insets.section),
+          CascadeIn(
+            index: 3,
+            child: _ThenSection(overdueCount: briefing.overdueCount),
+          ),
+          const SizedBox(height: Insets.section),
+          CascadeIn(index: 4, child: _AskMartinBar(onTap: () => onAsk(''))),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Loading — content-shaped skeleton (hero + two rows), no spinner.
+// ---------------------------------------------------------------------------
+
+class _LoadingView extends StatelessWidget {
+  const _LoadingView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(Insets.gutter, Insets.lg, Insets.gutter, 0)
+          .add(navClearance(context)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          SkeletonBlock(width: 160, height: 12),
+          SizedBox(height: Insets.lg),
+          SkeletonBlock(width: 220, height: 34),
+          SizedBox(height: Insets.section),
+          // A hero-shaped skeleton card + two quiet rows.
+          SkeletonList(count: 1),
+          SizedBox(height: Insets.section),
+          SkeletonList(count: 2),
         ],
       ),
     );
@@ -190,7 +236,7 @@ class _AmbientBackground extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Header
+// Header — gold eyebrow with today's date + serif greeting.
 // ---------------------------------------------------------------------------
 
 class _Eyebrow extends StatelessWidget {
@@ -198,14 +244,10 @@ class _Eyebrow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final today = DateFormat('EEEE, d MMM').format(DateTime.now());
     return Text(
-      'WAIIS',
-      style: TextStyle(
-        color: SovereignColors.gold.withValues(alpha: 0.85),
-        fontSize: 11,
-        letterSpacing: 4,
-        fontWeight: FontWeight.w600,
-      ),
+      'WAIIS · ${today.toUpperCase()}',
+      style: SovereignType.eyebrow,
     );
   }
 }
@@ -218,153 +260,84 @@ class _Greeting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = Theme.of(context).textTheme.displaySmall;
-    return Text(
-      '$greeting,\n$firstName',
-      style: (base ?? const TextStyle()).copyWith(
-        color: SovereignColors.ivory,
-        fontFamily: 'Georgia',
-        fontSize: 38,
-        height: 1.08,
-        fontWeight: FontWeight.w500,
-        letterSpacing: 0.2,
-      ),
-    );
+    return Text('$greeting,\n$firstName', style: SovereignType.display);
   }
 }
 
 // ---------------------------------------------------------------------------
-// Martin briefing — a raised glass card styled as a chat message bubble,
-// rendered from the live briefing (next meeting + relative time + Join, and an
-// "N action items due" line).
+// Hero next-meeting card — the editorial centrepiece. When a next meeting
+// exists: a raised glass card with an eyebrow (NEXT · TWG/meeting), a big serif
+// relative time, a secondary location/virtual·attending line, and the screen's
+// ONE solid-gold action (the Join pill, only when a video link is present).
+// When there is no next meeting: a calm body card, no gold.
 // ---------------------------------------------------------------------------
 
-class _MartinBriefingCard extends StatelessWidget {
-  const _MartinBriefingCard({required this.briefing});
+class _HeroMeetingCard extends StatelessWidget {
+  const _HeroMeetingCard({required this.briefing});
 
   final Briefing briefing;
 
   @override
   Widget build(BuildContext context) {
     final next = briefing.nextMeeting;
-    final overdue = briefing.overdueCount;
+
+    if (next == null) {
+      return GlassCard(
+        goldGlow: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('NEXT', style: SovereignType.eyebrow),
+            const SizedBox(height: Insets.md),
+            Text(
+              'Nothing on your calendar right now.',
+              style: SovereignType.body.copyWith(
+                color: SovereignColors.ivory.withValues(
+                  alpha: SovereignColors.alphaMid,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final eyebrowLabel = (next.twgName ?? next.title).toUpperCase();
 
     return GlassCard(
-      borderRadius: 20,
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      borderRadius: 22,
+      padding: const EdgeInsets.all(Insets.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: SovereignColors.gold.withValues(alpha: 0.16),
-                  border: Border.all(
-                    color: SovereignColors.gold.withValues(alpha: 0.55),
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: const Text(
-                  'M',
-                  style: TextStyle(
-                    color: SovereignColors.gold,
-                    fontFamily: 'Georgia',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'MARTIN',
-                style: TextStyle(
-                  color: SovereignColors.gold.withValues(alpha: 0.85),
-                  fontSize: 10,
-                  letterSpacing: 2.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
+          Text('NEXT · $eyebrowLabel', style: SovereignType.eyebrow),
+          const SizedBox(height: Insets.md),
 
-          // Next meeting — title + relative time + a gold Join pill if present.
-          if (next != null) ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: RichText(
-                    text: TextSpan(
-                      style: const TextStyle(
-                        color: SovereignColors.ivory,
-                        fontSize: 15.5,
-                        height: 1.42,
-                      ),
-                      children: [
-                        const TextSpan(text: 'Next up — '),
-                        TextSpan(
-                          text: next.title,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        TextSpan(text: ' ${_relativeTime(next)}.'),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-          ] else ...[
-            Text(
-              'Nothing on your calendar right now.',
-              style: TextStyle(
-                color: SovereignColors.ivory.withValues(alpha: 0.85),
-                fontSize: 15.5,
-                height: 1.42,
+          // Big serif relative time — the hero's focal point.
+          Text(_relativeTime(next), style: SovereignType.title),
+          const SizedBox(height: Insets.xs),
+
+          // Meeting title (section weight) so the time stays the focal point.
+          Text(next.title, style: SovereignType.section),
+          const SizedBox(height: Insets.sm),
+
+          // Secondary detail line — clock time / virtual, when available.
+          Text(
+            _detailLine(next),
+            style: SovereignType.secondary.copyWith(
+              color: SovereignColors.ivory.withValues(
+                alpha: SovereignColors.alphaMid,
               ),
             ),
-            const SizedBox(height: 12),
-          ],
-
-          // Action items due — derived from the briefing's overdue count.
-          Row(
-            children: [
-              Icon(
-                overdue > 0
-                    ? Icons.flag_rounded
-                    : Icons.check_circle_outline_rounded,
-                size: 16,
-                color: SovereignColors.gold,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  overdue > 0
-                      ? '$overdue action ${overdue == 1 ? 'item' : 'items'} due'
-                      : "You're all caught up on action items.",
-                  style: TextStyle(
-                    color: SovereignColors.ivory.withValues(alpha: 0.82),
-                    fontSize: 13.5,
-                    height: 1.35,
-                  ),
-                ),
-              ),
-            ],
           ),
 
-          // Join pill — only when the briefing carries a video link for the
-          // next meeting (null until prod deploy → pill hidden). Launches the
-          // link via url_launcher.
-          if (next?.videoLink != null) ...[
-            const SizedBox(height: 14),
+          // The ONE solid-gold action: Join — only when the briefing carries a
+          // video link for the next meeting (null until prod deploy → hidden).
+          if (next.videoLink != null) ...[
+            const SizedBox(height: Insets.lg),
             Align(
               alignment: Alignment.centerLeft,
-              child: _JoinPill(videoLink: next!.videoLink!),
+              child: _JoinPill(videoLink: next.videoLink!),
             ),
           ],
         ],
@@ -377,8 +350,8 @@ class _MartinBriefingCard extends StatelessWidget {
 /// (falls back to a generic phrase when unknown).
 String _relativeTime(BriefingMeeting m) {
   final mins = m.minutesUntil;
-  if (mins == null) return 'soon';
-  if (mins <= 0) return 'now';
+  if (mins == null) return 'Soon';
+  if (mins <= 0) return 'Now';
   if (mins < 60) return 'in $mins min';
   final hours = mins ~/ 60;
   if (hours < 24) {
@@ -386,11 +359,22 @@ String _relativeTime(BriefingMeeting m) {
     return rem == 0 ? 'in ${hours}h' : 'in ${hours}h ${rem}m';
   }
   final days = hours ~/ 24;
-  return days == 1 ? 'tomorrow' : 'in $days days';
+  return days == 1 ? 'Tomorrow' : 'in $days days';
 }
 
-/// The gold "Join" call-to-action pill for the next meeting. Launches the
-/// meeting's [videoLink] externally when tapped.
+/// The secondary detail line under the hero time: the clock time when known,
+/// plus a "Virtual" hint when the meeting carries a video link.
+String _detailLine(BriefingMeeting m) {
+  final parts = <String>[];
+  final at = m.startsAt;
+  if (at != null) parts.add(DateFormat('EEE, d MMM · HH:mm').format(at));
+  if (m.videoLink != null) parts.add('Virtual');
+  if (parts.isEmpty) return 'You’re attending';
+  return parts.join(' · ');
+}
+
+/// The gold "Join" call-to-action pill for the next meeting — the screen's ONE
+/// solid-gold action. Launches the meeting's [videoLink] externally when tapped.
 class _JoinPill extends StatelessWidget {
   const _JoinPill({required this.videoLink});
 
@@ -404,37 +388,41 @@ class _JoinPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: _launch,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: SovereignColors.gold,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: SovereignColors.gold.withValues(alpha: 0.28),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.videocam, size: 14, color: SovereignColors.navy),
-              SizedBox(width: 6),
-              Text(
-                'Join',
-                style: TextStyle(
-                  color: SovereignColors.navy,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
+    return Semantics(
+      button: true,
+      label: 'Join meeting',
+      child: PressableScale(
+        onTap: _launch,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: SovereignColors.gold,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: SovereignColors.gold.withValues(alpha: 0.28),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
               ),
             ],
+          ),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.videocam_rounded, size: 16, color: SovereignColors.navy),
+                SizedBox(width: 7),
+                Text(
+                  'Join',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    color: SovereignColors.navy,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -443,50 +431,73 @@ class _JoinPill extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Suggestion chips — small base-glass pills that seed a Martin chat.
+// "THEN" section — an action-items summary row (overdueCount) + the Your-TWGs
+// section. Each is a quiet glass row (navy-raised, no gold fill) with press
+// feedback that pushes its destination.
 // ---------------------------------------------------------------------------
 
-class _SuggestionChips extends StatelessWidget {
-  const _SuggestionChips({required this.onTap});
+class _ThenSection extends StatelessWidget {
+  const _ThenSection({required this.overdueCount});
 
-  final ValueChanged<String> onTap;
+  final int overdueCount;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final label in _suggestions)
-          _SuggestionChip(label: label, onTap: () => onTap(label)),
+        Padding(
+          padding: const EdgeInsets.only(left: Insets.xs, bottom: Insets.md),
+          child: Text('THEN', style: SovereignType.eyebrow),
+        ),
+        _ActionItemsRow(overdueCount: overdueCount),
+        const SizedBox(height: Insets.md),
+        const YourTwgsSection(),
       ],
     );
   }
 }
 
-class _SuggestionChip extends StatelessWidget {
-  const _SuggestionChip({required this.label, required this.onTap});
+/// A quiet glass row summarising action items, derived from the briefing's
+/// overdue count. Pushes the Me tab (where action items live).
+class _ActionItemsRow extends StatelessWidget {
+  const _ActionItemsRow({required this.overdueCount});
 
-  final String label;
-  final VoidCallback onTap;
+  final int overdueCount;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: GlassSurface(
+    final overdue = overdueCount > 0;
+    final label = overdue
+        ? '$overdueCount action ${overdueCount == 1 ? 'item' : 'items'} due'
+        : "You're all caught up on action items.";
+
+    return PressableScale(
+      onTap: () => context.go('/me'),
+      child: GlassCard(
+        goldGlow: false,
         borderRadius: 16,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        ringOpacity: 0.45,
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: SovereignColors.gold,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.2,
-          ),
+        padding: const EdgeInsets.symmetric(
+            horizontal: Insets.lg, vertical: Insets.lg),
+        child: Row(
+          children: [
+            Icon(
+              overdue
+                  ? Icons.flag_rounded
+                  : Icons.check_circle_outline_rounded,
+              size: 18,
+              color: overdue ? SovereignColors.gold : SovereignColors.success,
+            ),
+            const SizedBox(width: Insets.md),
+            Expanded(child: Text(label, style: SovereignType.body)),
+            Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: SovereignColors.ivory.withValues(
+                alpha: SovereignColors.alphaLow,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -494,7 +505,8 @@ class _SuggestionChip extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Ask Martin bar — base glass bar with an inner gold mic (glass-inside-glass).
+// Ask Martin bar — gold OUTLINE (not filled; the hero owns the gold). Pushes
+// the full-screen /martin chat.
 // ---------------------------------------------------------------------------
 
 class _AskMartinBar extends StatelessWidget {
@@ -504,43 +516,43 @@ class _AskMartinBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: GlassSurface(
-        borderRadius: 18,
-        padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
-        ringOpacity: 0.42,
-        goldGlow: true,
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Ask Martin…',
-                style: TextStyle(
-                  color: SovereignColors.ivory.withValues(alpha: 0.75),
-                  fontSize: 14.5,
+    return Semantics(
+      button: true,
+      label: 'Ask Martin',
+      child: PressableScale(
+        onTap: onTap,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: SovereignColors.navyRaised.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: SovereignColors.gold.withValues(alpha: 0.65),
+              width: 1.4,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Ask Martin…',
+                    style: SovereignType.body.copyWith(
+                      color: SovereignColors.ivory.withValues(
+                        alpha: SovereignColors.alphaMid,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            // Inner glass mic button, tinted gold.
-            GlassSurface.inner(
-              borderRadius: 14,
-              padding: const EdgeInsets.all(9),
-              ringColor: SovereignColors.gold,
-              ringOpacity: 0.55,
-              tintColors: [
-                SovereignColors.gold.withValues(alpha: 0.22),
-                SovereignColors.gold.withValues(alpha: 0.12),
+                const SizedBox(width: Insets.md),
+                Icon(
+                  Icons.mic_rounded,
+                  size: 22,
+                  color: SovereignColors.gold,
+                ),
               ],
-              child: const Icon(
-                Icons.mic_rounded,
-                size: 20,
-                color: SovereignColors.gold,
-              ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -552,37 +564,40 @@ class _AskMartinBar extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
+  const _ErrorView({super.key, required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: GlassCard(
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(Insets.xxl),
+      children: [
+        const SizedBox(height: 80),
+        GlassCard(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.cloud_off,
                   color: SovereignColors.gold, size: 28),
-              const SizedBox(height: 12),
+              const SizedBox(height: Insets.md),
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: SovereignColors.ivory.withValues(alpha: 0.85),
+                style: SovereignType.body.copyWith(
+                  color: SovereignColors.ivory.withValues(
+                    alpha: SovereignColors.alphaHigh,
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: Insets.md),
               TextButton(
                 onPressed: onRetry,
-                child: const Text(
+                child: Text(
                   'Retry',
-                  style: TextStyle(
+                  style: SovereignType.caption.copyWith(
                     color: SovereignColors.gold,
                     fontWeight: FontWeight.w700,
                   ),
@@ -591,7 +606,7 @@ class _ErrorView extends StatelessWidget {
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }

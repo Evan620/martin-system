@@ -1,9 +1,12 @@
 // test/features/home/home_screen_test.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:member_app/core/motion/skeleton.dart';
 import 'package:member_app/features/auth/application/auth_controller.dart';
 import 'package:member_app/features/auth/data/auth_models.dart';
 import 'package:member_app/features/home/application/home_controller.dart';
@@ -55,8 +58,8 @@ void main() {
     await tester.pump(); // post-frame load()
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Gold WAIIS eyebrow.
-    expect(find.text('WAIIS'), findsOneWidget);
+    // Gold WAIIS eyebrow (now carries today's date: "WAIIS · <weekday, d MMM>").
+    expect(find.textContaining('WAIIS'), findsOneWidget);
     // Greeting uses briefing.greeting + the member's first name.
     expect(find.textContaining('Good morning'), findsOneWidget);
     expect(find.textContaining('Amina'), findsOneWidget);
@@ -69,7 +72,7 @@ void main() {
     expect(find.textContaining('1 action item'), findsOneWidget);
   });
 
-  testWidgets('Ask Martin bar pushes /martin with the seed', (tester) async {
+  testWidgets('gold-outline Ask Martin bar pushes /martin', (tester) async {
     final repo = _MockRepo();
     when(() => repo.getBriefing()).thenAnswer((_) async => _briefing());
 
@@ -96,11 +99,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Tapping a suggestion chip seeds the chat with that prompt.
-    await tester.tap(find.text('Brief me'));
+    // Tapping the (gold-outline) Ask Martin bar opens the chat with no seed.
+    await tester.tap(find.text('Ask Martin…'));
     await tester.pumpAndSettle();
 
-    expect(find.text('seed=Brief me'), findsOneWidget);
+    expect(find.text('seed=null'), findsOneWidget);
   });
 
   testWidgets('Join pill is hidden when the briefing has no video link',
@@ -149,6 +152,70 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('Join'), findsOneWidget);
+  });
+
+  testWidgets('hero card shows the big serif relative time when a meeting exists',
+      (tester) async {
+    final repo = _MockRepo();
+    when(() => repo.getBriefing()).thenAnswer((_) async => _briefing());
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        homeRepositoryProvider.overrideWithValue(repo),
+        authControllerProvider.overrideWith(_AuthedController.new),
+      ],
+      child: const MaterialApp(home: HomeScreen()),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // 120 minutes until → "in 2h" big serif hero time.
+    expect(find.text('in 2h'), findsOneWidget);
+  });
+
+  testWidgets('calm card + no Join when there is no next meeting',
+      (tester) async {
+    final repo = _MockRepo();
+    when(() => repo.getBriefing()).thenAnswer((_) async => Briefing.fromJson({
+          'greeting': 'Good evening',
+          'upcoming_meetings': const [],
+          'overdue_items': const [],
+        }));
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        homeRepositoryProvider.overrideWithValue(repo),
+        authControllerProvider.overrideWith(_AuthedController.new),
+      ],
+      child: const MaterialApp(home: HomeScreen()),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.textContaining('Nothing on your calendar'), findsOneWidget);
+    expect(find.text('Join'), findsNothing);
+  });
+
+  testWidgets('loading state shows a skeleton (not a spinner)', (tester) async {
+    final repo = _MockRepo();
+    // Never completes → controller stays in HomeLoading.
+    final pending = Completer<Briefing>();
+    when(() => repo.getBriefing()).thenAnswer((_) => pending.future);
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        homeRepositoryProvider.overrideWithValue(repo),
+        authControllerProvider.overrideWith(_AuthedController.new),
+      ],
+      child: const MaterialApp(home: HomeScreen()),
+    ));
+    await tester.pump(); // post-frame load() → still loading
+
+    expect(find.byType(SkeletonList), findsWidgets);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    pending.complete(_briefing()); // let the future settle
+    await tester.pumpAndSettle();
   });
 }
 

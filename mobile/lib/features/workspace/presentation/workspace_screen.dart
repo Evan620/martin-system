@@ -150,7 +150,7 @@ class _Body extends ConsumerWidget {
 
           // Ask Martin (scoped to this TWG).
           GlassCard(
-            onTap: () => context.push('/home/chat?twg=$twgId'),
+            onTap: () => context.push('/martin?twg=$twgId'),
             child: Row(children: [
               const Text('✦',
                   style: TextStyle(color: SovereignColors.gold, fontSize: 18)),

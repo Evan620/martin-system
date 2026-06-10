@@ -1,10 +1,11 @@
 // lib/features/home/presentation/martin_chat_screen.dart
 //
 // Martin member chat (Task B4) — the full-screen, streaming, member-scoped chat
-// that replaces the 4b placeholder. Reached two ways:
-//   - the floating ✦ Martin FAB (top-level `/martin` route), and
-//   - the Home "Ask Martin…" bar / suggestion chips (nested `/home/chat?q=…`),
-//     which pass a `seed` that is auto-sent once on first build.
+// that replaces the 4b placeholder. Reached only via the canonical top-level
+// `/martin` route (the ✦ FAB, the Home ask bar / suggestion chips, and the
+// Workspace Ask-Martin card all push it): `?q=` passes a `seed` that is
+// auto-sent once on first build, and `?twg=` scopes the chat to a TWG
+// (workspace entry).
 //
 // Layout (mirrors the placeholder's Sovereign backdrop + header so the two read
 // as the same surface):

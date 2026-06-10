@@ -33,8 +33,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: _AuthRefresh(ref),
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
-      // Martin chat — a top-level pushed route (NOT a shell branch), so it
-      // covers the nav. Reached via the floating ✦ Martin FAB (context.push).
+      // Martin chat — THE single, canonical chat route: a top-level pushed
+      // route (NOT a shell branch), so it covers the nav. Every entry point
+      // converges here: the floating ✦ Martin FAB (bare /martin), the Home
+      // ask bar / suggestion chips (/martin?q=<seed>, auto-sent on open), and
+      // the Workspace Ask-Martin card (/martin?twg=<id>, TWG-scoped).
       GoRoute(
         path: '/martin',
         pageBuilder: (context, st) => sovereignPage(
@@ -79,22 +82,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               ],
             ),
           ]),
-          // 2 Home (the raised centre) — with a nested Martin chat so the nav
-          // persists. `?q=` seeds an auto-sent first prompt.
+          // 2 Home (the raised centre). Martin chat lives at the top-level
+          // /martin route.
           StatefulShellBranch(routes: [
             GoRoute(
               path: '/home',
               builder: (_, _) => const HomeScreen(),
               routes: [
-                GoRoute(
-                  path: 'chat',
-                  pageBuilder: (context, st) => sovereignPage(
-                    child: MartinChatScreen(
-                      seed: st.uri.queryParameters['q'],
-                      twgId: st.uri.queryParameters['twg'],
-                    ),
-                  ),
-                ),
                 GoRoute(
                   path: 'workspace/:twgId',
                   pageBuilder: (context, st) => sovereignPage(

@@ -124,5 +124,12 @@ void main() {
     // The real chat screen renders: the ✦ Martin header + the input bar.
     expect(find.text('✦ Martin'), findsOneWidget);
     expect(find.byKey(const Key('martin-chat-input')), findsOneWidget);
+
+    // Full-screen contract: /martin is a root-navigator push, so the shell's
+    // nav pills and the FAB are covered (offstage) while the chat is open.
+    for (var i = 0; i < 5; i++) {
+      expect(find.byKey(Key('nav-$i')), findsNothing);
+    }
+    expect(find.byKey(const Key('martin-fab')), findsNothing);
   });
 }

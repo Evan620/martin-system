@@ -45,6 +45,25 @@ class _LiveClient implements MartinChatClient {
       stream;
 }
 
+/// Records the twgId each send carried, so a test can assert the screen's
+/// `twgId` (the `?twg=` query param on /martin) reaches the client.
+class _CapturingClient implements MartinChatClient {
+  final twgIds = <String>[];
+  @override
+  Stream<ChatEvent> send({
+    required String message,
+    required String twgId,
+    String? conversationId,
+  }) {
+    twgIds.add(twgId);
+    return Stream.fromIterable(const [
+      TokenEvent('Hello'),
+      FinalEvent('Hello', conversationId: 'c1'),
+      DoneEvent(),
+    ]);
+  }
+}
+
 class _AuthedController extends AuthController {
   @override
   AuthState build() => const AuthAuthenticated(AppUser(
@@ -57,18 +76,20 @@ class _AuthedController extends AuthController {
 }
 
 /// Pumps the chat screen inside a router (so the glass back button's
-/// context.pop / context.go has a navigator) with the given overrides.
+/// context.pop / context.go has a navigator) with the given overrides. The
+/// probe route mirrors the app's canonical full-screen `/martin` route.
 Future<void> _pump(
   WidgetTester tester, {
   required MartinChatClient client,
   String? seed,
+  String? twgId,
 }) async {
   final router = GoRouter(
-    initialLocation: '/chat',
+    initialLocation: '/martin',
     routes: [
       GoRoute(
-        path: '/chat',
-        builder: (_, _) => MartinChatScreen(seed: seed),
+        path: '/martin',
+        builder: (_, _) => MartinChatScreen(seed: seed, twgId: twgId),
       ),
     ],
   );
@@ -126,6 +147,17 @@ void main() {
     );
     expect(fieldAfter.enabled, isTrue);
     expect(find.text('Soon.'), findsOneWidget);
+  });
+
+  testWidgets('twgId (the ?twg= scope) is passed through to client.send',
+      (tester) async {
+    final client = _CapturingClient();
+
+    await _pump(tester, client: client, seed: 'Brief me', twgId: 't9');
+    await tester.pumpAndSettle();
+
+    // The workspace scope wins over the authed user's first TWG ('t1').
+    expect(client.twgIds, ['t9']);
   });
 
   testWidgets('no seed → empty state invitation, no auto-send', (tester) async {

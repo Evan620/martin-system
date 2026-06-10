@@ -69,23 +69,19 @@ void main() {
     expect(find.textContaining('1 action item'), findsOneWidget);
   });
 
-  testWidgets('Ask Martin bar pushes /home/chat with the seed', (tester) async {
+  testWidgets('Ask Martin bar pushes /martin with the seed', (tester) async {
     final repo = _MockRepo();
     when(() => repo.getBriefing()).thenAnswer((_) async => _briefing());
 
     final router = GoRouter(
       initialLocation: '/home',
       routes: [
+        GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
+        // Probe stand-in for the canonical full-screen /martin chat route.
         GoRoute(
-          path: '/home',
-          builder: (_, _) => const HomeScreen(),
-          routes: [
-            GoRoute(
-              path: 'chat',
-              builder: (_, st) =>
-                  _ProbeChatScreen(seed: st.uri.queryParameters['q']),
-            ),
-          ],
+          path: '/martin',
+          builder: (_, st) =>
+              _ProbeChatScreen(seed: st.uri.queryParameters['q']),
         ),
       ],
     );

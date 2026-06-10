@@ -18,9 +18,9 @@
 // depth (outer raised card holding lighter inner rows, and an inner gold mic
 // inside the ask bar).
 //
-// The Ask-Martin bar + suggestion chips push the nested `/home/chat?q=<seed>`
-// route (the nav persists), which opens the streaming Martin chat and auto-sends
-// the seed.
+// The Ask-Martin bar + suggestion chips push the canonical full-screen
+// `/martin?q=<seed>` route (covering the nav), which opens the streaming
+// Martin chat and auto-sends the seed.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -55,13 +55,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   /// Opens the streaming Martin chat, seeding it with [seed] (URL-encoded) when
-  /// a suggestion chip / the ask bar carries a prompt. The nested `/home/chat`
-  /// route keeps the bottom nav in place.
+  /// a suggestion chip / the ask bar carries a prompt. The top-level `/martin`
+  /// route presents the chat full-screen, covering the nav.
   void _askMartin(String seed) {
     final trimmed = seed.trim();
     final suffix =
         trimmed.isEmpty ? '' : '?q=${Uri.encodeQueryComponent(trimmed)}';
-    context.push('/home/chat$suffix');
+    context.push('/martin$suffix');
   }
 
   @override

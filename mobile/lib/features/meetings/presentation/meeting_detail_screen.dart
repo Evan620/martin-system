@@ -33,6 +33,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/glass/glass.dart';
 import '../../../core/motion/cascade_in.dart';
+import '../../../core/motion/pressable.dart';
 import '../../../core/motion/skeleton.dart';
 import '../../../core/theme/sovereign_colors.dart';
 import '../../../core/theme/sovereign_spacing.dart';
@@ -574,38 +575,14 @@ class _ActionBar extends StatelessWidget {
         borderRadius: 24,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         goldGlow: true,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        // Minimal one-row bar: Join (left) + a compact RSVP chip (right) that
+        // opens a small popup, dismissing on choice or outside-tap.
+        child: Row(
           children: [
-            if (meeting.hasVideo)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: _JoinPill(onTap: onJoin),
-              ),
-            if (meeting.hasVideo && isParticipant)
-              const SizedBox(height: Insets.sm),
+            if (meeting.hasVideo) _JoinPill(onTap: onJoin),
+            const Spacer(),
             if (isParticipant)
-              Row(
-                children: [
-                  _RsvpChip(
-                    label: 'Going',
-                    selected: myRsvp == MeetingRsvp.going,
-                    onTap: () => onRsvp(MeetingRsvp.going),
-                  ),
-                  const SizedBox(width: Insets.sm),
-                  _RsvpChip(
-                    label: 'Maybe',
-                    selected: myRsvp == MeetingRsvp.maybe,
-                    onTap: () => onRsvp(MeetingRsvp.maybe),
-                  ),
-                  const SizedBox(width: Insets.sm),
-                  _RsvpChip(
-                    label: 'No',
-                    selected: myRsvp == MeetingRsvp.no,
-                    onTap: () => onRsvp(MeetingRsvp.no),
-                  ),
-                ],
-              ),
+              _RsvpControl(current: myRsvp, onRsvp: onRsvp),
           ],
         ),
       ),
@@ -1023,53 +1000,125 @@ class _JoinPill extends StatelessWidget {
 
 /// One RSVP option chip (mirrors the list screen's chip styling): a ≥44px
 /// gold-OUTLINE pill when selected so the pinned Join stays the only solid gold.
-class _RsvpChip extends StatelessWidget {
-  const _RsvpChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+/// Minimal RSVP control: a compact chip showing the current reply. Tapping it
+/// opens a small popup (Material [showMenu]) with the three options — the popup
+/// dismisses automatically when an option is chosen OR the user taps outside.
+/// The chosen reply persists via [onRsvp]; the chip then reflects it.
+class _RsvpControl extends StatelessWidget {
+  const _RsvpControl({required this.current, required this.onRsvp});
 
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+  final MeetingRsvp current;
+  final ValueChanged<MeetingRsvp> onRsvp;
+
+  static (String, IconData) _display(MeetingRsvp r) => switch (r) {
+        MeetingRsvp.going => ('Going', Icons.check_circle_rounded),
+        MeetingRsvp.maybe => ('Maybe', Icons.help_rounded),
+        MeetingRsvp.no => ('Not going', Icons.cancel_rounded),
+        MeetingRsvp.pending => ('RSVP', Icons.event_available_rounded),
+      };
+
+  Future<void> _open(BuildContext context) async {
+    final box = context.findRenderObject() as RenderBox;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        box.localToGlobal(Offset.zero, ancestor: overlay),
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+
+    PopupMenuItem<MeetingRsvp> item(MeetingRsvp r) {
+      final (label, icon) = _display(r);
+      final sel = r == current;
+      return PopupMenuItem<MeetingRsvp>(
+        value: r,
+        height: 46,
+        child: Row(
+          children: [
+            Icon(icon,
+                size: 18,
+                color: sel
+                    ? SovereignColors.gold
+                    : SovereignColors.ivory
+                        .withValues(alpha: SovereignColors.alphaMid)),
+            const SizedBox(width: Insets.md),
+            Text(
+              label,
+              style: SovereignType.body.copyWith(
+                color: sel ? SovereignColors.gold : SovereignColors.ivory,
+                fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+            if (sel) ...[
+              const Spacer(),
+              const Icon(Icons.check_rounded,
+                  size: 16, color: SovereignColors.gold),
+            ],
+          ],
+        ),
+      );
+    }
+
+    final choice = await showMenu<MeetingRsvp>(
+      context: context,
+      position: position,
+      color: SovereignColors.navyRaised,
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side:
+            BorderSide(color: SovereignColors.ivory.withValues(alpha: 0.08)),
+      ),
+      items: [
+        item(MeetingRsvp.going),
+        item(MeetingRsvp.maybe),
+        item(MeetingRsvp.no),
+      ],
+    );
+    if (choice != null) onRsvp(choice);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = SovereignType.caption.copyWith(
-      color: selected
-          ? SovereignColors.gold
-          : SovereignColors.ivory.withValues(alpha: SovereignColors.alphaHigh),
-      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-    );
-
-    final content = SizedBox(
-      height: 44, // ≥44px touch target
-      child: Center(child: Text(label, style: labelStyle)),
-    );
-
-    final Widget chip = selected
-        ? DecoratedBox(
-            decoration: BoxDecoration(
-              color: SovereignColors.gold.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: SovereignColors.gold.withValues(alpha: 0.85),
-                width: 1.4,
-              ),
+    final (label, icon) = _display(current);
+    final set = current != MeetingRsvp.pending;
+    return Semantics(
+      button: true,
+      label: 'RSVP, currently $label',
+      child: PressableScale(
+        onTap: () => _open(context),
+        child: Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: Insets.md),
+          decoration: BoxDecoration(
+            color: set
+                ? SovereignColors.gold.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: SovereignColors.gold.withValues(alpha: set ? 0.85 : 0.45),
+              width: set ? 1.4 : 1,
             ),
-            child: content,
-          )
-        : GlassSurface.inner(borderRadius: 12, child: content);
-
-    return Expanded(
-      child: Semantics(
-        button: true,
-        label: 'RSVP $label${selected ? ', selected' : ''}',
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: chip,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: SovereignColors.gold),
+              const SizedBox(width: Insets.sm),
+              Text(
+                label,
+                style: SovereignType.caption.copyWith(
+                  color: SovereignColors.gold,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 2),
+              const Icon(Icons.keyboard_arrow_down_rounded,
+                  size: 16, color: SovereignColors.gold),
+            ],
+          ),
         ),
       ),
     );

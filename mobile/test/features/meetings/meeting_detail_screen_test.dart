@@ -86,7 +86,8 @@ void main() {
     // Tabbed layout: Overview/Agenda/People/Docs tab labels are present.
     expect(find.text('Agenda'), findsOneWidget);
     expect(find.text('Overview'), findsOneWidget);
-    expect(find.text('Going'), findsOneWidget); // pinned RSVP (participant)
+    // Minimal RSVP control (participant, pending) shows the 'RSVP' chip.
+    expect(find.text('RSVP'), findsOneWidget);
     // Persistent info header: duration fact chip + attendee count fact chip
     // stay visible regardless of the selected tab.
     expect(find.text('60 min'), findsOneWidget);
@@ -140,9 +141,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
+    // Tap the minimal RSVP chip → the popup opens → choose Going.
+    await tester.tap(find.text('RSVP'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Going'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
 
     verify(() => repo.setMyRsvp('m1', MeetingRsvp.going)).called(1);
   });

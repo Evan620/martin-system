@@ -1,8 +1,11 @@
 // test/features/meetings/meetings_screen_test.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:member_app/core/motion/skeleton.dart';
 import 'package:member_app/features/meetings/application/meetings_controller.dart';
 import 'package:member_app/features/meetings/data/meetings_models.dart';
 import 'package:member_app/features/meetings/data/meetings_repository.dart';
@@ -11,7 +14,8 @@ import 'package:member_app/features/meetings/presentation/meetings_screen.dart';
 class _MockRepo extends Mock implements MeetingsRepository {}
 
 void main() {
-  testWidgets('shows a meeting title from live data', (tester) async {
+  testWidgets('shows the serif header + a meeting title from live data',
+      (tester) async {
     final repo = _MockRepo();
     when(() => repo.listMeetings()).thenAnswer((_) async => [
           Meeting.fromJson({
@@ -26,6 +30,24 @@ void main() {
     ));
     await tester.pump(); // post-frame load()
     await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Meetings'), findsOneWidget); // serif screen header
     expect(find.text('Energy Sync'), findsOneWidget);
+  });
+
+  testWidgets('shows a skeleton while loading (no spinner)', (tester) async {
+    final repo = _MockRepo();
+    final completer = Completer<List<Meeting>>();
+    when(() => repo.listMeetings()).thenAnswer((_) => completer.future);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [meetingsRepositoryProvider.overrideWithValue(repo)],
+      child: const MaterialApp(home: MeetingsScreen()),
+    ));
+    await tester.pump(); // post-frame load() → MeetingsLoading
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(SkeletonList), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    // Let the pending future complete so the test tears down cleanly.
+    completer.complete(const []);
+    await tester.pump();
   });
 }

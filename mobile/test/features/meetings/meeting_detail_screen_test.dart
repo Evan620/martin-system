@@ -1,8 +1,11 @@
 // test/features/meetings/meeting_detail_screen_test.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:member_app/core/motion/skeleton.dart';
 import 'package:member_app/features/auth/application/auth_controller.dart';
 import 'package:member_app/features/auth/data/auth_models.dart';
 import 'package:member_app/features/meetings/application/meetings_controller.dart';
@@ -19,6 +22,29 @@ class _MeController extends AuthController {
 }
 
 void main() {
+  testWidgets('shows a skeleton while loading (no spinner)', (tester) async {
+    final repo = _MockRepo();
+    final completer = Completer<Meeting>();
+    when(() => repo.meetingDetail('m1')).thenAnswer((_) => completer.future);
+    when(() => repo.meetingAgenda(any())).thenAnswer((_) async => null);
+    when(() => repo.meetingMinutes(any())).thenAnswer((_) async => null);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [meetingsRepositoryProvider.overrideWithValue(repo)],
+      child: const MaterialApp(home: MeetingDetailScreen(meetingId: 'm1')),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(SkeletonBlock), findsWidgets);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    completer.complete(Meeting.fromJson({
+      'id': 'm1', 'title': 'Steering Committee',
+      'scheduled_at': '2031-06-10T10:00:00Z', 'status': 'SCHEDULED',
+      'meeting_type': 'virtual', 'participants': const [],
+    }));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+  });
+
   testWidgets('renders meeting detail title', (tester) async {
     final repo = _MockRepo();
     when(() => repo.meetingDetail('m1')).thenAnswer((_) async => Meeting.fromJson({
@@ -65,6 +91,26 @@ void main() {
     // stay visible regardless of the selected tab.
     expect(find.text('60 min'), findsOneWidget);
     expect(find.text('1 attending'), findsOneWidget);
+  });
+
+  testWidgets('detail shows the gold Join action when a video link exists',
+      (tester) async {
+    final repo = _MockRepo();
+    when(() => repo.meetingDetail('m1')).thenAnswer((_) async => Meeting.fromJson({
+          'id': 'm1', 'title': 'Steering Committee',
+          'scheduled_at': '2031-06-10T10:00:00Z', 'status': 'SCHEDULED',
+          'meeting_type': 'virtual', 'video_link': 'https://meet.example/abc',
+          'participants': const [],
+        }));
+    when(() => repo.meetingAgenda(any())).thenAnswer((_) async => null);
+    when(() => repo.meetingMinutes(any())).thenAnswer((_) async => null);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [meetingsRepositoryProvider.overrideWithValue(repo)],
+      child: const MaterialApp(home: MeetingDetailScreen(meetingId: 'm1')),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Join meeting'), findsOneWidget);
   });
 
   testWidgets(

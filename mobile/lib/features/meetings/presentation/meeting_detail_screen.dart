@@ -5,16 +5,21 @@
 // A ConsumerStatefulWidget that loads the meeting (GET /meetings/{id}) plus its
 // agenda (GET /meetings/{id}/agenda) and minutes (GET /meetings/{id}/minutes) in
 // initState, held as a single Future<_DetailData> and rendered with a
-// FutureBuilder (loading / error+retry / data). Agenda + minutes tolerate null
-// (404 = "none").
+// FutureBuilder (loading → content-shaped skeleton / error+retry / data).
+// Agenda + minutes tolerate null (404 = "none").
 //
 // The data body is an ambient navy+gold backdrop behind a static header
 // (TWG eyebrow + serif title + status badge) and a segmented tab bar:
-//   * Overview — time · location · minutes/summary (when present)
+//   * Overview — minutes/summary (when present)
 //   * Agenda   — numbered items
 //   * People   — attendees + their RSVPs
 //   * Docs     — attached files (display-only; full open ships with Documents)
 // Join + RSVP stay in a pinned bottom action bar above the floating nav.
+//
+// The serif title is the destination of the Hero that begins on the meetings
+// list card (tag keyed by meeting id). The active tab's content cascades in;
+// loading shows a skeleton header + card (no spinner). The pinned Join pill is
+// the screen's ONE solid-gold action; RSVP chips are gold-outline-when-selected.
 //
 // RSVP goes through meetingsController.setRsvp so the list screen stays in sync;
 // on success we re-fetch the detail so this screen reflects the new state.
@@ -25,10 +30,15 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/glass/glass.dart';
+import '../../../core/motion/cascade_in.dart';
+import '../../../core/motion/skeleton.dart';
 import '../../../core/theme/sovereign_colors.dart';
+import '../../../core/theme/sovereign_spacing.dart';
+import '../../../core/theme/sovereign_type.dart';
 import '../application/meetings_controller.dart';
 import '../data/meetings_models.dart';
 import '../data/meetings_repository.dart';
+import 'meetings_screen.dart' show meetingHeroTag;
 
 /// The meeting plus its (optional) agenda + minutes, loaded together.
 class _DetailData {
@@ -115,8 +125,8 @@ class _MeetingDetailScreenState extends ConsumerState<MeetingDetailScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(
-              child: CircularProgressIndicator(color: SovereignColors.gold),
+            return const _AmbientBackdrop(
+              child: SafeArea(bottom: false, child: _DetailSkeleton()),
             );
           }
           if (snapshot.hasError) {
@@ -124,8 +134,10 @@ class _MeetingDetailScreenState extends ConsumerState<MeetingDetailScreen> {
             final message = err is MeetingException
                 ? err.message
                 : 'Could not open this meeting.';
-            return SafeArea(
-              child: _DetailError(message: message, onRetry: _reload),
+            return _AmbientBackdrop(
+              child: SafeArea(
+                child: _DetailError(message: message, onRetry: _reload),
+              ),
             );
           }
           final data = snapshot.data!;
@@ -162,7 +174,6 @@ class _DetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final meeting = _meeting;
     final isParticipant = meeting.isParticipant(userId);
     final myRsvp = meeting.myRsvp(userId);
@@ -190,7 +201,7 @@ class _DetailBody extends StatelessWidget {
                   children: [
                     // Header: back + status, then TWG eyebrow + serif title.
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      padding: const EdgeInsets.fromLTRB(Insets.lg, Insets.sm, Insets.lg, 0),
                       child: Row(
                         children: [
                           _BackButton(onTap: () => _back(context)),
@@ -200,28 +211,32 @@ class _DetailBody extends StatelessWidget {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                      padding: const EdgeInsets.fromLTRB(Insets.gutter, Insets.lg, Insets.gutter, 0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if ((meeting.twgName ?? '').isNotEmpty)
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.only(bottom: Insets.sm),
                               child: Text(
                                 meeting.twgName!.toUpperCase(),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: SovereignColors.gold,
-                                  letterSpacing: 3,
-                                  fontSize: 10,
-                                ),
+                                style: SovereignType.eyebrow,
                               ),
                             ),
-                          Text(
-                            meeting.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.displaySmall
-                                ?.copyWith(fontSize: 26),
+                          // Hero destination — the title morphs in from the list
+                          // card keyed by the meeting id.
+                          Hero(
+                            tag: meetingHeroTag(meeting.id),
+                            flightShuttleBuilder: _heroShuttle,
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: Text(
+                                meeting.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: SovereignType.title,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -229,12 +244,12 @@ class _DetailBody extends StatelessWidget {
                     // Persistent info header — stays visible across all tabs so
                     // the member always sees the essentials up top.
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                      padding: const EdgeInsets.fromLTRB(Insets.gutter, Insets.md, Insets.gutter, 0),
                       child: _InfoHeader(meeting: meeting, fmt: _fmt),
                     ),
                     // Segmented tab bar.
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                      padding: const EdgeInsets.fromLTRB(Insets.md, Insets.md, Insets.md, 0),
                       child: TabBar(
                         isScrollable: false,
                         indicatorColor: SovereignColors.gold,
@@ -243,10 +258,10 @@ class _DetailBody extends StatelessWidget {
                         labelColor: SovereignColors.gold,
                         unselectedLabelColor:
                             SovereignColors.ivory.withValues(alpha: 0.5),
-                        labelStyle: const TextStyle(
-                            fontSize: 12.5, fontWeight: FontWeight.w700),
-                        unselectedLabelStyle: const TextStyle(
-                            fontSize: 12.5, fontWeight: FontWeight.w500),
+                        labelStyle: SovereignType.caption
+                            .copyWith(fontWeight: FontWeight.w700),
+                        unselectedLabelStyle: SovereignType.caption
+                            .copyWith(fontWeight: FontWeight.w500),
                         dividerColor: Colors.transparent,
                         tabs: const [
                           Tab(text: 'Overview'),
@@ -263,54 +278,46 @@ class _DetailBody extends StatelessWidget {
                           // Facts moved to the persistent header; Overview now
                           // leads with the minutes/summary in its own inner panel.
                           _TabScroll(children: [
-                            _OuterSection(
-                              label: 'Minutes',
-                              children: [
-                                if (hasMinutes)
+                            CascadeIn(
+                              index: 0,
+                              child: _OuterSection(
+                                label: 'Minutes',
+                                children: [
                                   _InnerPanel(
                                     child: Text(
-                                      data.minutes!.trim(),
-                                      style:
-                                          theme.textTheme.bodyMedium?.copyWith(
-                                        color: SovereignColors.ivory
-                                            .withValues(alpha: 0.85),
-                                        fontSize: 13.5,
-                                        height: 1.45,
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  _InnerPanel(
-                                    child: Text(
-                                      'No minutes yet.',
-                                      style:
-                                          theme.textTheme.bodyMedium?.copyWith(
-                                        color: SovereignColors.ivory
-                                            .withValues(alpha: 0.5),
-                                        fontSize: 13,
-                                        height: 1.4,
+                                      hasMinutes
+                                          ? data.minutes!.trim()
+                                          : 'No minutes yet.',
+                                      style: SovereignType.body.copyWith(
+                                        color: SovereignColors.ivory.withValues(
+                                          alpha: hasMinutes
+                                              ? SovereignColors.alphaHigh
+                                              : SovereignColors.alphaLow,
+                                        ),
                                       ),
                                     ),
                                   ),
-                              ],
+                                ],
+                              ),
                             ),
                           ]),
                           // ---- Agenda ----
                           _TabScroll(children: [
                             if (hasAgenda)
-                              _OuterSection(
-                                label: 'Agenda',
-                                children: [
-                                  for (var i = 0;
-                                      i < agendaLines.length;
-                                      i++)
-                                    _InnerPanel(
-                                      child: _AgendaRow(
-                                        number: i + 1,
-                                        text: agendaLines[i],
+                              CascadeIn(
+                                index: 0,
+                                child: _OuterSection(
+                                  label: 'Agenda',
+                                  children: [
+                                    for (var i = 0; i < agendaLines.length; i++)
+                                      _InnerPanel(
+                                        child: _AgendaRow(
+                                          number: i + 1,
+                                          text: agendaLines[i],
+                                        ),
                                       ),
-                                    ),
-                                ],
+                                  ],
+                                ),
                               )
                             else
                               const _EmptyTab('No agenda yet.'),
@@ -318,14 +325,17 @@ class _DetailBody extends StatelessWidget {
                           // ---- People ----
                           _TabScroll(children: [
                             if (meeting.participants.isNotEmpty)
-                              _OuterSection(
-                                label: 'Attendees',
-                                children: [
-                                  for (final p in meeting.participants)
-                                    _InnerPanel(
-                                      child: _AttendeeRow(participant: p),
-                                    ),
-                                ],
+                              CascadeIn(
+                                index: 0,
+                                child: _OuterSection(
+                                  label: 'Attendees',
+                                  children: [
+                                    for (final p in meeting.participants)
+                                      _InnerPanel(
+                                        child: _AttendeeRow(participant: p),
+                                      ),
+                                  ],
+                                ),
                               )
                             else
                               const _EmptyTab('No attendees listed.'),
@@ -333,14 +343,17 @@ class _DetailBody extends StatelessWidget {
                           // ---- Docs ----
                           _TabScroll(children: [
                             if (meeting.documents.isNotEmpty)
-                              _OuterSection(
-                                label: 'Documents',
-                                children: [
-                                  for (final d in meeting.documents)
-                                    _InnerPanel(
-                                      child: _DocumentRow(document: d),
-                                    ),
-                                ],
+                              CascadeIn(
+                                index: 0,
+                                child: _OuterSection(
+                                  label: 'Documents',
+                                  children: [
+                                    for (final d in meeting.documents)
+                                      _InnerPanel(
+                                        child: _DocumentRow(document: d),
+                                      ),
+                                  ],
+                                ),
                               )
                             else
                               const _EmptyTab('No documents attached.'),
@@ -378,6 +391,20 @@ class _DetailBody extends StatelessWidget {
       context.go('/meetings');
     }
   }
+
+  /// Keeps the title legible (single style) mid-flight.
+  static Widget _heroShuttle(
+    BuildContext flightContext,
+    Animation<double> animation,
+    HeroFlightDirection flightDirection,
+    BuildContext fromHeroContext,
+    BuildContext toHeroContext,
+  ) {
+    return DefaultTextStyle(
+      style: DefaultTextStyle.of(toHeroContext).style,
+      child: toHeroContext.widget,
+    );
+  }
 }
 
 /// A padded, scrollable tab body that clears the pinned action bar + floating nav.
@@ -389,7 +416,8 @@ class _TabScroll extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 200),
+      padding: const EdgeInsets.fromLTRB(Insets.gutter, Insets.lg, Insets.gutter, 0)
+          .add(navClearance(context, extra: 96)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
@@ -411,11 +439,36 @@ class _EmptyTab extends StatelessWidget {
       child: Center(
         child: Text(
           text,
-          style: TextStyle(
-            color: SovereignColors.ivory.withValues(alpha: 0.5),
-            fontSize: 13,
+          style: SovereignType.secondary.copyWith(
+            color:
+                SovereignColors.ivory.withValues(alpha: SovereignColors.alphaLow),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Loading — a content-shaped skeleton: a header block + the info-card shape,
+/// cross-fading to the real content once loaded (no spinner).
+class _DetailSkeleton extends StatelessWidget {
+  const _DetailSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Insets.gutter, Insets.xl, Insets.gutter, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          SkeletonBlock(width: 120, height: 12),
+          SizedBox(height: Insets.md),
+          SkeletonBlock(width: 240, height: 26),
+          SizedBox(height: Insets.section),
+          SkeletonCard(lines: 3),
+          SizedBox(height: Insets.md),
+          SkeletonCard(lines: 2),
+        ],
       ),
     );
   }
@@ -501,7 +554,8 @@ class _ActionBar extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: _JoinPill(onTap: onJoin),
               ),
-            if (meeting.hasVideo && isParticipant) const SizedBox(height: 10),
+            if (meeting.hasVideo && isParticipant)
+              const SizedBox(height: Insets.sm),
             if (isParticipant)
               Row(
                 children: [
@@ -510,13 +564,13 @@ class _ActionBar extends StatelessWidget {
                     selected: myRsvp == MeetingRsvp.going,
                     onTap: () => onRsvp(MeetingRsvp.going),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: Insets.sm),
                   _RsvpChip(
                     label: 'Maybe',
                     selected: myRsvp == MeetingRsvp.maybe,
                     onTap: () => onRsvp(MeetingRsvp.maybe),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: Insets.sm),
                   _RsvpChip(
                     label: 'No',
                     selected: myRsvp == MeetingRsvp.no,
@@ -557,6 +611,7 @@ class _StatusBadge extends StatelessWidget {
         child: Text(
           label.toUpperCase(),
           style: const TextStyle(
+            fontFamily: 'Inter',
             color: SovereignColors.gold,
             fontSize: 10,
             letterSpacing: 1.6,
@@ -576,13 +631,18 @@ class _BackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: const GlassSurface(
-        borderRadius: 14,
-        padding: EdgeInsets.all(10),
-        child: Icon(Icons.arrow_back, size: 18, color: SovereignColors.ivory),
+    return Semantics(
+      button: true,
+      label: 'Back',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: const GlassSurface(
+          borderRadius: 14,
+          padding: EdgeInsets.all(10),
+          child:
+              Icon(Icons.arrow_back, size: 18, color: SovereignColors.ivory),
+        ),
       ),
     );
   }
@@ -606,10 +666,10 @@ class _InfoHeader extends StatelessWidget {
     final attendees = meeting.participants.length;
 
     return GlassCard(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(Insets.md),
       child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
+        spacing: Insets.sm,
+        runSpacing: Insets.sm,
         children: [
           _FactChip(
             icon: Icons.event,
@@ -655,21 +715,14 @@ class _FactChip extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: SovereignColors.gold),
           const SizedBox(width: 6),
-          Text(
-            text,
-            style: const TextStyle(
-              color: SovereignColors.ivory,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          Text(text, style: SovereignType.caption),
         ],
       ),
     );
   }
 }
 
-/// An outer tab section frame — an optional gold [_SectionLabel] above a
+/// An outer tab section frame — an optional gold eyebrow label above a
 /// [GlassCard] that holds one [_InnerPanel] per logical item, stacked with
 /// ~10px gaps. This is the "frame-inside-frame" shell for tab content.
 class _OuterSection extends StatelessWidget {
@@ -684,16 +737,16 @@ class _OuterSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (label != null) ...[
-          _SectionLabel(label!),
-          const SizedBox(height: 8),
+          Text(label!.toUpperCase(), style: SovereignType.eyebrow),
+          const SizedBox(height: Insets.sm),
         ],
         GlassCard(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(Insets.md),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (var i = 0; i < children.length; i++) ...[
-                if (i > 0) const SizedBox(height: 10),
+                if (i > 0) const SizedBox(height: Insets.sm),
                 children[i],
               ],
             ],
@@ -714,7 +767,7 @@ class _InnerPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassSurface.inner(
       borderRadius: 14,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(Insets.md),
       child: SizedBox(width: double.infinity, child: child),
     );
   }
@@ -729,7 +782,6 @@ class _AgendaRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -745,20 +797,20 @@ class _AgendaRow extends StatelessWidget {
           child: Text(
             '$number',
             style: const TextStyle(
+              fontFamily: 'Inter',
               color: SovereignColors.gold,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: Insets.md),
         Expanded(
           child: Text(
             text,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: SovereignColors.ivory.withValues(alpha: 0.85),
-              fontSize: 13.5,
-              height: 1.4,
+            style: SovereignType.body.copyWith(
+              color: SovereignColors.ivory
+                  .withValues(alpha: SovereignColors.alphaHigh),
             ),
           ),
         ),
@@ -775,35 +827,38 @@ class _DocumentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      // This detail screen is a top-level pushed route (not the Documents shell
-      // branch), so a cross-branch push to /documents/:id/pdf is unsafe. Open
-      // the document through Martin instead — works from any screen.
-      onTap: () => context.push(
-        '/martin?q=${Uri.encodeQueryComponent('Open the document ${document.name}')}',
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.insert_drive_file_outlined,
-              size: 16, color: SovereignColors.gold),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              document.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: SovereignColors.ivory.withValues(alpha: 0.88),
-                fontSize: 13.5,
+    return Semantics(
+      button: true,
+      label: document.name,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        // This detail screen is a top-level pushed route (not the Documents shell
+        // branch), so a cross-branch push to /documents/:id/pdf is unsafe. Open
+        // the document through Martin instead — works from any screen.
+        onTap: () => context.push(
+          '/martin?q=${Uri.encodeQueryComponent('Open the document ${document.name}')}',
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.insert_drive_file_outlined,
+                size: 16, color: SovereignColors.gold),
+            const SizedBox(width: Insets.md),
+            Expanded(
+              child: Text(
+                document.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: SovereignType.body.copyWith(
+                  color: SovereignColors.ivory
+                      .withValues(alpha: SovereignColors.alphaHigh),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          const Icon(Icons.chevron_right,
-              size: 16, color: SovereignColors.gold),
-        ],
+            const SizedBox(width: Insets.sm),
+            const Icon(Icons.chevron_right,
+                size: 16, color: SovereignColors.gold),
+          ],
+        ),
       ),
     );
   }
@@ -817,7 +872,6 @@ class _AttendeeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final name = (participant.name ?? '').isNotEmpty
         ? participant.name!
         : 'Participant';
@@ -826,13 +880,13 @@ class _AttendeeRow extends StatelessWidget {
         Expanded(
           child: Text(
             name,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: SovereignColors.ivory.withValues(alpha: 0.88),
-              fontSize: 13.5,
+            style: SovereignType.body.copyWith(
+              color: SovereignColors.ivory
+                  .withValues(alpha: SovereignColors.alphaHigh),
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: Insets.md),
         _RsvpBadge(rsvp: participant.rsvp),
       ],
     );
@@ -863,6 +917,7 @@ class _RsvpBadge extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
+            fontFamily: 'Inter',
             color: color.withValues(alpha: 0.9),
             fontSize: 10.5,
             fontWeight: FontWeight.w600,
@@ -874,27 +929,7 @@ class _RsvpBadge extends StatelessWidget {
   }
 }
 
-/// Small uppercase gold section label.
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text.toUpperCase(),
-      style: const TextStyle(
-        color: SovereignColors.gold,
-        fontSize: 9,
-        letterSpacing: 2.4,
-        fontWeight: FontWeight.w600,
-      ),
-    );
-  }
-}
-
-/// The gold "Join" call-to-action pill.
+/// The gold "Join" call-to-action pill — the screen's ONE solid-gold action.
 class _JoinPill extends StatelessWidget {
   const _JoinPill({required this.onTap});
 
@@ -902,37 +937,42 @@ class _JoinPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: SovereignColors.gold,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: SovereignColors.gold.withValues(alpha: 0.28),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 18, vertical: 9),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.videocam, size: 15, color: SovereignColors.navy),
-              SizedBox(width: 6),
-              Text(
-                'Join meeting',
-                style: TextStyle(
-                  color: SovereignColors.navy,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
+    return Semantics(
+      button: true,
+      label: 'Join meeting',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: SovereignColors.gold,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: SovereignColors.gold.withValues(alpha: 0.28),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
               ),
             ],
+          ),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.videocam, size: 15, color: SovereignColors.navy),
+                SizedBox(width: 6),
+                Text(
+                  'Join meeting',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    color: SovereignColors.navy,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -940,7 +980,8 @@ class _JoinPill extends StatelessWidget {
   }
 }
 
-/// One RSVP option chip (mirrors the list screen's chip styling).
+/// One RSVP option chip (mirrors the list screen's chip styling): a ≥44px
+/// gold-OUTLINE pill when selected so the pinned Join stays the only solid gold.
 class _RsvpChip extends StatelessWidget {
   const _RsvpChip({
     required this.label,
@@ -954,46 +995,41 @@ class _RsvpChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = TextStyle(
+    final labelStyle = SovereignType.caption.copyWith(
       color: selected
-          ? SovereignColors.navy
-          : SovereignColors.ivory.withValues(alpha: 0.85),
-      fontSize: 12.5,
+          ? SovereignColors.gold
+          : SovereignColors.ivory.withValues(alpha: SovereignColors.alphaHigh),
       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
     );
 
-    final content = Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 9),
-        child: Text(label, style: labelStyle),
-      ),
+    final content = SizedBox(
+      height: 44, // ≥44px touch target
+      child: Center(child: Text(label, style: labelStyle)),
     );
 
-    final Widget chip;
-    if (selected) {
-      chip = DecoratedBox(
-        decoration: BoxDecoration(
-          color: SovereignColors.gold,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: SovereignColors.gold.withValues(alpha: 0.22),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
+    final Widget chip = selected
+        ? DecoratedBox(
+            decoration: BoxDecoration(
+              color: SovereignColors.gold.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: SovereignColors.gold.withValues(alpha: 0.85),
+                width: 1.4,
+              ),
             ),
-          ],
-        ),
-        child: content,
-      );
-    } else {
-      chip = GlassSurface.inner(borderRadius: 12, child: content);
-    }
+            child: content,
+          )
+        : GlassSurface.inner(borderRadius: 12, child: content);
 
     return Expanded(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: chip,
+      child: Semantics(
+        button: true,
+        label: 'RSVP $label${selected ? ', selected' : ''}',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: chip,
+        ),
       ),
     );
   }
@@ -1008,30 +1044,30 @@ class _DetailError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(Insets.xxl),
         child: GlassCard(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.cloud_off,
                   color: SovereignColors.gold, size: 28),
-              const SizedBox(height: 12),
+              const SizedBox(height: Insets.md),
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: SovereignColors.ivory.withValues(alpha: 0.85),
+                style: SovereignType.body.copyWith(
+                  color: SovereignColors.ivory
+                      .withValues(alpha: SovereignColors.alphaHigh),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: Insets.md),
               TextButton(
                 onPressed: onRetry,
-                child: const Text(
+                child: Text(
                   'Retry',
-                  style: TextStyle(
+                  style: SovereignType.caption.copyWith(
                     color: SovereignColors.gold,
                     fontWeight: FontWeight.w700,
                   ),

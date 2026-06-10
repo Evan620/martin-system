@@ -1,16 +1,23 @@
 // lib/features/documents/presentation/documents_screen.dart
 //
-// Documents — the third member screen, wired to live data. Everything shared
-// with the member's TWG (their TWGs + global; transcripts/shared-workspace
-// excluded server-side; confidential hidden client-side) surfaced as Sovereign
-// glass cards.
+// Documents · native dashboard (v2) — everything shared with the member's TWG
+// (their TWGs + global; transcripts/shared-workspace excluded server-side;
+// confidential hidden client-side) as dense kit rows.
+//
+// Layout (top -> bottom), per the Native Dashboard v2 spec:
+//   - compact `AppHeader`: TWG context label over "Documents" (no serif, no
+//     eyebrow).
+//   - the themed search field (filters locally by file name).
+//   - 44px file-type filter chips: All + one per distinct DocKind present.
+//   - one `RowGroup` of `ListRow`s: leading type-badge container, file name,
+//     "TWG · date · uploader" meta, and a trailing ✦ Summarise icon-button —
+//     THE screen's one filled-yellow action — pushing the existing
+//     `/martin?q=Summarise…` route. Row tap keeps the existing open behavior
+//     (PDF in-app, other types download + OS viewer).
 //
 // Loads via documentsControllerProvider.load() (post-frame), renders by sealed
-// state (loading / error / empty / data), a glass search field that filters
-// locally, file-type filter chips built from the DocKinds present, and doc
-// cards that reuse the seed's glass look. Tapping a PDF pushes the in-app
-// viewer (/documents/:id/pdf); other types download to a temp file and open
-// with the OS. ✦ Summarise is a stub until Martin (#4).
+// state (loading -> row-shaped skeletons / error / empty / data) inside an
+// AnimatedSwitcher; pull-to-refresh re-runs load().
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -21,16 +28,23 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/glass/glass.dart';
+import '../../../core/motion/cascade_in.dart';
+import '../../../core/motion/motion.dart';
+import '../../../core/motion/pressable.dart';
+import '../../../core/motion/skeleton.dart';
 import '../../../core/theme/sovereign_colors.dart';
+import '../../../core/theme/sovereign_spacing.dart';
+import '../../../core/theme/sovereign_type.dart';
+import '../../../core/ui/app_header.dart';
+import '../../../core/ui/list_row.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/data/auth_models.dart';
 import '../application/documents_controller.dart';
 import '../data/documents_models.dart';
 import '../data/documents_repository.dart';
 
-/// The Documents screen: serif title, a glass search field, file-type filter
-/// chips, a list of glass document cards (each with an inner-glass type badge
-/// and a ✦ Summarise action), rendered from live data by sealed state.
+/// The Documents screen: compact header, search field, filter chips and one
+/// row group of documents, each with the trailing ✦ Summarise yellow action.
 class DocumentsScreen extends ConsumerStatefulWidget {
   const DocumentsScreen({super.key});
 
@@ -91,35 +105,45 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
       backgroundColor: Colors.transparent,
       body: SafeArea(
         bottom: false,
-        child: switch (state) {
-          DocumentsLoading() => const Center(
-              child: CircularProgressIndicator(color: SovereignColors.gold),
-            ),
-          DocumentsError(:final message) => _ErrorView(
-              message: message,
-              onRetry: () =>
-                  ref.read(documentsControllerProvider.notifier).load(),
-            ),
-          DocumentsEmpty() => const _EmptyView(),
-          DocumentsData(:final all) => _DataView(
-              all: all,
-              query: _query,
-              kind: _kind,
-              twgName: _headerSubtitle(ref),
-              onQueryChanged: (v) => setState(() => _query = v),
-              onKindChanged: (k) => setState(() => _kind = k),
-              onOpen: _open,
-              onSummarise: _summarise,
-            ),
-        },
+        child: RefreshIndicator(
+          color: SovereignColors.gold,
+          backgroundColor: SovereignColors.navyRaised,
+          onRefresh: () =>
+              ref.read(documentsControllerProvider.notifier).load(),
+          child: AnimatedSwitcher(
+            duration: Motion.base,
+            child: switch (state) {
+              DocumentsLoading() =>
+                const _LoadingView(key: ValueKey('loading')),
+              DocumentsError(:final message) => _ErrorView(
+                  key: const ValueKey('error'),
+                  message: message,
+                  onRetry: () =>
+                      ref.read(documentsControllerProvider.notifier).load(),
+                ),
+              DocumentsEmpty() => const _EmptyView(key: ValueKey('empty')),
+              DocumentsData(:final all) => _DataView(
+                  key: const ValueKey('data'),
+                  all: all,
+                  query: _query,
+                  kind: _kind,
+                  twgLabel: _headerSubtitle(ref),
+                  onQueryChanged: (v) => setState(() => _query = v),
+                  onKindChanged: (k) => setState(() => _kind = k),
+                  onOpen: _open,
+                  onSummarise: _summarise,
+                ),
+            },
+          ),
+        ),
       ),
     );
   }
 }
 
-/// The member's TWG label, used as the header eyebrow (one TWG → its name,
-/// several → a compact multi-TWG label; falls back to a neutral label when
-/// unknown).
+/// The member's TWG label, used as the header context line (one TWG → its
+/// name, several → a compact multi-TWG label; falls back to a neutral label
+/// when unknown).
 String _headerSubtitle(WidgetRef ref) {
   final auth = ref.watch(authControllerProvider);
   if (auth is AuthAuthenticated) {
@@ -129,14 +153,15 @@ String _headerSubtitle(WidgetRef ref) {
   return 'Shared with you';
 }
 
-/// Loaded list state: header, glass search field, file-type filter chips, then
-/// the filtered document cards.
+/// Loaded list state: header, search field, filter chips, then the filtered
+/// document rows in one RowGroup.
 class _DataView extends StatelessWidget {
   const _DataView({
+    super.key,
     required this.all,
     required this.query,
     required this.kind,
-    required this.twgName,
+    required this.twgLabel,
     required this.onQueryChanged,
     required this.onKindChanged,
     required this.onOpen,
@@ -146,7 +171,7 @@ class _DataView extends StatelessWidget {
   final List<Document> all;
   final String query;
   final DocKind? kind;
-  final String twgName;
+  final String twgLabel;
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<DocKind?> onKindChanged;
   final ValueChanged<Document> onOpen;
@@ -154,76 +179,71 @@ class _DataView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
     // Distinct kinds present in the data, in enum order, for the filter chips.
-    final present = DocKind.values.where((k) => all.any((d) => d.kind == k)).toList();
+    final present =
+        DocKind.values.where((k) => all.any((d) => d.kind == k)).toList();
     final shown = filterDocs(all, query: query, kind: kind);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 104),
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding:
+          const EdgeInsets.fromLTRB(Insets.gutter, Insets.lg, Insets.gutter, 0)
+              .add(navClearance(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Eyebrow (member's TWG) + serif title + subtitle.
-          Text(
-            twgName.toUpperCase(),
-            style: const TextStyle(
-              color: SovereignColors.gold,
-              fontSize: 11,
-              letterSpacing: 2.4,
-              fontWeight: FontWeight.w600,
+          CascadeIn(
+            index: 0,
+            child: AppHeader(title: 'Documents', context_: twgLabel),
+          ),
+          const SizedBox(height: Insets.lg),
+          CascadeIn(index: 1, child: _SearchField(onChanged: onQueryChanged)),
+          const SizedBox(height: Insets.md),
+          CascadeIn(
+            index: 2,
+            child: _FilterChips(
+              present: present,
+              selected: kind,
+              onChanged: onKindChanged,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Documents',
-            style: textTheme.displaySmall?.copyWith(fontSize: 32, height: 1.05),
+          const SizedBox(height: Insets.lg),
+          CascadeIn(
+            index: 3,
+            child: RowGroup(children: [
+              if (shown.isEmpty)
+                const ListRow(
+                  icon: Icons.search_off_rounded,
+                  title: 'No documents match',
+                  meta: 'Try a different search or filter.',
+                )
+              else
+                for (final doc in shown)
+                  ListRow(
+                    leading: _KindBadge(kind: doc.kind),
+                    title: doc.name,
+                    meta: _docMeta(doc),
+                    trailing: _SummariseButton(onTap: () => onSummarise(doc)),
+                    onTap: () => onOpen(doc),
+                  ),
+            ]),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Shared with you',
-            style: textTheme.bodyMedium?.copyWith(
-              color: SovereignColors.ivory.withValues(alpha: 0.62),
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Glass search field.
-          _SearchField(onChanged: onQueryChanged),
-          const SizedBox(height: 14),
-
-          // File-type filter chips: All + one per distinct kind present.
-          _FilterChips(
-            present: present,
-            selected: kind,
-            onChanged: onKindChanged,
-          ),
-          const SizedBox(height: 16),
-
-          // Document cards (filtered) — or an inline empty when filters match
-          // nothing.
-          if (shown.isEmpty)
-            const _InlineEmpty()
-          else
-            for (final doc in shown) ...[
-              _DocumentCard(
-                doc: doc,
-                onTap: () => onOpen(doc),
-                onSummarise: () => onSummarise(doc),
-              ),
-              const SizedBox(height: 12),
-            ],
-
-          const SizedBox(height: 8),
-
-          // Gold hint line.
-          const _MartinHint(),
         ],
       ),
     );
   }
+}
+
+/// The row meta line: "TWG · date · uploader" (Global when the document is not
+/// scoped to a TWG; date/uploader only when present).
+String _docMeta(Document d) {
+  final fmt = DateFormat('d MMM');
+  final parts = <String>[
+    d.twgName ?? 'Global',
+    if (d.createdAt != null) fmt.format(d.createdAt!),
+    if ((d.uploadedByEmail ?? '').isNotEmpty) d.uploadedByEmail!,
+  ];
+  return parts.join(' · ');
 }
 
 /// A glass surface styled as a search field. Wraps a borderless [TextField] so
@@ -237,7 +257,8 @@ class _SearchField extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassSurface(
       borderRadius: 16,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+          horizontal: Insets.lg, vertical: Insets.xs),
       child: Row(
         children: [
           Icon(
@@ -245,22 +266,19 @@ class _SearchField extends StatelessWidget {
             size: 20,
             color: SovereignColors.gold.withValues(alpha: 0.85),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: Insets.md),
           Expanded(
             child: TextField(
               onChanged: onChanged,
               cursorColor: SovereignColors.gold,
-              style: const TextStyle(
-                color: SovereignColors.ivory,
-                fontSize: 14,
-              ),
+              style: SovereignType.body,
               decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
                 hintText: 'Search documents…',
-                hintStyle: TextStyle(
-                  color: SovereignColors.ivory.withValues(alpha: 0.55),
-                  fontSize: 14,
+                hintStyle: SovereignType.body.copyWith(
+                  color: SovereignColors.ivory
+                      .withValues(alpha: SovereignColors.alphaMid),
                 ),
               ),
             ),
@@ -272,7 +290,8 @@ class _SearchField extends StatelessWidget {
 }
 
 /// Horizontal row of file-type filter chips: an "All" chip plus one chip per
-/// distinct [DocKind] present in the data. The selected chip fills with gold.
+/// distinct [DocKind] present in the data. 44px tall, segmented-style fills —
+/// yellow stays reserved for the ✦ Summarise action.
 class _FilterChips extends StatelessWidget {
   const _FilterChips({
     required this.present,
@@ -296,7 +315,7 @@ class _FilterChips extends StatelessWidget {
             onTap: () => onChanged(null),
           ),
           for (final k in present) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: Insets.sm),
             _Chip(
               label: k.filterLabel,
               selected: selected == k,
@@ -309,8 +328,8 @@ class _FilterChips extends StatelessWidget {
   }
 }
 
-/// One filter chip. Selected = solid gold pill; unselected = lighter inner
-/// glass.
+/// One filter chip on the segmented-control language: selected = raised navy
+/// with a gold ring, unselected = recessed ivory track. 44px tap target.
 class _Chip extends StatelessWidget {
   const _Chip({
     required this.label,
@@ -324,145 +343,74 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = TextStyle(
-      color: selected
-          ? SovereignColors.navy
-          : SovereignColors.ivory.withValues(alpha: 0.85),
-      fontSize: 12.5,
-      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-    );
-
-    final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-      child: Text(label, style: labelStyle),
-    );
-
-    final Widget chip = selected
-        ? DecoratedBox(
-            decoration: BoxDecoration(
-              color: SovereignColors.gold,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: SovereignColors.gold.withValues(alpha: 0.22),
-                  blurRadius: 12,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+    return PressableScale(
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 44),
+        padding: const EdgeInsets.symmetric(horizontal: Insets.lg),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected
+              ? SovereignColors.navyRaised
+              : SovereignColors.ivory.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? SovereignColors.gold.withValues(alpha: 0.45)
+                : SovereignColors.ivory.withValues(alpha: 0.08),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: SovereignColors.ivory.withValues(
+              alpha: selected
+                  ? SovereignColors.alphaHigh
+                  : SovereignColors.alphaMid,
             ),
-            child: content,
-          )
-        : GlassSurface.inner(borderRadius: 12, child: content);
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: chip,
-    );
-  }
-}
-
-/// One document rendered as a raised glass card. The leading type badge is an
-/// inner glass chip (glass-inside-glass). Holds a meta line and a ✦ Summarise
-/// action; tapping the card body opens the document.
-class _DocumentCard extends StatelessWidget {
-  const _DocumentCard({
-    required this.doc,
-    required this.onTap,
-    required this.onSummarise,
-  });
-
-  final Document doc;
-  final VoidCallback onTap;
-  final VoidCallback onSummarise;
-
-  static final _fmt = DateFormat('d MMM');
-
-  @override
-  Widget build(BuildContext context) {
-    // Meta line: short MIME suffix · date · uploader email (whichever present).
-    final created = doc.createdAt;
-    final meta = [
-      if (doc.mime != null) doc.kind.badge,
-      if (created != null) _fmt.format(created),
-      if ((doc.uploadedByEmail ?? '').isNotEmpty) doc.uploadedByEmail!,
-    ].join(' · ');
-
-    return GlassCard(
-      padding: const EdgeInsets.all(14),
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // Inner-glass type badge.
-              GlassSurface.inner(
-                borderRadius: 14,
-                width: 46,
-                height: 46,
-                alignment: Alignment.center,
-                child: Text(
-                  doc.kind.badge,
-                  style: const TextStyle(
-                    color: SovereignColors.gold,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              // Name + meta line.
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      doc.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: SovereignColors.ivory,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      meta,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: SovereignColors.ivory.withValues(alpha: 0.58),
-                        fontSize: 12.5,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right,
-                size: 22,
-                color: SovereignColors.gold.withValues(alpha: 0.7),
-              ),
-            ],
           ),
-          const SizedBox(height: 10),
-          // ✦ Summarise action (stub until Martin).
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _SummariseButton(onTap: onSummarise),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// The ✦ Summarise pill (stub until Martin #4).
+/// The row's leading type badge — the kit's gold icon-container style holding
+/// the short kind label (PDF / XLS / DOC / PPT / FILE).
+class _KindBadge extends StatelessWidget {
+  const _KindBadge({required this.kind});
+
+  final DocKind kind;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 32,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: SovereignColors.gold.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Text(
+        kind.badge,
+        style: const TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.4,
+          color: SovereignColors.gold,
+        ),
+      ),
+    );
+  }
+}
+
+/// The trailing ✦ Summarise icon-button — THE screen's one filled-yellow
+/// action, repeated per row (one pattern). 44px tap target around a 30px chip.
 class _SummariseButton extends StatelessWidget {
   const _SummariseButton({required this.onTap});
 
@@ -470,70 +418,64 @@ class _SummariseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: SovereignColors.gold.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: SovereignColors.gold.withValues(alpha: 0.30),
-          ),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.auto_awesome, size: 14, color: SovereignColors.gold),
-            SizedBox(width: 6),
-            Text(
-              'Summarise',
-              style: TextStyle(
+    return Semantics(
+      button: true,
+      label: 'Summarise',
+      child: PressableScale(
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
                 color: SovereignColors.gold,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: const Icon(
+                Icons.auto_awesome,
+                size: 16,
+                color: SovereignColors.navy,
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Gold-tinted hint nudging the member to ask Martin for a summary.
-class _MartinHint extends StatelessWidget {
-  const _MartinHint();
+/// Loading — header/search/row-shaped skeletons (no spinner), cross-fading to
+/// content.
+class _LoadingView extends StatelessWidget {
+  const _LoadingView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: SovereignColors.gold.withValues(alpha: 0.10),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(12),
-          topRight: Radius.circular(12),
-          bottomRight: Radius.circular(12),
-          bottomLeft: Radius.circular(2),
-        ),
-      ),
-      child: Row(
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding:
+          const EdgeInsets.fromLTRB(Insets.gutter, Insets.lg, Insets.gutter, 0)
+              .add(navClearance(context)),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.auto_awesome, size: 18, color: SovereignColors.gold),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Ask Martin to summarise any of these.',
-              style: TextStyle(
-                color: SovereignColors.ivory.withValues(alpha: 0.9),
-                fontSize: 13.5,
-                height: 1.35,
-              ),
-            ),
-          ),
+        children: const [
+          SkeletonBlock(width: 90, height: 12),
+          SizedBox(height: Insets.sm),
+          SkeletonBlock(width: 170, height: 22),
+          SizedBox(height: Insets.lg),
+          SkeletonBlock(width: double.infinity, height: 44, radius: 16),
+          SizedBox(height: Insets.md),
+          SkeletonBlock(width: 200, height: 36, radius: 12),
+          SizedBox(height: Insets.lg),
+          RowGroup(children: [
+            SkeletonRow(),
+            SkeletonRow(),
+            SkeletonRow(),
+            SkeletonRow(),
+          ]),
         ],
       ),
     );
@@ -542,36 +484,38 @@ class _MartinHint extends StatelessWidget {
 
 /// Error state: a glass message + a Retry button.
 class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
+  const _ErrorView({super.key, required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: GlassCard(
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(Insets.xxl),
+      children: [
+        const SizedBox(height: 80),
+        GlassCard(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.cloud_off, color: SovereignColors.gold, size: 28),
-              const SizedBox(height: 12),
+              const SizedBox(height: Insets.md),
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: SovereignColors.ivory.withValues(alpha: 0.85),
+                style: SovereignType.body.copyWith(
+                  color: SovereignColors.ivory
+                      .withValues(alpha: SovereignColors.alphaHigh),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: Insets.md),
               TextButton(
                 onPressed: onRetry,
-                child: const Text(
+                child: Text(
                   'Retry',
-                  style: TextStyle(
+                  style: SovereignType.caption.copyWith(
                     color: SovereignColors.gold,
                     fontWeight: FontWeight.w700,
                   ),
@@ -580,69 +524,47 @@ class _ErrorView extends StatelessWidget {
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }
 
 /// Full-screen empty state (no documents shared at all).
 class _EmptyView extends StatelessWidget {
-  const _EmptyView();
+  const _EmptyView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: GlassCard(
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(Insets.xxl),
+      children: [
+        const SizedBox(height: 80),
+        GlassCard(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.folder_open, color: SovereignColors.gold, size: 30),
-              const SizedBox(height: 12),
-              Text(
+              const Icon(Icons.folder_open,
+                  color: SovereignColors.gold, size: 30),
+              const SizedBox(height: Insets.md),
+              const Text(
                 'No documents shared yet',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium?.copyWith(fontSize: 16),
+                style: SovereignType.section,
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: Insets.xs),
               Text(
                 "When your TWG shares a file, it'll appear here.",
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: SovereignColors.ivory.withValues(alpha: 0.65),
-                  fontSize: 12.5,
+                style: SovereignType.secondary.copyWith(
+                  color: SovereignColors.ivory
+                      .withValues(alpha: SovereignColors.alphaMid),
                 ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Inline empty state shown under the search/filters when nothing matches.
-class _InlineEmpty extends StatelessWidget {
-  const _InlineEmpty();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return GlassCard(
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Text(
-            'No documents match your search.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: SovereignColors.ivory.withValues(alpha: 0.7),
-              fontSize: 13,
-            ),
-          ),
-        ),
-      ),
+      ],
     );
   }
 }

@@ -43,6 +43,28 @@ void main() {
     expect(m.isParticipant('zzz'), isFalse);
   });
 
+  test('isPast flips at endsAt, not at scheduledAt — in-progress is NOT past',
+      () {
+    Meeting at(DateTime scheduledAt) => Meeting.fromJson({
+          'id': 'm1',
+          'title': 'T',
+          'scheduled_at': scheduledAt.toUtc().toIso8601String(),
+          'duration_minutes': 60,
+          'status': 'SCHEDULED',
+          'meeting_type': 'virtual',
+          'participants': const [],
+        });
+
+    // Started 10 minutes ago, runs 60 → still in progress → upcoming.
+    final live = at(DateTime.now().subtract(const Duration(minutes: 10)));
+    expect(live.endsAt, live.scheduledAt.add(const Duration(minutes: 60)));
+    expect(live.isPast, isFalse);
+
+    // Started 90 minutes ago, ran 60 → ended 30 minutes ago → past.
+    final done = at(DateTime.now().subtract(const Duration(minutes: 90)));
+    expect(done.isPast, isTrue);
+  });
+
   test('Meeting.fromJson parses attached documents', () {
     final m = Meeting.fromJson({
       'id': 'm1', 'title': 'T', 'scheduled_at': '2026-06-10T14:00:00Z',

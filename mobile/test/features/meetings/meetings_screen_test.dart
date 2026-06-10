@@ -32,6 +32,7 @@ Map<String, dynamic> _meetingJson({
   String id = 'm1',
   String title = 'Energy Sync',
   String scheduledAt = '2031-06-10T14:00:00Z',
+  int durationMinutes = 60,
   String? videoLink,
   List<Map<String, dynamic>> participants = const [],
 }) =>
@@ -39,6 +40,7 @@ Map<String, dynamic> _meetingJson({
       'id': id,
       'title': title,
       'scheduled_at': scheduledAt,
+      'duration_minutes': durationMinutes,
       'status': 'SCHEDULED',
       'meeting_type': 'virtual',
       'video_link': ?videoLink,
@@ -123,6 +125,43 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Past Review'), findsOneWidget);
     expect(find.text('Future Sync'), findsNothing);
+  });
+
+  testWidgets(
+      'an in-progress meeting stays under Upcoming with the Join pill; '
+      'an ended one is Past', (tester) async {
+    final repo = _MockRepo();
+    final started = DateTime.now().subtract(const Duration(minutes: 10));
+    final ended = DateTime.now().subtract(const Duration(minutes: 90));
+    when(() => repo.listMeetings()).thenAnswer((_) async => [
+          // Started 10 min ago, runs 60 → in progress: this is exactly when
+          // joining matters most, so it must keep its Upcoming slot + Join.
+          Meeting.fromJson(_meetingJson(
+              id: 'live',
+              title: 'Live Now',
+              scheduledAt: started.toUtc().toIso8601String(),
+              videoLink: 'https://meet.example.org/live')),
+          // Started 90 min ago, ran 60 → ended 30 min ago → Past.
+          Meeting.fromJson(_meetingJson(
+              id: 'done',
+              title: 'Wrapped Up',
+              scheduledAt: ended.toUtc().toIso8601String())),
+        ]);
+    await tester.pumpWidget(_app(repo));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Upcoming (default): the running session shows, carrying the Join pill.
+    expect(find.text('Live Now'), findsOneWidget);
+    expect(find.text('Join'), findsOneWidget);
+    expect(find.text('Wrapped Up'), findsNothing);
+
+    // Past: only the session that has actually ended.
+    await tester.tap(find.text('Past'));
+    await tester.pumpAndSettle();
+    expect(find.text('Wrapped Up'), findsOneWidget);
+    expect(find.text('Live Now'), findsNothing);
+    expect(find.text('Join'), findsNothing);
   });
 
   testWidgets(

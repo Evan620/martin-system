@@ -292,7 +292,7 @@ class _ChatHeader extends StatelessWidget {
             '✦ Martin',
             style: TextStyle(
               color: SovereignColors.gold,
-              fontFamily: 'Georgia',
+              fontFamily: 'Inter',
               fontSize: 24,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.3,

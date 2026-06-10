@@ -165,7 +165,7 @@ class AppShell extends StatelessWidget {
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFE6C766), SovereignColors.gold],
+            colors: [SovereignColors.sunDeep, SovereignColors.gold],
           ),
           boxShadow: [
             BoxShadow(

@@ -85,7 +85,12 @@ class Meeting {
   final List<MeetingParticipant> participants;
   final List<MeetingDocument> documents;
 
-  bool get isPast => scheduledAt.isBefore(DateTime.now());
+  /// When the session ends — start plus its scheduled duration.
+  DateTime get endsAt => scheduledAt.add(Duration(minutes: durationMinutes));
+
+  /// Past only once the session has ENDED, so an in-progress meeting stays
+  /// "Upcoming" (keeping its Join affordance) for its whole running window.
+  bool get isPast => endsAt.isBefore(DateTime.now());
   bool get hasVideo => (videoLink ?? '').isNotEmpty;
 
   MeetingParticipant? _me(String userId) {

@@ -5,8 +5,9 @@ import 'package:member_app/core/theme/sovereign_colors.dart';
 
 void main() {
   test('Sovereign palette exposes navy and gold', () {
-    expect(SovereignColors.navy, const Color(0xFF0A1F44));
-    expect(SovereignColors.gold, const Color(0xFFC9A227));
+    // New palette — Bright Sun on Big Stone (names kept, values redefined in WF-E).
+    expect(SovereignColors.navy, const Color(0xFF141D38));
+    expect(SovereignColors.gold, const Color(0xFFFCDB32));
     expect(SovereignColors.ivory, const Color(0xFFF6F1E7));
   });
 }

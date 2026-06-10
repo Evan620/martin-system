@@ -1,6 +1,7 @@
 // lib/core/theme/sovereign_theme.dart
 import 'package:flutter/material.dart';
 import 'sovereign_colors.dart';
+import 'sovereign_type.dart';
 
 abstract final class SovereignTheme {
   static ThemeData dark() {
@@ -14,11 +15,15 @@ abstract final class SovereignTheme {
         error: SovereignColors.danger,
       ),
       textTheme: base.textTheme.copyWith(
-        // Serif display for headlines; system sans for body.
-        displaySmall: const TextStyle(fontFamily: 'Georgia', color: SovereignColors.ivory),
-        headlineMedium: const TextStyle(fontFamily: 'Georgia', color: SovereignColors.ivory),
-        titleLarge: const TextStyle(fontFamily: 'Georgia', color: SovereignColors.ivory),
-        bodyMedium: const TextStyle(color: SovereignColors.ivory),
+        displaySmall: SovereignType.display,
+        displayMedium: SovereignType.title,
+        headlineMedium: SovereignType.heading,
+        titleLarge: SovereignType.heading,
+        titleMedium: SovereignType.section,
+        bodyLarge: SovereignType.body,
+        bodyMedium: SovereignType.body,
+        bodySmall: SovereignType.secondary,
+        labelLarge: SovereignType.caption,
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(

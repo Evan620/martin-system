@@ -1,8 +1,8 @@
 // lib/features/home/presentation/martin_message_bubble.dart
 //
 // Martin's side of the chat transcript — a claude.ai-quality assistant bubble
-// mapped to the Sovereign system (navy 0xFF0A1F44 / gold 0xFFC9A227 / ivory
-// 0xFFF6F1E7, GlassSurface/GlassCard).
+// mapped to the Sovereign system (SovereignColors navy/gold/ivory tokens,
+// GlassSurface/GlassCard).
 //
 // What lives here:
 //   - [MartinMessageBubble]  the glass bubble: tool-activity chip, typing dots
@@ -121,7 +121,7 @@ class MartinMessageBubble extends StatelessWidget {
 // Sovereign markdown
 // ---------------------------------------------------------------------------
 
-/// GptMarkdown with the Sovereign style map: ivory body, gold serif H1, gold
+/// GptMarkdown with the Sovereign style map: ivory body, gold H1, gold
 /// underlined links (→ url_launcher), gold list markers, monospace inline code
 /// on navyRaised, and code blocks on inner glass with a copy affordance.
 class MartinMarkdown extends StatelessWidget {
@@ -129,8 +129,8 @@ class MartinMarkdown extends StatelessWidget {
 
   final String data;
 
-  static const _body = TextStyle(
-    color: Color(0xEBF6F1E7), // ivory @0.92
+  static final _body = TextStyle(
+    color: SovereignColors.ivory.withValues(alpha: 0.92),
     fontSize: 15,
     height: 1.45,
   );
@@ -147,10 +147,10 @@ class MartinMarkdown extends StatelessWidget {
     brightness: Brightness.dark,
     highlightColor: SovereignColors.navyRaised.withValues(alpha: 0.7),
     h1: const TextStyle(
-      fontFamily: 'Georgia',
+      fontFamily: 'Inter',
       color: SovereignColors.gold,
       fontSize: 19,
-      fontWeight: FontWeight.w600,
+      fontWeight: FontWeight.w700,
       height: 1.4,
     ),
     h2: const TextStyle(

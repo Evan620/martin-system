@@ -22,9 +22,11 @@ class AppHeader extends StatelessWidget {
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (context_ != null)
-            Text(context_!, style: TextStyle(fontFamily: 'Inter', fontSize: 12,
+            Text(context_!, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontFamily: 'Inter', fontSize: 12,
                 color: SovereignColors.ivory.withValues(alpha: SovereignColors.alphaMid))),
-          Text(title, style: const TextStyle(fontFamily: 'Inter', fontSize: 19,
+          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontFamily: 'Inter', fontSize: 19,
               fontWeight: FontWeight.w800, color: SovereignColors.ivory)),
         ]),
       ),

@@ -386,8 +386,9 @@ class _SwitcherChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentName =
-        twgs.firstWhere((t) => t.id == current, orElse: () => twgs.first).name;
+    // Compact, fixed-width trigger — the header card already names the current
+    // TWG, so the switcher only needs a short "Switch" affordance (showing the
+    // long TWG name here overflowed the header on long names).
     return PopupMenuButton<String>(
       key: const Key('workspace-switcher'),
       color: SovereignColors.navyRaised,
@@ -408,15 +409,15 @@ class _SwitcherChip extends StatelessWidget {
           color: SovereignColors.gold.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(9),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(currentName,
-              style: const TextStyle(
+        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.swap_horiz_rounded, color: SovereignColors.gold, size: 16),
+          SizedBox(width: 4),
+          Text('Switch',
+              style: TextStyle(
                   fontFamily: 'Inter',
-                  fontSize: 13,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w700,
                   color: SovereignColors.gold)),
-          const Icon(Icons.arrow_drop_down,
-              color: SovereignColors.gold, size: 18),
         ]),
       ),
     );

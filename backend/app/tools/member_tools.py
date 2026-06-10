@@ -1,12 +1,15 @@
 """Member personal-action tools (member toolset).
 
-Today: rsvp_meeting, set_reminder, add_meeting_to_calendar.
+Today: rsvp_meeting, set_reminder, add_meeting_to_calendar, get_project_brief.
 
 These run under the 'member' agent scope (tool_registry.MEMBER_TOOLS). The agent
 loop auto-injects user_id/user_role from the authenticated session into any tool
 that declares them (see app/agents/agent_loop.py), so every tool here always acts
 on the *calling* member's own data (own RSVP / reminders / calendar invite).
+twg_id is auto-injected the same way (registry/agent loop), scoping reads like
+get_project_brief to the caller's own TWG deal room.
 """
+import difflib
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -19,6 +22,8 @@ from app.core.database import AsyncSessionLocal
 from app.models.models import (
     Meeting,
     MeetingParticipant,
+    Project,
+    ProjectStatus,
     Reminder,
     RsvpStatus,
     TWG,
@@ -316,3 +321,162 @@ async def add_meeting_to_calendar(
             "open the attached invite.ics to add it to your calendar."
         ),
     }
+
+
+# ---------------------------------------------------------------------------
+# get_project_brief
+# ---------------------------------------------------------------------------
+
+GET_PROJECT_BRIEF_TOOL_DEF = {
+    "type": "function",
+    "function": {
+        "name": "get_project_brief",
+        "description": (
+            "Get a concise brief of a project in the member's own TWG deal room: "
+            "name, stage, sector, value, readiness score, location and a short "
+            "description. Accepts the project's UUID or a (partial) project name, "
+            "e.g. 'Bagre solar'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "project": {
+                    "type": "string",
+                    "description": "The project's UUID or its (partial) name.",
+                },
+            },
+            "required": ["project"],
+        },
+    },
+}
+
+# Identical for cross-TWG and nonexistent projects so the tool is not an
+# existence oracle for other TWGs' deal flow (mirrors the 404-not-403 rule
+# of /pipeline/{id}/interest).
+_PROJECT_NOT_FOUND_MSG = (
+    "I couldn't find a project matching '{project}' in your TWG's deal room. "
+    "It may belong to another TWG, or the name may be spelled differently."
+)
+
+
+async def _resolve_member_twg_uuid(session, twg_id: str) -> Optional[uuid.UUID]:
+    """Resolve the injected twg_id (UUID string, or a name like 'energy') to a UUID."""
+    try:
+        return uuid.UUID(str(twg_id))
+    except (ValueError, TypeError):
+        pass
+    twg = (
+        await session.execute(select(TWG).where(TWG.name.ilike(f"%{twg_id}%")))
+    ).scalars().first()
+    return twg.id if twg else None
+
+
+def _humanize_label(raw: Optional[str]) -> Optional[str]:
+    """'SUMMIT_READY' / 'energy_infrastructure' → 'Summit ready' / 'Energy infrastructure'."""
+    if not raw:
+        return None
+    return raw.replace("_", " ").strip().capitalize()
+
+
+def _short_description(text: Optional[str], max_sentences: int = 2, max_chars: int = 320) -> Optional[str]:
+    """First 1-2 sentences of the description, capped for a concise brief."""
+    cleaned = " ".join((text or "").split())
+    if not cleaned:
+        return None
+    sentences, rest = [], cleaned
+    for _ in range(max_sentences):
+        head, dot, rest = rest.partition(". ")
+        sentences.append(head if (dot or head.endswith(".")) else head)
+        if not rest:
+            break
+    short = " ".join(s if s.endswith(".") else f"{s}." for s in sentences if s)
+    return short[: max_chars - 1].rstrip() + "…" if len(short) > max_chars else short
+
+
+def _build_project_brief(p: Project) -> str:
+    """Concise member-safe text brief — NO key contacts / financing internals."""
+    stage = _humanize_label(p.status.value if p.status else None)
+    header = f"{p.name} — {stage}" if stage else p.name
+
+    meta = []
+    sector = _humanize_label(p.pillar)
+    if sector:
+        meta.append(f"Sector: {sector}")
+    if p.investment_size is not None:
+        meta.append(f"Value: {p.currency or 'USD'} {p.investment_size:,.0f}")
+    if p.readiness_score is not None:
+        meta.append(f"Readiness score: {p.readiness_score:g}")
+    location = p.lead_country or p.site_location_name
+    if location:
+        meta.append(f"Location: {location}")
+
+    lines = [header]
+    if meta:
+        lines.append(" · ".join(meta))
+    description = _short_description(p.description)
+    if description:
+        lines.append(description)
+    return "\n".join(lines)
+
+
+async def get_project_brief(
+    project: str,
+    twg_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    user_role: Optional[UserRole] = None,
+) -> dict:
+    """Return a concise brief for a project in the CALLER's TWG deal room.
+
+    `project` is a UUID or a fuzzy (partial) name; resolution is strictly scoped
+    to the injected twg_id, so cross-TWG and unknown projects are indistinguishable
+    (same friendly not-found message — no leak).
+    """
+    query = (project or "").strip()
+    if not query:
+        return {"error": "Which project? Give me its name (or id) and I'll pull up the brief."}
+    if not twg_id:
+        return {"error": "Could not determine your TWG scope. Please retry from the app."}
+
+    async with AsyncSessionLocal() as session:
+        twg_uuid = await _resolve_member_twg_uuid(session, twg_id)
+        if twg_uuid is None:
+            return {"error": "Could not determine your TWG scope. Please retry from the app."}
+
+        # 1) Exact id — must ALSO belong to the caller's TWG (else: generic not-found).
+        try:
+            project_uuid = uuid.UUID(query)
+        except (ValueError, TypeError):
+            project_uuid = None
+        if project_uuid is not None:
+            p = await session.get(Project, project_uuid)
+            if p is None or p.twg_id != twg_uuid or p.status == ProjectStatus.ARCHIVED:
+                return {"error": _PROJECT_NOT_FOUND_MSG.format(project=query)}
+            return {"success": True, "project_id": str(p.id), "brief": _build_project_brief(p)}
+
+        # 2) Fuzzy name — searched ONLY within the caller's TWG projects.
+        candidates = (
+            await session.execute(
+                select(Project).where(
+                    Project.twg_id == twg_uuid,
+                    Project.status != ProjectStatus.ARCHIVED,
+                )
+            )
+        ).scalars().all()
+
+        matches = [p for p in candidates if query.lower() in (p.name or "").lower()]
+        if not matches:
+            by_name = {p.name: p for p in candidates if p.name}
+            close = difflib.get_close_matches(query, list(by_name), n=1, cutoff=0.6)
+            matches = [by_name[close[0]]] if close else []
+        if not matches:
+            return {"error": _PROJECT_NOT_FOUND_MSG.format(project=query)}
+        if len(matches) > 1:
+            exact = [p for p in matches if (p.name or "").lower() == query.lower()]
+            if len(exact) == 1:
+                matches = exact
+            else:
+                names = ", ".join(sorted(p.name for p in matches)[:5])
+                return {"error": f"I found several projects matching '{query}': {names}. Which one do you mean?"}
+
+        p = matches[0]
+        return {"success": True, "project_id": str(p.id), "brief": _build_project_brief(p)}

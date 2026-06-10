@@ -323,6 +323,170 @@ async def test_add_meeting_to_calendar_denies_non_participant(db_session, monkey
 
 
 # ---------------------------------------------------------------------------
+# get_project_brief
+# ---------------------------------------------------------------------------
+
+async def _make_deal_room(db_session):
+    """Two TWGs with one project each; the caller is scoped to TWG A."""
+    from decimal import Decimal
+    from app.models.models import Project, ProjectStatus, TWG, TWGPillar
+
+    suffix = uuid.uuid4().hex[:8]
+    twg_a = TWG(id=uuid.uuid4(), name=f"Brief Energy {suffix}", pillar=TWGPillar.energy_infrastructure)
+    twg_b = TWG(id=uuid.uuid4(), name=f"Brief Digital {suffix}", pillar=TWGPillar.digital_economy_transformation)
+    own = Project(
+        id=uuid.uuid4(),
+        twg_id=twg_a.id,
+        name=f"Bagre Solar Plant {suffix}",
+        description="A 50MW grid-connected solar PV plant near Bagre. Second sentence of detail. Third sentence that should be trimmed.",
+        investment_size=Decimal("25000000.00"),
+        currency="USD",
+        status=ProjectStatus.SUMMIT_READY,
+        pillar=TWGPillar.energy_infrastructure.value,
+        lead_country="Burkina Faso",
+        readiness_score=72.5,
+    )
+    cross = Project(
+        id=uuid.uuid4(),
+        twg_id=twg_b.id,
+        name=f"Cross Fibre Backbone {suffix}",
+        description="A cross-border fibre project in another TWG.",
+        investment_size=Decimal("9000000.00"),
+        currency="USD",
+        status=ProjectStatus.PIPELINE,
+        pillar=TWGPillar.digital_economy_transformation.value,
+        lead_country="Ghana",
+        readiness_score=40.0,
+    )
+    db_session.add_all([twg_a, twg_b, own, cross])
+    await db_session.flush()
+    return {"twg_a": twg_a, "twg_b": twg_b, "own": own, "cross": cross, "suffix": suffix}
+
+
+@pytest.mark.asyncio
+async def test_get_project_brief_own_twg_by_id(db_session, monkeypatch):
+    """A member gets a concise brief for an own-TWG project looked up by UUID."""
+    import app.tools.member_tools as member_tools
+
+    data = await _make_deal_room(db_session)
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    result = await member_tools.get_project_brief(
+        project=str(data["own"].id),
+        twg_id=str(data["twg_a"].id),
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert result.get("success") is True, f"unexpected result: {result}"
+    assert result["project_id"] == str(data["own"].id)
+    brief = result["brief"]
+    # name, stage, sector, value, readiness score, location, short description
+    assert data["own"].name in brief
+    assert "Summit ready" in brief
+    assert "Sector" in brief and "Energy infrastructure" in brief
+    assert "25,000,000" in brief
+    assert "72.5" in brief
+    assert "Burkina Faso" in brief
+    assert "grid-connected solar PV plant" in brief
+    # description is trimmed to 1-2 sentences
+    assert "Third sentence" not in brief
+
+
+@pytest.mark.asyncio
+async def test_get_project_brief_fuzzy_name_within_own_twg(db_session, monkeypatch):
+    """A partial, differently-cased name resolves to the own-TWG project."""
+    import app.tools.member_tools as member_tools
+
+    data = await _make_deal_room(db_session)
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    result = await member_tools.get_project_brief(
+        project="bagre solar",
+        twg_id=str(data["twg_a"].id),
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert result.get("success") is True, f"unexpected result: {result}"
+    assert result["project_id"] == str(data["own"].id)
+    assert data["own"].name in result["brief"]
+
+
+@pytest.mark.asyncio
+async def test_get_project_brief_cross_twg_not_found_no_leak(db_session, monkeypatch):
+    """A cross-TWG project returns the SAME friendly not-found as an unknown id —
+    no name leak, no existence oracle."""
+    import app.tools.member_tools as member_tools
+
+    data = await _make_deal_room(db_session)
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    cross_id = str(data["cross"].id)
+    cross_result = await member_tools.get_project_brief(
+        project=cross_id,
+        twg_id=str(data["twg_a"].id),
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert "error" in cross_result
+    assert data["cross"].name not in cross_result["error"]
+    assert "brief" not in cross_result
+
+    unknown_id = str(uuid.uuid4())
+    unknown_result = await member_tools.get_project_brief(
+        project=unknown_id,
+        twg_id=str(data["twg_a"].id),
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert "error" in unknown_result
+    # Identical shape/message modulo the echoed query → no existence oracle.
+    assert cross_result["error"].replace(cross_id, "X") == unknown_result["error"].replace(unknown_id, "X")
+
+
+@pytest.mark.asyncio
+async def test_get_project_brief_unknown_name_not_found(db_session, monkeypatch):
+    """An unmatched name returns a friendly not-found, not a crash."""
+    import app.tools.member_tools as member_tools
+
+    data = await _make_deal_room(db_session)
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    result = await member_tools.get_project_brief(
+        project="totally nonexistent hydro dam",
+        twg_id=str(data["twg_a"].id),
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert "error" in result
+
+
+def test_get_project_brief_registered_and_gated():
+    """get_project_brief is in MEMBER_TOOLS, registered, granted to the member
+    agent WITH a twg scope, and denied without one (TWG-scoped)."""
+    from app.tools.tool_registry import (
+        ToolRegistry,
+        ToolAccessDenied,
+        MEMBER_TOOLS,
+        TWG_SCOPED_TOOLS,
+    )
+
+    assert "get_project_brief" in MEMBER_TOOLS
+    assert "get_project_brief" in TWG_SCOPED_TOOLS
+
+    reg = ToolRegistry()
+    reg.register_all()
+    twg = str(uuid.uuid4())
+
+    assert "get_project_brief" in reg.list_tools()
+    assert reg.validate_tool_access("get_project_brief", "member", twg_id=twg) is True
+    with pytest.raises(ToolAccessDenied):
+        reg.validate_tool_access("get_project_brief", "member", twg_id=None)
+
+    _defs, tool_map = reg.get_tools_for_agent("member", twg_id=twg)
+    assert "get_project_brief" in tool_map
+
+
+# ---------------------------------------------------------------------------
 # Registry gating for the new tools
 # ---------------------------------------------------------------------------
 

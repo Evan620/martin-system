@@ -39,6 +39,7 @@ TWG_SCOPED_TOOLS: Set[str] = {
     "request_document_approval_tool",
     "get_action_items",
     "update_action_item_status",
+    "get_project_brief",
 }
 
 # Tools restricted to specific agent roles
@@ -118,6 +119,8 @@ MEMBER_TOOLS: Set[str] = {
     "get_notifications",
     # Email ME the .ics invite for a meeting I participate in
     "add_meeting_to_calendar",
+    # Concise TWG-scoped project brief (Deal Room / Ask-Martin grounding)
+    "get_project_brief",
 }
 
 # Member personal-action tools — they act on the *calling* member's own data
@@ -280,12 +283,14 @@ class ToolRegistry:
             RSVP_MEETING_TOOL_DEF, rsvp_meeting,
             SET_REMINDER_TOOL_DEF, set_reminder,
             ADD_MEETING_TO_CALENDAR_TOOL_DEF, add_meeting_to_calendar,
+            GET_PROJECT_BRIEF_TOOL_DEF, get_project_brief,
         )
 
         for tool_def, handler in [
             (RSVP_MEETING_TOOL_DEF, rsvp_meeting),
             (SET_REMINDER_TOOL_DEF, set_reminder),
             (ADD_MEETING_TO_CALENDAR_TOOL_DEF, add_meeting_to_calendar),
+            (GET_PROJECT_BRIEF_TOOL_DEF, get_project_brief),
         ]:
             func_def = tool_def["function"]
             self.register(

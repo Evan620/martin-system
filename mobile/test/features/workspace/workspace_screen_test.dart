@@ -32,7 +32,8 @@ class _DataController extends WorkspaceController {
 }
 
 void main() {
-  testWidgets('renders the TWG name + section headers', (tester) async {
+  testWidgets('renders the TWG name, stat tiles + section headers',
+      (tester) async {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         authControllerProvider.overrideWith(_OneTwgAuth.new),
@@ -42,9 +43,15 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.text('Energy'), findsWidgets);
-    expect(find.text('NEXT MEETING'), findsOneWidget);
-    expect(find.text('DOCUMENTS'), findsOneWidget);
-    expect(find.text('YOUR TASKS'), findsOneWidget);
+    // Stat tiles: members / open actions / next mtg ('—' with no meetings).
+    expect(find.text('MEMBERS'), findsOneWidget);
+    expect(find.text('OPEN ACTIONS'), findsOneWidget);
+    expect(find.text('NEXT MTG'), findsOneWidget);
+    expect(find.text('—'), findsOneWidget);
+    // Sections are sentence-case SectionHeaders now (no eyebrow caps).
+    expect(find.text('Next meeting'), findsOneWidget);
+    expect(find.text('Documents'), findsOneWidget);
+    expect(find.text('Your tasks'), findsOneWidget);
     // Single-TWG member: no switcher.
     expect(find.byKey(const Key('workspace-switcher')), findsNothing);
   });

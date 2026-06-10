@@ -73,3 +73,46 @@ class SkeletonList extends StatelessWidget {
         for (var i = 0; i < count; i++) ...[ if (i > 0) const SizedBox(height: 12), const SkeletonCard() ],
       ]);
 }
+
+/// Tile-shaped loading placeholder (pairs with StatTile grids).
+class SkeletonTile extends StatelessWidget {
+  const SkeletonTile({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: SovereignColors.navyRaised,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: SovereignColors.ivory.withValues(alpha: 0.07)),
+      ),
+      child: const Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        SkeletonBlock(width: 70, height: 9),
+        SizedBox(height: 8),
+        SkeletonBlock(width: 54, height: 18),
+        SizedBox(height: 6),
+        SkeletonBlock(width: 90, height: 9),
+      ]),
+    );
+  }
+}
+
+/// Row-shaped loading placeholder (pairs with ListRow groups).
+class SkeletonRow extends StatelessWidget {
+  const SkeletonRow({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Row(children: [
+        SkeletonBlock(width: 32, height: 32, radius: 9),
+        SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SkeletonBlock(width: 150, height: 12),
+          SizedBox(height: 6),
+          SkeletonBlock(width: 100, height: 9),
+        ])),
+      ]),
+    );
+  }
+}

@@ -3,12 +3,23 @@
 // Deal Room data models — manual fromJson (mirrors features/meetings/data/
 // meetings_models.dart). DealStage collapses the backend lifecycle statuses
 // into the member-friendly buckets from the design spec filter chips:
-// Incubation · Draft/Pipeline · Under review · Summit-ready · Deal room ·
-// Committed/Implemented. Enum order tracks funnel progress so chip color and
-// the "Summit-ready+" StatTile can key off the index.
+// Incubation · Draft/Pipeline · Under review · Needs revision · Declined ·
+// Summit-ready · Deal room · Committed/Implemented. Enum order tracks funnel
+// progress so chip color and the "Summit-ready+" StatTile can key off the
+// index (the review outcomes sit just after Under review, before the
+// late-funnel buckets).
 
 /// Member-facing stage buckets, ordered by funnel progress.
-enum DealStage { incubation, pipeline, underReview, summitReady, dealRoom, committed }
+enum DealStage {
+  incubation,
+  pipeline,
+  underReview,
+  needsRevision,
+  declined,
+  summitReady,
+  dealRoom,
+  committed,
+}
 
 extension DealStageX on DealStage {
   /// Member-friendly chip/label text for this bucket.
@@ -16,6 +27,8 @@ extension DealStageX on DealStage {
         DealStage.incubation => 'Incubation',
         DealStage.pipeline => 'Pipeline',
         DealStage.underReview => 'Under review',
+        DealStage.needsRevision => 'Needs revision',
+        DealStage.declined => 'Declined',
         DealStage.summitReady => 'Summit-ready',
         DealStage.dealRoom => 'Deal room',
         DealStage.committed => 'Committed',
@@ -30,7 +43,9 @@ extension DealStageX on DealStage {
   static DealStage fromStatus(String? raw) => switch (raw) {
         'INCUBATION' => DealStage.incubation,
         'DRAFT' || 'PIPELINE' || 'ON_HOLD' => DealStage.pipeline,
-        'UNDER_REVIEW' || 'NEEDS_REVISION' || 'DECLINED' => DealStage.underReview,
+        'UNDER_REVIEW' => DealStage.underReview,
+        'NEEDS_REVISION' => DealStage.needsRevision,
+        'DECLINED' => DealStage.declined,
         'SUMMIT_READY' => DealStage.summitReady,
         'DEAL_ROOM_FEATURED' || 'IN_NEGOTIATION' => DealStage.dealRoom,
         'COMMITTED' || 'IMPLEMENTED' => DealStage.committed,
@@ -53,11 +68,13 @@ class DealProject {
     required this.description,
     required this.isFollowing,
     required this.interestCount,
+    required this.twgId,
   });
 
   final String id;
   final String name;
   final String? sector; // Project.pillar, e.g. "energy_infrastructure"
+  final String? twgId; // owning TWG — scopes Ask Martin (?twg=) for multi-TWG members
   final DealStage stage;
   final double? value; // investment_size — Decimal serialized as a JSON string
   final double? readinessScore;
@@ -85,6 +102,7 @@ class DealProject {
         description: description,
         isFollowing: isFollowing ?? this.isFollowing,
         interestCount: interestCount ?? this.interestCount,
+        twgId: twgId,
       );
 
   factory DealProject.fromJson(Map<String, dynamic> j) => DealProject(
@@ -100,6 +118,7 @@ class DealProject {
         description: j['description']?.toString(),
         isFollowing: (j['is_following'] as bool?) ?? false,
         interestCount: (j['interest_count'] as num?)?.toInt() ?? 0,
+        twgId: j['twg_id']?.toString(),
       );
 }
 

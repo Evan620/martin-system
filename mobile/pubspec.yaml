@@ -47,6 +47,7 @@ dependencies:
   shared_preferences: ^2.3.3
   gpt_markdown: ^1.1.7
   table_calendar: ^3.2.0
+  share_plus: ^13.1.0
 
 dev_dependencies:
   flutter_test:

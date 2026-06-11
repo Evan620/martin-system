@@ -29,6 +29,7 @@ Map<String, dynamic> _projectJson({
       'description': 'A 50MW grid-connected solar plant.',
       'is_following': following,
       'interest_count': following ? 1 : 0,
+      'twg_id': 'twg-energy',
     };
 
 Widget _app(DealsRepository repo, {String id = 'p1'}) => ProviderScope(
@@ -56,12 +57,14 @@ void main() {
     expect(find.text(r'$25M'), findsOneWidget);
     expect(find.text('Burkina Faso'), findsOneWidget);
 
-    // Score section: big readiness numeral (backend scale is 0-10) plus the
-    // AfCEN (WAIIS, 0-100) and strategic (0-10) breakdown rows.
-    expect(find.text('7.5'), findsOneWidget);
-    expect(find.text('/10'), findsOneWidget);
-    expect(find.text('AfCEN (WAIIS)'), findsOneWidget);
-    expect(find.text('72/100'), findsOneWidget);
+    // Score section: the big numeral leads with the AfCEN WAIIS score (/100,
+    // matching the list rows' meta) under a "WAIIS score" header, with the
+    // readiness (0-10 on the backend) and strategic breakdown rows below.
+    expect(find.text('WAIIS score'), findsOneWidget);
+    expect(find.text('72'), findsOneWidget);
+    expect(find.text('/100'), findsOneWidget);
+    expect(find.text('Readiness'), findsOneWidget);
+    expect(find.text('7.5/10'), findsOneWidget);
     expect(find.text('Strategic alignment'), findsOneWidget);
     expect(find.text('8/10'), findsOneWidget);
 
@@ -97,8 +100,9 @@ void main() {
     verify(() => repo.follow('p1')).called(1);
   });
 
-  testWidgets('Ask Martin pushes /martin seeded with the project question',
-      (tester) async {
+  testWidgets(
+      'Ask Martin pushes /martin seeded with the project question, scoped to '
+      "the project's TWG", (tester) async {
     final repo = _MockRepo();
     when(() => repo.listMyProjects())
         .thenAnswer((_) async => [DealProject.fromJson(_projectJson())]);
@@ -114,7 +118,10 @@ void main() {
         // Probe stand-in for the canonical full-screen /martin chat route.
         GoRoute(
           path: '/martin',
-          builder: (_, st) => _ProbeChatScreen(seed: st.uri.queryParameters['q']),
+          builder: (_, st) => _ProbeChatScreen(
+            seed: st.uri.queryParameters['q'],
+            twg: st.uri.queryParameters['twg'],
+          ),
         ),
       ],
     );
@@ -129,16 +136,107 @@ void main() {
     await tester.tap(find.text('✦ Ask Martin'));
     await tester.pumpAndSettle();
 
-    expect(find.text('seed=Tell me about the project Bagre Solar PV'),
-        findsOneWidget);
+    expect(
+      find.text(
+          'seed=Tell me about the project Bagre Solar PV twg=twg-energy'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Ask Martin omits ?twg= when the project has no TWG id',
+      (tester) async {
+    final repo = _MockRepo();
+    final json = _projectJson()..remove('twg_id');
+    when(() => repo.listMyProjects())
+        .thenAnswer((_) async => [DealProject.fromJson(json)]);
+
+    final router = GoRouter(
+      initialLocation: '/deals/p1',
+      routes: [
+        GoRoute(
+          path: '/deals/:id',
+          builder: (_, st) =>
+              DealDetailScreen(projectId: st.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: '/martin',
+          builder: (_, st) => _ProbeChatScreen(
+            seed: st.uri.queryParameters['q'],
+            twg: st.uri.queryParameters['twg'],
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [dealsRepositoryProvider.overrideWithValue(repo)],
+      child: MaterialApp.router(routerConfig: router),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('✦ Ask Martin'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('seed=Tell me about the project Bagre Solar PV twg=null'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Share hands the text brief to the system share invoker',
+      (tester) async {
+    final repo = _MockRepo();
+    when(() => repo.listMyProjects())
+        .thenAnswer((_) async => [DealProject.fromJson(_projectJson())]);
+
+    // Swap the share seam so the test observes the call instead of hitting
+    // the real share_plus platform channel.
+    final shared = <String>[];
+    final original = shareInvoker;
+    shareInvoker = (text) async => shared.add(text);
+    addTearDown(() => shareInvoker = original);
+
+    await tester.pumpWidget(_app(repo));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.bySemanticsLabel('Share'));
+    await tester.pump();
+
+    expect(shared, [
+      r'Bagre Solar PV · Energy infrastructure · Summit-ready · $25M · '
+          'WAIIS 72/100',
+    ]);
+  });
+
+  testWidgets('score falls back to readiness /10 when afcen_score is absent',
+      (tester) async {
+    final repo = _MockRepo();
+    final json = _projectJson()..['afcen_score'] = null;
+    when(() => repo.listMyProjects())
+        .thenAnswer((_) async => [DealProject.fromJson(json)]);
+
+    await tester.pumpWidget(_app(repo));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Readiness'), findsOneWidget); // section header
+    expect(find.text('7.5'), findsOneWidget);
+    expect(find.text('/10'), findsOneWidget);
+    expect(find.text('WAIIS score'), findsNothing);
+    expect(find.text('Strategic alignment'), findsOneWidget);
+    expect(find.text('8/10'), findsOneWidget);
   });
 }
 
-/// A tiny stand-in for the Martin chat route that echoes the ?q= seed.
+/// A tiny stand-in for the Martin chat route that echoes the ?q= and ?twg=
+/// query params.
 class _ProbeChatScreen extends StatelessWidget {
-  const _ProbeChatScreen({required this.seed});
+  const _ProbeChatScreen({required this.seed, required this.twg});
   final String? seed;
+  final String? twg;
   @override
   Widget build(BuildContext context) =>
-      Scaffold(body: Center(child: Text('seed=$seed')));
+      Scaffold(body: Center(child: Text('seed=$seed twg=$twg')));
 }

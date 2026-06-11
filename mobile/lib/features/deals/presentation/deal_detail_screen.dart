@@ -16,22 +16,25 @@
 //     (same muted-ivory -> gold funnel tint as the list rows).
 //   * Info chips: value · location (only the fields the API actually has —
 //     the member read carries no sponsor field today, so none is shown).
-//   * WAIIS score: big readiness numeral ("/10" — the backend scores
-//     readiness 0-10 per pipeline_schemas' Field(ge=0, le=10); only the AfCEN
-//     WAIIS score is 0-100) with AfCEN (/100) + strategic (/10) breakdown rows
-//     when present.
+//   * Score: the big numeral leads with the AfCEN WAIIS score ("/100", header
+//     "WAIIS score" — matching the list rows' meta) and falls back to
+//     readiness ("/10", header "Readiness" — the backend scores readiness
+//     0-10 per pipeline_schemas' Field(ge=0, le=10)); the other present
+//     scores render as breakdown rows.
 //   * Description in a card-in-card "About" section.
 //
 // Pinned actions: Follow is THE one filled-yellow action (optimistic toggle
 // via dealsController.toggleFollow; errors roll back + toast), ✦ Ask Martin
-// pushes the canonical /martin route seeded with the project question, and
-// Share opens a SovereignSheet with the text brief + copy-to-clipboard
-// (share_plus is not a dependency, so no system share sheet).
+// pushes the canonical /martin route seeded with the project question (and
+// ?twg=<project.twgId> so multi-TWG members get a chat grounded in the
+// project's own TWG), and Share hands the text brief to the OS share sheet
+// via share_plus (supported on mobile, web and desktop; [shareInvoker] is the
+// test seam).
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/glass/glass.dart';
 import '../../../core/motion/cascade_in.dart';
@@ -42,10 +45,15 @@ import '../../../core/theme/sovereign_spacing.dart';
 import '../../../core/theme/sovereign_type.dart';
 import '../../../core/ui/header_card.dart';
 import '../../../core/ui/section_header.dart';
-import '../../../core/ui/sheet.dart';
 import '../application/deals_controller.dart';
 import '../data/deals_models.dart';
 import '../data/deals_repository.dart';
+
+/// Invokes the platform share sheet — a swap-out seam so widget tests can
+/// observe the share without hitting the real plugin's platform channel.
+@visibleForTesting
+Future<void> Function(String text) shareInvoker =
+    (text) => SharePlus.instance.share(ShareParams(text: text));
 
 /// Full detail view for one Deal Room project, addressed by [projectId].
 class DealDetailScreen extends ConsumerStatefulWidget {
@@ -90,27 +98,15 @@ class _DealDetailScreenState extends ConsumerState<DealDetailScreen> {
   }
 
   void _askMartin(DealProject p) {
-    context.push(
-      '/martin?q=${Uri.encodeQueryComponent('Tell me about the project ${p.name}')}',
-    );
+    final q = Uri.encodeQueryComponent('Tell me about the project ${p.name}');
+    // Ground the chat in the project's own TWG when known — for multi-TWG
+    // members the unscoped chat would otherwise default to their first TWG.
+    final twg = p.twgId;
+    context.push(twg == null ? '/martin?q=$q' : '/martin?q=$q&twg=$twg');
   }
 
   void _share(DealProject p) {
-    final brief = _briefText(p);
-    showSovereignSheet<void>(
-      context,
-      child: _ShareSheet(brief: brief, onCopy: () => _copyBrief(brief)),
-    );
-  }
-
-  Future<void> _copyBrief(String brief) async {
-    await Clipboard.setData(ClipboardData(text: brief));
-    if (!mounted) return;
-    // The sheet lives on the root navigator (see showSovereignSheet).
-    Navigator.of(context, rootNavigator: true).pop();
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('Brief copied to clipboard.')));
+    shareInvoker(_briefText(p));
   }
 
   @override
@@ -354,20 +350,22 @@ class _DetailBody extends StatelessWidget {
   }
 }
 
-/// WAIIS score card-in-card: a big readiness numeral (0-10 scale on the
-/// backend — see the header comment) plus AfCEN (/100) and strategic (/10)
-/// breakdown rows when those components are present.
+/// Score card-in-card: the big numeral leads with the AfCEN WAIIS score
+/// (/100 — the same number the list rows' meta shows) and falls back to
+/// readiness (/10, the backend's 0-10 scale — see the header comment); the
+/// other present scores render as breakdown rows. The section header tracks
+/// whichever metric the numeral shows.
 class _ScoreSection extends StatelessWidget {
   const _ScoreSection({required this.project});
 
   final DealProject project;
 
-  /// (label, value, suffix) for the big numeral — readiness first, otherwise
-  /// the next score the API sent.
+  /// (label, value, suffix) for the big numeral — AfCEN (WAIIS) first to
+  /// match the list meta, otherwise the next score the API sent.
   (String, double, String) get _primary {
     final p = project;
+    if (p.afcenScore != null) return ('WAIIS score', p.afcenScore!, '/100');
     if (p.readinessScore != null) return ('Readiness', p.readinessScore!, '/10');
-    if (p.afcenScore != null) return ('AfCEN (WAIIS)', p.afcenScore!, '/100');
     return ('Strategic alignment', p.strategicScore!, '/10');
   }
 
@@ -375,8 +373,8 @@ class _ScoreSection extends StatelessWidget {
   List<(String, String)> get _breakdown {
     final p = project;
     return [
-      if (p.readinessScore != null && p.afcenScore != null)
-        ('AfCEN (WAIIS)', '${_fmtScore(p.afcenScore!)}/100'),
+      if (p.afcenScore != null && p.readinessScore != null)
+        ('Readiness', '${_fmtScore(p.readinessScore!)}/10'),
       if (p.strategicScore != null &&
           (p.readinessScore != null || p.afcenScore != null))
         ('Strategic alignment', '${_fmtScore(p.strategicScore!)}/10'),
@@ -387,7 +385,7 @@ class _ScoreSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, value, suffix) = _primary;
     return _OuterSection(
-      label: 'WAIIS score',
+      label: label,
       children: [
         _InnerPanel(
           child: Column(
@@ -560,7 +558,7 @@ class _AskMartinChip extends StatelessWidget {
   }
 }
 
-/// Compact share button — opens the brief sheet (no share_plus dependency).
+/// Compact share button — hands the text brief to the OS share sheet.
 class _ShareButton extends StatelessWidget {
   const _ShareButton({required this.onTap});
 
@@ -587,69 +585,6 @@ class _ShareButton extends StatelessWidget {
               size: 18, color: SovereignColors.ivory),
         ),
       ),
-    );
-  }
-}
-
-/// The Share sheet body: the one-line text brief in a recessed panel + a
-/// gold-outline copy action.
-class _ShareSheet extends StatelessWidget {
-  const _ShareSheet({required this.brief, required this.onCopy});
-
-  final String brief;
-  final VoidCallback onCopy;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text('Share project brief',
-            textAlign: TextAlign.center, style: SovereignType.section),
-        const SizedBox(height: Insets.lg),
-        _InnerPanel(
-          child: Text(
-            brief,
-            style: SovereignType.body.copyWith(
-              color: SovereignColors.ivory
-                  .withValues(alpha: SovereignColors.alphaHigh),
-            ),
-          ),
-        ),
-        const SizedBox(height: Insets.lg),
-        Semantics(
-          button: true,
-          label: 'Copy brief to clipboard',
-          child: PressableScale(
-            onTap: onCopy,
-            child: Container(
-              height: 48,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                    color: SovereignColors.gold.withValues(alpha: 0.55)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.copy_rounded,
-                      size: 16, color: SovereignColors.gold),
-                  const SizedBox(width: Insets.sm),
-                  Text(
-                    'Copy to clipboard',
-                    style: SovereignType.caption.copyWith(
-                      color: SovereignColors.gold,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

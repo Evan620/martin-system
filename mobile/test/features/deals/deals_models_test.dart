@@ -10,8 +10,8 @@ void main() {
       expect(DealStageX.fromStatus('PIPELINE'), DealStage.pipeline);
       expect(DealStageX.fromStatus('ON_HOLD'), DealStage.pipeline);
       expect(DealStageX.fromStatus('UNDER_REVIEW'), DealStage.underReview);
-      expect(DealStageX.fromStatus('NEEDS_REVISION'), DealStage.underReview);
-      expect(DealStageX.fromStatus('DECLINED'), DealStage.underReview);
+      expect(DealStageX.fromStatus('NEEDS_REVISION'), DealStage.needsRevision);
+      expect(DealStageX.fromStatus('DECLINED'), DealStage.declined);
       expect(DealStageX.fromStatus('SUMMIT_READY'), DealStage.summitReady);
       expect(DealStageX.fromStatus('DEAL_ROOM_FEATURED'), DealStage.dealRoom);
       expect(DealStageX.fromStatus('IN_NEGOTIATION'), DealStage.dealRoom);
@@ -29,15 +29,36 @@ void main() {
       expect(DealStage.incubation.label, 'Incubation');
       expect(DealStage.pipeline.label, 'Pipeline');
       expect(DealStage.underReview.label, 'Under review');
+      expect(DealStage.needsRevision.label, 'Needs revision');
+      expect(DealStage.declined.label, 'Declined');
       expect(DealStage.summitReady.label, 'Summit-ready');
       expect(DealStage.dealRoom.label, 'Deal room');
       expect(DealStage.committed.label, 'Committed');
+    });
+
+    test('funnel order keeps the review outcomes right after Under review',
+        () {
+      expect(
+        DealStage.values,
+        const [
+          DealStage.incubation,
+          DealStage.pipeline,
+          DealStage.underReview,
+          DealStage.needsRevision,
+          DealStage.declined,
+          DealStage.summitReady,
+          DealStage.dealRoom,
+          DealStage.committed,
+        ],
+      );
     });
 
     test('isSummitReadyPlus flips at SUMMIT_READY', () {
       expect(DealStage.incubation.isSummitReadyPlus, isFalse);
       expect(DealStage.pipeline.isSummitReadyPlus, isFalse);
       expect(DealStage.underReview.isSummitReadyPlus, isFalse);
+      expect(DealStage.needsRevision.isSummitReadyPlus, isFalse);
+      expect(DealStage.declined.isSummitReadyPlus, isFalse);
       expect(DealStage.summitReady.isSummitReadyPlus, isTrue);
       expect(DealStage.dealRoom.isSummitReadyPlus, isTrue);
       expect(DealStage.committed.isSummitReadyPlus, isTrue);
@@ -60,6 +81,7 @@ void main() {
         'description': 'A 50MW solar plant.',
         'is_following': true,
         'interest_count': 3,
+        'twg_id': 'twg-energy',
       });
       expect(p.id, 'a1b2');
       expect(p.name, 'Bagre Solar PV');
@@ -74,6 +96,7 @@ void main() {
       expect(p.description, 'A 50MW solar plant.');
       expect(p.isFollowing, isTrue);
       expect(p.interestCount, 3);
+      expect(p.twgId, 'twg-energy');
       expect(p.isSummitReadyPlus, isTrue);
     });
 
@@ -90,6 +113,7 @@ void main() {
       expect(p.strategicScore, isNull);
       expect(p.location, isNull);
       expect(p.description, isNull);
+      expect(p.twgId, isNull);
       expect(p.isFollowing, isFalse);
       expect(p.interestCount, 0);
       expect(p.stage, DealStage.incubation);
@@ -121,7 +145,7 @@ void main() {
     test('copyWith flips only the interest fields', () {
       final p = DealProject.fromJson({
         'id': 'c1', 'name': 'Copy', 'status': 'PIPELINE',
-        'is_following': false, 'interest_count': 1,
+        'is_following': false, 'interest_count': 1, 'twg_id': 'twg-1',
       });
       final q = p.copyWith(isFollowing: true, interestCount: 2);
       expect(q.isFollowing, isTrue);
@@ -129,6 +153,7 @@ void main() {
       expect(q.id, p.id);
       expect(q.name, p.name);
       expect(q.stage, p.stage);
+      expect(q.twgId, 'twg-1');
     });
   });
 

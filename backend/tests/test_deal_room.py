@@ -23,7 +23,7 @@ from app.utils.security import create_access_token
 MEMBER_FIELDS = {
     "id", "name", "sector", "status", "investment_size", "currency",
     "readiness_score", "afcen_score", "strategic_alignment_score",
-    "location", "description", "is_following", "interest_count",
+    "location", "description", "is_following", "interest_count", "twg_id",
 }
 
 
@@ -144,6 +144,8 @@ async def test_member_list_exact_member_safe_fields(client, deal_room_setup):
     assert item["description"].startswith("Description for")
     assert item["is_following"] is False
     assert item["interest_count"] == 0
+    # Multi-TWG grounding: the read carries the owning TWG's id.
+    assert item["twg_id"] == str(s["twg_a"].id)
 
 
 @pytest.mark.asyncio

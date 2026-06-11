@@ -155,6 +155,7 @@ def _project_to_member_read(p: "Project", interest_count: int, is_following: boo
     """Member-safe projection — NO key contacts / financing internals."""
     return ProjectMemberRead(
         id=p.id,
+        twg_id=p.twg_id,
         name=p.name,
         sector=p.pillar,
         status=p.status,

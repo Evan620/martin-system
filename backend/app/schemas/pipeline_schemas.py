@@ -275,6 +275,7 @@ class ProjectMemberRead(BaseModel):
     list/detail consumes (GET /pipeline/member).
     """
     id: UUID
+    twg_id: UUID                          # owning TWG (multi-TWG Martin grounding)
     name: str
     sector: Optional[str] = None          # Project.pillar
     status: ProjectStatus

@@ -500,9 +500,13 @@ async def search_documents(
 
         stmt = select(Document).where(Document.is_confidential == False)
 
-        # Strict TWG scoping: agents only see their own TWG's documents
+        # TWG scoping: agents see their own TWG's documents PLUS global
+        # registry documents (twg_id IS NULL). Other TWGs' documents stay
+        # excluded, as do confidential documents (filtered above).
         if twg_id:
-            stmt = stmt.where(Document.twg_id == twg_id)
+            stmt = stmt.where(
+                or_(Document.twg_id == twg_id, Document.twg_id.is_(None))
+            )
 
         if query:
             stmt = stmt.where(

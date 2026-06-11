@@ -17,7 +17,26 @@ from app.models.models import TWG, User, UserRole, Meeting, Project, ActionItem,
 
 logger = logging.getLogger(__name__)
 from app.schemas.schemas import TWGCreate, TWGRead, TWGUpdate
-from app.api.deps import get_current_active_user, require_admin, require_facilitator
+from app.api.deps import (
+    get_current_active_user,
+    require_admin,
+    require_facilitator,
+    can_view_confidential_documents,
+)
+from sqlalchemy.orm.attributes import set_committed_value
+
+
+def _hide_confidential_twg_docs(twg: TWG, current_user: User) -> None:
+    """P0-9: strip confidential docs from a TWG's loaded documents
+    relationship before serialization (members must never receive them).
+    Uses set_committed_value so the ORM does not flag the change as dirty."""
+    if twg is None or can_view_confidential_documents(current_user):
+        return
+    set_committed_value(
+        twg,
+        "documents",
+        [doc for doc in twg.documents if not doc.is_confidential],
+    )
 
 router = APIRouter(prefix="/twgs", tags=["TWGs"])
 
@@ -293,7 +312,7 @@ async def list_twgs(
             selectinload(TWG.technical_lead),
             selectinload(TWG.members),
             selectinload(TWG.action_items).selectinload(ActionItem.owner),
-            selectinload(TWG.documents),
+            selectinload(TWG.documents).selectinload(Document.uploaded_by),
         ]
         
         # We will need to perform separate queries or use scalar subqueries for stats.
@@ -319,7 +338,11 @@ async def list_twgs(
             .offset(skip).limit(limit)
         )
         twgs = result.scalars().all()
-        
+
+        # P0-9: members never receive confidential documents
+        for twg in twgs:
+            _hide_confidential_twg_docs(twg, current_user)
+
         # Enrich with stats
         for twg in twgs:
             try:
@@ -394,7 +417,10 @@ async def get_twg(
     db_twg = result.scalar_one_or_none()
     if not db_twg:
         raise HTTPException(status_code=404, detail="TWG not found")
-        
+
+    # P0-9: members never receive confidential documents
+    _hide_confidential_twg_docs(db_twg, current_user)
+
     # Fetch stats
     # Meetings Held
     meetings_res = await db.execute(
@@ -416,7 +442,7 @@ async def get_twg(
     
     # Resources - explicitly fetch documents for this TWG
     # Exclude transcripts and shared_workspace from the count
-    docs_res = await db.execute(
+    docs_query = (
         select(Document).options(selectinload(Document.uploaded_by))
         .where(
             Document.twg_id == twg_id,
@@ -426,6 +452,10 @@ async def get_twg(
             )
         )
     )
+    # P0-9: members never see (or count) confidential documents
+    if not can_view_confidential_documents(current_user):
+        docs_query = docs_query.where(Document.is_confidential.is_(False))
+    docs_res = await db.execute(docs_query)
     twg_documents = docs_res.scalars().all()
     resources_count = len(twg_documents)
 

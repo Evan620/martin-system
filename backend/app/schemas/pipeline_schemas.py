@@ -266,6 +266,37 @@ class ProjectPipelineRead(BaseModel):
     # Lifecycle Config
     allowed_transitions: List[str] = []
 
+
+class ProjectMemberRead(BaseModel):
+    """Member-safe Deal Room projection of a Project.
+
+    EXACTLY these fields — no key contacts, no financing internals, no
+    facilitator-only metadata. This is the contract the mobile Deal Room
+    list/detail consumes (GET /pipeline/member).
+    """
+    id: UUID
+    twg_id: UUID                          # owning TWG (multi-TWG Martin grounding)
+    name: str
+    sector: Optional[str] = None          # Project.pillar
+    status: ProjectStatus
+    investment_size: Decimal              # "value" of the deal
+    currency: str = "USD"
+    readiness_score: float = 0.0
+    afcen_score: Optional[float] = None
+    strategic_alignment_score: Optional[float] = None
+    location: Optional[str] = None        # lead_country, else site_location_name
+    description: str
+    is_following: bool = False            # current user has expressed interest
+    interest_count: int = 0               # total members following
+
+
+class ProjectInterestState(BaseModel):
+    """Response of POST/DELETE /pipeline/{project_id}/interest."""
+    project_id: UUID
+    is_following: bool
+    interest_count: int
+
+
 class ScoringCriteriaRead(BaseModel):
     id: UUID
     criterion_name: str

@@ -23,7 +23,28 @@ from app.schemas.schemas import (
     MeetingParticipantUpdate, MeetingDependencyRead, MyRsvpRequest,
     DependencyType as DependencyTypeSchema
 )
-from app.api.deps import get_current_active_user, require_facilitator, require_twg_access, has_twg_access
+from app.api.deps import (
+    get_current_active_user,
+    require_facilitator,
+    require_twg_access,
+    has_twg_access,
+    can_view_confidential_documents,
+    filter_confidential_documents,
+)
+from sqlalchemy.orm.attributes import set_committed_value
+
+
+def _hide_confidential_meeting_docs(meeting: "Meeting", current_user: "User") -> None:
+    """P0-9: strip confidential docs from a meeting's loaded documents
+    relationship before serialization (members must never receive them).
+    Uses set_committed_value so the ORM does not flag the change as dirty."""
+    if meeting is None or can_view_confidential_documents(current_user):
+        return
+    set_committed_value(
+        meeting,
+        "documents",
+        [doc for doc in meeting.documents if not doc.is_confidential],
+    )
 from app.services.rsvp_service import apply_member_rsvp
 from app.services.email_service import email_service
 from app.core.config import settings
@@ -157,7 +178,9 @@ async def get_active_meeting(
             s.target_meeting_title = s.target_meeting.title
         for p in meeting.predecessors:
             p.source_meeting_title = p.source_meeting.title
-            
+
+    _hide_confidential_meeting_docs(meeting, current_user)
+
     return meeting
 
 @router.post("/", response_model=MeetingRead, status_code=status.HTTP_201_CREATED)
@@ -403,7 +426,11 @@ async def list_meetings(
     
     result = await db.execute(query)
     meetings_list = result.scalars().all()
-    
+
+    # P0-9: members never receive confidential documents
+    for m in meetings_list:
+        _hide_confidential_meeting_docs(m, current_user)
+
     return meetings_list
 
 @router.get("/{meeting_id}", response_model=MeetingRead)
@@ -440,7 +467,10 @@ async def get_meeting(
     # Check access
     if not has_twg_access(current_user, db_meeting.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
-        
+
+    # P0-9: members never receive confidential documents
+    _hide_confidential_meeting_docs(db_meeting, current_user)
+
     return db_meeting
 
 @router.get("/{meeting_id}/agenda")
@@ -3188,6 +3218,9 @@ async def get_meeting_documents(
         or (doc.metadata_json and doc.metadata_json.get("meeting_id") == str(meeting_id))
     ]
 
+    # P0-9: members never receive confidential documents
+    meeting_docs = filter_confidential_documents(current_user, meeting_docs)
+
     return [
         {
             "id": str(doc.id),
@@ -3302,6 +3335,11 @@ async def download_document(
     # Check TWG access
     if document.twg_id and not has_twg_access(current_user, document.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
+
+    # P0-9: plain members may not access confidential documents at all.
+    # Return 404 (not 403) so we don't leak the document's existence.
+    if document.is_confidential and not can_view_confidential_documents(current_user):
+        raise HTTPException(status_code=404, detail="Document not found")
 
     # Get cloud file ID from metadata or file_path
     metadata = document.metadata_json or {}

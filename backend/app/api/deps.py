@@ -168,7 +168,38 @@ def has_twg_access(user: User, twg_id: uuid.UUID) -> bool:
     # Admins and Secretariat Leads have access to everything
     if user.role in [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]:
         return True
-    
+
     # Check if user is member of the TWG
     user_twg_ids = [twg.id for twg in user.twgs]
     return twg_id in user_twg_ids
+
+
+# Roles allowed to see documents flagged is_confidential (gap report P0-9).
+CONFIDENTIAL_DOC_ROLES = (
+    UserRole.ADMIN,
+    UserRole.SECRETARIAT_LEAD,
+    UserRole.TWG_FACILITATOR,
+)
+
+
+def can_view_confidential_documents(user: User) -> bool:
+    """
+    Check whether a user may receive documents flagged is_confidential.
+
+    Plain TWG members must NEVER receive confidential documents from the
+    server — regardless of TWG membership — so this must be enforced on
+    every member-reachable document surface (lists, includes, downloads),
+    not just in the client (gap report P0-9).
+    """
+    return user.role in CONFIDENTIAL_DOC_ROLES
+
+
+def filter_confidential_documents(user: User, documents):
+    """
+    Return only the documents this user is allowed to see.
+
+    Use on any list/include surface that serializes Document rows.
+    """
+    if can_view_confidential_documents(user):
+        return list(documents)
+    return [doc for doc in documents if not doc.is_confidential]

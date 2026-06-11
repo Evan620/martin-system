@@ -36,21 +36,18 @@ def upgrade() -> None:
         columns = [c['name'] for c in inspector.get_columns(table)]
         return column in columns
     
-    # Create enum types for PostgreSQL idempotently
+    # Create enum types for PostgreSQL idempotently, then reference them with
+    # create_type=False so create_table/add_column below never re-emit
+    # CREATE TYPE (which aborted a from-scratch upgrade with
+    # DuplicateObjectError / a poisoned transaction).
     if conn.dialect.name == 'postgresql':
-        try:
-            op.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notificationtype') THEN CREATE TYPE notificationtype AS ENUM ('INFO', 'SUCCESS', 'WARNING', 'ALERT', 'MESSAGE', 'DOCUMENT', 'TASK'); END IF; END $$;")
-        except Exception:
-            pass
-        
-        try:
-            op.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'minutesstatus') THEN CREATE TYPE minutesstatus AS ENUM ('DRAFT', 'REVIEW', 'APPROVED', 'FINAL'); END IF; END $$;")
-        except Exception:
-            pass
-
-    # Define enums for cross-dialect use
-    notification_type_enum = sa.Enum('INFO', 'SUCCESS', 'WARNING', 'ALERT', 'MESSAGE', 'DOCUMENT', 'TASK', name='notificationtype')
-    minutes_status_enum = sa.Enum('DRAFT', 'REVIEW', 'APPROVED', 'FINAL', name='minutesstatus')
+        op.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notificationtype') THEN CREATE TYPE notificationtype AS ENUM ('INFO', 'SUCCESS', 'WARNING', 'ALERT', 'MESSAGE', 'DOCUMENT', 'TASK'); END IF; END $$;")
+        op.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'minutesstatus') THEN CREATE TYPE minutesstatus AS ENUM ('DRAFT', 'REVIEW', 'APPROVED', 'FINAL'); END IF; END $$;")
+        notification_type_enum = postgresql.ENUM('INFO', 'SUCCESS', 'WARNING', 'ALERT', 'MESSAGE', 'DOCUMENT', 'TASK', name='notificationtype', create_type=False)
+        minutes_status_enum = postgresql.ENUM('DRAFT', 'REVIEW', 'APPROVED', 'FINAL', name='minutesstatus', create_type=False)
+    else:
+        notification_type_enum = sa.Enum('INFO', 'SUCCESS', 'WARNING', 'ALERT', 'MESSAGE', 'DOCUMENT', 'TASK', name='notificationtype')
+        minutes_status_enum = sa.Enum('DRAFT', 'REVIEW', 'APPROVED', 'FINAL', name='minutesstatus')
 
     # Create notifications table if it doesn't exist
     if not table_exists('notifications'):

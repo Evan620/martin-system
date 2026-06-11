@@ -9,7 +9,7 @@ import uuid
 from app.core.database import get_db
 from app.models.models import SubGroup, TWG, User, UserRole, Document, subgroup_members
 from app.schemas.schemas import SubGroupCreate, SubGroupRead, SubGroupUpdate, SubGroupMemberAdd
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_active_user, filter_confidential_documents
 
 router = APIRouter(prefix="/twgs", tags=["Subgroups"])
 
@@ -319,6 +319,8 @@ async def list_subgroup_documents(
         select(Document).where(Document.subgroup_id == sg_id).order_by(Document.created_at.desc())
     )
     docs = result.scalars().all()
+    # P0-9: members never receive confidential documents
+    docs = filter_confidential_documents(current_user, docs)
     return [
         {
             "id": str(d.id),

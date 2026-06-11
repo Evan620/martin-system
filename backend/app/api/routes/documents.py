@@ -16,7 +16,11 @@ logger = logging.getLogger(__name__)
 from app.core.database import get_db
 from app.models.models import Document, User, UserRole, TWG
 from app.schemas.schemas import DocumentRead
-from app.api.deps import get_current_active_user, has_twg_access
+from app.api.deps import (
+    get_current_active_user,
+    has_twg_access,
+    can_view_confidential_documents,
+)
 from app.core.knowledge_base import get_knowledge_base
 from app.utils.document_processor import get_document_processor
 from app.services.storage_service import get_storage_service
@@ -258,6 +262,12 @@ async def list_documents(
                 count_query = count_query.where(filter_condition)
                 query = query.where(filter_condition)
         
+        # P0-9: members must NEVER receive confidential documents, even for
+        # TWGs they belong to. Server-side enforcement (not just client-side).
+        if not can_view_confidential_documents(current_user):
+            count_query = count_query.where(Document.is_confidential.is_(False))
+            query = query.where(Document.is_confidential.is_(False))
+
         # Exclude transcripts/recordings and Core Workspace documents from the document library
         # Transcripts live on their meeting pages; Core Workspace has its own tab
         excluded_types = ("transcript", "transcript_placeholder", "shared_workspace")
@@ -308,6 +318,12 @@ async def download_document(
     if db_doc.twg_id and not has_twg_access(current_user, db_doc.twg_id):
         logger.warning(f"Access denied for user {current_user.email} (role: {current_user.role}) to doc {doc_id} (TWG: {db_doc.twg_id})")
         raise HTTPException(status_code=403, detail="Access denied")
+
+    # P0-9: plain members may not access confidential documents at all.
+    # Return 404 (not 403) so we don't leak the document's existence.
+    if db_doc.is_confidential and not can_view_confidential_documents(current_user):
+        logger.warning(f"Confidential doc {doc_id} blocked for member {current_user.email}")
+        raise HTTPException(status_code=404, detail="Document not found")
 
     # Handle Transcript Placeholders specifically
     if db_doc.document_type == "transcript_placeholder":
@@ -405,8 +421,6 @@ async def translate_and_download_document(
     Download a translated version of a document as PDF.
     Translates on-the-fly — the stored document is never modified.
     """
-    from app.services.llm_service import llm_service
-    from app.services.pdf_service import pdf_service
     from app.models.models import Meeting, Minutes
 
     lang_map = {"fr": "French", "pt": "Portuguese", "en": "English"}
@@ -421,6 +435,14 @@ async def translate_and_download_document(
         raise HTTPException(status_code=404, detail="Document not found")
     if db_doc.twg_id and not has_twg_access(current_user, db_doc.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
+
+    # P0-9: plain members may not access confidential documents at all.
+    if db_doc.is_confidential and not can_view_confidential_documents(current_user):
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Heavy service imports only after access checks have passed
+    from app.services.llm_service import llm_service
+    from app.services.pdf_service import pdf_service
 
     # Strategy 1: If document is linked to a meeting, use the minutes markdown directly
     source_text = None
@@ -536,6 +558,10 @@ async def ingest_document(
 
     if db_doc.twg_id and not has_twg_access(current_user, db_doc.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
+
+    # P0-9: plain members may not access confidential documents at all.
+    if db_doc.is_confidential and not can_view_confidential_documents(current_user):
+        raise HTTPException(status_code=404, detail="Document not found")
 
     processor = get_document_processor()
     kb = get_knowledge_base()

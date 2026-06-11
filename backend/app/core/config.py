@@ -4,6 +4,7 @@ Configuration Management
 Centralized configuration using Pydantic Settings for environment variables.
 """
 
+import os
 from typing import Optional, List, Union, Any
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
@@ -18,6 +19,10 @@ class Settings(BaseSettings):
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"
     DEBUG: bool = False
+    ENVIRONMENT: str = Field(
+        default="development",
+        description="Deployment environment; 'production' disables /docs, /redoc and the OpenAPI schema"
+    )
     
     FRONTEND_URL: str = Field(
         default="http://localhost:5173",
@@ -395,6 +400,18 @@ class Settings(BaseSettings):
         description="Maximum backoff time after repeated Attendee API failures or rate limits"
     )
     
+    @property
+    def is_production(self) -> bool:
+        """True when running in production.
+
+        Safer default: Railway always injects RAILWAY_ENVIRONMENT, so the mere
+        presence of that variable is treated as production even if ENVIRONMENT
+        was never set on the service.
+        """
+        if self.ENVIRONMENT.strip().lower() == "production":
+            return True
+        return bool(os.environ.get("RAILWAY_ENVIRONMENT"))
+
     @property
     def cors_origins_list(self) -> list:
         """Parse CORS_ORIGINS string into a list"""

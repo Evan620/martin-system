@@ -234,17 +234,17 @@ class OpenAILLMService(LLMService):
             logger.error(f"OpenAI History error: {e}")
             raise Exception(f"OpenAI Error: {str(e)}")
 
-    async def complete(
-        self,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict]] = None,
-        system_prompt: Optional[str] = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """Async bridge for AgentLoop — calls chat_with_history in a thread."""
-        import asyncio, json as _json
+    @staticmethod
+    def _to_openai_wire_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Convert AgentLoop compact assistant tool_calls ({"id","name","args"})
+        to OpenAI wire format ({"type":"function","function":{...}}).
 
-        # Convert AgentLoop compact tool_call format → OpenAI wire format
+        Used by complete() AND stream_tokens(): after a tool turn, AgentLoop's
+        history contains compact tool_calls, which the OpenAI/Azure API rejects
+        if sent raw.
+        """
+        import json as _json
+
         converted: List[Dict[str, Any]] = []
         for m in messages:
             if m.get("role") == "assistant" and m.get("tool_calls"):
@@ -262,6 +262,19 @@ class OpenAILLMService(LLMService):
                         })
                 m["tool_calls"] = openai_tcs
             converted.append(m)
+        return converted
+
+    async def complete(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict]] = None,
+        system_prompt: Optional[str] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Async bridge for AgentLoop — calls chat_with_history in a thread."""
+        import asyncio, json as _json
+
+        converted = self._to_openai_wire_messages(messages)
 
         result = await asyncio.to_thread(
             self.chat_with_history,
@@ -351,7 +364,7 @@ class OpenAILLMService(LLMService):
         full_messages: List[Dict[str, Any]] = []
         if system_prompt:
             full_messages.append({"role": "system", "content": system_prompt})
-        full_messages.extend(messages)
+        full_messages.extend(self._to_openai_wire_messages(messages))
 
         async_client = AsyncOpenAI(
             api_key=self.client.api_key,
@@ -464,7 +477,7 @@ class AzureOpenAILLMService(OpenAILLMService):
         full_messages: List[Dict[str, Any]] = []
         if system_prompt:
             full_messages.append({"role": "system", "content": system_prompt})
-        full_messages.extend(messages)
+        full_messages.extend(self._to_openai_wire_messages(messages))
 
         async_client = AsyncAzureOpenAI(
             api_key=self._azure_api_key,

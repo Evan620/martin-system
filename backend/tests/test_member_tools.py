@@ -116,3 +116,403 @@ async def test_rsvp_meeting_not_a_participant_returns_error(db_session, monkeypa
         user_role=UserRole.TWG_MEMBER,
     )
     assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# set_reminder
+# ---------------------------------------------------------------------------
+
+async def _make_member(db_session, prefix="member"):
+    from app.models.models import User
+
+    uid = uuid.uuid4()
+    user = User(
+        id=uid,
+        full_name="Member One",
+        email=f"{prefix}-{uid}@example.org",
+        hashed_password="x",
+        role=UserRole.TWG_MEMBER,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    return user
+
+
+@pytest.mark.asyncio
+async def test_set_reminder_creates_row_for_calling_user(db_session, monkeypatch):
+    """set_reminder persists a Reminder row owned by the calling member (user_id)."""
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import select
+    from app.models.models import Reminder
+    import app.tools.member_tools as member_tools
+
+    user = await _make_member(db_session, "rem")
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    remind_at = (datetime.now(timezone.utc) + timedelta(hours=3)).replace(microsecond=0)
+    result = await member_tools.set_reminder(
+        message="Submit the Energy TWG report",
+        remind_at_iso=remind_at.isoformat(),
+        user_id=str(user.id),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert result.get("success") is True, f"unexpected result: {result}"
+
+    rows = (
+        await db_session.execute(select(Reminder).where(Reminder.user_id == user.id))
+    ).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].message == "Submit the Energy TWG report"
+    assert rows[0].is_sent is False
+    # Stored as naive UTC (DB convention — reminder_jobs compares against utcnow).
+    assert rows[0].remind_at == remind_at.replace(tzinfo=None)
+
+
+@pytest.mark.asyncio
+async def test_set_reminder_rejects_past_datetime(db_session, monkeypatch):
+    """A remind_at in the past returns an error and creates NO row."""
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import select
+    from app.models.models import Reminder
+    import app.tools.member_tools as member_tools
+
+    user = await _make_member(db_session, "past")
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    past = datetime.now(timezone.utc) - timedelta(hours=1)
+    result = await member_tools.set_reminder(
+        message="Too late",
+        remind_at_iso=past.isoformat(),
+        user_id=str(user.id),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert "error" in result
+    rows = (
+        await db_session.execute(select(Reminder).where(Reminder.user_id == user.id))
+    ).scalars().all()
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_set_reminder_rejects_unparseable_datetime(db_session, monkeypatch):
+    """A non-ISO remind_at returns an error dict, not a crash."""
+    import app.tools.member_tools as member_tools
+
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+    result = await member_tools.set_reminder(
+        message="Prep notes",
+        remind_at_iso="next tuesday-ish",
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert "error" in result
+
+
+@pytest.mark.asyncio
+async def test_set_reminder_naive_datetime_interpreted_in_user_timezone(db_session, monkeypatch):
+    """A naive remind_at_iso is interpreted in the member's timezone, stored as naive UTC."""
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import select
+    from app.models.models import Reminder
+    import app.tools.member_tools as member_tools
+
+    user = await _make_member(db_session, "tz")
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    # 9pm tomorrow Nairobi time (UTC+3) → stored as 6pm UTC.
+    local_dt = (datetime.now(timezone.utc) + timedelta(days=1)).replace(
+        hour=21, minute=0, second=0, microsecond=0, tzinfo=None
+    )
+    result = await member_tools.set_reminder(
+        message="Call the facilitator",
+        remind_at_iso=local_dt.isoformat(),
+        user_id=str(user.id),
+        user_role=UserRole.TWG_MEMBER,
+        user_timezone="Africa/Nairobi",
+    )
+    assert result.get("success") is True, f"unexpected result: {result}"
+    rows = (
+        await db_session.execute(select(Reminder).where(Reminder.user_id == user.id))
+    ).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].remind_at == local_dt.replace(hour=18)
+
+
+# ---------------------------------------------------------------------------
+# add_meeting_to_calendar
+# ---------------------------------------------------------------------------
+
+async def _make_meeting_with_participant(db_session, user):
+    from datetime import datetime, timedelta
+    from app.models.models import Meeting, MeetingParticipant, RsvpStatus, TWG, TWGPillar
+
+    twg = TWG(id=uuid.uuid4(), name="Energy", pillar=TWGPillar.energy_infrastructure)
+    meeting = Meeting(
+        id=uuid.uuid4(),
+        title="Energy Sync",
+        twg_id=twg.id,
+        scheduled_at=datetime.utcnow() + timedelta(days=2),
+        duration_minutes=45,
+        location="Virtual",
+    )
+    part = MeetingParticipant(
+        id=uuid.uuid4(), meeting_id=meeting.id, user_id=user.id, rsvp_status=RsvpStatus.PENDING
+    )
+    db_session.add_all([twg, meeting, part])
+    await db_session.flush()
+    return meeting
+
+
+@pytest.mark.asyncio
+async def test_add_meeting_to_calendar_sends_invite_to_participant(db_session, monkeypatch):
+    """A participant gets the meeting's .ics invite emailed to THEIR address only."""
+    import app.tools.member_tools as member_tools
+    from app.services.email_service import email_service
+
+    user = await _make_member(db_session, "cal")
+    meeting = await _make_meeting_with_participant(db_session, user)
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    calls = []
+
+    async def fake_send_meeting_invite(**kwargs):
+        calls.append(kwargs)
+        return True
+
+    monkeypatch.setattr(email_service, "send_meeting_invite", fake_send_meeting_invite)
+
+    result = await member_tools.add_meeting_to_calendar(
+        meeting_id=str(meeting.id),
+        user_id=str(user.id),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert result.get("success") is True, f"unexpected result: {result}"
+    assert len(calls) == 1
+    assert calls[0]["to_emails"] == [user.email]
+    assert calls[0]["meeting_details"]["meeting_id"] == str(meeting.id)
+    assert calls[0]["meeting_details"]["start_time"] == meeting.scheduled_at
+    assert calls[0]["meeting_details"]["duration"] == 45
+
+
+@pytest.mark.asyncio
+async def test_add_meeting_to_calendar_denies_non_participant(db_session, monkeypatch):
+    """A member who is NOT a participant of the meeting is denied — no email is sent."""
+    import app.tools.member_tools as member_tools
+    from app.services.email_service import email_service
+
+    participant_user = await _make_member(db_session, "cal-in")
+    outsider = await _make_member(db_session, "cal-out")
+    meeting = await _make_meeting_with_participant(db_session, participant_user)
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    calls = []
+
+    async def fake_send_meeting_invite(**kwargs):
+        calls.append(kwargs)
+        return True
+
+    monkeypatch.setattr(email_service, "send_meeting_invite", fake_send_meeting_invite)
+
+    result = await member_tools.add_meeting_to_calendar(
+        meeting_id=str(meeting.id),
+        user_id=str(outsider.id),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert "error" in result
+    assert calls == []
+
+
+# ---------------------------------------------------------------------------
+# get_project_brief
+# ---------------------------------------------------------------------------
+
+async def _make_deal_room(db_session):
+    """Two TWGs with one project each; the caller is scoped to TWG A."""
+    from decimal import Decimal
+    from app.models.models import Project, ProjectStatus, TWG, TWGPillar
+
+    suffix = uuid.uuid4().hex[:8]
+    twg_a = TWG(id=uuid.uuid4(), name=f"Brief Energy {suffix}", pillar=TWGPillar.energy_infrastructure)
+    twg_b = TWG(id=uuid.uuid4(), name=f"Brief Digital {suffix}", pillar=TWGPillar.digital_economy_transformation)
+    own = Project(
+        id=uuid.uuid4(),
+        twg_id=twg_a.id,
+        name=f"Bagre Solar Plant {suffix}",
+        description="A 50MW grid-connected solar PV plant near Bagre. Second sentence of detail. Third sentence that should be trimmed.",
+        investment_size=Decimal("25000000.00"),
+        currency="USD",
+        status=ProjectStatus.SUMMIT_READY,
+        pillar=TWGPillar.energy_infrastructure.value,
+        lead_country="Burkina Faso",
+        readiness_score=72.5,
+    )
+    cross = Project(
+        id=uuid.uuid4(),
+        twg_id=twg_b.id,
+        name=f"Cross Fibre Backbone {suffix}",
+        description="A cross-border fibre project in another TWG.",
+        investment_size=Decimal("9000000.00"),
+        currency="USD",
+        status=ProjectStatus.PIPELINE,
+        pillar=TWGPillar.digital_economy_transformation.value,
+        lead_country="Ghana",
+        readiness_score=40.0,
+    )
+    db_session.add_all([twg_a, twg_b, own, cross])
+    await db_session.flush()
+    return {"twg_a": twg_a, "twg_b": twg_b, "own": own, "cross": cross, "suffix": suffix}
+
+
+@pytest.mark.asyncio
+async def test_get_project_brief_own_twg_by_id(db_session, monkeypatch):
+    """A member gets a concise brief for an own-TWG project looked up by UUID."""
+    import app.tools.member_tools as member_tools
+
+    data = await _make_deal_room(db_session)
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    result = await member_tools.get_project_brief(
+        project=str(data["own"].id),
+        twg_id=str(data["twg_a"].id),
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert result.get("success") is True, f"unexpected result: {result}"
+    assert result["project_id"] == str(data["own"].id)
+    brief = result["brief"]
+    # name, stage, sector, value, readiness score, location, short description
+    assert data["own"].name in brief
+    assert "Summit ready" in brief
+    assert "Sector" in brief and "Energy infrastructure" in brief
+    assert "25,000,000" in brief
+    assert "72.5" in brief
+    assert "Burkina Faso" in brief
+    assert "grid-connected solar PV plant" in brief
+    # description is trimmed to 1-2 sentences
+    assert "Third sentence" not in brief
+
+
+@pytest.mark.asyncio
+async def test_get_project_brief_fuzzy_name_within_own_twg(db_session, monkeypatch):
+    """A partial, differently-cased name resolves to the own-TWG project."""
+    import app.tools.member_tools as member_tools
+
+    data = await _make_deal_room(db_session)
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    result = await member_tools.get_project_brief(
+        project="bagre solar",
+        twg_id=str(data["twg_a"].id),
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert result.get("success") is True, f"unexpected result: {result}"
+    assert result["project_id"] == str(data["own"].id)
+    assert data["own"].name in result["brief"]
+
+
+@pytest.mark.asyncio
+async def test_get_project_brief_cross_twg_not_found_no_leak(db_session, monkeypatch):
+    """A cross-TWG project returns the SAME friendly not-found as an unknown id —
+    no name leak, no existence oracle."""
+    import app.tools.member_tools as member_tools
+
+    data = await _make_deal_room(db_session)
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    cross_id = str(data["cross"].id)
+    cross_result = await member_tools.get_project_brief(
+        project=cross_id,
+        twg_id=str(data["twg_a"].id),
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert "error" in cross_result
+    assert data["cross"].name not in cross_result["error"]
+    assert "brief" not in cross_result
+
+    unknown_id = str(uuid.uuid4())
+    unknown_result = await member_tools.get_project_brief(
+        project=unknown_id,
+        twg_id=str(data["twg_a"].id),
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert "error" in unknown_result
+    # Identical shape/message modulo the echoed query → no existence oracle.
+    assert cross_result["error"].replace(cross_id, "X") == unknown_result["error"].replace(unknown_id, "X")
+
+
+@pytest.mark.asyncio
+async def test_get_project_brief_unknown_name_not_found(db_session, monkeypatch):
+    """An unmatched name returns a friendly not-found, not a crash."""
+    import app.tools.member_tools as member_tools
+
+    data = await _make_deal_room(db_session)
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    result = await member_tools.get_project_brief(
+        project="totally nonexistent hydro dam",
+        twg_id=str(data["twg_a"].id),
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert "error" in result
+
+
+def test_get_project_brief_registered_and_gated():
+    """get_project_brief is in MEMBER_TOOLS, registered, granted to the member
+    agent WITH a twg scope, and denied without one (TWG-scoped)."""
+    from app.tools.tool_registry import (
+        ToolRegistry,
+        ToolAccessDenied,
+        MEMBER_TOOLS,
+        TWG_SCOPED_TOOLS,
+    )
+
+    assert "get_project_brief" in MEMBER_TOOLS
+    assert "get_project_brief" in TWG_SCOPED_TOOLS
+
+    reg = ToolRegistry()
+    reg.register_all()
+    twg = str(uuid.uuid4())
+
+    assert "get_project_brief" in reg.list_tools()
+    assert reg.validate_tool_access("get_project_brief", "member", twg_id=twg) is True
+    with pytest.raises(ToolAccessDenied):
+        reg.validate_tool_access("get_project_brief", "member", twg_id=None)
+
+    _defs, tool_map = reg.get_tools_for_agent("member", twg_id=twg)
+    assert "get_project_brief" in tool_map
+
+
+# ---------------------------------------------------------------------------
+# Registry gating for the new tools
+# ---------------------------------------------------------------------------
+
+def test_new_member_tools_registered_and_gated():
+    """set_reminder + add_meeting_to_calendar are in MEMBER_TOOLS, granted to the
+    member agent, registered (callable), and denied to non-member agents."""
+    from app.tools.tool_registry import (
+        ToolRegistry,
+        ToolAccessDenied,
+        MEMBER_TOOLS,
+        MEMBER_ONLY_TOOLS,
+    )
+
+    reg = ToolRegistry()
+    reg.register_all()
+    twg = str(uuid.uuid4())
+
+    for name in ("set_reminder", "add_meeting_to_calendar"):
+        assert name in MEMBER_TOOLS
+        assert name in MEMBER_ONLY_TOOLS
+        assert name in reg.list_tools(), f"{name} is not registered"
+        assert reg.validate_tool_access(name, "member", twg_id=twg) is True
+        for other_agent in ("energy", "supervisor", "resource_mobilization"):
+            with pytest.raises(ToolAccessDenied):
+                reg.validate_tool_access(name, other_agent, twg_id=twg)
+
+    _defs, tool_map = reg.get_tools_for_agent("member", twg_id=twg)
+    assert "set_reminder" in tool_map
+    assert "add_meeting_to_calendar" in tool_map

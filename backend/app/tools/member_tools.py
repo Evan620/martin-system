@@ -1,6 +1,7 @@
 """Member personal-action tools (member toolset).
 
-Today: rsvp_meeting, set_reminder, add_meeting_to_calendar, get_project_brief.
+Today: rsvp_meeting, set_reminder, add_meeting_to_calendar, get_project_brief,
+list_my_deals.
 
 These run under the 'member' agent scope (tool_registry.MEMBER_TOOLS). The agent
 loop auto-injects user_id/user_role from the authenticated session into any tool
@@ -15,7 +16,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import pytz
-from sqlalchemy import or_, select
+from sqlalchemy import desc, or_, select
 
 # Imported at module level so tests can monkeypatch AsyncSessionLocal.
 from app.core.database import AsyncSessionLocal
@@ -23,9 +24,11 @@ from app.models.models import (
     Meeting,
     MeetingParticipant,
     Project,
+    ProjectScoreDetail,
     ProjectStatus,
     Reminder,
     RsvpStatus,
+    ScoringCriteria,
     TWG,
     User,
     UserRole,
@@ -333,9 +336,12 @@ GET_PROJECT_BRIEF_TOOL_DEF = {
         "name": "get_project_brief",
         "description": (
             "Get a concise brief of a project in the member's own TWG deal room: "
-            "name, stage, sector, value, readiness score, location and a short "
-            "description. Accepts the project's UUID or a (partial) project name, "
-            "e.g. 'Bagre solar'."
+            "name, stage, sector, value, readiness score, location, a short "
+            "description, plus — when on file — subsector, investment stage, "
+            "sponsor, financing structure, climate impact, smallholder reach and "
+            "technical studies. Accepts the project's UUID or a (partial) project "
+            "name, e.g. 'Bagre solar'. Set include_scores=true for the "
+            "per-criterion score breakdown."
         ),
         "parameters": {
             "type": "object",
@@ -343,6 +349,13 @@ GET_PROJECT_BRIEF_TOOL_DEF = {
                 "project": {
                     "type": "string",
                     "description": "The project's UUID or its (partial) name.",
+                },
+                "include_scores": {
+                    "type": "boolean",
+                    "description": (
+                        "Set true to append the per-criterion score breakdown "
+                        "(criterion, weight, score)."
+                    ),
                 },
             },
             "required": ["project"],
@@ -415,8 +428,40 @@ def _short_description(text: Optional[str], max_sentences: int = 2, max_chars: i
     return short[: max_chars - 1].rstrip() + "…" if len(short) > max_chars else short
 
 
-def _build_project_brief(p: Project) -> str:
-    """Concise member-safe text brief — NO key contacts / financing internals."""
+def _one_line(text: Optional[str], max_chars: int = 200) -> Optional[str]:
+    """Collapse a (possibly long, multi-line) text field to one ~200-char line."""
+    cleaned = " ".join((text or "").split())
+    if not cleaned:
+        return None
+    return cleaned[: max_chars - 1].rstrip() + "…" if len(cleaned) > max_chars else cleaned
+
+
+async def _member_score_lines(session, project_id: uuid.UUID) -> list:
+    """Member-safe score breakdown lines: 'Criterion (weight%): score', weight
+    desc — criterion/weight/score ONLY, mirroring ProjectMemberDetail's
+    score_breakdown. ProjectScoreDetail.notes and the scorer's identity are
+    facilitator-only and are NEVER selected here."""
+    rows = (
+        await session.execute(
+            select(ScoringCriteria.criterion_name, ScoringCriteria.weight, ProjectScoreDetail.score)
+            .join(ScoringCriteria, ProjectScoreDetail.criterion_id == ScoringCriteria.id)
+            .where(ProjectScoreDetail.project_id == project_id)
+            .order_by(desc(ScoringCriteria.weight))
+        )
+    ).all()
+    lines = []
+    for name, weight, score in rows:
+        w = float(weight or 0)
+        pct = w * 100 if w <= 1 else w  # weights stored as fractions (0.18) or points (2.0)
+        lines.append(f"- {name} ({pct:g}%): {float(score):g}")
+    return lines
+
+
+def _build_project_brief(p: Project, score_lines: Optional[list] = None) -> str:
+    """Concise member-safe text brief — NO key contacts / financing internals
+    (never key_contact_*, assigned_agent, metadata_json, approval fields,
+    deal_room_priority, site coords, revenue_model, macroeconomic_roi,
+    funding_secured_usd). score_lines: None = not requested; [] = unscored."""
     stage = _humanize_label(p.status.value if p.status else None)
     header = f"{p.name} — {stage}" if stage else p.name
 
@@ -438,11 +483,41 @@ def _build_project_brief(p: Project) -> str:
     description = _short_description(p.description)
     if description:
         lines.append(description)
+
+    # Member-safe extras (same set ProjectMemberDetail exposes) — only when on
+    # file, each capped to one ~200-char line so the brief stays well under the
+    # agent loop's 3000-char tool-result cap.
+    for label, value in (
+        ("Subsector", _one_line(p.subsector)),
+        ("Investment stage", _one_line(p.investment_stage_label)),
+        ("Sponsor", _one_line(p.project_sponsor)),
+        ("Financing structure", _one_line(p.financing_structure)),
+        ("Climate impact", _one_line(p.climate_impact)),
+        ("Smallholder farmers reached", _one_line(p.smallholder_farmers_reached)),
+        ("Technical studies", _one_line(p.technical_studies)),
+    ):
+        if value:
+            lines.append(f"{label}: {value}")
+
+    if score_lines is not None:
+        if score_lines:
+            lines.append("Score breakdown:")
+            lines.extend(score_lines)
+        else:
+            lines.append("Score breakdown: not yet scored.")
     return "\n".join(lines)
+
+
+def _coerce_bool(value) -> bool:
+    """LLMs sometimes pass booleans as strings — accept 'true'/'1'/'yes'."""
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "yes", "y"}
+    return bool(value)
 
 
 async def get_project_brief(
     project: str,
+    include_scores: bool = False,
     twg_id: Optional[str] = None,
     user_id: Optional[str] = None,
     user_role: Optional[UserRole] = None,
@@ -451,9 +526,12 @@ async def get_project_brief(
 
     `project` is a UUID or a fuzzy (partial) name; resolution is strictly scoped
     to the injected twg_id, so cross-TWG and unknown projects are indistinguishable
-    (same friendly not-found message — no leak).
+    (same friendly not-found message — no leak). include_scores appends the
+    member-safe per-criterion breakdown (criterion/weight/score — never notes
+    or scorer identity).
     """
     query = (project or "").strip()
+    want_scores = _coerce_bool(include_scores)
     if not query:
         return {"error": "Which project? Give me its name (or id) and I'll pull up the brief."}
     if not twg_id:
@@ -479,7 +557,8 @@ async def get_project_brief(
                 or p.status == ProjectStatus.ARCHIVED
             ):
                 return {"error": _PROJECT_NOT_FOUND_MSG.format(project=query)}
-            return {"success": True, "project_id": str(p.id), "brief": _build_project_brief(p)}
+            score_lines = await _member_score_lines(session, p.id) if want_scores else None
+            return {"success": True, "project_id": str(p.id), "brief": _build_project_brief(p, score_lines)}
 
         # 2) Fuzzy name — searched ONLY within the caller's scope (twg-or-pillar).
         scope_clause = Project.twg_id == twg_uuid
@@ -510,4 +589,166 @@ async def get_project_brief(
                 return {"error": f"I found several projects matching '{query}': {names}. Which one do you mean?"}
 
         p = matches[0]
-        return {"success": True, "project_id": str(p.id), "brief": _build_project_brief(p)}
+        score_lines = await _member_score_lines(session, p.id) if want_scores else None
+        return {"success": True, "project_id": str(p.id), "brief": _build_project_brief(p, score_lines)}
+
+
+# ---------------------------------------------------------------------------
+# list_my_deals
+# ---------------------------------------------------------------------------
+
+LIST_MY_DEALS_TOOL_DEF = {
+    "type": "function",
+    "function": {
+        "name": "list_my_deals",
+        "description": (
+            "List and count the projects in the member's own TWG deal room: the "
+            "total, counts per stage, and a compact row per deal (name, stage, "
+            "sector, value, score, location). Optionally filter by stage "
+            "(fuzzy — e.g. 'summit ready', 'pipeline', 'in negotiation') and cap "
+            "the number of rows. Use get_project_brief for one project's detail."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "stage": {
+                    "type": "string",
+                    "description": (
+                        "Optional stage filter, fuzzy — e.g. 'summit ready', "
+                        "'pipeline', 'incubation', 'in negotiation'."
+                    ),
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max deal rows to list (default 20, max 30).",
+                },
+            },
+            "required": [],
+        },
+    },
+}
+
+_LIST_DEALS_DEFAULT_LIMIT = 20
+_LIST_DEALS_MAX_LIMIT = 30
+# Keep the whole payload comfortably under the agent loop's 3000-char cap.
+_LIST_DEALS_CHAR_BUDGET = 2600
+
+
+def _match_stage(stage: str) -> Optional[ProjectStatus]:
+    """Fuzzy stage resolution: 'summit ready' / 'Summit-Ready' / 'SUMMIT_READY'
+    → ProjectStatus.SUMMIT_READY. Returns None when nothing matches."""
+    raw = " ".join((stage or "").replace("_", " ").replace("-", " ").lower().split())
+    if not raw:
+        return None
+    by_label = {s.value.lower().replace("_", " "): s for s in ProjectStatus}
+    if raw in by_label:
+        return by_label[raw]
+    close = difflib.get_close_matches(raw, list(by_label), n=1, cutoff=0.6)
+    return by_label[close[0]] if close else None
+
+
+def _deal_row(p: Project) -> str:
+    """One compact member-safe row: name — stage · sector · value · score · location."""
+    stage = _humanize_label(p.status.value if p.status else None) or "Unknown stage"
+    parts = [f"{(p.name or '')[:60]} — {stage}"]
+    sector = _humanize_label(p.pillar)
+    if sector:
+        parts.append(sector)
+    if p.investment_size is not None:
+        parts.append(f"{p.currency or 'USD'} {p.investment_size:,.0f}")
+    score = p.afcen_score if p.afcen_score is not None else p.readiness_score
+    if score is not None:
+        parts.append(f"Score {float(score):g}")
+    location = p.lead_country or p.site_location_name
+    if location:
+        parts.append(location)
+    return " · ".join(parts)
+
+
+async def list_my_deals(
+    stage: Optional[str] = None,
+    limit: Optional[int] = None,
+    twg_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    user_role: Optional[UserRole] = None,
+) -> dict:
+    """List/count the CALLER's TWG deal room (the same per-request member binding
+    and TWG-link-OR-TWG-pillar scope as get_project_brief; ARCHIVED excluded —
+    no cross-TWG leakage). Returns total, per-stage counts and compact rows."""
+    if not twg_id:
+        return {"error": "Could not determine your TWG scope. Please retry from the app."}
+
+    stage_filter = None
+    if stage is not None and str(stage).strip():
+        stage_filter = _match_stage(str(stage))
+        if stage_filter is None:
+            labels = ", ".join(
+                _humanize_label(s.value) for s in ProjectStatus if s != ProjectStatus.ARCHIVED
+            )
+            return {"error": f"I don't recognise the stage '{stage}'. Stages I know: {labels}."}
+
+    try:
+        limit_n = int(limit) if limit is not None else _LIST_DEALS_DEFAULT_LIMIT
+    except (TypeError, ValueError):
+        limit_n = _LIST_DEALS_DEFAULT_LIMIT
+    limit_n = max(1, min(limit_n, _LIST_DEALS_MAX_LIMIT))
+
+    async with AsyncSessionLocal() as session:
+        twg_uuid = await _resolve_member_twg_uuid(session, twg_id)
+        if twg_uuid is None:
+            return {"error": "Could not determine your TWG scope. Please retry from the app."}
+        pillar_value = await _member_twg_pillar_value(session, twg_uuid)
+
+        # SAME scope as get_project_brief / GET /pipeline/member: TWG link OR
+        # TWG pillar (prod twg links are mis-assigned), ARCHIVED excluded.
+        scope_clause = Project.twg_id == twg_uuid
+        if pillar_value is not None:
+            scope_clause = or_(scope_clause, Project.pillar == pillar_value)
+        projects = (
+            await session.execute(
+                select(Project)
+                .where(scope_clause, Project.status != ProjectStatus.ARCHIVED)
+                .order_by(Project.name)
+            )
+        ).scalars().all()
+
+    total = len(projects)
+    if total == 0:
+        return {"success": True, "total": 0, "deals": "Your TWG deal room has no projects yet."}
+
+    stage_counts: dict = {}
+    for p in projects:
+        label = _humanize_label(p.status.value if p.status else None) or "Unknown stage"
+        stage_counts[label] = stage_counts.get(label, 0) + 1
+
+    rows_src = projects
+    if stage_filter is not None:
+        rows_src = [p for p in projects if p.status == stage_filter]
+        stage_label = _humanize_label(stage_filter.value)
+        lines = [
+            f"Your TWG deal room: {total} projects total; "
+            f"{len(rows_src)} in stage '{stage_label}'."
+        ]
+    else:
+        lines = [f"Your TWG deal room: {total} projects."]
+    lines.append(
+        "By stage: " + " · ".join(f"{label}: {n}" for label, n in sorted(stage_counts.items()))
+    )
+
+    shown = 0
+    used = sum(len(line) + 1 for line in lines)
+    for p in rows_src[:limit_n]:
+        row = f"{shown + 1}. {_deal_row(p)}"
+        if used + len(row) + 1 > _LIST_DEALS_CHAR_BUDGET:
+            break
+        lines.append(row)
+        used += len(row) + 1
+        shown += 1
+    remaining = len(rows_src) - shown
+    if remaining > 0:
+        lines.append(f"(+{remaining} more — filter by stage or ask about a project by name.)")
+
+    result = {"success": True, "total": total, "deals": "\n".join(lines)}
+    if stage_filter is not None:
+        result["matched"] = len(rows_src)
+    return result

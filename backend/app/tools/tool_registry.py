@@ -40,6 +40,7 @@ TWG_SCOPED_TOOLS: Set[str] = {
     "get_action_items",
     "update_action_item_status",
     "get_project_brief",
+    "list_my_deals",
 }
 
 # Tools restricted to specific agent roles
@@ -121,6 +122,8 @@ MEMBER_TOOLS: Set[str] = {
     "add_meeting_to_calendar",
     # Concise TWG-scoped project brief (Deal Room / Ask-Martin grounding)
     "get_project_brief",
+    # List/count the member's own TWG deal room (same scope as get_project_brief)
+    "list_my_deals",
 }
 
 # Member personal-action tools — they act on the *calling* member's own data
@@ -284,6 +287,7 @@ class ToolRegistry:
             SET_REMINDER_TOOL_DEF, set_reminder,
             ADD_MEETING_TO_CALENDAR_TOOL_DEF, add_meeting_to_calendar,
             GET_PROJECT_BRIEF_TOOL_DEF, get_project_brief,
+            LIST_MY_DEALS_TOOL_DEF, list_my_deals,
         )
 
         for tool_def, handler in [
@@ -291,6 +295,7 @@ class ToolRegistry:
             (SET_REMINDER_TOOL_DEF, set_reminder),
             (ADD_MEETING_TO_CALENDAR_TOOL_DEF, add_meeting_to_calendar),
             (GET_PROJECT_BRIEF_TOOL_DEF, get_project_brief),
+            (LIST_MY_DEALS_TOOL_DEF, list_my_deals),
         ]:
             func_def = tool_def["function"]
             self.register(

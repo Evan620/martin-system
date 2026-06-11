@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc, func
+from sqlalchemy import select, desc, func, or_
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timezone
 UTC = timezone.utc
@@ -151,6 +151,36 @@ async def list_pipeline_projects(
 # NOTE: /member MUST be registered before /{project_id} (UUID path) below.
 # ---------------------------------------------------------------------------
 
+def _member_pillar_values(user: "User") -> List[str]:
+    """DISTINCT pillar value strings of the user's TWGs.
+
+    TWG.pillar is an Enum(TWGPillar) whose .value strings match Project.pillar
+    strings (e.g. 'agriculture_food_systems') — compare on the value, and stay
+    safe whether the ORM hands back the enum or a bare string.
+    """
+    values: List[str] = []
+    for twg in user.twgs:
+        pillar = getattr(twg, "pillar", None)
+        if pillar is None:
+            continue
+        value = pillar.value if hasattr(pillar, "value") else str(pillar)
+        if value not in values:
+            values.append(value)
+    return values
+
+
+def _member_can_access_project(user: "User", project: "Project") -> bool:
+    """Member visibility = TWG link OR TWG-pillar match.
+
+    PROD DATA REALITY: projects are systematically linked to the wrong TWG row
+    (e.g. agriculture projects carrying the Energy TWG's twg_id), so the twg_id
+    link alone hides deals members can already see on the staff web pipeline.
+    """
+    if has_twg_access(user, project.twg_id):
+        return True
+    return project.pillar is not None and project.pillar in _member_pillar_values(user)
+
+
 def _project_to_member_read(p: "Project", interest_count: int, is_following: bool) -> ProjectMemberRead:
     """Member-safe projection — NO key contacts / financing internals."""
     return ProjectMemberRead(
@@ -185,12 +215,19 @@ async def list_member_projects(
     """
     query = select(Project).where(Project.status != ProjectStatus.ARCHIVED)
 
-    # Admin / Secretariat see everything; everyone else only their TWGs.
+    # Admin / Secretariat see everything; everyone else: TWG link OR TWG pillar.
+    # PROD DATA REALITY: projects are systematically linked to the wrong TWG row,
+    # so twg_id alone empties the member Deal Room for deals the staff pipeline
+    # (pillar-based, no TWG restriction) already shows on the web.
     if current_user.role not in (UserRole.ADMIN, UserRole.SECRETARIAT_LEAD):
         twg_ids = [twg.id for twg in current_user.twgs]
         if not twg_ids:
             return []
-        query = query.where(Project.twg_id.in_(twg_ids))
+        access_clause = Project.twg_id.in_(twg_ids)
+        pillar_values = _member_pillar_values(current_user)
+        if pillar_values:
+            access_clause = or_(access_clause, Project.pillar.in_(pillar_values))
+        query = query.where(access_clause)
 
     result = await db.execute(query.order_by(Project.name))
     projects = result.scalars().all()
@@ -218,14 +255,15 @@ async def list_member_projects(
 async def _get_member_project_or_404(
     project_id: uuid.UUID, db: AsyncSession, current_user: User
 ) -> Project:
-    """Load a project the caller's TWGs grant access to.
+    """Load a project the caller's TWGs grant access to (TWG link OR TWG pillar
+    — the same visibility rule as the /member list).
 
     Cross-TWG (and nonexistent) projects both return 404 — not 403 — so
     members cannot enumerate other TWGs' deal flow.
     """
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
-    if not project or not has_twg_access(current_user, project.twg_id):
+    if not project or not _member_can_access_project(current_user, project):
         raise HTTPException(status_code=404, detail="Project not found")
     return project
 

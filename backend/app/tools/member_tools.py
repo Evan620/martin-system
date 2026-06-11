@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import pytz
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 # Imported at module level so tests can monkeypatch AsyncSessionLocal.
 from app.core.database import AsyncSessionLocal
@@ -371,6 +371,28 @@ async def _resolve_member_twg_uuid(session, twg_id: str) -> Optional[uuid.UUID]:
     return twg.id if twg else None
 
 
+async def _member_twg_pillar_value(session, twg_uuid: uuid.UUID) -> Optional[str]:
+    """The caller's TWG pillar as a plain value string (enum-or-str safe).
+
+    TWG.pillar is an Enum(TWGPillar) whose .value strings match Project.pillar
+    strings (e.g. 'agriculture_food_systems').
+    """
+    twg = await session.get(TWG, twg_uuid)
+    pillar = getattr(twg, "pillar", None) if twg else None
+    if pillar is None:
+        return None
+    return pillar.value if hasattr(pillar, "value") else str(pillar)
+
+
+def _project_in_member_scope(p: Project, twg_uuid: uuid.UUID, pillar_value: Optional[str]) -> bool:
+    """Member visibility = TWG link OR TWG-pillar match — the SAME rule as
+    GET /pipeline/member. PROD DATA REALITY: projects are systematically linked
+    to the wrong TWG row, so the twg_id link alone hides the caller's own deals."""
+    if p.twg_id == twg_uuid:
+        return True
+    return pillar_value is not None and p.pillar == pillar_value
+
+
 def _humanize_label(raw: Optional[str]) -> Optional[str]:
     """'SUMMIT_READY' / 'energy_infrastructure' → 'Summit ready' / 'Energy infrastructure'."""
     if not raw:
@@ -441,23 +463,32 @@ async def get_project_brief(
         twg_uuid = await _resolve_member_twg_uuid(session, twg_id)
         if twg_uuid is None:
             return {"error": "Could not determine your TWG scope. Please retry from the app."}
+        pillar_value = await _member_twg_pillar_value(session, twg_uuid)
 
-        # 1) Exact id — must ALSO belong to the caller's TWG (else: generic not-found).
+        # 1) Exact id — must ALSO be in the caller's scope (twg link OR twg
+        #    pillar, same rule as /pipeline/member; else: generic not-found).
         try:
             project_uuid = uuid.UUID(query)
         except (ValueError, TypeError):
             project_uuid = None
         if project_uuid is not None:
             p = await session.get(Project, project_uuid)
-            if p is None or p.twg_id != twg_uuid or p.status == ProjectStatus.ARCHIVED:
+            if (
+                p is None
+                or not _project_in_member_scope(p, twg_uuid, pillar_value)
+                or p.status == ProjectStatus.ARCHIVED
+            ):
                 return {"error": _PROJECT_NOT_FOUND_MSG.format(project=query)}
             return {"success": True, "project_id": str(p.id), "brief": _build_project_brief(p)}
 
-        # 2) Fuzzy name — searched ONLY within the caller's TWG projects.
+        # 2) Fuzzy name — searched ONLY within the caller's scope (twg-or-pillar).
+        scope_clause = Project.twg_id == twg_uuid
+        if pillar_value is not None:
+            scope_clause = or_(scope_clause, Project.pillar == pillar_value)
         candidates = (
             await session.execute(
                 select(Project).where(
-                    Project.twg_id == twg_uuid,
+                    scope_clause,
                     Project.status != ProjectStatus.ARCHIVED,
                 )
             )

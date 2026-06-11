@@ -68,7 +68,13 @@ async def deal_room_setup(db_session):
     p_ready = _project(twg_a, "Wind Summit Ready", ProjectStatus.SUMMIT_READY)
     p_archived = _project(twg_a, "Old Mothballed", ProjectStatus.ARCHIVED)
     p_cross_twg = _project(twg_b, "Cross TWG Fibre", ProjectStatus.PIPELINE)
-    projects = [p_incubation, p_draft, p_ready, p_archived, p_cross_twg]
+    # PROD DATA REALITY: projects are systematically linked to the WRONG TWG row
+    # (e.g. all agriculture projects carry the Energy TWG's twg_id). This one is
+    # linked to the UNRELATED TWG B but carries TWG A's pillar — the TWG-A member
+    # must still see it (twg-link OR twg-pillar rule).
+    p_mislinked = _project(twg_b, "Mislinked Pillar Solar", ProjectStatus.PIPELINE)
+    p_mislinked.pillar = twg_a.pillar.value
+    projects = [p_incubation, p_draft, p_ready, p_archived, p_cross_twg, p_mislinked]
     db_session.add_all(projects)
     await db_session.commit()
 
@@ -83,6 +89,7 @@ async def deal_room_setup(db_session):
         "ready": p_ready,
         "archived": p_archived,
         "cross_twg": p_cross_twg,
+        "mislinked": p_mislinked,
     }
 
     # Best-effort cleanup (tests run against a real DB).
@@ -198,6 +205,45 @@ async def test_cross_twg_interest_denied(client, deal_room_setup):
     # Nonexistent project → 404.
     r = await client.post(f"/api/v1/pipeline/{uuid.uuid4()}/interest", headers=h)
     assert r.status_code == 404, r.text
+
+
+@pytest.mark.asyncio
+async def test_member_list_includes_pillar_matched_project_despite_wrong_twg_link(client, deal_room_setup):
+    """Regression (prod twg links mis-assigned): a project whose twg_id points at
+    an UNRELATED TWG but whose pillar matches the member's TWG pillar IS returned;
+    a project with non-matching twg_id AND non-matching pillar is NOT returned."""
+    s = deal_room_setup
+    r = await client.get("/api/v1/pipeline/member", headers=s["headers"])
+    assert r.status_code == 200, r.text
+    ids = {item["id"] for item in r.json()}
+
+    # Wrong TWG link, but pillar == member's TWG pillar → visible.
+    assert str(s["mislinked"].id) in ids
+    # Wrong TWG link AND wrong pillar → still hidden (cross-TWG isolation holds).
+    assert str(s["cross_twg"].id) not in ids
+
+
+@pytest.mark.asyncio
+async def test_interest_allowed_on_pillar_matched_project(client, deal_room_setup):
+    """Interest follows the same twg-or-pillar rule: posting interest on a
+    pillar-matched (but mis-linked) project is ALLOWED; cross-pillar stays 404
+    (covered by test_cross_twg_interest_denied)."""
+    s = deal_room_setup
+    pid = s["mislinked"].id
+    h = s["headers"]
+
+    r = await client.post(f"/api/v1/pipeline/{pid}/interest", headers=h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["project_id"] == str(pid)
+    assert body["is_following"] is True
+    assert body["interest_count"] == 1
+
+    r = await client.delete(f"/api/v1/pipeline/{pid}/interest", headers=h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["is_following"] is False
+    assert body["interest_count"] == 0
 
 
 @pytest.mark.asyncio

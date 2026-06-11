@@ -358,9 +358,24 @@ async def _make_deal_room(db_session):
         lead_country="Ghana",
         readiness_score=40.0,
     )
-    db_session.add_all([twg_a, twg_b, own, cross])
+    # PROD DATA REALITY: projects are systematically linked to the WRONG TWG row.
+    # This one carries TWG B's twg_id but TWG A's pillar — the twg-or-pillar rule
+    # must keep it visible to the TWG-A caller (same rule as /pipeline/member).
+    mislinked = Project(
+        id=uuid.uuid4(),
+        twg_id=twg_b.id,
+        name=f"Mislinked Hydro Dam {suffix}",
+        description="A hydro project mis-linked to another TWG row but in the caller's pillar.",
+        investment_size=Decimal("12000000.00"),
+        currency="USD",
+        status=ProjectStatus.PIPELINE,
+        pillar=TWGPillar.energy_infrastructure.value,
+        lead_country="Mali",
+        readiness_score=51.0,
+    )
+    db_session.add_all([twg_a, twg_b, own, cross, mislinked])
     await db_session.flush()
-    return {"twg_a": twg_a, "twg_b": twg_b, "own": own, "cross": cross, "suffix": suffix}
+    return {"twg_a": twg_a, "twg_b": twg_b, "own": own, "cross": cross, "mislinked": mislinked, "suffix": suffix}
 
 
 @pytest.mark.asyncio
@@ -441,6 +456,49 @@ async def test_get_project_brief_cross_twg_not_found_no_leak(db_session, monkeyp
     assert "error" in unknown_result
     # Identical shape/message modulo the echoed query → no existence oracle.
     assert cross_result["error"].replace(cross_id, "X") == unknown_result["error"].replace(unknown_id, "X")
+
+
+@pytest.mark.asyncio
+async def test_get_project_brief_pillar_matched_despite_wrong_twg_link(db_session, monkeypatch):
+    """Regression (prod twg links mis-assigned): a project whose twg_id points at
+    an UNRELATED TWG but whose pillar matches the caller's TWG pillar IS briefable
+    — by UUID and by fuzzy name — keeping the tool consistent with /pipeline/member.
+    A project with non-matching twg_id AND pillar stays not-found (no leak)."""
+    import app.tools.member_tools as member_tools
+
+    data = await _make_deal_room(db_session)
+    monkeypatch.setattr(member_tools, "AsyncSessionLocal", _session_factory(db_session))
+
+    # By UUID — wrong twg link, matching pillar → success.
+    result = await member_tools.get_project_brief(
+        project=str(data["mislinked"].id),
+        twg_id=str(data["twg_a"].id),
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert result.get("success") is True, f"unexpected result: {result}"
+    assert result["project_id"] == str(data["mislinked"].id)
+    assert data["mislinked"].name in result["brief"]
+
+    # By fuzzy name (unique suffix avoids ambiguity against real DB rows).
+    result = await member_tools.get_project_brief(
+        project=f"mislinked hydro dam {data['suffix']}",
+        twg_id=str(data["twg_a"].id),
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert result.get("success") is True, f"unexpected result: {result}"
+    assert result["project_id"] == str(data["mislinked"].id)
+
+    # Wrong twg link AND wrong pillar (TWG B / digital) → still the generic not-found.
+    result = await member_tools.get_project_brief(
+        project=str(data["cross"].id),
+        twg_id=str(data["twg_a"].id),
+        user_id=str(uuid.uuid4()),
+        user_role=UserRole.TWG_MEMBER,
+    )
+    assert "error" in result
+    assert data["cross"].name not in result["error"]
 
 
 @pytest.mark.asyncio

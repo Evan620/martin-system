@@ -290,6 +290,37 @@ class ProjectMemberRead(BaseModel):
     interest_count: int = 0               # total members following
 
 
+class ScoreBreakdownItem(BaseModel):
+    """One member-safe scoring row: criterion name, weight, score — NOTHING
+    else (notes / scored_by are facilitator-only and stay server-side)."""
+    criterion: str
+    weight: float
+    score: float
+
+
+class ProjectMemberDetail(ProjectMemberRead):
+    """Member-safe Deal Room DETAIL projection (GET /pipeline/member/{id}).
+
+    ALL ProjectMemberRead fields PLUS exactly these member-safe extras.
+    Still NO key contacts (key_contact_name/email), no assigned_agent,
+    no metadata_json / approval fields / deal_room_priority, no site
+    coordinates, no revenue_model / macroeconomic_roi / funding_secured_usd.
+    """
+    subsector: Optional[str] = None
+    investment_stage_label: Optional[str] = None      # e.g. "Investment-ready"
+    project_sponsor: Optional[str] = None             # org-level sponsor
+    is_cross_border: Optional[bool] = None
+    financing_structure: Optional[str] = None         # coarse label only
+    technical_studies: Optional[str] = None
+    land_status: Optional[str] = None
+    permits_licences: Optional[str] = None
+    climate_impact: Optional[str] = None
+    smallholder_farmers_reached: Optional[str] = None
+    submitted_by: Optional[str] = None                # org, e.g. "FAO"
+    updated_at: Optional[datetime] = None
+    score_breakdown: List[ScoreBreakdownItem] = []    # weight desc; [] when unscored
+
+
 class ProjectInterestState(BaseModel):
     """Response of POST/DELETE /pipeline/{project_id}/interest."""
     project_id: UUID

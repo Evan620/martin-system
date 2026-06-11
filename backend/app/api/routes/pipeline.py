@@ -33,7 +33,7 @@ from app.schemas.pipeline_schemas import (
     DFIWindowRead, DFIMatchRead, DFIMatchStatusUpdate, FinancingMemoResponse,
     IncubationChecklistRead, IncubationChecklistItem,
     ProjectGeospatialRead, ImpactLogEntryCreate, ImpactLogEntryRead, ImpactSummaryRead,
-    ProjectMemberRead, ProjectInterestState,
+    ProjectMemberRead, ProjectMemberDetail, ScoreBreakdownItem, ProjectInterestState,
 )
 from app.models.models import Document, ImpactLogEntry, ProjectGeospatialData
 from app.core.constants import INCUBATION_CHECKLIST_ITEMS, canonical_code_for
@@ -274,6 +274,64 @@ async def _interest_count(db: AsyncSession, project_id: uuid.UUID) -> int:
         .where(ProjectInterest.project_id == project_id)
     )
     return result.scalar_one()
+
+
+@router.get("/member/{project_id}", response_model=ProjectMemberDetail)
+async def get_member_project_detail(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Member-facing Deal Room DETAIL: the member-safe list projection plus
+    descriptive extras and a stripped score breakdown.
+
+    Same visibility rule as the /member list (TWG link OR TWG pillar; 404 —
+    never 403 — on cross-TWG/nonexistent, so deal flow can't be enumerated).
+    ARCHIVED projects 404 here too, mirroring their exclusion from the list.
+    The breakdown carries criterion/weight/score ONLY — scorer notes and
+    identities are facilitator-side and never serialized for members.
+    """
+    project = await _get_member_project_or_404(project_id, db, current_user)
+    if project.status == ProjectStatus.ARCHIVED:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    is_following = (await db.execute(
+        select(ProjectInterest.id).where(
+            ProjectInterest.project_id == project.id,
+            ProjectInterest.user_id == current_user.id,
+        )
+    )).scalar_one_or_none() is not None
+
+    score_rows = await db.execute(
+        select(ScoringCriteria.criterion_name, ScoringCriteria.weight, ProjectScoreDetail.score)
+        .join(ScoringCriteria, ProjectScoreDetail.criterion_id == ScoringCriteria.id)
+        .where(ProjectScoreDetail.project_id == project.id)
+        .order_by(desc(ScoringCriteria.weight))
+    )
+    score_breakdown = [
+        ScoreBreakdownItem(criterion=name, weight=float(weight), score=float(score))
+        for name, weight, score in score_rows.all()
+    ]
+
+    base = _project_to_member_read(
+        project, await _interest_count(db, project.id), is_following
+    )
+    return ProjectMemberDetail(
+        **base.model_dump(),
+        subsector=project.subsector,
+        investment_stage_label=project.investment_stage_label,
+        project_sponsor=project.project_sponsor,
+        is_cross_border=project.is_cross_border,
+        financing_structure=project.financing_structure,
+        technical_studies=project.technical_studies,
+        land_status=project.land_status,
+        permits_licences=project.permits_licences,
+        climate_impact=project.climate_impact,
+        smallholder_farmers_reached=project.smallholder_farmers_reached,
+        submitted_by=project.submitted_by,
+        updated_at=project.updated_at,
+        score_breakdown=score_breakdown,
+    )
 
 
 @router.post("/{project_id}/interest", response_model=ProjectInterestState)

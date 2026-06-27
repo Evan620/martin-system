@@ -834,6 +834,23 @@ class ProjectPipelineService:
             site_location_name=data.get("site_location_name"),
             # Optional funding-structure note from intake
             financing_structure=data.get("financing_structure"),
+            # Intake fields surfaced to the scorer (previously collected on the
+            # form but never persisted) — feed Readiness / Bankability / Social /
+            # Climate / Economic / Political sub-scores.
+            subsector=data.get("subsector"),
+            project_sponsor=data.get("project_sponsor"),
+            is_cross_border=data.get("is_cross_border"),
+            land_status=data.get("land_status"),
+            revenue_model=data.get("revenue_model"),
+            climate_impact=data.get("climate_impact"),
+            esg_compliance=data.get("esg_compliance"),
+            technical_studies=data.get("technical_studies"),
+            permits_licences=data.get("permits_licences"),
+            ghg_avoided_target=data.get("ghg_avoided_target"),
+            jobs_construction=data.get("jobs_construction"),
+            jobs_om=data.get("jobs_om"),
+            smallholder_farmers_reached=data.get("smallholder_farmers_reached"),
+            macroeconomic_roi=data.get("macroeconomic_roi"),
             metadata_json={
                 **(data.get("metadata_json") or {}), # Merge payload metadata
                 "source": "ingestion_api",

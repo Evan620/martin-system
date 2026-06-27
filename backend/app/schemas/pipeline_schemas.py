@@ -84,6 +84,25 @@ class ProjectIngest(BaseModel):
     # surfaces the existing projects.financing_structure column on intake.
     financing_structure: Optional[str] = None
 
+    # Intake fields that surface the corresponding projects.* columns so the
+    # AfCEN scorer has data to work with. Several of these were already collected
+    # on the New Project form but silently dropped here (not in the schema, not
+    # persisted by the service) — leaving Readiness / Bankability / Social /
+    # Climate / Political criteria empty across the book. All optional at intake.
+    subsector: Optional[str] = None
+    project_sponsor: Optional[str] = None
+    land_status: Optional[str] = None
+    revenue_model: Optional[str] = None
+    climate_impact: Optional[str] = None
+    esg_compliance: Optional[str] = None
+    technical_studies: Optional[str] = None
+    permits_licences: Optional[str] = None
+    ghg_avoided_target: Optional[str] = None
+    jobs_construction: Optional[str] = None
+    jobs_om: Optional[str] = None
+    smallholder_farmers_reached: Optional[str] = None
+    macroeconomic_roi: Optional[str] = None
+
     @field_validator("value_chain_stages")
     @classmethod
     def _check_value_chain_stages(cls, v):

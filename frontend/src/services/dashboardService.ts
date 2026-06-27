@@ -10,6 +10,7 @@ export interface DashboardStats {
             title: string;
             twg?: string;
         };
+        summit_date: string | null;
     };
     pipeline: {
         drafting: number;

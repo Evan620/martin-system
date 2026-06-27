@@ -43,11 +43,11 @@ function generateBriefing(
     if (atRiskCount > 0)
         parts.push(`${atRiskCount} TWG${atRiskCount > 1 ? 's' : ''} flagged at risk — review before Summit.`);
 
-    if (stats.metrics.next_plenary.date) {
+    if (stats.metrics.summit_date) {
         const days = Math.ceil(
-            (new Date(stats.metrics.next_plenary.date).getTime() - Date.now()) / 86_400_000,
+            (new Date(stats.metrics.summit_date).getTime() - Date.now()) / 86_400_000,
         );
-        if (days > 0 && days <= 60)
+        if (days > 0 && days <= 365)
             parts.push(`Summit in ${days} day${days !== 1 ? 's' : ''}.`);
     }
 
@@ -223,10 +223,10 @@ export default function Dashboard() {
                     />
                     <LedgerStat
                         label="Days to Summit"
-                        value={formatCountdown(stats?.metrics.next_plenary.date ?? null)}
-                        sub={stats?.metrics.next_plenary.date
-                            ? new Date(stats.metrics.next_plenary.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                            : stats?.metrics.next_plenary.title ?? 'TBD'}
+                        value={formatCountdown(stats?.metrics.summit_date ?? null)}
+                        sub={stats?.metrics.summit_date
+                            ? new Date(stats.metrics.summit_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                            : 'TBD'}
                         last
                     />
                 </div>

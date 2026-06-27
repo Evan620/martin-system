@@ -210,6 +210,14 @@ class ProjectPipelineService:
         project.strategic_alignment_score = float(afcen) / 10.0
         project.afcen_score = afcen
 
+        # Place the project on the Deal Room continuum (inclusive — every project
+        # gets a tier; early-stage projects are kept, never excluded).
+        from app.services.deal_room_tier import classify_deal_room_tier
+        rank, label = classify_deal_room_tier(project.status, float(afcen))
+        if rank is not None:
+            project.deal_room_priority = rank
+            project.investment_stage_label = label
+
         await self.db.flush()
         await self.db.commit()
 
@@ -511,8 +519,19 @@ class ProjectPipelineService:
                 is_automated=False
             )
             # Refetch project to ensure it's fresh and attached
-            project = updated_project 
-            
+            project = updated_project
+
+            # Keep the Deal Room continuum tier in step with the new status.
+            from app.services.deal_room_tier import classify_deal_room_tier
+            _rank, _label = classify_deal_room_tier(
+                project.status,
+                float(project.afcen_score) if project.afcen_score is not None else None,
+            )
+            if _rank is not None:
+                project.deal_room_priority = _rank
+                project.investment_stage_label = _label
+                await self.db.flush()
+
             # Legacy fields update for backward compat if needed?
             # Metadata logging is handled by LifecycleService now (in history table).
             # But the 'stage_history' in metadata_json might be nice to keep in sync or just rely on new table.

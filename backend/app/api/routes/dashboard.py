@@ -19,6 +19,71 @@ from app.core.cache import cache_service
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
+# ── TWG readiness scoring ─────────────────────────────────────────────────
+# Blended readiness %: 40% engagement (is the group active?) + 60% output
+# (is it producing a pipeline?). Tunable below.
+READINESS_ENGAGEMENT_WEIGHT = 0.4
+READINESS_OUTPUT_WEIGHT = 0.6
+READINESS_TARGET_MEETINGS = 4  # completed meetings considered "fully active"
+
+# Pipeline maturity weight (0..1) per project status, for the output score.
+_PROJECT_STATUS_WEIGHT = {
+    "INCUBATION": 0.10,
+    "DRAFT": 0.15,
+    "PIPELINE": 0.30,
+    "NEEDS_REVISION": 0.40,
+    "UNDER_REVIEW": 0.50,
+    "SUMMIT_READY": 0.90,
+    "DEAL_ROOM_FEATURED": 0.95,
+    "IN_NEGOTIATION": 0.95,
+    "COMMITTED": 1.00,
+    "IMPLEMENTED": 1.00,
+    "DECLINED": 0.00,
+}
+
+
+def _status_str(v) -> str:
+    return v.value if hasattr(v, "value") else str(v)
+
+
+def compute_twg_readiness(twg) -> int:
+    """
+    Blended readiness % for a TWG (0-100): 40% engagement + 60% output.
+    Requires twg.members, twg.meetings and twg.projects to be loaded.
+
+    Engagement = mean(member-onboarding %, meeting-activity %).
+    Output     = mean pipeline maturity across non-declined projects.
+    A component with no underlying data contributes 0.
+    """
+    # Engagement — onboarding
+    members = list(twg.members) if twg.members else []
+    if members:
+        onboarded = sum(1 for m in members if getattr(m, "invite_accepted_at", None))
+        onboarding_pct = 100.0 * onboarded / len(members)
+    else:
+        onboarding_pct = 0.0
+
+    # Engagement — meeting activity
+    completed = [
+        m for m in (twg.meetings or [])
+        if _status_str(m.status) == MeetingStatus.COMPLETED.value
+    ]
+    meeting_pct = 100.0 * min(len(completed), READINESS_TARGET_MEETINGS) / READINESS_TARGET_MEETINGS
+
+    engagement = (onboarding_pct + meeting_pct) / 2.0
+
+    # Output — pipeline maturity (exclude declined)
+    projects = [p for p in (twg.projects or []) if _status_str(p.status) != "DECLINED"]
+    if projects:
+        output = 100.0 * sum(
+            _PROJECT_STATUS_WEIGHT.get(_status_str(p.status), 0.20) for p in projects
+        ) / len(projects)
+    else:
+        output = 0.0
+
+    score = READINESS_ENGAGEMENT_WEIGHT * engagement + READINESS_OUTPUT_WEIGHT * output
+    return int(round(score))
+
 # ... (existing code)
 
 @router.get("/conflicts", response_model=List[ConflictRead])
@@ -254,7 +319,8 @@ async def get_dashboard_stats(
     # 4. TWG Summary
     q_twgs = select(TWG).options(
             selectinload(TWG.projects),
-            selectinload(TWG.meetings)
+            selectinload(TWG.meetings),
+            selectinload(TWG.members)
         )
     
     if not is_universal_access:
@@ -281,12 +347,8 @@ async def get_dashboard_stats(
             if lead:
                 lead_name = lead.full_name
 
-        # Calculate Completion Percentage based on projects
-        completion = 0
-        if twg.projects:
-            # Simple weighted average or count based on status
-            done_projects = len([p for p in twg.projects if p.status == ProjectStatus.COMMITTED])
-            completion = int((done_projects / len(twg.projects)) * 100) if twg.projects else 0
+        # Readiness % — blended engagement (40%) + output (60%)
+        completion = compute_twg_readiness(twg)
         
         # Check for activity (last meeting)
         last_meeting = None

@@ -4,7 +4,7 @@
 abstract final class AppConfig {
   static const apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8080',
+    defaultValue: 'https://martin-system-production-bb2f.up.railway.app',
   );
 
   static String get apiV1 => '$apiBaseUrl/api/v1';

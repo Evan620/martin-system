@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc, func, or_
+from sqlalchemy import select, desc, func, or_, cast, String
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timezone
 UTC = timezone.utc
@@ -127,8 +127,14 @@ async def list_pipeline_projects(
     if stage:
         query = query.where(Project.status == stage)
     if pillar:
-        # Case-insensitive pillar filter
-        query = query.where(Project.pillar.ilike(f"%{pillar}%"))
+        # Case-insensitive pillar filter. Also match cross-listed projects whose
+        # metadata_json.cross_listed_pillars contains this pillar, so a project
+        # can appear under more than one pillar (e.g. digital-for-minerals systems
+        # surfaced under both Digital Transformation and Strategic Minerals).
+        query = query.where(or_(
+            Project.pillar.ilike(f"%{pillar}%"),
+            cast(Project.metadata_json, String).ilike(f"%{pillar}%"),
+        ))
     if value_chain_stage:
         query = query.where(Project.value_chain_stages.contains([value_chain_stage]))
 

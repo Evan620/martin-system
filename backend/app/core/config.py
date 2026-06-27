@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "ECOWAS Summit TWG Support System"
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"
+    SUMMIT_DATE: str = Field(
+        default="2026-11-16",
+        description="WAIIS Summit start date (ISO yyyy-mm-dd); drives the dashboard 'Days to Summit' countdown.",
+    )
     DEBUG: bool = False
     ENVIRONMENT: str = Field(
         default="development",

@@ -16,6 +16,7 @@ from app.utils.security import verify_token
 
 from app.schemas.schemas import ConflictRead, ManualConflictResolution
 from app.core.cache import cache_service
+from app.core.config import settings
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -321,7 +322,8 @@ async def get_dashboard_stats(
                 "date": next_plenary.scheduled_at if next_plenary else None,
                 "title": next_plenary.title if next_plenary else "TBD",
                 "twg": next_plenary.twg.name if next_plenary and next_plenary.twg else None
-            }
+            },
+            "summit_date": settings.SUMMIT_DATE
         },
         "pipeline": pipeline_stats,
         "twg_health": twg_stats

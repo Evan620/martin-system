@@ -2,15 +2,10 @@ interface MeetingSidebarProps {
     meeting: any
 }
 
-const fmtDate = (date: string) => {
-    const dateStr = date.endsWith('Z') ? date : `${date}Z`
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-}
+import { formatMeetingDate, formatMeetingTime } from '../../../utils/dates'
 
-const fmtTime = (date: string) => {
-    const dateStr = date.endsWith('Z') ? date : `${date}Z`
-    return new Date(dateStr).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-}
+const fmtDate = (date: string) => formatMeetingDate(date)
+const fmtTime = (date: string) => formatMeetingTime(date)
 
 const eyebrow: React.CSSProperties = {
     fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',

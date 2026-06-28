@@ -8,6 +8,7 @@ import {
     TimelineItem,
 } from '../../services/dashboardService';
 import { SUMMIT_START_DATE, SUMMIT_DATES_LABEL, SUMMIT_VENUE } from '../../config/summit';
+import { formatMeetingTime } from '../../utils/dates';
 
 // ─── helpers ──────────────────────────────────────────────────
 
@@ -461,7 +462,7 @@ export default function Dashboard() {
                                             fontFamily: "'Geist Mono', monospace", fontSize: 10,
                                             color: 'var(--ink-400)', marginTop: 3,
                                         }}>
-                                            {d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                                            {formatMeetingTime(item.date)}
                                         </div>
                                     </div>
                                     <div style={{ paddingTop: 2 }}>

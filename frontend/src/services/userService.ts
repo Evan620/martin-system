@@ -11,7 +11,7 @@ export interface UserUpdateData {
 }
 
 export const userService = {
-    async getUsers(params?: { is_active?: boolean; role?: UserRole }) {
+    async getUsers(params?: { is_active?: boolean; role?: UserRole; skip?: number; limit?: number }) {
         const response = await api.get<User[]>('/users/', { params });
         return response.data;
     },

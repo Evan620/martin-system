@@ -5,7 +5,7 @@ import { RootState } from '../../store'
 import { meetings, actionItems, twgs, recurringMeetings } from '../../services/api'
 import { UserRole } from '../../types/auth'
 import { Card, Badge } from '../../components/ui'
-import { toLocalInputValue } from '../../utils/dates'
+import { toLocalInputValue, formatMeetingDate, formatMeetingTime } from '../../utils/dates'
 import MinutesVersionHistory from '../../components/schedule/MinutesVersionHistory'
 
 import ConflictModal from '../../components/modals/ConflictModal'
@@ -1141,8 +1141,8 @@ export default function MeetingDetail() {
                 {meeting && (() => {
                     const dateStr = meeting.scheduled_at?.endsWith?.('Z') ? meeting.scheduled_at : `${meeting.scheduled_at}Z`
                     const d = meeting.scheduled_at ? new Date(dateStr) : null
-                    const dateLabel = d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
-                    const timeLabel = d ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—'
+                    const dateLabel = meeting.scheduled_at ? formatMeetingDate(meeting.scheduled_at) : '—'
+                    const timeLabel = meeting.scheduled_at ? formatMeetingTime(meeting.scheduled_at) : '—'
                     const partTotal = meeting.participants?.length ?? 0
                     const partAccepted = meeting.participants?.filter((p: any) => p.rsvp_status === 'accepted').length ?? 0
                     const docsCount = meeting.documents?.length ?? 0

@@ -405,11 +405,18 @@ async def list_meetings(
     # Exclude cancelled meetings from normal listing
     query = query.where(Meeting.status != MeetingStatus.CANCELLED)
 
+    # BUG #4: hide test/internal meetings from member-facing views.
+    # No is_test flag exists on Meeting, so fall back to a title-based filter.
+    # Admins / Secretariat Lead keep full visibility (incl. test meetings).
+    is_privileged = current_user.role in [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]
+    if not is_privileged:
+        query = query.where(~Meeting.title.ilike("%test%"))
+
     if twg_id:
         if not has_twg_access(current_user, twg_id):
              raise HTTPException(status_code=403, detail="Access denied to this TWG")
         query = query.where(Meeting.twg_id == twg_id)
-    elif current_user.role not in [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]:
+    elif not is_privileged:
         # Get IDs of TWGs user belongs to
         user_twg_ids = [twg.id for twg in current_user.twgs]
         query = query.where(Meeting.twg_id.in_(user_twg_ids))

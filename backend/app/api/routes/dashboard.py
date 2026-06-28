@@ -348,18 +348,30 @@ async def get_global_timeline(
         Meeting.status != MeetingStatus.CANCELLED
     )
     if not is_universal_access:
+        # BUG #4: keep test meetings out of the member-facing timeline.
         q_meetings = q_meetings.where(Meeting.twg_id.in_(user_twg_ids))
+        q_meetings = q_meetings.where(~Meeting.title.ilike("%test%"))
         
     meetings_res = await db.execute(
         q_meetings.order_by(Meeting.scheduled_at).limit(limit)
     )
     meetings = meetings_res.scalars().all()
     
+    # scheduled_at / due_date are stored as NAIVE UTC. Emit them as tz-aware
+    # UTC ISO strings (with a 'Z'/offset) so the frontend parses the correct
+    # instant — the SchemaBase 'Z' serializer does NOT run for raw-dict responses.
+    def _as_utc_iso(dt):
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+        return dt.isoformat()
+
     timeline = []
     for m in meetings:
         timeline.append({
             "type": "meeting",
-            "date": m.scheduled_at,
+            "date": _as_utc_iso(m.scheduled_at),
             "title": m.title,
             "twg": m.twg.name if m.twg else "General",
             "status": "critical" if "plenary" in m.title.lower() or "summit" in m.title.lower() else "normal"
@@ -380,7 +392,7 @@ async def get_global_timeline(
     for a in actions:
         timeline.append({
             "type": "deadline",
-            "date": a.due_date,
+            "date": _as_utc_iso(a.due_date),
             "title": a.description, # Description often contains the deadline name
             "twg": a.twg.name if a.twg else "General",
             "status": "critical" if a.priority in ["HIGH", "URGENT"] else "normal"

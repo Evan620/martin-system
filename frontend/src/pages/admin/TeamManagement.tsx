@@ -68,7 +68,7 @@ export default function TeamManagement() {
     const loadUsers = async () => {
         setIsLoading(true)
         try {
-            const data = await userService.getUsers()
+            const data = await userService.getUsers({ limit: 1000 })
             setUsers(data)
         } catch (error) {
             console.error('Failed to load users', error)
@@ -98,7 +98,9 @@ export default function TeamManagement() {
     const loadTwgs = async () => {
         setLoadingTwgs(true)
         try {
-            const response = await twgService.dropdown()
+            // Governance binds to twg.political_lead_id / technical_lead_id and needs
+            // each TWG's members, none of which the lightweight /dropdown payload returns.
+            const response = await twgService.list(0, 1000)
             setTwgs(response.data)
         } catch (error) {
             console.error('Failed to load TWGs', error)
@@ -477,10 +479,27 @@ export default function TeamManagement() {
     )
 
     // Compute role counts
-    const secretariatLeads = users.filter(u => u.role === UserRole.SECRETARIAT_LEAD || u.role === UserRole.ADMIN).length
-    const facilitators = users.filter(u => u.role === UserRole.FACILITATOR).length
-    const members = users.filter(u => u.role === UserRole.MEMBER).length
-    const observers = users.filter(u => (u.role as string) === 'OBSERVER').length
+    const activeUsers = users.filter(u => u.is_active)
+    const secretariatLeads = activeUsers.filter(u => u.role === UserRole.SECRETARIAT_LEAD || u.role === UserRole.ADMIN).length
+    const facilitators = activeUsers.filter(u => u.role === UserRole.FACILITATOR).length
+    const members = activeUsers.filter(u => u.role === UserRole.MEMBER).length
+    const observers = activeUsers.filter(u => (u.role as string) === 'OBSERVER').length
+
+    // Valid lead candidates for a TWG: active governance roles plus that TWG's own members,
+    // plus whoever is already assigned (so the saved value always renders).
+    const leadCandidates = (twg: any): User[] => {
+        const memberIds = new Set((twg?.members || []).map((m: any) => String(m.id)))
+        const assignedIds = new Set([twg?.political_lead_id, twg?.technical_lead_id].filter(Boolean).map((id: any) => String(id)))
+        return users.filter(u =>
+            u.is_active && (
+                u.role === UserRole.ADMIN ||
+                u.role === UserRole.SECRETARIAT_LEAD ||
+                u.role === UserRole.FACILITATOR ||
+                memberIds.has(String(u.id)) ||
+                assignedIds.has(String(u.id))
+            )
+        )
+    }
 
     const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 
@@ -739,7 +758,7 @@ export default function TeamManagement() {
                                         onChange={(e) => handleUpdateTwg(twg.id, { political_lead_id: e.target.value || null })}
                                     >
                                         <option value="">Unassigned</option>
-                                        {users.map(u => (<option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>))}
+                                        {leadCandidates(twg).map(u => (<option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>))}
                                     </select>
                                 </div>
                                 <div style={{ padding: 16, background: 'var(--ink-50)', border: '1px solid var(--border)' }}>
@@ -750,7 +769,7 @@ export default function TeamManagement() {
                                         onChange={(e) => handleUpdateTwg(twg.id, { technical_lead_id: e.target.value || null })}
                                     >
                                         <option value="">Unassigned</option>
-                                        {users.map(u => (<option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>))}
+                                        {leadCandidates(twg).map(u => (<option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>))}
                                     </select>
                                 </div>
                             </div>

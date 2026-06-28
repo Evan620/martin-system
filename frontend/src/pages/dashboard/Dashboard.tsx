@@ -7,6 +7,7 @@ import {
     DashboardStats,
     TimelineItem,
 } from '../../services/dashboardService';
+import { SUMMIT_START_DATE, SUMMIT_DATES_LABEL, SUMMIT_VENUE } from '../../config/summit';
 
 // ─── helpers ──────────────────────────────────────────────────
 
@@ -43,9 +44,11 @@ function generateBriefing(
     if (atRiskCount > 0)
         parts.push(`${atRiskCount} TWG${atRiskCount > 1 ? 's' : ''} flagged at risk — review before Summit.`);
 
-    if (stats.metrics.next_plenary.date) {
+    {
+        // Countdown to the actual summit (16–19 Nov 2026), NOT the next plenary
+        // meeting — see config/summit.ts (Bug Queue #1).
         const days = Math.ceil(
-            (new Date(stats.metrics.next_plenary.date).getTime() - Date.now()) / 86_400_000,
+            (new Date(SUMMIT_START_DATE).getTime() - Date.now()) / 86_400_000,
         );
         if (days > 0 && days <= 60)
             parts.push(`Summit in ${days} day${days !== 1 ? 's' : ''}.`);
@@ -223,10 +226,8 @@ export default function Dashboard() {
                     />
                     <LedgerStat
                         label="Days to Summit"
-                        value={formatCountdown(stats?.metrics.next_plenary.date ?? null)}
-                        sub={stats?.metrics.next_plenary.date
-                            ? new Date(stats.metrics.next_plenary.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                            : stats?.metrics.next_plenary.title ?? 'TBD'}
+                        value={formatCountdown(SUMMIT_START_DATE)}
+                        sub={`${SUMMIT_DATES_LABEL} · ${SUMMIT_VENUE}`}
                         last
                     />
                 </div>

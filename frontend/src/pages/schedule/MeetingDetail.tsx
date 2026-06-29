@@ -565,6 +565,12 @@ export default function MeetingDetail() {
 
     const handleSyncCalendar = async () => {
         if (!meetingId) return
+        const recipientCount = meeting?.participants?.length || 0
+        if (!window.confirm(
+            `Sync this meeting to Google Calendar for ${recipientCount} participant(s)?\n\n` +
+            `This sends a real Google Calendar invite/notification to every attendee. ` +
+            `This action is recorded in the audit log.`
+        )) return
         setIsSyncingCalendar(true)
         try {
             const res = await meetings.syncCalendar(meetingId)

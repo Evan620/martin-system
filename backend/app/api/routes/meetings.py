@@ -1383,6 +1383,7 @@ async def cancel_meeting(
 async def notify_meeting_update(
     meeting_id: uuid.UUID,
     update_data: MeetingUpdateNotification,
+    request: Request,
     current_user: User = Depends(require_facilitator),
     db: AsyncSession = Depends(get_db)
 ):
@@ -1449,6 +1450,21 @@ async def notify_meeting_update(
                 # BUT since this endpoint is *only* for notification, a failure IS an error.
                 # Use 500 but log it properly so user sees it in Railway.
                 raise HTTPException(status_code=500, detail=f"Failed to send update emails: {str(e)}")
+
+    await audit_service.log_activity(
+        db=db,
+        user_id=current_user.id,
+        action="MEETING_UPDATE_SENT",
+        resource_type="meeting",
+        resource_id=meeting_id,
+        details={
+            "changes": update_data.changes,
+            "notify_participants": update_data.notify_participants,
+            "emails_sent": emails_sent
+        },
+        ip_address=request.client.host if request.client else None
+    )
+    await db.commit()
 
     return {"status": "notification_sent", "emails_sent": emails_sent}
 
@@ -4017,6 +4033,7 @@ async def detach_meeting_from_series(
 @router.post("/{meeting_id}/sync-calendar", status_code=status.HTTP_200_OK)
 async def sync_meeting_to_calendar(
     meeting_id: uuid.UUID,
+    request: Request,
     current_user: User = Depends(require_facilitator),
     db: AsyncSession = Depends(get_db)
 ):
@@ -4037,6 +4054,9 @@ async def sync_meeting_to_calendar(
     db_meeting = result.scalar_one_or_none()
     if not db_meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
+
+    if not has_twg_access(current_user, db_meeting.twg_id):
+        raise HTTPException(status_code=403, detail="Access denied")
 
     # Collect participant emails
     participant_emails = []
@@ -4077,6 +4097,16 @@ async def sync_meeting_to_calendar(
                 sendUpdates='all'
             ).execute()
         )
+        await audit_service.log_activity(
+            db=db,
+            user_id=current_user.id,
+            action="MEETING_CALENDAR_SYNCED",
+            resource_type="meeting",
+            resource_id=meeting_id,
+            details={"mode": "updated", "attendees": len(participant_emails), "send_updates": "all"},
+            ip_address=request.client.host if request.client else None
+        )
+        await db.commit()
         return {"status": "updated", "meeting_id": str(meeting_id), "attendees": len(participant_emails)}
 
     # Create new GCal event
@@ -4100,5 +4130,16 @@ async def sync_meeting_to_calendar(
     if meet_link and not db_meeting.video_link:
         db_meeting.video_link = meet_link
         await db.commit()
+
+    await audit_service.log_activity(
+        db=db,
+        user_id=current_user.id,
+        action="MEETING_CALENDAR_SYNCED",
+        resource_type="meeting",
+        resource_id=meeting_id,
+        details={"mode": "created", "attendees": len(participant_emails), "send_updates": "all"},
+        ip_address=request.client.host if request.client else None
+    )
+    await db.commit()
 
     return {"status": "created", "meeting_id": str(meeting_id), "attendees": len(participant_emails), "video_link": meet_link}

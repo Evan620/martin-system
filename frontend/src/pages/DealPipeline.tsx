@@ -118,6 +118,11 @@ const DealPipeline: React.FC = () => {
 
   const totalPipelineValue = projects.reduce((sum, p) => sum + (Number(p.investment_size) || 0), 0);
   const pendingAIReview = projects.filter(p => p.afcen_score == null).length;
+  // High readiness = records with a numeric AfCEN score >= 75. Excludes
+  // pending-AI-review projects (afcen_score == null) by construction. NOTE:
+  // this is the SCORE metric and is intentionally distinct from the backend's
+  // stats.healthy_projects, which counts projects not time-stalled in-stage.
+  const highReadiness = projects.filter(p => p.afcen_score != null && Number(p.afcen_score) >= 75).length;
 
   const handleExport = () => {
     const headers = ['ID', 'Name', 'Pillar', 'Lead Country', 'Investment', 'Readiness Score', 'Status'];
@@ -445,7 +450,7 @@ const DealPipeline: React.FC = () => {
         }}
       >
         <LedgerStat label="Total pipeline value" value={loading ? '—' : fmtMoney(totalPipelineValue)} sub={`across ${stats?.total_projects ?? projects.length} projects`} />
-        <LedgerStat label="High readiness" value={loading ? '—' : (stats?.healthy_projects ?? 0)} sub="score ≥ 75" />
+        <LedgerStat label="High readiness" value={loading ? '—' : highReadiness} sub="AfCEN score ≥ 75" />
         <LedgerStat label="Pending AI review" value={loading ? '—' : pendingAIReview} sub="awaiting agent analysis" accent />
         <LedgerStat label="Avg. AfCEN score" value={
           loading ? '—' : projects.length > 0

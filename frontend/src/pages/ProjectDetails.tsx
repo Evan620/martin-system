@@ -10,6 +10,34 @@ import { UserRole } from '../types/auth';
 import api from '../services/api';
 import ReadinessTab from '../components/pipeline/ReadinessTab';
 import ScoutCoordsModal from '../components/geospatial/ScoutCoordsModal';
+import InfoTip from '../components/InfoTip';
+
+// Plain-English definitions for the AfCEN score + its breakdown criteria,
+// surfaced as hover "?" tooltips so users understand what each score means.
+const AFCEN_SCORE_TIP =
+  "AfCEN's 0–100 investment-readiness score — a weighted composite of the Core, " +
+  "Impact and Regional criteria below, calculated by the AI from the project's data " +
+  "and documents. Higher means more investment-ready. Readiness is one input to it.";
+const CRITERION_TIPS: Record<string, string> = {
+  'readiness': 'How prepared the project is to proceed — feasibility study, financial model, permits, site control and other bankability documents in place.',
+  'scale of impact': "The size and reach of the project's expected benefits — people served, capacity, economic footprint.",
+  'country & political enablement': 'Government backing and the enabling policy/regulatory environment in the host country.',
+  'bankability': 'How investment-ready the financials and deal structure are — a credible model, revenue/offtake, and risk allocation.',
+  'scalability/replicability': 'Whether the model can grow in size or be repeated in other markets and countries.',
+  'climate impact': "The project's expected climate/environmental benefit — e.g. emissions avoided, resilience.",
+  'social impact': "The project's expected social benefit — jobs, access, equity and community outcomes.",
+  'economic impact': "The project's expected economic contribution — GDP, trade and productivity.",
+  'ecowas integration': 'How much the project advances regional (ECOWAS) integration — cross-border infrastructure, trade and connectivity.',
+};
+function tipForCriterion(name: string): string | undefined {
+  const k = (name || '').toLowerCase().trim();
+  if (CRITERION_TIPS[k]) return CRITERION_TIPS[k];
+  for (const key of Object.keys(CRITERION_TIPS)) {
+    const kw = key.split(/[ /]/)[0];
+    if (kw && (k.includes(kw) || key.includes(k.split(/[ /]/)[0]))) return CRITERION_TIPS[key];
+  }
+  return undefined;
+}
 
 // Format a USD value as compact millions/thousands. Backend now stores all ticket
 // sizes as raw USD (e.g. 25_000_000 → "$25M", 250_000 → "$250K").
@@ -621,18 +649,19 @@ const ProjectDetails: React.FC = () => {
 
       {/* KPI strip */}
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
         background: 'var(--surface)', border: '1px solid var(--border)',
         padding: '12px 20px', marginBottom: 16,
       }}>
         {[
-          { label: 'Investment ask', value: fmtMoney(project.investment_size), sub: 'USD · estimated' },
-          { label: 'Readiness score', value: project.readiness_score ? `${project.readiness_score}/100` : 'N/A', sub: 'WAIIS assessment' },
-          { label: 'AfCEN score', value: project.afcen_score ? Number(project.afcen_score).toFixed(1) : 'N/A', sub: 'AI-calculated', accent: true },
-          { label: 'Pillar', value: (project.pillar || 'General').split(',')[0].split('&')[0].trim(), sub: project.lead_country || 'Regional', last: true },
-        ].map(({ label, value, sub, accent, last }) => (
+          { label: 'Investment ask', value: fmtMoney(project.investment_size), sub: 'USD · estimated', tip: '' },
+          // Readiness is a component of the AfCEN score (shown in the breakdown
+          // below), so it's no longer surfaced as a separate, confusing headline.
+          { label: 'AfCEN score', value: project.afcen_score ? Number(project.afcen_score).toFixed(1) : 'N/A', sub: 'AI-calculated', accent: true, tip: AFCEN_SCORE_TIP },
+          { label: 'Pillar', value: (project.pillar || 'General').split(',')[0].split('&')[0].trim(), sub: project.lead_country || 'Regional', last: true, tip: '' },
+        ].map(({ label, value, sub, accent, last, tip }) => (
           <div key={label} style={{ paddingRight: 24, borderRight: last ? 'none' : '1px solid var(--border)' }}>
-            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{label}</div>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{label}{tip ? <InfoTip text={tip} /> : null}</div>
             <div style={{
               fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 20,
               color: accent ? 'var(--accent)' : 'var(--ink-900)', letterSpacing: '-0.01em',
@@ -797,7 +826,7 @@ const ProjectDetails: React.FC = () => {
               {/* AfCEN Score Breakdown */}
               <section>
                 <div style={sectionHeadStyle}>
-                  <h2 style={sectionTitleStyle}>AfCEN score breakdown</h2>
+                  <h2 style={sectionTitleStyle}>AfCEN score breakdown<InfoTip text={AFCEN_SCORE_TIP} /></h2>
                   <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--ink-500)' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <span style={{ width: 5, height: 5, borderRadius: 5, background: 'var(--navy)', display: 'inline-block' }} />Core
@@ -852,9 +881,10 @@ const ProjectDetails: React.FC = () => {
                                 {grouped[g].map(d => {
                                   const pct = Math.min(100, Math.max(0, Number(d.score)));
                                   const weightPct = d.criterion.weight != null ? `${(Number(d.criterion.weight) * 100).toFixed(0)}%` : '';
+                                  const critTip = tipForCriterion(d.criterion.criterion_name);
                                   return (
                                     <div key={d.id} style={{ display: 'grid', gridTemplateColumns: '200px 1fr 50px 40px', gap: 16, alignItems: 'center' }}>
-                                      <div style={{ fontSize: 12, color: 'var(--ink-800)' }}>{d.criterion.criterion_name}</div>
+                                      <div style={{ fontSize: 12, color: 'var(--ink-800)', display: 'flex', alignItems: 'center' }}>{d.criterion.criterion_name}{critTip ? <InfoTip text={critTip} /> : null}</div>
                                       <div style={{ height: 4, background: 'var(--ink-100)', position: 'relative' }}>
                                         <div style={{ position: 'absolute', inset: 0, width: `${pct}%`, background: GROUPS[g].color, opacity: 0.85 }} />
                                       </div>

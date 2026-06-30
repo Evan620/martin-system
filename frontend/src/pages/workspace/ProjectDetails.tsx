@@ -43,7 +43,7 @@ export default function ProjectDetails() {
                     <div>
                         <span style={{ fontSize: 10, color: 'var(--ink-500)', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 8, fontFamily: "'Geist Mono', monospace" }}>PROJECT / WORKSPACE</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                            <h1 style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 32, fontWeight: 600, color: 'var(--ink-900)', margin: 0, lineHeight: 1.2 }}>{project.name}</h1>
+                            <h1 style={{ fontFamily: "'Geist', Georgia, serif", fontSize: 32, fontWeight: 600, color: 'var(--ink-900)', margin: 0, lineHeight: 1.2 }}>{project.name}</h1>
                             <span style={{ fontSize: 11, color: 'var(--ink-600)', border: '1px solid var(--border)', padding: '2px 8px', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{project.status}</span>
                         </div>
                         <p style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 6, fontFamily: "'Geist Mono', monospace" }}>
@@ -64,24 +64,24 @@ export default function ProjectDetails() {
                 {/* LedgerStat Strip */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', border: '1px solid var(--border)', background: 'var(--surface)', marginBottom: 32 }}>
                     <div style={{ padding: '20px 24px' }}>
-                        <div style={{ fontSize: 28, fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 600, color: 'var(--ink-900)', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{project.fundingAsk}</div>
+                        <div style={{ fontSize: 28, fontFamily: "'Geist', Georgia, serif", fontWeight: 600, color: 'var(--ink-900)', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{project.fundingAsk}</div>
                         <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', marginTop: 6 }}>FUNDING ASK</div>
                         <div style={{ fontSize: 11, color: 'var(--ink-400)', marginTop: 2 }}>USD</div>
                     </div>
                     <div style={{ padding: '20px 24px', borderLeft: '1px solid var(--border)' }}>
-                        <div style={{ fontSize: 28, fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 600, color: 'var(--ink-900)', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{project.readinessScore}</div>
+                        <div style={{ fontSize: 28, fontFamily: "'Geist', Georgia, serif", fontWeight: 600, color: 'var(--ink-900)', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{project.readinessScore}</div>
                         <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', marginTop: 6 }}>READINESS SCORE</div>
                         <div style={{ marginTop: 6, height: 4, background: 'var(--ink-100)', borderRadius: 2, overflow: 'hidden' }}>
                             <div style={{ width: `${project.readinessScore}%`, height: '100%', background: 'var(--accent)', borderRadius: 2 }} />
                         </div>
                     </div>
                     <div style={{ padding: '20px 24px', borderLeft: '1px solid var(--border)' }}>
-                        <div style={{ fontSize: 28, fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 600, color: 'var(--ink-900)', lineHeight: 1 }}>{project.currentPhase}</div>
+                        <div style={{ fontSize: 28, fontFamily: "'Geist', Georgia, serif", fontWeight: 600, color: 'var(--ink-900)', lineHeight: 1 }}>{project.currentPhase}</div>
                         <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', marginTop: 6 }}>CURRENT PHASE</div>
                         <div style={{ fontSize: 11, color: 'var(--ink-400)', marginTop: 2 }}>Next: {project.nextPhase}</div>
                     </div>
                     <div style={{ padding: '20px 24px', borderLeft: '1px solid var(--border)' }}>
-                        <div style={{ fontSize: 18, fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 600, color: 'var(--ink-900)', lineHeight: 1.2 }}>{project.twg}</div>
+                        <div style={{ fontSize: 18, fontFamily: "'Geist', Georgia, serif", fontWeight: 600, color: 'var(--ink-900)', lineHeight: 1.2 }}>{project.twg}</div>
                         <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', marginTop: 6 }}>ORIGINATING TWG</div>
                     </div>
                 </div>
@@ -119,7 +119,7 @@ export default function ProjectDetails() {
                         {/* Executive Summary */}
                         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 32 }}>
                             <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', marginBottom: 16, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Executive Summary</p>
-                            <div style={{ color: 'var(--ink-700)', fontSize: 15, lineHeight: 1.8, fontFamily: "'Source Serif 4', Georgia, serif" }}>
+                            <div style={{ color: 'var(--ink-700)', fontSize: 15, lineHeight: 1.8, fontFamily: "'Geist', Georgia, serif" }}>
                                 <p style={{ margin: '0 0 16px' }}>
                                     The West African Rail Expansion project aims to rehabilitate and extend the rail corridor connecting Lagos (Nigeria) to Cotonou (Benin), facilitating the movement of goods and passengers across the key economic hubs of the ECOWAS region. This project is a critical component of the broader West African Railway Master Plan.
                                 </p>
@@ -166,7 +166,7 @@ export default function ProjectDetails() {
                         {/* Martin's Read */}
                         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderTop: '2px solid var(--accent)', padding: 20 }}>
                             <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', marginBottom: 12, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Martin's Read</p>
-                            <p style={{ fontSize: 14, color: 'var(--ink-800)', lineHeight: 1.7, fontFamily: "'Source Serif 4', Georgia, serif", fontStyle: 'italic', margin: '0 0 12px' }}>
+                            <p style={{ fontSize: 14, color: 'var(--ink-800)', lineHeight: 1.7, fontFamily: "'Geist', Georgia, serif", fontStyle: 'italic', margin: '0 0 12px' }}>
                                 Readiness Score is high (85/100), but the "Environmental Impact Assessment" is older than 6 months.
                             </p>
                             <div style={{ borderLeft: '2px solid var(--accent)', paddingLeft: 12 }}>

@@ -23,8 +23,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-[#e7ebf3] dark:border-[#2d3748]">
                     <div className="flex items-center gap-3">
-                        <div className="size-10 rounded-full bg-[#1152d4]/10 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-[#1152d4]">extension</span>
+                        <div className="size-10 rounded-full bg-[var(--accent)]/10 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-[var(--accent)]">extension</span>
                         </div>
                         <div>
                             <h2 className="text-lg font-bold text-[#0d121b] dark:text-white">System Integrations & Configuration</h2>
@@ -33,7 +33,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
+                        className="clickable-scale p-2 hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
                     >
                         <span className="material-symbols-outlined text-[#6b7280]">close</span>
                     </button>
@@ -45,7 +45,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                     <section>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-base font-bold text-[#0d121b] dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-[#1152d4]">hub</span>
+                                <span className="material-symbols-outlined text-[var(--accent)]">hub</span>
                                 External Integrations
                             </h3>
                             <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-2 py-1 rounded font-bold uppercase">
@@ -72,7 +72,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                                             onChange={(e) => setCalendarEnabled(e.target.checked)}
                                             className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer"
                                         />
-                                        <label className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer ${calendarEnabled ? 'bg-[#1152d4]' : 'bg-gray-300'}`}></label>
+                                        <label className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer ${calendarEnabled ? 'bg-[var(--accent)]' : 'bg-gray-300'}`}></label>
                                     </div>
                                 </div>
                                 <p className="text-sm text-[#4c669a] mb-4">Allows agents to check availability and schedule meetings directly on user calendars.</p>
@@ -80,7 +80,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                                     <span className="text-xs font-medium text-green-600 dark:text-green-400 flex items-center gap-1">
                                         <span className="material-symbols-outlined text-[14px]">check_circle</span> Connected
                                     </span>
-                                    <button className="text-sm font-medium text-[#1152d4] hover:underline">Configure Scopes</button>
+                                    <button className="text-sm font-medium text-[var(--accent)] hover:underline">Configure Scopes</button>
                                 </div>
                             </div>
 
@@ -88,8 +88,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                             <div className="bg-white dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#2d3748] rounded-xl p-6 shadow-sm">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="size-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-blue-600">video_camera_front</span>
+                                        <div className="size-10 rounded-lg bg-teal-100 flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-teal-600">video_camera_front</span>
                                         </div>
                                         <div>
                                             <h4 className="font-bold text-[#0d121b] dark:text-white">Conferencing API</h4>
@@ -110,7 +110,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                                             type="password"
                                             value="************************"
                                         />
-                                        <button className="text-[#1152d4] hover:text-blue-700 p-1">
+                                        <button className="clickable-scale text-[var(--accent)] hover:opacity-80 p-1">
                                             <span className="material-symbols-outlined text-[18px]">edit</span>
                                         </button>
                                     </div>
@@ -123,7 +123,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                     <section>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-base font-bold text-[#0d121b] dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-[#1152d4]">lock</span>
+                                <span className="material-symbols-outlined text-[var(--accent)]">lock</span>
                                 Security & Compliance
                             </h3>
                         </div>
@@ -137,7 +137,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                                 <select
                                     value={ssoProvider}
                                     onChange={(e) => setSsoProvider(e.target.value)}
-                                    className="bg-[#f6f6f8] dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm px-3 py-2 text-[#0d121b] dark:text-white focus:ring-[#1152d4] focus:border-[#1152d4]"
+                                    className="bg-[#f6f6f8] dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm px-3 py-2 text-[#0d121b] dark:text-white focus:ring-[var(--accent)] focus:border-[var(--accent)]"
                                 >
                                     <option>Azure Active Directory</option>
                                     <option>Google Workspace</option>
@@ -159,7 +159,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                                     <select
                                         value={dataResidency}
                                         onChange={(e) => setDataResidency(e.target.value)}
-                                        className="pl-10 w-full bg-[#f6f6f8] dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm px-3 py-2 text-[#0d121b] dark:text-white focus:ring-[#1152d4] focus:border-[#1152d4]"
+                                        className="pl-10 w-full bg-[#f6f6f8] dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg text-sm px-3 py-2 text-[#0d121b] dark:text-white focus:ring-[var(--accent)] focus:border-[var(--accent)]"
                                     >
                                         <option>West Africa (Lagos)</option>
                                         <option>Europe (Frankfurt)</option>
@@ -181,7 +181,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                                         onChange={(e) => setTwoFactorEnabled(e.target.checked)}
                                         className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer"
                                     />
-                                    <label className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer ${twoFactorEnabled ? 'bg-[#1152d4]' : 'bg-gray-300'}`}></label>
+                                    <label className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer ${twoFactorEnabled ? 'bg-[var(--accent)]' : 'bg-gray-300'}`}></label>
                                 </div>
                             </div>
                         </div>
@@ -191,7 +191,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                     <section>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-base font-bold text-[#0d121b] dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-[#1152d4]">psychology</span>
+                                <span className="material-symbols-outlined text-[var(--accent)]">psychology</span>
                                 AI Agent Behaviors
                             </h3>
                         </div>
@@ -205,7 +205,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                                             type="checkbox"
                                             checked={knowledgeBase.officialProtocols}
                                             onChange={(e) => setKnowledgeBase({ ...knowledgeBase, officialProtocols: e.target.checked })}
-                                            className="form-checkbox text-[#1152d4] rounded border-gray-300 focus:ring-[#1152d4] h-4 w-4 mr-3"
+                                            className="form-checkbox text-[var(--accent)] rounded border-gray-300 focus:ring-[var(--accent)] h-4 w-4 mr-3"
                                         />
                                         <span className="text-sm text-[#0d121b] dark:text-white">Official Protocols (PDF)</span>
                                     </label>
@@ -214,7 +214,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                                             type="checkbox"
                                             checked={knowledgeBase.meetingMinutes}
                                             onChange={(e) => setKnowledgeBase({ ...knowledgeBase, meetingMinutes: e.target.checked })}
-                                            className="form-checkbox text-[#1152d4] rounded border-gray-300 focus:ring-[#1152d4] h-4 w-4 mr-3"
+                                            className="form-checkbox text-[var(--accent)] rounded border-gray-300 focus:ring-[var(--accent)] h-4 w-4 mr-3"
                                         />
                                         <span className="text-sm text-[#0d121b] dark:text-white">Meeting Minutes Archive</span>
                                     </label>
@@ -223,7 +223,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                                             type="checkbox"
                                             checked={knowledgeBase.draftDocuments}
                                             onChange={(e) => setKnowledgeBase({ ...knowledgeBase, draftDocuments: e.target.checked })}
-                                            className="form-checkbox text-[#1152d4] rounded border-gray-300 focus:ring-[#1152d4] h-4 w-4 mr-3"
+                                            className="form-checkbox text-[var(--accent)] rounded border-gray-300 focus:ring-[var(--accent)] h-4 w-4 mr-3"
                                         />
                                         <span className="text-sm text-[#0d121b] dark:text-white">Draft/Unpublished Documents</span>
                                     </label>
@@ -232,7 +232,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                                             type="checkbox"
                                             checked={knowledgeBase.memberContacts}
                                             onChange={(e) => setKnowledgeBase({ ...knowledgeBase, memberContacts: e.target.checked })}
-                                            className="form-checkbox text-[#1152d4] rounded border-gray-300 focus:ring-[#1152d4] h-4 w-4 mr-3"
+                                            className="form-checkbox text-[var(--accent)] rounded border-gray-300 focus:ring-[var(--accent)] h-4 w-4 mr-3"
                                         />
                                         <span className="text-sm text-[#0d121b] dark:text-white">Member Contact Details</span>
                                     </label>
@@ -241,7 +241,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                             <div>
                                 <div className="flex justify-between items-center mb-2">
                                     <label className="block text-sm font-bold text-[#0d121b] dark:text-white">Drafting Style Strictness</label>
-                                    <span className="text-xs font-mono bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 rounded">
+                                    <span className="text-xs font-mono bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200 px-2 rounded">
                                         {draftingStrictness < 33 ? 'Formal' : draftingStrictness < 66 ? 'Balanced' : 'Creative'} ({(draftingStrictness / 100).toFixed(1)})
                                     </span>
                                 </div>
@@ -251,7 +251,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                                     max="100"
                                     value={draftingStrictness}
                                     onChange={(e) => setDraftingStrictness(Number(e.target.value))}
-                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-[#1152d4]"
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-[var(--accent)]"
                                 />
                                 <div className="flex justify-between text-[10px] text-[#4c669a] mt-1 uppercase font-bold tracking-wider">
                                     <span>Conservative</span>
@@ -273,7 +273,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                 <div className="flex items-center justify-end gap-3 p-4 border-t border-[#e7ebf3] dark:border-[#2d3748] bg-gray-50 dark:bg-[#0d121b]">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-[#4c669a] hover:text-[#0d121b] dark:text-[#a0aec0] dark:hover:text-white transition-colors"
+                        className="clickable-scale px-4 py-2 text-sm font-medium text-[#4c669a] hover:text-[#0d121b] dark:text-[#a0aec0] dark:hover:text-white transition-colors"
                     >
                         Discard Changes
                     </button>
@@ -282,7 +282,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                             // Save logic here
                             onClose();
                         }}
-                        className="px-4 py-2 bg-[#1152d4] text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2"
+                        className="clickable-scale px-4 py-2 bg-[var(--accent)] text-white text-sm font-bold rounded-lg hover:opacity-90 transition-colors shadow-sm flex items-center gap-2"
                     >
                         <span className="material-symbols-outlined text-[18px]">save</span>
                         Save Changes
@@ -292,7 +292,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                 <style>{`
                     .toggle-checkbox:checked {
                         right: 0;
-                        border-color: #1152d4;
+                        border-color: var(--accent);
                     }
                     .toggle-checkbox {
                         right: 1.25rem;

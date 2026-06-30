@@ -201,11 +201,11 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
         <div className="space-y-6">
             {/* Auto-Managed Banner */}
             {isAutoManaged && (
-                <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 flex items-center gap-3">
-                    <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[20px]">sync</span>
+                <div className="p-4 rounded-xl bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 flex items-center gap-3">
+                    <span className="material-symbols-outlined text-teal-600 dark:text-teal-400 text-[20px]">sync</span>
                     <div>
-                        <p className="text-sm font-bold text-blue-700 dark:text-blue-300">Auto-Managed Membership</p>
-                        <p className="text-xs text-blue-600/80 dark:text-blue-400/80 mt-0.5">
+                        <p className="text-sm font-bold text-teal-700 dark:text-teal-300">Auto-Managed Membership</p>
+                        <p className="text-xs text-teal-600/80 dark:text-teal-400/80 mt-0.5">
                             This group's membership is automatically synced from TWG political and technical leads. To update membership, change lead assignments on individual TWGs.
                         </p>
                     </div>
@@ -216,15 +216,15 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
             {canEdit && !isAutoManaged && (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                            <span className="material-symbols-outlined text-blue-600 text-[20px]">
+                        <h3 className="font-display text-sm text-slate-900 dark:text-white flex items-center gap-2" style={{ fontWeight: 800, letterSpacing: '-0.02em' }}>
+                            <span className="material-symbols-outlined text-teal-600 text-[20px]">
                                 {bulkMode ? 'group_add' : 'person_add'}
                             </span>
                             {bulkMode ? 'Bulk Add Members' : 'Add Member'}
                         </h3>
                         <button
                             onClick={() => { setBulkMode(!bulkMode); setBulkResult(null); }}
-                            className="text-xs font-bold text-blue-600 hover:text-blue-500 transition-colors flex items-center gap-1"
+                            className="text-xs font-bold text-teal-600 hover:text-teal-500 transition-colors flex items-center gap-1"
                         >
                             <span className="material-symbols-outlined text-[16px]">
                                 {bulkMode ? 'person_add' : 'group_add'}
@@ -242,12 +242,12 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
                                 placeholder={`Paste emails here (one per line). Supported formats:\n\njohn@example.com\nJane Doe <jane@example.com>\nJohn Smith, john@example.com`}
                                 disabled={adding}
                                 rows={6}
-                                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200 placeholder:text-slate-400 resize-none"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all text-slate-700 dark:text-slate-200 placeholder:text-slate-400 resize-none"
                             />
                             <div className="flex items-center justify-between">
                                 <div className="text-xs text-slate-500">
                                     {parsedBulk.length > 0 ? (
-                                        <span className="font-bold text-blue-600">
+                                        <span className="font-mono-geist font-bold text-teal-600">
                                             {parsedBulk.length} member{parsedBulk.length !== 1 ? 's' : ''} detected
                                             {parsedBulk.filter(p => !p.full_name).length > 0 && (
                                                 <span className="text-amber-500 ml-1">
@@ -262,7 +262,7 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
                                 <button
                                     onClick={handleBulkAdd}
                                     disabled={adding || parsedBulk.length === 0}
-                                    className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-blue-600/20"
+                                    className="clickable-scale px-6 py-3 bg-teal-600 text-white rounded-xl font-bold text-sm hover:bg-teal-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-teal-600/20"
                                 >
                                     {adding ? (
                                         <>
@@ -282,20 +282,20 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
                             {bulkResult && (
                                 <div className="mt-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-xs space-y-1">
                                     {bulkResult.summary.added > 0 && (
-                                        <div className="flex items-center gap-1 text-green-600 dark:text-green-400 font-bold">
+                                        <div className="font-mono-geist flex items-center gap-1 text-green-600 dark:text-green-400 font-bold">
                                             <span className="material-symbols-outlined text-[14px]">check_circle</span>
                                             {bulkResult.summary.added} added
                                             {bulkResult.summary.new_accounts > 0 && ` (${bulkResult.summary.new_accounts} new accounts)`}
                                         </div>
                                     )}
                                     {bulkResult.summary.skipped > 0 && (
-                                        <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-bold">
+                                        <div className="font-mono-geist flex items-center gap-1 text-amber-600 dark:text-amber-400 font-bold">
                                             <span className="material-symbols-outlined text-[14px]">info</span>
                                             {bulkResult.summary.skipped} skipped (already members)
                                         </div>
                                     )}
                                     {bulkResult.summary.errors > 0 && (
-                                        <div className="flex items-center gap-1 text-red-600 dark:text-red-400 font-bold">
+                                        <div className="font-mono-geist flex items-center gap-1 text-red-600 dark:text-red-400 font-bold">
                                             <span className="material-symbols-outlined text-[14px]">error</span>
                                             {bulkResult.summary.errors} failed
                                         </div>
@@ -313,7 +313,7 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
                                     onChange={(e) => setAddName(e.target.value)}
                                     placeholder="Full name"
                                     disabled={adding}
-                                    className="w-48 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
+                                    className="w-48 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
                                 />
                                 <input
                                     type="email"
@@ -321,12 +321,12 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
                                     onChange={(e) => setAddEmail(e.target.value)}
                                     placeholder="Email address"
                                     disabled={adding}
-                                    className="flex-1 min-w-[200px] px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
+                                    className="flex-1 min-w-[200px] px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
                                 />
                                 <button
                                     type="submit"
                                     disabled={adding || !addEmail.trim()}
-                                    className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-blue-600/20"
+                                    className="clickable-scale px-6 py-3 bg-teal-600 text-white rounded-xl font-bold text-sm hover:bg-teal-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-teal-600/20"
                                 >
                                     {adding ? (
                                         <>
@@ -366,18 +366,18 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
             {/* Members List */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                        <span className="material-symbols-outlined text-blue-600 text-[20px]">group</span>
+                    <h3 className="font-display text-sm text-slate-900 dark:text-white flex items-center gap-2" style={{ fontWeight: 800, letterSpacing: '-0.02em' }}>
+                        <span className="material-symbols-outlined text-teal-600 text-[20px]">group</span>
                         {twgName ? `${twgName} Members` : 'TWG Members'}
                     </h3>
                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-700 px-3 py-1 rounded-full">
+                        <span className="font-mono-geist text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-700 px-3 py-1 rounded-full">
                             {members.length} member{members.length !== 1 ? 's' : ''}
                         </span>
                         {members.length > 0 && (
                             <button
                                 onClick={handleExport}
-                                className="text-xs font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
+                                className="clickable-scale text-xs font-bold text-slate-500 hover:text-teal-600 dark:text-slate-400 dark:hover:text-teal-400 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-all"
                                 title="Export members as CSV"
                             >
                                 <span className="material-symbols-outlined text-[16px]">download</span>
@@ -389,7 +389,7 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
 
                 {loading ? (
                     <div className="p-12 text-center">
-                        <span className="material-symbols-outlined animate-spin text-blue-500 text-3xl">progress_activity</span>
+                        <span className="material-symbols-outlined animate-spin text-teal-500 text-3xl">progress_activity</span>
                         <p className="text-sm text-slate-500 mt-2 font-medium">Loading members...</p>
                     </div>
                 ) : members.length === 0 ? (
@@ -411,7 +411,7 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
                                     {/* Avatar */}
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0
                                         ${isLead
-                                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 ring-2 ring-blue-500/30'
+                                            ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 ring-2 ring-teal-500/30'
                                             : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
                                         }`}
                                     >
@@ -424,17 +424,17 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
                                             <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
                                                 {member.full_name}
                                             </span>
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${badge.color}`}>
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider ${badge.color}`}>
                                                 {badge.label}
                                             </span>
                                             {!member.is_active && (
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-red-100 text-red-600">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider bg-red-100 text-red-600">
                                                     Inactive
                                                 </span>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-3 mt-0.5">
-                                            <span className="text-xs text-slate-500 truncate">{member.email}</span>
+                                            <span className="font-mono-geist text-xs text-slate-500 truncate">{member.email}</span>
                                             {member.organization && (
                                                 <>
                                                     <span className="text-slate-300 dark:text-slate-600">•</span>
@@ -449,7 +449,7 @@ const TwgMemberManager = ({ twgId, twgName, canEdit = true, isAutoManaged = fals
                                         <button
                                             onClick={() => handleRemoveMember(member.id, member.full_name)}
                                             disabled={removingId === member.id}
-                                            className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                                            className="clickable-scale p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50"
                                             title={`Remove ${member.full_name}`}
                                         >
                                             {removingId === member.id ? (

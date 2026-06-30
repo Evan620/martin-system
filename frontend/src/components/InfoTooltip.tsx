@@ -5,6 +5,8 @@ interface InfoTooltipProps {
   text: React.ReactNode;
   /** Accessible label for the trigger icon. */
   ariaLabel?: string;
+  /** Material Symbols icon name for the trigger (e.g. 'help' for a question mark). */
+  icon?: string;
 }
 
 /**
@@ -12,7 +14,7 @@ interface InfoTooltipProps {
  * Closes on outside click or Escape. Used to explain intake fields whose
  * Yes/No answer needs a threshold the submitter may not know.
  */
-const InfoTooltip: React.FC<InfoTooltipProps> = ({ text, ariaLabel = 'More information' }) => {
+const InfoTooltip: React.FC<InfoTooltipProps> = ({ text, ariaLabel = 'More information', icon = 'info' }) => {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLSpanElement>(null);
   const tipId = useId();
@@ -43,10 +45,10 @@ const InfoTooltip: React.FC<InfoTooltipProps> = ({ text, ariaLabel = 'More infor
         aria-label={ariaLabel}
         aria-describedby={open ? tipId : undefined}
         onClick={(e) => { e.preventDefault(); setOpen(v => !v); }}
-        className="material-symbols-outlined text-slate-400 hover:text-blue-500 transition-colors cursor-help leading-none"
+        className="material-symbols-outlined text-slate-400 hover:text-teal-500 transition-colors cursor-help leading-none"
         style={{ fontSize: '16px' }}
       >
-        info
+        {icon}
       </button>
       {open && (
         <span

@@ -77,11 +77,11 @@ const AuditLogs: React.FC = () => {
         <div style={{ maxWidth: 1180, margin: '0 auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
             {/* Page header */}
             <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)', marginBottom: 6 }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--ink-500)', marginBottom: 6 }}>
                     Management · trail
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                    <h1 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
+                    <h1 style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800, fontSize: 18, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
                         Audit logs
                     </h1>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -100,7 +100,7 @@ const AuditLogs: React.FC = () => {
 
             {/* Filter bar */}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 28, padding: '14px 16px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginRight: 8 }}>Filter</span>
+                <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600, marginRight: 8 }}>Filter</span>
                 {['All Actions', 'CREATE', 'UPDATE', 'DELETE', 'LOGIN'].map(f => (
                     <button key={f} style={{ fontSize: 11, padding: '4px 10px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-600)', cursor: 'pointer', fontFamily: 'inherit' }}>
                         {f}
@@ -128,7 +128,7 @@ const AuditLogs: React.FC = () => {
                         <div key={date}>
                             {/* Date heading */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10 }}>
-                                <h2 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 16, color: 'var(--ink-700)', margin: 0, whiteSpace: 'nowrap' }}>
+                                <h2 style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800, letterSpacing: '-0.02em', fontSize: 13, color: 'var(--ink-700)', margin: 0, whiteSpace: 'nowrap' }}>
                                     {date}
                                 </h2>
                                 <div style={{ flex: 1, height: 1, background: 'var(--border)' }}></div>
@@ -136,11 +136,11 @@ const AuditLogs: React.FC = () => {
                             </div>
 
                             {/* Group body */}
-                            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
                                 {/* Table header */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 160px 1fr 1fr 60px', gap: 0, background: 'var(--ink-50)', borderBottom: '1px solid var(--border)', padding: '10px 16px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 160px 1fr 1fr 60px', gap: 0, background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', padding: '10px 16px' }}>
                                     {['Time', 'Action', 'Resource', 'Details', 'IP Address', ''].map(col => (
-                                        <div key={col} style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{col}</div>
+                                        <div key={col} style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>{col}</div>
                                     ))}
                                 </div>
                                 {dateLogs.map((log, idx) => (
@@ -154,7 +154,7 @@ const AuditLogs: React.FC = () => {
                                             gap: 0,
                                             padding: '11px 16px',
                                             borderBottom: idx < dateLogs.length - 1 ? '1px solid var(--border)' : 'none',
-                                            background: hoveredRow === log.id ? 'var(--ink-50)' : 'transparent',
+                                            background: hoveredRow === log.id ? 'var(--surface-2)' : 'transparent',
                                             alignItems: 'start',
                                         }}
                                     >
@@ -172,13 +172,13 @@ const AuditLogs: React.FC = () => {
 
                                         {/* Resource */}
                                         <div>
-                                            <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{log.resource_type}</div>
+                                            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>{log.resource_type}</div>
                                             <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'var(--ink-500)', marginTop: 2 }}>{log.resource_id ? log.resource_id.substring(0, 8) + '...' : '-'}</div>
                                         </div>
 
                                         {/* Details */}
                                         <div style={{ overflow: 'hidden' }}>
-                                            <pre style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'var(--ink-600)', background: 'var(--ink-50)', padding: '4px 8px', margin: 0, overflowX: 'auto', maxWidth: 220, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                            <pre style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'var(--ink-600)', background: 'var(--surface-2)', borderRadius: 6, padding: '4px 8px', margin: 0, overflowX: 'auto', maxWidth: 220, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                                                 {formatDetails(log.details)}
                                             </pre>
                                         </div>

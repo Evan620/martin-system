@@ -55,8 +55,13 @@ function getPageChips(pathname: string): ActionChip[] | null {
 function getBriefingChips(briefing: BriefingData): ActionChip[] {
     const chips: ActionChip[] = [];
 
-    if (briefing.threshold_alerts.length > 0) {
-        const count = briefing.threshold_alerts.length;
+    // Defensive: briefing (or its fields) may be missing/empty — never crash on it.
+    const thresholdAlerts = briefing?.threshold_alerts ?? [];
+    const upcomingMeetings = briefing?.upcoming_meetings ?? [];
+    const overdueItems = briefing?.overdue_items ?? [];
+
+    if (thresholdAlerts.length > 0) {
+        const count = thresholdAlerts.length;
         chips.push({
             emoji: '⚠️',
             label: `Fix ${count} gap${count > 1 ? 's' : ''}`,
@@ -65,8 +70,8 @@ function getBriefingChips(briefing: BriefingData): ActionChip[] {
         });
     }
 
-    if (briefing.upcoming_meetings.length > 0) {
-        const m = briefing.upcoming_meetings[0];
+    if (upcomingMeetings.length > 0) {
+        const m = upcomingMeetings[0];
         chips.push({
             emoji: '📅',
             label: 'Prep for meeting',
@@ -75,7 +80,7 @@ function getBriefingChips(briefing: BriefingData): ActionChip[] {
         });
     }
 
-    if (briefing.overdue_items.length > 0) {
+    if (overdueItems.length > 0) {
         chips.push({
             emoji: '📋',
             label: 'Review notifications',
@@ -89,9 +94,9 @@ function getBriefingChips(briefing: BriefingData): ActionChip[] {
 
 const COLOR_CLASSES: Record<string, string> = {
     red: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300',
-    blue: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+    blue: 'border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
     amber: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-    default: 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300',
+    default: 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:bg-teal-50 dark:hover:bg-teal-900/30 hover:text-teal-700 dark:hover:text-teal-300',
 };
 
 export default function SuggestedActions({ onFillInput, onSubmit, briefing }: SuggestedActionsProps) {
@@ -121,7 +126,7 @@ export default function SuggestedActions({ onFillInput, onSubmit, briefing }: Su
                     <button
                         key={chip.label}
                         onClick={() => handleChip(chip)}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${colorClass}`}
+                        className={`clickable-scale flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${colorClass}`}
                     >
                         <span>{chip.emoji}</span>
                         <span>{chip.label}</span>

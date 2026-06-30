@@ -91,13 +91,13 @@ const ConflictModal: React.FC<ConflictModalProps> = ({ isOpen, conflicts, onProc
                 <div className="bg-gray-900/50 border-t border-gray-700 px-6 py-4 flex gap-3 justify-end">
                     <button
                         onClick={onCancel}
-                        className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 font-medium transition-colors"
+                        className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 font-medium transition-colors clickable-scale"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={onProceed}
-                        className="px-4 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white font-medium transition-colors flex items-center gap-2"
+                        className="px-4 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white font-medium transition-colors flex items-center gap-2 clickable-scale"
                     >
                         <span>⚡</span>
                         Proceed Anyway

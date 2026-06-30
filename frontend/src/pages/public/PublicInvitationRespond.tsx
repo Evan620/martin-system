@@ -91,7 +91,7 @@ export default function PublicInvitationRespond() {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-[#1152d4] border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-12 h-12 border-4 border-[var(--accent)] border-t-transparent rounded-full animate-spin"></div>
                     <p className="text-[#4c669a] font-medium">Loading invitation...</p>
                 </div>
             </div>
@@ -116,10 +116,10 @@ export default function PublicInvitationRespond() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-[#f8fafc] to-[#e2e8f0]">
-            <div className="max-w-4xl mx-auto p-4 md:p-8">
+            <div className="max-w-4xl mx-auto p-4 md:p-8 animate-blur-slide">
                 {/* Header */}
                 <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
-                    <div className="bg-gradient-to-r from-[#1152d4] to-[#0e44b1] p-6 md:p-8">
+                    <div className="bg-gradient-to-r from-[var(--accent)] to-[var(--accent)] p-6 md:p-8">
                         <div className="flex items-start justify-between">
                             <div>
                                 <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
@@ -144,7 +144,7 @@ export default function PublicInvitationRespond() {
 
                         {/* Custom Message */}
                         {invitation.custom_message && (
-                            <div className="mb-6 p-4 bg-gray-50 rounded-xl border-l-4 border-[#1152d4]">
+                            <div className="mb-6 p-4 bg-gray-50 rounded-xl border-l-4 border-[var(--accent)]">
                                 <p className="text-sm text-[#4c669a] mb-1">Personal Message</p>
                                 <p className="text-[#0d121b] whitespace-pre-wrap">{invitation.custom_message}</p>
                             </div>
@@ -170,7 +170,7 @@ export default function PublicInvitationRespond() {
                                 <button
                                     onClick={() => handleRespond('accept')}
                                     disabled={isResponding}
-                                    className="flex-1 py-3 px-6 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-green-600/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                                    className="clickable-scale flex-1 py-3 px-6 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-green-600/20 disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     {isResponding ? (
                                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -184,7 +184,7 @@ export default function PublicInvitationRespond() {
                                 <button
                                     onClick={() => handleRespond('decline')}
                                     disabled={isResponding}
-                                    className="flex-1 py-3 px-6 bg-white hover:bg-gray-50 text-red-600 border-2 border-red-200 hover:border-red-300 rounded-xl font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                    className="clickable-scale flex-1 py-3 px-6 bg-white hover:bg-gray-50 text-red-600 border-2 border-red-200 hover:border-red-300 rounded-xl font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     <span className="material-symbols-outlined">cancel</span>
                                     Decline

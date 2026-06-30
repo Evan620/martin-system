@@ -169,28 +169,28 @@ export default function Register() {
     return (
         <div className="flex h-screen bg-[#020617] text-white">
             {/* Left side - Visuals */}
-            <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-blue-950 via-slate-900 to-slate-950">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-500/20 via-transparent to-transparent"></div>
+            <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-teal-950 via-slate-900 to-slate-950">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-teal-500/20 via-transparent to-transparent"></div>
 
                 {/* Abstract visualization */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-30">
                     <svg className="w-full h-full p-20" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
                         <defs>
                             <radialGradient id="grad2" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-                                <stop offset="0%" style={{ stopColor: '#3b82f6', stopOpacity: 0.6 }} />
-                                <stop offset="100%" style={{ stopColor: '#1d4ed8', stopOpacity: 0 }} />
+                                <stop offset="0%" style={{ stopColor: 'var(--accent)', stopOpacity: 0.6 }} />
+                                <stop offset="100%" style={{ stopColor: 'var(--accent)', stopOpacity: 0 }} />
                             </radialGradient>
                         </defs>
                         <circle cx="100" cy="100" r="80" fill="url(#grad2)" />
-                        <circle cx="100" cy="100" r="80" stroke="#3b82f6" strokeWidth="0.5" fill="none" />
-                        <circle cx="100" cy="100" r="60" stroke="#3b82f6" strokeWidth="0.3" fill="none" opacity="0.5" />
-                        <circle cx="100" cy="100" r="40" stroke="#3b82f6" strokeWidth="0.3" fill="none" opacity="0.3" />
+                        <circle cx="100" cy="100" r="80" stroke="var(--accent)" strokeWidth="0.5" fill="none" />
+                        <circle cx="100" cy="100" r="60" stroke="var(--accent)" strokeWidth="0.3" fill="none" opacity="0.5" />
+                        <circle cx="100" cy="100" r="40" stroke="var(--accent)" strokeWidth="0.3" fill="none" opacity="0.3" />
                     </svg>
                 </div>
 
                 <div className="relative z-10 flex flex-col justify-end p-16 space-y-6">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <div className="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center">
                             <span className="font-bold text-lg">W</span>
                         </div>
                         <span className="text-xl font-display font-semibold">WAIIS TWG</span>
@@ -198,12 +198,12 @@ export default function Register() {
                     <h1 className="text-5xl font-display font-bold leading-tight">
                         Join the Future of Regional Collaboration
                     </h1>
-                    <p className="text-blue-200 text-lg max-w-lg">
+                    <p className="text-teal-200 text-lg max-w-lg">
                         Create your account to access cutting-edge AI-powered tools for strategic planning and data analysis.
                     </p>
                     <div className="flex gap-2">
                         <div className="w-2 h-2 bg-slate-700 rounded-full"></div>
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
                         <div className="w-2 h-2 bg-slate-700 rounded-full"></div>
                     </div>
                 </div>
@@ -211,7 +211,7 @@ export default function Register() {
 
             {/* Right side - Form */}
             <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-[#020617] overflow-y-auto">
-                <div className="w-full max-w-md space-y-8 py-8">
+                <div className="w-full max-w-md space-y-8 py-8 animate-blur-slide">
                     <div className="flex justify-end">
                         <div className="flex items-center gap-2 px-3 py-1 bg-slate-800/50 border border-slate-700 rounded-full text-xs text-slate-400">
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -240,7 +240,7 @@ export default function Register() {
                                 value={formData.name}
                                 onChange={(e) => handleChange('name', e.target.value)}
                                 required
-                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-blue-500"
+                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-teal-500"
                             />
                             {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
 
@@ -251,7 +251,7 @@ export default function Register() {
                                 value={formData.email}
                                 onChange={(e) => handleChange('email', e.target.value)}
                                 required
-                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-blue-500"
+                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-teal-500"
                             />
                             {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
 
@@ -262,7 +262,7 @@ export default function Register() {
                                 value={formData.organization}
                                 onChange={(e) => handleChange('organization', e.target.value)}
                                 required
-                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-blue-500"
+                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-teal-500"
                             />
                             {errors.organization && <p className="text-red-400 text-xs mt-1">{errors.organization}</p>}
 
@@ -274,7 +274,7 @@ export default function Register() {
                                 value={formData.password}
                                 onChange={(e) => handleChange('password', e.target.value)}
                                 required
-                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-blue-500"
+                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-teal-500"
                             />
                             {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
 
@@ -285,7 +285,7 @@ export default function Register() {
                                 value={formData.confirmPassword}
                                 onChange={(e) => handleChange('confirmPassword', e.target.value)}
                                 required
-                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-blue-500"
+                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-teal-500"
                             />
                             {errors.confirmPassword && <p className="text-red-400 text-xs mt-1">{errors.confirmPassword}</p>}
                         </div>
@@ -293,7 +293,7 @@ export default function Register() {
                         <Button
                             type="submit"
                             isLoading={isLoading}
-                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
+                            className="clickable-scale w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg shadow-lg shadow-teal-900/20 flex items-center justify-center gap-2"
                         >
                             Create Account
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -313,7 +313,7 @@ export default function Register() {
                     <div className="text-center">
                         <p className="text-sm text-slate-400">
                             Already have an account?{' '}
-                            <Link to="/login" className="text-blue-400 hover:text-blue-300 font-medium">
+                            <Link to="/login" className="text-teal-400 hover:text-teal-300 font-medium">
                                 Log In
                             </Link>
                         </p>

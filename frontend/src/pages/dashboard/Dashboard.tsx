@@ -69,11 +69,11 @@ function LedgerStat({
             borderRight: last ? 'none' : '1px solid var(--border)',
         }}>
             <div style={{
-                fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
-                color: 'var(--ink-500)', fontWeight: 500, fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
+                fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
+                color: 'var(--ink-500)', fontWeight: 600, fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
             }}>{label}</div>
             <div style={{
-                fontFamily: "'Source Serif 4', serif", fontWeight: 400,
+                fontFamily: "'Geist Mono', monospace", fontWeight: 800,
                 fontSize: 28, color: accent ? 'var(--accent)' : 'var(--ink-900)',
                 letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1,
                 fontVariantNumeric: 'tabular-nums',
@@ -154,14 +154,14 @@ export default function Dashboard() {
             {/* ── Greeting header ───────────────────────────────── */}
             <div style={{ marginBottom: 24 }}>
                 <div style={{
-                    fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase',
-                    fontWeight: 500, color: 'var(--ink-500)', marginBottom: 6,
+                    fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
+                    fontWeight: 600, color: 'var(--ink-500)', marginBottom: 6,
                 }}>
-                    Daily briefing · {today}
+                    Daily briefing · <span style={{ fontFamily: "'Geist Mono', monospace" }}>{today}</span>
                 </div>
                 <h1 style={{
-                    fontFamily: "'Source Serif 4', serif", fontWeight: 400,
-                    fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)',
+                    fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800,
+                    fontSize: 18, letterSpacing: '-0.02em', color: 'var(--ink-900)',
                     margin: 0, lineHeight: 1.1,
                 }}>
                     {getGreeting()}, {firstName}.
@@ -179,13 +179,13 @@ export default function Dashboard() {
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <span style={{
-                            fontFamily: "'Source Serif 4', serif", fontStyle: 'italic',
-                            fontSize: 13, color: 'var(--accent)',
+                            fontFamily: "'Geist', system-ui, sans-serif", fontStyle: 'italic',
+                            fontSize: 13, fontWeight: 600, color: 'var(--accent)',
                         }}>Martin</span>
                         <div style={{ width: 24, height: 1, background: 'var(--border)' }} />
                         <div style={{
-                            fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase',
-                            fontWeight: 500, color: 'var(--ink-500)',
+                            fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
+                            fontWeight: 600, color: 'var(--ink-500)',
                         }}>Today's briefing</div>
                     </div>
                     <span style={{
@@ -197,8 +197,8 @@ export default function Dashboard() {
                 </div>
 
                 <p style={{
-                    fontFamily: "'Source Serif 4', serif", fontWeight: 400,
-                    fontSize: 20, lineHeight: 1.45, color: 'var(--ink-900)',
+                    fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 500,
+                    fontSize: 18, lineHeight: 1.5, color: 'var(--ink-900)',
                     letterSpacing: '-0.01em', margin: '0 0 24px', maxWidth: 880,
                 }}>
                     {generateBriefing(stats, todayItems.length, atRiskCount)}
@@ -245,8 +245,8 @@ export default function Dashboard() {
                         paddingBottom: 12,
                     }}>
                         <h2 style={{
-                            fontFamily: "'Source Serif 4', serif", fontWeight: 400,
-                            fontSize: 18, letterSpacing: '-0.01em', color: 'var(--ink-900)', margin: 0,
+                            fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800,
+                            fontSize: 18, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0,
                         }}>TWG readiness</h2>
                         <button
                             onClick={() => navigate('/twgs')}
@@ -260,7 +260,7 @@ export default function Dashboard() {
                     </div>
 
                     {/* TWG Readiness table */}
-                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
                         {stats?.twg_health.length ? stats.twg_health.map((twg, i) => {
                             const atRisk = twg.status === 'stalled' || twg.completion < 50;
                             const last = i === (stats.twg_health.length - 1);
@@ -297,8 +297,8 @@ export default function Dashboard() {
                                             justifyContent: 'space-between', marginBottom: 6,
                                         }}>
                                             <span style={{
-                                                fontSize: 10, color: 'var(--ink-500)',
-                                                letterSpacing: '0.08em', textTransform: 'uppercase',
+                                                fontSize: 10, color: 'var(--ink-500)', fontWeight: 600,
+                                                letterSpacing: '0.14em', textTransform: 'uppercase',
                                             }}>Readiness</span>
                                             <span style={{
                                                 fontSize: 12, fontFamily: "'Geist Mono', monospace",
@@ -315,13 +315,15 @@ export default function Dashboard() {
                                             }} />
                                         </div>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
                                         <span style={{
-                                            width: 6, height: 6, borderRadius: 6,
-                                            background: atRisk ? 'var(--terra)' : 'var(--sage)',
-                                            display: 'inline-block', flexShrink: 0,
-                                        }} />
-                                        <span style={{ fontSize: 12, color: atRisk ? 'var(--terra)' : 'var(--ink-700)' }}>
+                                            fontSize: 8, fontWeight: 700, textTransform: 'uppercase',
+                                            letterSpacing: '0.08em', padding: '3px 7px', borderRadius: 999,
+                                            color: atRisk ? 'var(--terra)' : 'var(--sage)',
+                                            background: atRisk
+                                                ? 'color-mix(in srgb, var(--terra) 12%, transparent)'
+                                                : 'color-mix(in srgb, var(--sage) 12%, transparent)',
+                                        }}>
                                             {twg.status === 'stalled' ? 'At risk' : 'On track'}
                                         </span>
                                     </div>
@@ -347,8 +349,8 @@ export default function Dashboard() {
                         padding: '28px 0 12px',
                     }}>
                         <h2 style={{
-                            fontFamily: "'Source Serif 4', serif", fontWeight: 400,
-                            fontSize: 18, letterSpacing: '-0.01em', color: 'var(--ink-900)', margin: 0,
+                            fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800,
+                            fontSize: 18, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0,
                         }}>Pipeline at a glance</h2>
                         <button
                             onClick={() => navigate('/pipeline')}
@@ -361,14 +363,14 @@ export default function Dashboard() {
                         </button>
                     </div>
 
-                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '24px 28px' }}>
+                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', padding: '24px 28px' }}>
                         <div style={{
                             display: 'flex', alignItems: 'baseline',
                             justifyContent: 'space-between', marginBottom: 20,
                         }}>
                             <div>
                                 <div style={{
-                                    fontFamily: "'Source Serif 4', serif", fontSize: 28,
+                                    fontFamily: "'Geist Mono', monospace", fontSize: 28, fontWeight: 800,
                                     color: 'var(--ink-900)', letterSpacing: '-0.02em',
                                     lineHeight: 1, fontVariantNumeric: 'tabular-nums',
                                 }}>
@@ -422,17 +424,18 @@ export default function Dashboard() {
                         paddingBottom: 12,
                     }}>
                         <h2 style={{
-                            fontFamily: "'Source Serif 4', serif", fontWeight: 400,
-                            fontSize: 18, letterSpacing: '-0.01em', color: 'var(--ink-900)', margin: 0,
+                            fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800,
+                            fontSize: 18, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0,
                         }}>Schedule</h2>
                         <span style={{
-                            fontSize: 11, color: 'var(--ink-500)',
-                            fontFamily: "'Geist Mono', monospace", letterSpacing: '0.04em',
-                        }}>NEXT 14 DAYS</span>
+                            fontSize: 10, color: 'var(--ink-500)', fontWeight: 600,
+                            textTransform: 'uppercase', letterSpacing: '0.14em',
+                        }}>Next 14 days</span>
                     </div>
 
                     <div style={{
                         background: 'var(--surface)', border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-card)', overflow: 'hidden',
                         padding: '8px 0',
                     }}>
                         {upcomingItems.length > 0 ? upcomingItems.map((item, i) => {
@@ -454,7 +457,7 @@ export default function Dashboard() {
                                             {d.toLocaleString('en-GB', { month: 'short' }).toUpperCase()}
                                         </div>
                                         <div style={{
-                                            fontFamily: "'Source Serif 4', serif", fontSize: 22,
+                                            fontFamily: "'Geist Mono', monospace", fontSize: 22, fontWeight: 800,
                                             color: isToday ? 'var(--accent)' : 'var(--ink-900)',
                                             lineHeight: 1, letterSpacing: '-0.02em',
                                         }}>{d.getDate()}</div>
@@ -471,8 +474,8 @@ export default function Dashboard() {
                                                 <span style={{ width: 5, height: 5, borderRadius: 5, background: 'var(--terra)', display: 'inline-block' }} />
                                             )}
                                             <span style={{
-                                                fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
-                                                color: 'var(--ink-500)',
+                                                fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
+                                                fontWeight: 600, color: 'var(--ink-500)',
                                             }}>{item.twg}</span>
                                         </div>
                                         <div style={{ fontSize: 13, color: 'var(--ink-900)', marginTop: 4, lineHeight: 1.4 }}>

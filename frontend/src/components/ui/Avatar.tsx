@@ -28,7 +28,7 @@ export default function Avatar({
     return (
         <div
             className={clsx(
-                'rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold',
+                'rounded-full overflow-hidden bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white font-semibold',
                 sizes[size],
                 className
             )}

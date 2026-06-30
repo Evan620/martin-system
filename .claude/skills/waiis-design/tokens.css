@@ -1,0 +1,102 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   WAIIS — Quiet Paper Design Tokens
+   Drop-in replacement for the :root / .dark token blocks in frontend/src/index.css.
+   Evolution of the "Quiet Executive" tokens: warm paper neutrals + TEAL accent.
+   Token NAMES are unchanged from the current system, so existing var(--…) usages
+   keep working — only the values warm up and the accent turns teal.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Load the real fonts (Geist was previously only a fallback). */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&family=Source+Serif+4:opsz,wght@8..60,400..700&display=swap');
+
+/* ── Light: warm paper ──────────────────────────────────────────────────── */
+:root {
+  --bg:           #faf8f4;   /* warm paper page background (was #f6f6f8) */
+  --surface:      #ffffff;   /* card surface */
+  --surface-2:    #f6f3ec;   /* warm panel / inset */
+  --border:       #eae4d9;   /* warm hairline border (was cool #e5e8ee) */
+  --border-soft:  #f2ede4;
+
+  --ink-900: #1c1a16;        /* warm near-black text/headers */
+  --ink-800: #2a2722;
+  --ink-700: #46413a;
+  --ink-600: #5f594f;
+  --ink-500: #847c6f;        /* eyebrow labels / secondary */
+  --ink-400: #a59c8d;
+  --ink-300: #cdc6b8;
+  --ink-200: #e6e0d4;
+  --ink-100: #f1ece2;
+  --ink-50:  #f8f5ef;
+
+  --accent:       #0d9488;   /* teal-600 — primary actions, active state */
+  --accent-soft:  #d6f1ec;   /* teal tint — active nav fill, soft badges */
+  --accent-ink:   #ffffff;   /* text/icon on a teal surface */
+
+  --sage:  #15803d;
+  --amber: #b45309;
+  --terra: #b91c1c;
+  --navy:  #1e3a5f;
+  --gold:  #a16207;
+
+  /* Motion */
+  --ease-quiet: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-page:   0.5s;
+  --radius-card: 16px;
+  --radius-ctl:  11px;
+}
+
+/* ── Dark: cool zinc, teal accent ──────────────────────────────────────── */
+.dark {
+  --bg:           #14110d;   /* warm-tinted near-black */
+  --surface:      #1b1813;
+  --surface-2:    #211d17;
+  --border:       #322c23;
+  --border-soft:  #262019;
+
+  --ink-900: #f7f4ee;
+  --ink-800: #e7e2d8;
+  --ink-700: #cfc8ba;
+  --ink-600: #aaa090;
+  --ink-500: #8c8273;
+  --ink-400: #6f6657;
+  --ink-300: #4d473c;
+  --ink-200: #322c23;
+  --ink-100: #211d17;
+  --ink-50:  #1a160f;
+
+  --accent:       #2dd4bf;   /* teal-400 reads better on dark */
+  --accent-soft:  #133b37;
+  --accent-ink:   #06231f;
+
+  --sage:  #34d399;
+  --amber: #fbbf24;
+  --terra: #f87171;
+  --navy:  #93b4dc;
+  --gold:  #fbbf24;
+}
+
+/* ── Base typography ───────────────────────────────────────────────────── */
+@layer base {
+  body {
+    background: var(--bg);
+    color: var(--ink-900);
+    font-family: 'Geist', 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: "ss01", "cv11";
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+    /* smooth light/dark morph */
+    transition: background-color .3s var(--ease-quiet), color .3s var(--ease-quiet);
+  }
+}
+
+.font-serif-display { font-family: 'Source Serif 4', Georgia, serif; }
+.font-mono-geist    { font-family: 'Geist Mono', 'Fira Code', monospace; }
+
+/* Eyebrow label — section & field headers */
+.qp-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-500);
+}

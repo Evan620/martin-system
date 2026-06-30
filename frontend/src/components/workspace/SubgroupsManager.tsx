@@ -65,13 +65,13 @@ export default function SubgroupsManager({ twgId, canEdit, onOpenSubgroup }: Sub
         <div className="space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <h3 className="text-lg font-display font-bold text-slate-900 dark:text-white">
-                    Subgroups <span className="text-slate-400 font-normal text-sm ml-1">({sgList.length})</span>
+                <h3 className="font-display" style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--ink-900)' }}>
+                    Subgroups <span className="font-mono-geist" style={{ color: 'var(--ink-400)', fontWeight: 600, fontSize: 13, marginLeft: 4 }}>({sgList.length})</span>
                 </h3>
                 {canEdit && (
                     <button
                         onClick={() => setShowCreate(!showCreate)}
-                        className="text-sm font-bold text-blue-600 hover:text-blue-500 transition-colors uppercase tracking-widest"
+                        className="text-sm font-bold text-teal-600 hover:text-teal-500 transition-colors uppercase tracking-widest"
                     >
                         {showCreate ? 'Cancel' : '+ New Subgroup'}
                     </button>
@@ -86,21 +86,21 @@ export default function SubgroupsManager({ twgId, canEdit, onOpenSubgroup }: Sub
                         placeholder="Subgroup name *"
                         value={newName}
                         onChange={e => setNewName(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
                     <input
                         type="text"
                         placeholder="Description (optional)"
                         value={newDesc}
                         onChange={e => setNewDesc(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
                     {error && <p className="text-red-500 text-xs">{error}</p>}
                     <div className="flex gap-2">
                         <button
                             onClick={handleCreate}
                             disabled={creating || !newName.trim()}
-                            className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
+                            className="clickable-scale px-4 py-2 bg-teal-600 text-white text-sm font-bold rounded-lg hover:bg-teal-500 disabled:opacity-50 transition-colors"
                         >
                             {creating ? 'Creating...' : 'Create'}
                         </button>
@@ -125,39 +125,50 @@ export default function SubgroupsManager({ twgId, canEdit, onOpenSubgroup }: Sub
             )}
 
             {/* Subgroup cards */}
-            {sgList.map(sg => (
-                <div
-                    key={sg.id}
-                    className="flex items-center justify-between p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500 transition-all group"
-                >
-                    <div className="min-w-0">
-                        <div className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors truncate">
-                            {sg.name}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {sgList.map(sg => (
+                    <div
+                        key={sg.id}
+                        className="clickable-scale qp-transition group"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 'var(--radius-card)', background: 'var(--surface)', border: '1px solid var(--border)' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
+                    >
+                        <div className="min-w-0">
+                            <div className="group-hover:text-teal-600 transition-colors truncate" style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink-900)', letterSpacing: '-0.01em' }}>
+                                {sg.name}
+                            </div>
+                            <div className="mt-0.5 flex items-center gap-2 flex-wrap" style={{ fontSize: 9, color: 'var(--ink-400)' }}>
+                                {sg.lead && <span>Lead: {sg.lead.full_name}</span>}
+                                <span>·</span>
+                                <span className="font-mono-geist">{sg.member_count} member{sg.member_count !== 1 ? 's' : ''}</span>
+                                <span>·</span>
+                                <span className="font-mono-geist">{sg.document_count} doc{sg.document_count !== 1 ? 's' : ''}</span>
+                            </div>
+                            {sg.description && (
+                                <p className="mt-1 truncate max-w-md" style={{ fontSize: 11, color: 'var(--ink-500)' }}>{sg.description}</p>
+                            )}
                         </div>
-                        <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
-                            {sg.lead && <span>Lead: {sg.lead.full_name}</span>}
-                            <span>·</span>
-                            <span>{sg.member_count} member{sg.member_count !== 1 ? 's' : ''}</span>
-                            <span>·</span>
-                            <span>{sg.document_count} doc{sg.document_count !== 1 ? 's' : ''}</span>
+                        <div className="flex items-center gap-3 ml-4 shrink-0">
+                            <span
+                                className="text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
+                                style={sg.status === 'active'
+                                    ? { background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }
+                                    : { background: 'var(--surface-2)', color: 'var(--ink-500)' }}
+                            >
+                                {sg.status}
+                            </span>
+                            <button
+                                onClick={() => onOpenSubgroup(sg)}
+                                className="transition-colors whitespace-nowrap"
+                                style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}
+                            >
+                                Open →
+                            </button>
                         </div>
-                        {sg.description && (
-                            <p className="text-xs text-slate-500 mt-1 truncate max-w-md">{sg.description}</p>
-                        )}
                     </div>
-                    <div className="flex items-center gap-3 ml-4 shrink-0">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sg.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-100 text-slate-500'}`}>
-                            {sg.status}
-                        </span>
-                        <button
-                            onClick={() => onOpenSubgroup(sg)}
-                            className="text-sm font-bold text-blue-600 hover:text-blue-500 transition-colors whitespace-nowrap"
-                        >
-                            Open →
-                        </button>
-                    </div>
-                </div>
-            ))}
+                ))}
+            </div>
         </div>
     )
 }

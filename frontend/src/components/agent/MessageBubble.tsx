@@ -40,7 +40,7 @@ export function MessageBubble({ message, onActionClick, onFileUpload }: MessageB
       case ChatMessageType.COMMAND_RESULT:
         return (
           <>
-            <div className="mb-2 text-xs font-bold text-blue-400">Command Result</div>
+            <div className="mb-2 text-xs font-bold text-teal-400">Command Result</div>
             <div>{message.content}</div>
           </>
         );
@@ -75,7 +75,7 @@ export function MessageBubble({ message, onActionClick, onFileUpload }: MessageB
         return (
           <div className="space-y-3">
             {consultedAgent && (
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-500/20 border border-purple-500/30 rounded-full text-xs font-semibold text-purple-300">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-teal-500/20 border border-teal-500/30 rounded-full text-xs font-semibold text-teal-300">
                 <span className="material-symbols-outlined text-[14px]">groups</span>
                 {consultedAgent} TWG
               </div>
@@ -149,11 +149,11 @@ export function MessageBubble({ message, onActionClick, onFileUpload }: MessageB
       {/* Avatar */}
       <div className="flex-shrink-0">
         {isUser ? (
-          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center">
             <span className="material-symbols-outlined text-white text-xl">person</span>
           </div>
         ) : (
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center">
             <span className="material-symbols-outlined text-white text-xl">smart_toy</span>
           </div>
         )}
@@ -165,7 +165,7 @@ export function MessageBubble({ message, onActionClick, onFileUpload }: MessageB
           {/* Message bubble */}
           <div
             className={`rounded-2xl p-4 ${isUser
-              ? 'bg-blue-600 text-white'
+              ? 'bg-teal-600 text-white'
               : 'bg-slate-800/50 text-white border border-slate-700'
               }`}
           >
@@ -194,7 +194,7 @@ export function MessageBubble({ message, onActionClick, onFileUpload }: MessageB
 
 function ActionButton({ action, onClick }: { action: MessageAction; onClick: () => void }) {
   const styleClasses = {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white',
+    primary: 'bg-teal-600 hover:bg-teal-700 text-white',
     secondary: 'bg-slate-700 hover:bg-slate-600 text-white',
     success: 'bg-green-600 hover:bg-green-700 text-white',
     danger: 'bg-red-600 hover:bg-red-700 text-white'
@@ -205,7 +205,7 @@ function ActionButton({ action, onClick }: { action: MessageAction; onClick: () 
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-colors ${buttonClass}`}
+      className={`clickable-scale px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-colors ${buttonClass}`}
     >
       {action.icon && <span className="material-symbols-outlined text-[18px]">{action.icon}</span>}
       {action.label}
@@ -301,7 +301,7 @@ function AgentRequestForm({ message, onSubmit, onFileUpload }: { message: ChatMe
         <button
           onClick={handleSubmit}
           disabled={!selectedValue}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-sm transition-colors"
+          className="clickable-scale px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-sm transition-colors"
         >
           Submit
         </button>
@@ -344,7 +344,7 @@ function AgentRequestForm({ message, onSubmit, onFileUpload }: { message: ChatMe
         <button
           onClick={handleSubmit}
           disabled={uploadedFiles.length === 0}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-sm transition-colors"
+          className="clickable-scale px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-sm transition-colors"
         >
           Upload
         </button>
@@ -362,7 +362,7 @@ function FileAttachmentView({ attachments }: { attachments: any[] }) {
     <div className="space-y-2">
       {attachments.map((file, idx) => (
         <div key={idx} className="flex items-center gap-3 p-3 bg-slate-900 border border-slate-700 rounded-lg">
-          <span className="material-symbols-outlined text-blue-400">description</span>
+          <span className="material-symbols-outlined text-teal-400">description</span>
           <div className="flex-1">
             <div className="text-sm font-medium">{file.filename}</div>
             <div className="text-xs text-slate-500">
@@ -374,7 +374,7 @@ function FileAttachmentView({ attachments }: { attachments: any[] }) {
               href={file.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold transition-colors"
+              className="clickable-scale px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded text-xs font-semibold transition-colors"
             >
               Open
             </a>

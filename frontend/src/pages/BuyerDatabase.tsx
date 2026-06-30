@@ -81,12 +81,12 @@ const BuyerDatabase: React.FC = () => {
                 paddingBottom: 22, borderBottom: '1px solid var(--border)', marginBottom: 28,
             }}>
                 <div>
-                    <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', marginBottom: 8, fontFamily: "'Geist Mono', monospace" }}>
+                    <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', marginBottom: 8, fontWeight: 600, fontFamily: "'Geist Mono', monospace" }}>
                         Deal Pipeline / Offtake
                     </div>
                     <h1 style={{
-                        fontFamily: "'Source Serif 4', serif", fontWeight: 400,
-                        fontSize: 36, letterSpacing: '-0.02em', color: 'var(--ink-900)',
+                        fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800,
+                        fontSize: 28, letterSpacing: '-0.02em', color: 'var(--ink-900)',
                         margin: 0, lineHeight: 1.1,
                     }}>
                         Buyer Database
@@ -129,31 +129,34 @@ const BuyerDatabase: React.FC = () => {
                     </button>
                 </div>
             ) : (
-                <div className="resp-table-mobile" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                <div className="resp-table-mobile" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
                     <div className="resp-thead" style={{
                         display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1.4fr) 140px 120px',
                         columnGap: 20,
-                        padding: '10px 20px', borderBottom: '1px solid var(--border)',
-                        background: 'var(--ink-50)',
+                        padding: '12px 20px', borderBottom: '1px solid var(--border)',
+                        background: 'var(--surface-2)',
                     }}>
                         {['Buyer', 'Commodities / Geography', 'Volume (MT/yr)', 'Price floor'].map(h => (
                             <div key={h} style={{
-                                fontSize: 10, letterSpacing: '0.12em',
-                                textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500,
+                                fontSize: 10, letterSpacing: '0.14em',
+                                textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600,
                             }}>{h}</div>
                         ))}
                     </div>
                     {buyers.map((buyer, i) => (
-                        <div key={buyer.id} className="resp-row" style={{
+                        <div key={buyer.id} className="resp-row qp-transition" style={{
                             display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1.4fr) 140px 120px',
                             columnGap: 20,
                             padding: '14px 20px', alignItems: 'start',
                             borderBottom: i < buyers.length - 1 ? '1px solid var(--border)' : 'none',
-                        }}>
+                        }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
                             <div data-label="primary">
                                 <div style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500 }}>{buyer.name}</div>
                                 {buyer.contract_term_years && (
-                                    <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 3 }}>
+                                    <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 3, fontFamily: "'Geist Mono', monospace" }}>
                                         {buyer.contract_term_years}yr contract term
                                     </div>
                                 )}
@@ -206,7 +209,7 @@ const BuyerDatabase: React.FC = () => {
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                             padding: '20px 24px', borderBottom: '1px solid var(--border)',
                         }}>
-                            <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink-900)', margin: 0 }}>
+                            <h3 style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0 }}>
                                 Add buyer / offtaker
                             </h3>
                             <button onClick={() => setShowAddModal(false)} style={{

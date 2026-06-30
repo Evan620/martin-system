@@ -63,7 +63,7 @@ export const ProjectLifecycleTimeline: React.FC<Props> = ({ project }) => {
                     } else if (isActive) {
                         if (isDeclined) statusColor = 'bg-red-500 text-white';
                         else if (isRevision) statusColor = 'bg-amber-500 text-white';
-                        else statusColor = 'bg-blue-600 text-white';
+                        else statusColor = 'bg-teal-600 text-white';
                     }
 
                     return (

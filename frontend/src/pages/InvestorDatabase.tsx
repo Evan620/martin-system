@@ -2,9 +2,9 @@ import React from 'react';
 
 const InvestorDatabase: React.FC = () => {
     return (
-        <div className="p-8 text-center text-slate-500">
-            <h2 className="text-xl font-bold mb-4">Investor Database</h2>
-            <p>Management interface coming soon.</p>
+        <div className="p-8 text-center" style={{ color: 'var(--ink-500)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+            <h2 className="mb-4" style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--ink-900)' }}>Investor Database</h2>
+            <p style={{ fontSize: 13 }}>Management interface coming soon.</p>
         </div>
     );
 };

@@ -167,7 +167,7 @@ const EditProject: React.FC = () => {
 
             <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Edit Project</h2>
-                <button onClick={() => navigate(`/deal-pipeline/${projectId}`)} className="text-sm px-4 py-2 border rounded-lg hover:bg-slate-50">Cancel</button>
+                <button onClick={() => navigate(`/deal-pipeline/${projectId}`)} className="clickable-scale text-sm px-4 py-2 border rounded-lg hover:bg-slate-50">Cancel</button>
             </div>
 
             {error && <div className="bg-red-50 text-red-700 p-4 rounded-lg">{error}</div>}
@@ -273,10 +273,10 @@ const EditProject: React.FC = () => {
                                             ? prev.value_chain_stages.filter(s => s !== code)
                                             : [...prev.value_chain_stages, code],
                                     }))}
-                                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                                    className={`clickable-scale px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                                         selected
-                                            ? 'bg-blue-600 text-white border-blue-600'
-                                            : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600'
+                                            ? 'bg-teal-600 text-white border-teal-600'
+                                            : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600'
                                     }`}
                                 >
                                     {label}
@@ -296,7 +296,7 @@ const EditProject: React.FC = () => {
                         <button
                             type="button"
                             onClick={() => setFormData(prev => ({ ...prev, gender_intentional: true }))}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                            className={`clickable-scale px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                                 formData.gender_intentional === true
                                     ? 'bg-green-600 text-white border-green-600'
                                     : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-green-400'
@@ -305,7 +305,7 @@ const EditProject: React.FC = () => {
                         <button
                             type="button"
                             onClick={() => setFormData(prev => ({ ...prev, gender_intentional: false }))}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                            className={`clickable-scale px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                                 formData.gender_intentional === false
                                     ? 'bg-slate-600 text-white border-slate-600'
                                     : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-slate-400'
@@ -318,7 +318,7 @@ const EditProject: React.FC = () => {
                             placeholder="Describe how this project is intentionally designed to benefit women (ownership, leadership, beneficiaries)..."
                             value={formData.gender_justification ?? ''}
                             onChange={e => setFormData(prev => ({ ...prev, gender_justification: e.target.value }))}
-                            className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
                         />
                     )}
                 </div>
@@ -332,19 +332,19 @@ const EditProject: React.FC = () => {
                         <button
                             type="button"
                             onClick={() => setFormData(prev => ({ ...prev, youth_focused: true }))}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                            className={`clickable-scale px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                                 formData.youth_focused === true
-                                    ? 'bg-blue-600 text-white border-blue-600'
-                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-blue-400'
+                                    ? 'bg-teal-600 text-white border-teal-600'
+                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-teal-400'
                             }`}
                         >Yes</button>
                         <button
                             type="button"
                             onClick={() => setFormData(prev => ({ ...prev, youth_focused: false }))}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                            className={`clickable-scale px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                                 formData.youth_focused === false
                                     ? 'bg-slate-600 text-white border-slate-600'
-                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-blue-400'
+                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-teal-400'
                             }`}
                         >No</button>
                     </div>
@@ -354,14 +354,14 @@ const EditProject: React.FC = () => {
                             placeholder="Describe the youth employment focus (target age group, jobs created for under-35s, youth ownership)..."
                             value={formData.youth_justification ?? ''}
                             onChange={e => setFormData(prev => ({ ...prev, youth_justification: e.target.value }))}
-                            className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
                         />
                     )}
                 </div>
 
                 <div className="pt-4 border-t flex justify-end gap-3">
-                    <button type="button" onClick={() => navigate(`/deal-pipeline/${projectId}`)} className="px-4 py-2 border rounded-lg hover:bg-slate-50">Cancel</button>
-                    <button type="submit" disabled={isSubmitting} className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    <button type="button" onClick={() => navigate(`/deal-pipeline/${projectId}`)} className="clickable-scale px-4 py-2 border rounded-lg hover:bg-slate-50">Cancel</button>
+                    <button type="submit" disabled={isSubmitting} className="clickable-scale px-6 py-2 bg-primary text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
                         {isSubmitting ? 'Saving...' : 'Save Changes'}
                     </button>
                 </div>

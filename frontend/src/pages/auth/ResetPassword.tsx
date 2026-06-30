@@ -60,7 +60,7 @@ export default function ResetPassword() {
     if (!token) {
         return (
             <div className="flex h-screen bg-slate-50 text-slate-900 items-center justify-center p-8">
-                <div className="w-full max-w-md space-y-8 text-center">
+                <div className="w-full max-w-md space-y-8 text-center animate-blur-slide">
                     <div className="flex justify-center">
                         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
                             <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -74,7 +74,7 @@ export default function ResetPassword() {
                     </div>
                     <Link
                         to="/forgot-password"
-                        className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg"
+                        className="clickable-scale inline-block px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg"
                     >
                         Request New Link
                     </Link>
@@ -86,7 +86,7 @@ export default function ResetPassword() {
     if (isSuccess) {
         return (
             <div className="flex h-screen bg-slate-50 text-slate-900 items-center justify-center p-8">
-                <div className="w-full max-w-md space-y-8 text-center">
+                <div className="w-full max-w-md space-y-8 text-center animate-blur-slide">
                     <div className="flex justify-center">
                         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
                             <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -99,7 +99,7 @@ export default function ResetPassword() {
                         <p className="text-slate-500">Your password has been updated. Redirecting to login...</p>
                     </div>
                     <div className="flex justify-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
                     </div>
                 </div>
             </div>
@@ -128,7 +128,7 @@ export default function ResetPassword() {
 
                 <div className="relative z-10 flex flex-col justify-end p-16 space-y-6 text-white">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/20">
+                        <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center border border-white/20">
                             <span className="font-bold text-lg">W</span>
                         </div>
                         <span className="text-xl font-display font-semibold">WAIIS TWG</span>
@@ -136,7 +136,7 @@ export default function ResetPassword() {
                     <h1 className="text-5xl font-display font-bold leading-tight">
                         Create a New Password
                     </h1>
-                    <p className="text-blue-100 text-lg max-w-lg">
+                    <p className="text-teal-100 text-lg max-w-lg">
                         Choose a strong password to secure your account. Make sure it's at least 8 characters long.
                     </p>
                 </div>
@@ -144,7 +144,7 @@ export default function ResetPassword() {
 
             {/* Right side - Form */}
             <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white">
-                <div className="w-full max-w-md space-y-8">
+                <div className="w-full max-w-md space-y-8 animate-blur-slide">
                     <div className="flex justify-end">
                         <div className="flex items-center gap-2 px-3 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs text-slate-500 font-medium">
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -212,7 +212,7 @@ export default function ResetPassword() {
                         <Button
                             type="submit"
                             isLoading={isLoading}
-                            className="w-full py-3 bg-primary hover:bg-blue-800 text-white font-semibold rounded-lg shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
+                            className="clickable-scale w-full py-3 bg-primary hover:bg-teal-800 text-white font-semibold rounded-lg shadow-lg shadow-teal-200 flex items-center justify-center gap-2"
                         >
                             Reset Password
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -224,7 +224,7 @@ export default function ResetPassword() {
                     <div className="text-center">
                         <Link
                             to="/login"
-                            className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors"
+                            className="inline-flex items-center gap-2 text-slate-500 hover:text-teal-600 transition-colors"
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />

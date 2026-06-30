@@ -133,8 +133,8 @@ export default function NotificationCenter() {
                     <div className="p-4 border-b border-white/50 dark:border-white/10 bg-white/30 dark:bg-white/5">
                         <div className="flex items-center justify-between">
                             <h3 className="font-bold text-[#0d121b] dark:text-white">Notifications</h3>
-                            <span className="bg-[#1152d4] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                                {notifications.filter(n => !n.is_read).length} UNREAD
+                            <span className="bg-[#1152d4] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                <span className="font-mono-geist">{notifications.filter(n => !n.is_read).length}</span> Unread
                             </span>
                         </div>
                     </div>
@@ -175,7 +175,7 @@ export default function NotificationCenter() {
                                                 {!n.is_read && <div className="size-2 rounded-full bg-[#1152d4] shrink-0 ml-2"></div>}
                                             </div>
                                             <p className="text-xs text-[#4c669a] dark:text-[#a0aec0] truncate">{n.content}</p>
-                                            <span className="text-[10px] text-[#a0aec0] mt-1 block">{formatTime(n.created_at)}</span>
+                                            <span className="text-[10px] text-[#a0aec0] mt-1 block font-mono-geist">{formatTime(n.created_at)}</span>
                                         </div>
                                     </div>
                                 ))}
@@ -203,7 +203,7 @@ export default function NotificationCenter() {
                                                 {!n.is_read && <div className="size-2 rounded-full bg-[#1152d4] shrink-0 ml-2"></div>}
                                             </div>
                                             <p className="text-xs text-[#4c669a] dark:text-[#a0aec0] truncate">{n.content}</p>
-                                            <span className="text-[10px] text-[#a0aec0] mt-1 block">{formatTime(n.created_at)}</span>
+                                            <span className="text-[10px] text-[#a0aec0] mt-1 block font-mono-geist">{formatTime(n.created_at)}</span>
                                         </div>
                                     </div>
                                 ))}
@@ -277,11 +277,11 @@ export default function NotificationCenter() {
                             <div className="p-8 border-t border-white/50 dark:border-white/10 bg-white/30 dark:bg-white/5 flex items-center justify-between">
                                 <div className="flex items-center gap-2 text-[#a0aec0]">
                                     <span className="material-symbols-outlined text-[18px]">calendar_today</span>
-                                    <span className="text-sm font-medium">{formatTime(selectedNotification.created_at)}</span>
+                                    <span className="text-sm font-medium font-mono-geist">{formatTime(selectedNotification.created_at)}</span>
                                 </div>
                                 <div className="flex items-center gap-2 text-[#a0aec0]">
                                     <span className="material-symbols-outlined text-[18px]">history</span>
-                                    <span className="text-sm font-medium">{new Date(selectedNotification.created_at).toLocaleTimeString()}</span>
+                                    <span className="text-sm font-medium font-mono-geist">{new Date(selectedNotification.created_at).toLocaleTimeString()}</span>
                                 </div>
                             </div>
                         </div>

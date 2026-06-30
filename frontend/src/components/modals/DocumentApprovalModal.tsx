@@ -49,7 +49,7 @@ export default function DocumentApprovalModal({ approvalRequest, onResolve }: Do
                 <div className="p-6 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
                                 {draft.document_type || 'Document'} Approval
                             </span>
                             <span className="material-symbols-outlined text-sm text-slate-400">lock</span>
@@ -60,8 +60,8 @@ export default function DocumentApprovalModal({ approvalRequest, onResolve }: Do
                     <div className="flex gap-2">
                         <button
                             onClick={() => setViewMode('edit')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${viewMode === 'edit'
-                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors clickable-scale ${viewMode === 'edit'
+                                ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
                                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
                                 }`}
                         >
@@ -69,8 +69,8 @@ export default function DocumentApprovalModal({ approvalRequest, onResolve }: Do
                         </button>
                         <button
                             onClick={() => setViewMode('preview')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${viewMode === 'preview'
-                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors clickable-scale ${viewMode === 'preview'
+                                ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
                                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
                                 }`}
                         >
@@ -90,7 +90,7 @@ export default function DocumentApprovalModal({ approvalRequest, onResolve }: Do
                                 type="text"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
-                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none"
                             />
                         </div>
 
@@ -122,7 +122,7 @@ export default function DocumentApprovalModal({ approvalRequest, onResolve }: Do
                         <button
                             onClick={handleDecline}
                             disabled={isSubmitting}
-                            className="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                            className="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors clickable-scale"
                         >
                             Decline & Stop
                         </button>
@@ -130,8 +130,8 @@ export default function DocumentApprovalModal({ approvalRequest, onResolve }: Do
                             onClick={handleApprove}
                             disabled={isSubmitting}
                             className={`
-                                relative overflow-hidden px-6 py-2 rounded-xl text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-all
-                                ${isSubmitting ? 'bg-blue-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:scale-105 active:scale-95'}
+                                relative overflow-hidden px-6 py-2 rounded-xl text-sm font-bold text-white shadow-lg shadow-teal-500/30 transition-all
+                                ${isSubmitting ? 'bg-teal-400 cursor-not-allowed' : 'bg-gradient-to-r from-teal-600 to-teal-700 hover:scale-105 active:scale-95'}
                             `}
                         >
                             {isSubmitting ? (

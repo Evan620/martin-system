@@ -63,7 +63,7 @@ export default function ToolStepRow({ event, startedAt }: ToolStepRowProps) {
                 {done ? (
                     <span className="text-green-500 flex-shrink-0 text-xs">✓</span>
                 ) : (
-                    <span className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    <span className="w-3 h-3 border-2 border-teal-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
                 )}
             </button>
 

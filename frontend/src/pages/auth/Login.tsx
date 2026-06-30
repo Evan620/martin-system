@@ -9,7 +9,7 @@ declare global {
 }
 
 const f = "'Geist', 'Inter', system-ui, sans-serif"
-const serif = "'Source Serif 4', Georgia, serif"
+const serif = "'Geist', Georgia, serif"
 const mono = "'Geist Mono', monospace"
 
 export default function Login() {

@@ -98,10 +98,10 @@ export default function SlashCommandPalette({
         if (!listRef.current) return;
         const items = listRef.current.querySelectorAll('li');
         items.forEach((item, i) => {
-            item.classList.toggle('bg-blue-50', i === index);
-            item.classList.toggle('dark:bg-blue-900/30', i === index);
-            item.classList.toggle('text-blue-700', i === index);
-            item.classList.toggle('dark:text-blue-300', i === index);
+            item.classList.toggle('bg-teal-50', i === index);
+            item.classList.toggle('dark:bg-teal-900/30', i === index);
+            item.classList.toggle('text-teal-700', i === index);
+            item.classList.toggle('dark:text-teal-300', i === index);
             item.classList.toggle('text-slate-700', i !== index);
             item.classList.toggle('dark:text-slate-300', i !== index);
         });
@@ -120,7 +120,7 @@ export default function SlashCommandPalette({
                         key={cmd.command}
                         className={`px-3 py-2 text-xs cursor-pointer flex items-center gap-3 transition-colors
                             ${idx === 0
-                                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300'
                                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
                             }`}
                         onMouseDown={e => {
@@ -132,7 +132,7 @@ export default function SlashCommandPalette({
                             highlightItem(idx);
                         }}
                     >
-                        <span className="font-mono font-bold text-blue-600 dark:text-blue-400 w-20 flex-shrink-0 text-[11px]">
+                        <span className="font-mono font-bold text-teal-600 dark:text-teal-400 w-20 flex-shrink-0 text-[11px]">
                             {cmd.command}
                         </span>
                         <span className="flex-1 truncate text-slate-500 dark:text-slate-400">{cmd.description}</span>

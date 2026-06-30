@@ -71,7 +71,7 @@ const MarkdownContent = ({ content }: { content: string }) => (
             a: ({ href, children }) => (
                 <a
                     href={href}
-                    className="text-blue-600 dark:text-blue-400 hover:underline underline-offset-2"
+                    className="text-teal-600 dark:text-teal-400 hover:underline underline-offset-2"
                     target="_blank"
                     rel="noopener noreferrer"
                 >
@@ -186,10 +186,10 @@ export default function EnhancedMessageBubble({ message, onReact, onCopy, onRepl
                         {/* Inline Approval UI */}
                         {message.approvalRequest && (
                             <div className="mt-4 pt-4 border-t border-[#e7ebf3] dark:border-[#2d3748]">
-                                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 mb-3 border border-blue-100 dark:border-blue-800">
+                                <div className="bg-teal-50 dark:bg-teal-900/20 rounded-lg p-3 mb-3 border border-teal-100 dark:border-teal-800">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[18px]">mail</span>
-                                        <span className="text-xs font-bold text-blue-800 dark:text-blue-200">Email Draft</span>
+                                        <span className="material-symbols-outlined text-teal-600 dark:text-teal-400 text-[18px]">mail</span>
+                                        <span className="text-xs font-bold text-teal-800 dark:text-teal-200">Email Draft</span>
                                     </div>
                                     {isEditing ? (
                                         <div className="flex flex-col gap-3">
@@ -197,13 +197,13 @@ export default function EnhancedMessageBubble({ message, onReact, onCopy, onRepl
                                                 type="text"
                                                 value={editSubject}
                                                 onChange={(e) => setEditSubject(e.target.value)}
-                                                className="w-full px-2 py-1 text-sm font-medium border border-blue-200 dark:border-blue-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                className="w-full px-2 py-1 text-sm font-medium border border-teal-200 dark:border-teal-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
                                                 placeholder="Subject"
                                             />
                                             <textarea
                                                 value={editBody}
                                                 onChange={(e) => setEditBody(e.target.value)}
-                                                className="w-full h-32 px-2 py-1 text-xs text-slate-600 dark:text-slate-400 border border-blue-200 dark:border-blue-700 rounded bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                                className="w-full h-32 px-2 py-1 text-xs text-slate-600 dark:text-slate-400 border border-teal-200 dark:border-teal-700 rounded bg-white dark:bg-slate-800 focus:ring-2 focus:ring-teal-500 outline-none resize-none"
                                                 placeholder="Email Body"
                                             />
                                         </div>
@@ -249,7 +249,7 @@ export default function EnhancedMessageBubble({ message, onReact, onCopy, onRepl
                                                             }
                                                         }}
                                                         disabled={actionStatus !== 'idle'}
-                                                        className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xs font-semibold py-2 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-75 disabled:cursor-not-allowed"
+                                                        className="clickable-scale flex-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold py-2 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-75 disabled:cursor-not-allowed"
                                                     >
                                                         {actionStatus === 'approving' ? (
                                                             <>
@@ -266,7 +266,7 @@ export default function EnhancedMessageBubble({ message, onReact, onCopy, onRepl
                                                     <button
                                                         onClick={() => setIsEditing(true)}
                                                         disabled={actionStatus !== 'idle'}
-                                                        className="px-3 bg-white dark:bg-[#1a202c] border border-blue-200 dark:border-blue-900/50 text-blue-600 dark:text-blue-400 text-xs font-semibold py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                                                        className="clickable-scale px-3 bg-white dark:bg-[#1a202c] border border-teal-200 dark:border-teal-900/50 text-teal-600 dark:text-teal-400 text-xs font-semibold py-2 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-900/10 transition-colors flex items-center gap-1.5 disabled:opacity-50"
                                                     >
                                                         <span className="material-symbols-outlined text-[16px]">edit</span>
                                                         Edit
@@ -292,7 +292,7 @@ export default function EnhancedMessageBubble({ message, onReact, onCopy, onRepl
                                                             }
                                                         }}
                                                         disabled={actionStatus !== 'idle'}
-                                                        className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xs font-semibold py-2 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-75 disabled:cursor-not-allowed"
+                                                        className="clickable-scale flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xs font-semibold py-2 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-75 disabled:cursor-not-allowed"
                                                     >
                                                         {actionStatus === 'approving' ? (
                                                             <>
@@ -358,7 +358,7 @@ export default function EnhancedMessageBubble({ message, onReact, onCopy, onRepl
                                 <button
                                     key={idx}
                                     onClick={() => onSuggestionClick?.(suggestion)}
-                                    className="text-left text-[11px] bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
+                                    className="clickable-scale text-left text-[11px] bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 px-2.5 py-1.5 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-900/30 hover:border-teal-300 dark:hover:border-teal-700 hover:text-teal-600 dark:hover:text-teal-300 transition-colors"
                                 >
                                     {suggestion}
                                 </button>

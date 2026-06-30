@@ -168,11 +168,11 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                         background: 'var(--accent)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         color: 'var(--accent-ink)',
-                        fontFamily: "'Source Serif 4', serif",
+                        fontFamily: "'Geist', serif",
                         fontSize: 14, fontWeight: 600,
                     }}>W</div>
                     <div>
-                        <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 14, color: 'var(--ink-900)', lineHeight: 1.1, letterSpacing: '-0.01em' }}>
+                        <div style={{ fontFamily: "'Geist', serif", fontSize: 14, color: 'var(--ink-900)', lineHeight: 1.1, letterSpacing: '-0.01em' }}>
                             WAIIS
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--ink-500)', letterSpacing: '0.04em' }}>
@@ -198,7 +198,7 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                                         <button
                                             key={item.path}
                                             onClick={() => navigate(item.path)}
-                                            className="relative flex items-center gap-2.5 text-left transition-colors"
+                                            className="relative flex items-center gap-2.5 text-left transition-colors clickable-scale"
                                             style={{
                                                 padding: '7px 10px 7px 14px',
                                                 fontSize: 13,
@@ -325,7 +325,7 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                         <ThemeToggle />
                         <button
                             onClick={() => setCopilotOpen(!copilotOpen)}
-                            className="flex items-center gap-1.5"
+                            className="flex items-center gap-1.5 clickable-scale qp-transition"
                             style={{
                                 background: copilotOpen ? 'var(--accent)' : 'transparent',
                                 color: copilotOpen ? 'var(--accent-ink)' : 'var(--ink-700)',
@@ -348,7 +348,7 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                             style={{ background: 'var(--surface)', borderRight: '1px solid var(--border)' }}
                         >
                             <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border)' }}>
-                                <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 15, color: 'var(--ink-900)' }}>WAIIS</div>
+                                <div style={{ fontFamily: "'Geist', serif", fontSize: 15, color: 'var(--ink-900)' }}>WAIIS</div>
                                 <button onClick={() => setIsMobileMenuOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-500)' }}>
                                     <span className="material-symbols-outlined">close</span>
                                 </button>
@@ -392,10 +392,10 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                         </main>
                     ) : (
                     <main
-                        className="flex-1 overflow-y-auto min-w-0 px-4 sm:px-6 lg:px-12 pt-4 sm:pt-6 lg:pt-10 pb-24 lg:pb-12"
+                        className="flex-1 overflow-y-auto min-w-0 px-4 sm:px-6 lg:px-12 pt-4 sm:pt-6 lg:pt-10 pb-24 lg:pb-12 main-mobile-padding"
                         style={{ background: 'var(--bg)' }}
                     >
-                        <div className="max-w-[1180px] mx-auto w-full">
+                        <div key={location.pathname} className="max-w-[1180px] mx-auto w-full animate-blur-slide">
                             {children || <Outlet />}
                         </div>
                     </main>
@@ -429,7 +429,7 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
             {!copilotOpen && (
                 <button
                     onClick={() => setCopilotOpen(true)}
-                    className="fixed right-4 lg:right-6 z-40 flex items-center gap-2 bottom-20 lg:bottom-6"
+                    className="fixed right-4 lg:right-6 z-40 flex items-center gap-2 bottom-20 lg:bottom-6 clickable-scale"
                     style={{
                         background: 'var(--accent)', color: 'var(--accent-ink)',
                         border: 'none', padding: '10px 18px', borderRadius: 999,

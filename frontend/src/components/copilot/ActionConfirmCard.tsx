@@ -50,7 +50,7 @@ function EditInput({
                 type="text"
                 value={value}
                 onChange={e => onChange(fieldKey, e.target.value)}
-                className="flex-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-md px-2 py-1 text-xs text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-md px-2 py-1 text-xs text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-teal-500"
             />
         </div>
     );
@@ -128,7 +128,7 @@ export default function ActionConfirmCard({ event, onExecute }: ActionConfirmCar
 
     if (cardState === 'success') {
         return (
-            <div className="glass-card rounded-2xl border border-green-200/60 dark:border-green-800/40 px-4 py-3">
+            <div className="bg-[var(--surface)] rounded-2xl border border-green-200/60 dark:border-green-800/40 px-4 py-3">
                 <p className="text-xs font-bold text-green-600 dark:text-green-400">Done — {successMessage}</p>
             </div>
         );
@@ -136,7 +136,7 @@ export default function ActionConfirmCard({ event, onExecute }: ActionConfirmCar
 
     if (cardState === 'cancelled') {
         return (
-            <div className="glass-card rounded-2xl border border-slate-200/60 dark:border-slate-700/40 px-4 py-3">
+            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] px-4 py-3">
                 <p className="text-xs text-slate-500 dark:text-slate-400">Cancelled</p>
             </div>
         );
@@ -144,17 +144,17 @@ export default function ActionConfirmCard({ event, onExecute }: ActionConfirmCar
 
     if (cardState === 'expired') {
         return (
-            <div className="glass-card rounded-2xl border border-slate-200/60 dark:border-slate-700/40 px-4 py-3">
+            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] px-4 py-3">
                 <p className="text-xs text-slate-400 dark:text-slate-500 italic">This action has expired.</p>
             </div>
         );
     }
 
     return (
-        <div className="glass-card rounded-2xl border border-blue-100/40 dark:border-blue-800/30 overflow-hidden">
+        <div className="bg-[var(--surface)] rounded-2xl border border-teal-100/40 dark:border-teal-800/30 overflow-hidden">
             {/* Card header */}
             <div className="px-4 pt-3 pb-2 border-b border-slate-100/80 dark:border-slate-700/50">
-                <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wide">{headerLabel}</span>
+                <span className="text-[11px] font-bold text-teal-700 dark:text-teal-300 uppercase tracking-wide">{headerLabel}</span>
             </div>
 
             {/* Fields */}
@@ -188,21 +188,21 @@ export default function ActionConfirmCard({ event, onExecute }: ActionConfirmCar
             <div className="px-4 pb-3 flex items-center gap-2 border-t border-slate-100/80 dark:border-slate-700/50 pt-3">
                 <button
                     onClick={handleConfirm}
-                    className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                    className="clickable-scale px-3 py-1.5 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 transition-colors"
                 >
                     {event.action_type === 'draft_document' ? 'Save to Library' : '✓ Confirm'}
                 </button>
                 {event.action_type !== 'draft_document' && (
                     <button
                         onClick={() => setCardState(cardState === 'editing' ? 'pending' : 'editing')}
-                        className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                        className="clickable-scale px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                     >
                         {cardState === 'editing' ? 'Back' : '✎ Edit'}
                     </button>
                 )}
                 <button
                     onClick={handleCancel}
-                    className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors ml-auto"
+                    className="clickable-scale px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors ml-auto"
                 >
                     ✕ Cancel
                 </button>

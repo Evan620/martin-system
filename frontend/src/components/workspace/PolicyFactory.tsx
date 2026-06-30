@@ -71,7 +71,7 @@ export default function PolicyFactory() {
                     <h2 className="text-2xl font-display font-bold text-slate-900 dark:text-white">Policy & Content Factory</h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400">Manufacture, Refine, and Finalize Technical Outputs</p>
                 </div>
-                <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-900/20 transition-all flex items-center gap-2">
+                <button className="clickable-scale px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-teal-900/20 transition-all flex items-center gap-2">
                     <span className="material-symbols-outlined text-[20px]">add</span>
                     New Zero Draft
                 </button>
@@ -96,7 +96,7 @@ export default function PolicyFactory() {
                             {drafts.filter(d => d.type === type).map((draft) => (
                                 <Card
                                     key={draft.id}
-                                    className="p-4 cursor-pointer hover:border-blue-500/50 hover:shadow-md transition-all group"
+                                    className="clickable-scale p-4 cursor-pointer hover:border-teal-500/50 hover:shadow-md transition-all group"
                                     onClick={() => setActiveDraft(draft)}
                                 >
                                     <div className="flex justify-between items-start mb-2">
@@ -105,7 +105,7 @@ export default function PolicyFactory() {
                                         </Badge>
                                         <span className="text-[10px] text-slate-400 font-bold">{draft.lastUpdated}</span>
                                     </div>
-                                    <h4 className="font-bold text-sm text-slate-900 dark:text-white mb-2 leading-tight group-hover:text-blue-500 transition-colors">
+                                    <h4 className="font-bold text-sm text-slate-900 dark:text-white mb-2 leading-tight group-hover:text-teal-500 transition-colors">
                                         {draft.title}
                                     </h4>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">
@@ -136,7 +136,7 @@ export default function PolicyFactory() {
                         {/* Modal Header */}
                         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-[#1a202c]">
                             <div className="flex items-center gap-4">
-                                <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600">
+                                <div className="p-2 bg-teal-50 dark:bg-teal-900/20 rounded-lg text-teal-600">
                                     <span className="material-symbols-outlined">edit_document</span>
                                 </div>
                                 <div>
@@ -146,15 +146,15 @@ export default function PolicyFactory() {
                             </div>
                             <div className="flex items-center gap-3">
                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Auto-saved 2m ago</span>
-                                <button className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                <button className="clickable-scale px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
                                     Share
                                 </button>
-                                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-500 transition-colors">
+                                <button className="clickable-scale px-4 py-2 bg-teal-600 text-white rounded-lg font-bold text-xs hover:bg-teal-500 transition-colors">
                                     Save & Close
                                 </button>
                                 <button
                                     onClick={() => setActiveDraft(null)}
-                                    className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                                    className="clickable-scale p-2 text-slate-400 hover:text-slate-600 transition-colors"
                                 >
                                     <span className="material-symbols-outlined">close</span>
                                 </button>
@@ -183,7 +183,7 @@ export default function PolicyFactory() {
                                     <input
                                         type="text"
                                         placeholder="Ask AI to refine text..."
-                                        className="w-full text-xs bg-slate-50 dark:bg-slate-800 border-none rounded-lg p-3 focus:ring-1 focus:ring-blue-500"
+                                        className="w-full text-xs bg-slate-50 dark:bg-slate-800 border-none rounded-lg p-3 focus:ring-1 focus:ring-teal-500"
                                     />
                                 </div>
                             </div>

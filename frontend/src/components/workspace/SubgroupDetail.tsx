@@ -121,7 +121,7 @@ export default function SubgroupDetail({ twgId, twgName, subgroup: initialSubgro
             {/* Back link */}
             <button
                 onClick={onBack}
-                className="text-sm text-blue-600 hover:text-blue-500 font-bold transition-colors"
+                className="text-sm text-teal-600 hover:text-teal-500 font-bold transition-colors"
             >
                 ← Back to Subgroups
             </button>
@@ -146,7 +146,7 @@ export default function SubgroupDetail({ twgId, twgName, subgroup: initialSubgro
                             key={tab}
                             onClick={() => setActiveTab(tab)}
                             className={`pb-3 text-sm font-bold transition-all border-b-2 capitalize ${activeTab === tab
-                                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                                ? 'border-teal-600 text-teal-600 dark:text-teal-400'
                                 : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                             }`}
                         >
@@ -168,7 +168,7 @@ export default function SubgroupDetail({ twgId, twgName, subgroup: initialSubgro
                         {canEdit && (
                             <button
                                 onClick={() => setShowAddMember(!showAddMember)}
-                                className="text-sm font-bold text-blue-600 hover:text-blue-500 transition-colors uppercase tracking-widest"
+                                className="text-sm font-bold text-teal-600 hover:text-teal-500 transition-colors uppercase tracking-widest"
                             >
                                 {showAddMember ? 'Cancel' : '+ Add Member'}
                             </button>
@@ -182,7 +182,7 @@ export default function SubgroupDetail({ twgId, twgName, subgroup: initialSubgro
                             <select
                                 value={selectedUserId}
                                 onChange={e => setSelectedUserId(e.target.value)}
-                                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                             >
                                 <option value="">-- Select a member --</option>
                                 {availableToAdd.map(m => (
@@ -195,7 +195,7 @@ export default function SubgroupDetail({ twgId, twgName, subgroup: initialSubgro
                             <button
                                 onClick={handleAddMember}
                                 disabled={adding || !selectedUserId}
-                                className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
+                                className="clickable-scale px-4 py-2 bg-teal-600 text-white text-sm font-bold rounded-lg hover:bg-teal-500 disabled:opacity-50 transition-colors"
                             >
                                 {adding ? 'Adding...' : 'Add'}
                             </button>

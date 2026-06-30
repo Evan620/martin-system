@@ -32,7 +32,7 @@ export default function ActiveMeetingRedirect() {
                     <p className="text-slate-500 text-sm mb-6">{error}</p>
                     <button
                         onClick={() => navigate('/schedule')}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                        className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors clickable-scale"
                     >
                         View Schedule
                     </button>
@@ -43,7 +43,7 @@ export default function ActiveMeetingRedirect() {
 
     return (
         <div className="h-full flex flex-col items-center justify-center">
-            <div className="size-12 rounded-full border-4 border-blue-600 border-t-transparent animate-spin mb-4"></div>
+            <div className="size-12 rounded-full border-4 border-teal-600 border-t-transparent animate-spin mb-4"></div>
             <p className="text-slate-500 font-medium">Entering Live Monitor...</p>
         </div>
     );

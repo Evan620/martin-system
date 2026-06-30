@@ -63,12 +63,13 @@ export default function MeetingSidebar({ meeting }: MeetingSidebarProps) {
                 overflowY: 'auto',
             }}
         >
+            {/* Meeting details section */}
             <div style={{ marginBottom: 28 }}>
                 <div style={sectionLabel}>Meeting details</div>
 
                 <Row label="Date &amp; time">
                     <div style={{
-                        fontFamily: "'Source Serif 4', serif", fontSize: 18,
+                        fontFamily: "'Geist', serif", fontSize: 18,
                         color: 'var(--ink-900)', letterSpacing: '-0.01em', lineHeight: 1.2,
                     }}>{fmtDate(meeting.scheduled_at)}</div>
                     <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 4, fontFamily: "'Geist Mono', monospace" }}>
@@ -118,6 +119,7 @@ export default function MeetingSidebar({ meeting }: MeetingSidebarProps) {
                 </Row>
             </div>
 
+            {/* Participants */}
             <div style={{ marginBottom: 28 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
                     <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>
@@ -139,7 +141,7 @@ export default function MeetingSidebar({ meeting }: MeetingSidebarProps) {
                                     border: '1px solid var(--border)',
                                     background: 'var(--ink-50)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontFamily: "'Source Serif 4', serif",
+                                    fontFamily: "'Geist', serif",
                                     fontSize: 13, color: 'var(--ink-700)',
                                     flexShrink: 0,
                                 }}>{initial}</div>

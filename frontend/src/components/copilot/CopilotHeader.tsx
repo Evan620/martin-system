@@ -42,9 +42,9 @@ export default function CopilotHeader({
                 <div style={{
                     width: 24, height: 24, border: '1px solid var(--border)', background: 'var(--ink-50)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: "'Source Serif 4', serif", fontSize: 13, color: 'var(--accent)', flexShrink: 0,
+                    fontFamily: "'Geist', serif", fontSize: 13, color: 'var(--accent)', flexShrink: 0,
                 }}>M</div>
-                <span style={{ fontFamily: "'Source Serif 4', serif", fontSize: 15, color: 'var(--ink-900)', letterSpacing: '-0.01em' }}>Martin</span>
+                <span style={{ fontFamily: "'Geist', serif", fontSize: 15, color: 'var(--ink-900)', letterSpacing: '-0.01em' }}>Martin</span>
                 <div style={{ position: 'relative' }} ref={dropdownRef}>
                     <button
                         onClick={() => showSelector && setDropdownOpen(prev => !prev)}

@@ -15,11 +15,11 @@ function LedgerStat({ label, value, sub, accent = false, last = false }: {
 }) {
     return (
         <div style={{ paddingRight: 24, borderRight: last ? 'none' : '1px solid var(--border)' }}>
-            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>
                 {label}
             </div>
             <div style={{
-                fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 28,
+                fontFamily: "'Geist Mono', monospace", fontWeight: 800, fontSize: 28,
                 color: accent ? 'var(--accent)' : 'var(--ink-900)', letterSpacing: '-0.02em',
                 marginTop: 4, lineHeight: 1, fontVariantNumeric: 'tabular-nums',
             }}>{value}</div>
@@ -63,7 +63,7 @@ const DealRoomDashboard: React.FC = () => {
                         ★ Deal room
                     </div>
                     <div style={{ width: 16, height: 1, background: 'var(--border)' }} />
-                    <span style={{ fontSize: 12, color: 'var(--ink-700)', fontFamily: "'Source Serif 4', serif", fontStyle: 'italic' }}>
+                    <span style={{ fontSize: 12, color: 'var(--ink-700)', fontFamily: "'Geist', system-ui, sans-serif", fontStyle: 'italic' }}>
                         Flagship opportunities, prepared for engagement.
                     </span>
                 </div>
@@ -149,8 +149,8 @@ const DealRoomDashboard: React.FC = () => {
                                         )}
                                     </div>
                                     <h3 style={{
-                                        fontFamily: "'Source Serif 4', serif", fontWeight: 400,
-                                        fontSize: 19, color: 'var(--ink-900)', letterSpacing: '-0.01em',
+                                        fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800,
+                                        fontSize: 19, color: 'var(--ink-900)', letterSpacing: '-0.02em',
                                         margin: 0, lineHeight: 1.25,
                                     }}>{project.name}</h3>
                                     {project.description && (
@@ -163,7 +163,7 @@ const DealRoomDashboard: React.FC = () => {
                                     )}
                                     <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
                                         <div style={{ flex: 1 }}>
-                                            <div style={{ fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 4 }}>
+                                            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600, marginBottom: 4 }}>
                                                 Investment
                                             </div>
                                             <div style={{
@@ -172,7 +172,7 @@ const DealRoomDashboard: React.FC = () => {
                                             }}>{fmtMoney(Number(project.investment_size))}</div>
                                         </div>
                                         <div style={{ flex: 1 }}>
-                                            <div style={{ fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 4 }}>
+                                            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600, marginBottom: 4 }}>
                                                 Lead country
                                             </div>
                                             <div style={{ fontSize: 13, color: 'var(--ink-900)' }}>{project.lead_country || 'Regional'}</div>
@@ -180,7 +180,7 @@ const DealRoomDashboard: React.FC = () => {
                                     </div>
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-                                            <span style={{ fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>
+                                            <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>
                                                 AfCEN score
                                             </span>
                                             <span style={{ fontSize: 12, fontFamily: "'Geist Mono', monospace", color: 'var(--ink-900)', fontWeight: 500 }}>
@@ -235,9 +235,9 @@ const DealRoomDashboard: React.FC = () => {
                                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                                     border: '1px solid var(--border)', padding: '6px 10px', minWidth: 48,
                                 }}>
-                                    <span style={{ fontSize: 9, letterSpacing: '0.12em', color: 'var(--ink-500)', fontWeight: 500 }}>{m.mon}</span>
+                                    <span style={{ fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600, fontFamily: "'Geist Mono', monospace" }}>{m.mon}</span>
                                     <span style={{
-                                        fontFamily: "'Source Serif 4', serif", fontSize: 18,
+                                        fontFamily: "'Geist Mono', monospace", fontSize: 18, fontWeight: 700,
                                         color: 'var(--ink-900)', lineHeight: 1, marginTop: 2,
                                         fontVariantNumeric: 'tabular-nums',
                                     }}>{m.day}</span>

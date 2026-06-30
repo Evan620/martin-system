@@ -270,17 +270,17 @@ export default function TwgAgent() {
     };
 
     const getTwgColor = (twgName?: string): string => {
-        if (!twgName) return 'from-blue-600 to-purple-600';
+        if (!twgName) return 'from-teal-600 to-teal-700';
         const name = twgName.toLowerCase();
         if (name.includes('energy')) return 'from-amber-500 to-orange-600';
         if (name.includes('agriculture') || name.includes('agribusiness')) return 'from-green-500 to-emerald-600';
-        if (name.includes('minerals')) return 'from-cyan-500 to-blue-600';
-        if (name.includes('digital')) return 'from-violet-500 to-purple-600';
+        if (name.includes('minerals')) return 'from-cyan-500 to-teal-600';
+        if (name.includes('digital')) return 'from-teal-500 to-teal-700';
         if (name.includes('protocol')) return 'from-rose-500 to-pink-600';
         if (name.includes('resource') || name.includes('mobilization')) return 'from-teal-500 to-cyan-600';
-        if (name.includes('secretariat')) return 'from-blue-600 to-indigo-600';
+        if (name.includes('secretariat')) return 'from-teal-600 to-teal-700';
         if (name.includes('council')) return 'from-slate-600 to-gray-700';
-        return 'from-blue-600 to-purple-600';
+        return 'from-teal-600 to-teal-700';
     };
 
     // Click-outside handler to close TWG switcher dropdown
@@ -726,7 +726,7 @@ export default function TwgAgent() {
                                         onClick={() => setShowTwgSwitcher(!showTwgSwitcher)}
                                         className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
                                     >
-                                        <h3 className="font-bold text-[#0d121b] dark:text-white">
+                                        <h3 className="font-display text-[#0d121b] dark:text-white" style={{ fontWeight: 800, letterSpacing: '-0.02em' }}>
                                             {currentAgentName}
                                         </h3>
                                         <span className={`material-symbols-outlined text-[18px] text-[#4c669a] transition-transform ${showTwgSwitcher ? 'rotate-180' : ''}`}>
@@ -734,7 +734,7 @@ export default function TwgAgent() {
                                         </span>
                                     </button>
                                 ) : (
-                                    <h3 className="font-bold text-[#0d121b] dark:text-white">
+                                    <h3 className="font-display text-[#0d121b] dark:text-white" style={{ fontWeight: 800, letterSpacing: '-0.02em' }}>
                                         {currentAgentName}
                                     </h3>
                                 )}
@@ -747,7 +747,7 @@ export default function TwgAgent() {
                             {showTwgSwitcher && user?.twgs && user.twgs.length > 1 && (
                                 <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, width: 288, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', zIndex: 50, overflow: 'hidden' }}>
                                     <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
-                                        <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--ink-500)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Switch Agent</p>
+                                        <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--ink-500)', textTransform: 'uppercase', letterSpacing: '0.14em', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Switch Agent</p>
                                     </div>
                                     <div style={{ maxHeight: 320, overflowY: 'auto' }}>
                                         {user.twgs.map((twg) => {
@@ -784,8 +784,8 @@ export default function TwgAgent() {
                         <div className="flex items-center gap-1">
                             <button
                                 onClick={() => setShowContextPanel(!showContextPanel)}
-                                className={`p-2 rounded-lg transition-colors ${showContextPanel
-                                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                                className={`clickable-scale p-2 rounded-lg transition-colors ${showContextPanel
+                                    ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400'
                                     : 'text-[#4c669a] hover:bg-gray-100 dark:hover:bg-[#2d3748]'
                                     }`}
                                 title="Toggle workspace context"
@@ -803,7 +803,7 @@ export default function TwgAgent() {
                                         setIsLoading(false);
                                         setTypingMessage(null);
                                     }}
-                                    className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                    className="clickable-scale p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                                     title="Stop generation"
                                 >
                                     <span className="material-symbols-outlined">stop_circle</span>
@@ -812,7 +812,7 @@ export default function TwgAgent() {
                             <div className="relative" ref={overflowRef}>
                                 <button
                                     onClick={() => setShowOverflow(!showOverflow)}
-                                    className="p-2 text-[#4c669a] hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
+                                    className="clickable-scale p-2 text-[#4c669a] hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
                                     title="More options"
                                 >
                                     <span className="material-symbols-outlined">more_horiz</span>
@@ -846,7 +846,7 @@ export default function TwgAgent() {
                             <div className="h-full flex flex-col items-center justify-center px-4">
                                 <div className="max-w-2xl w-full text-center space-y-6">
                                     <div>
-                                        <h2 style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 28, fontWeight: 600, color: 'var(--ink-900)' }}>
+                                        <h2 className="font-display" style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--ink-900)' }}>
                                             Good morning, {user?.full_name ? user.full_name.split(' ')[0] : 'there'}
                                         </h2>
                                         <p style={{ fontSize: 13, color: 'var(--ink-500)', marginTop: 8, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
@@ -886,7 +886,7 @@ export default function TwgAgent() {
                                             borderRadius: 8, padding: 12, maxWidth: 520,
                                         }}>
                                             <div style={{
-                                                fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase',
+                                                fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600,
                                                 color: confirmCard.irreversible ? 'var(--terra)' : 'var(--accent)', marginBottom: 6,
                                             }}>
                                                 {confirmCard.irreversible ? 'Irreversible Action' : 'Confirm Action'}
@@ -956,7 +956,7 @@ export default function TwgAgent() {
 
                     {/* Input Area */}
                     <div style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)', padding: '12px 16px 16px', flexShrink: 0 }}>
-                        <div className="relative flex items-center gap-2 focus-within:border-[#7c3aed]/60 dark:focus-within:border-[#7c3aed]/60 transition-colors" style={{ border: '1px solid var(--border)', borderRadius: 24, padding: '8px 16px', background: 'var(--surface)' }}>
+                        <div className="relative flex items-center gap-2 focus-within:border-[var(--accent)] dark:focus-within:border-[var(--accent)] transition-colors" style={{ border: '1px solid var(--border)', borderRadius: 24, padding: '8px 16px', background: 'var(--surface)' }}>
                             {autocompleteType === 'command' && commandSuggestions.length > 0 && (
                                 <CommandAutocomplete
                                     suggestions={commandSuggestions}
@@ -985,7 +985,7 @@ export default function TwgAgent() {
                                 placeholder="Ask anything… or use / for commands"
                             />
                             <button
-                                className="p-1.5 text-[#9ca3af] hover:text-[#6b7280] dark:hover:text-[#d1d5db] transition-colors flex-shrink-0"
+                                className="clickable-scale p-1.5 text-[#9ca3af] hover:text-[#6b7280] dark:hover:text-[#d1d5db] transition-colors flex-shrink-0"
                                 title="Attach file"
                             >
                                 <span className="material-symbols-outlined text-[20px]">attach_file</span>
@@ -993,7 +993,8 @@ export default function TwgAgent() {
                             <button
                                 onClick={handleSendMessage}
                                 disabled={!inputMessage.trim() || isLoading || isStreaming}
-                                className="p-1.5 bg-[#7c3aed] text-white rounded-full hover:bg-[#6d28d9] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                                className="clickable-scale p-1.5 text-white rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                                style={{ background: 'var(--accent)' }}
                                 title="Send message"
                             >
                                 <span className="material-symbols-outlined text-[18px]">arrow_upward</span>

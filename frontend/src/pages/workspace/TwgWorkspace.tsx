@@ -104,7 +104,7 @@ export default function TwgWorkspace() {
                     <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '24px 32px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
                             <div>
-                                <h1 style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 28, fontWeight: 600, color: 'var(--ink-900)', lineHeight: 1.2, margin: 0 }}>
+                                <h1 className="font-display" style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--ink-900)', lineHeight: 1.2, margin: 0 }}>
                                     {twg?.name || 'Loading TWG...'}
                                 </h1>
                             </div>
@@ -128,7 +128,7 @@ export default function TwgWorkspace() {
                                     {twg?.political_lead?.full_name?.charAt(0) || 'P'}
                                 </div>
                                 <div>
-                                    <p style={{ fontSize: 9, color: 'var(--ink-500)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Political Lead</p>
+                                    <p style={{ fontSize: 10, color: 'var(--ink-500)', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Political Lead</p>
                                     <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-900)', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>{twg?.political_lead?.full_name || 'Unassigned'}</p>
                                 </div>
                             </div>
@@ -138,18 +138,18 @@ export default function TwgWorkspace() {
                                     {twg?.technical_lead?.full_name?.charAt(0) || 'T'}
                                 </div>
                                 <div>
-                                    <p style={{ fontSize: 9, color: 'var(--ink-500)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Technical Lead</p>
+                                    <p style={{ fontSize: 10, color: 'var(--ink-500)', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Technical Lead</p>
                                     <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-900)', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>{twg?.technical_lead?.full_name || 'Unassigned'}</p>
                                 </div>
                             </div>
 
                             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 16 }}>
                                 <div style={{ textAlign: 'right' }}>
-                                    <p style={{ fontSize: 9, color: 'var(--ink-500)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Next Meeting</p>
+                                    <p style={{ fontSize: 10, color: 'var(--ink-500)', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', margin: 0, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Next Meeting</p>
                                     <p style={{ fontSize: 12, color: 'var(--ink-900)', fontFamily: "'Geist Mono', monospace", margin: 0 }}>{nextMeetingDate}</p>
                                 </div>
                                 <div style={{ fontSize: 11, color: 'var(--ink-500)', border: '1px solid var(--border)', padding: '2px 8px', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
-                                    {twg?.members?.length || 0} members
+                                    <span className="font-mono-geist">{twg?.members?.length || 0}</span> members
                                 </div>
                             </div>
                         </div>
@@ -164,10 +164,10 @@ export default function TwgWorkspace() {
                             { label: 'RESOURCES', value: twg?.stats?.resources_count ?? '-', note: 'Documents' },
                         ].map((stat, i) => (
                             <div key={stat.label} style={{ padding: '20px 24px', borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                                <div style={{ fontSize: 28, fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 600, color: 'var(--ink-900)', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                                <div style={{ fontSize: 28, fontFamily: "'Geist Mono', monospace", fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--ink-900)', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
                                     {stat.value}
                                 </div>
-                                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', marginTop: 6, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 600, color: 'var(--ink-500)', marginTop: 6, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
                                     {stat.label}
                                 </div>
                                 <div style={{ fontSize: 11, color: 'var(--ink-400)', marginTop: 2, fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
@@ -219,11 +219,11 @@ export default function TwgWorkspace() {
                                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                                         <button onClick={() => navigate('/schedule')} style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.08em', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Full Calendar →</button>
                                     </div>
-                                    <div style={{ border: '1px solid var(--border)', background: 'var(--surface)', overflow: 'hidden' }}>
+                                    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', background: 'var(--surface)', overflow: 'hidden' }}>
                                         {/* Table Header */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.8fr 1fr 1fr 0.8fr', background: 'var(--ink-50)', padding: '10px 24px', borderBottom: '1px solid var(--border)' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.8fr 1fr 1fr 0.8fr', background: 'var(--surface-2)', padding: '10px 24px', borderBottom: '1px solid var(--border)' }}>
                                             {['Meeting Date / Title', 'Type', 'Status', 'Resources', 'Action'].map((h, i) => (
-                                                <div key={h} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif", textAlign: i === 3 ? 'center' : i === 4 ? 'right' : 'left' }}>
+                                                <div key={h} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 600, color: 'var(--ink-500)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif", textAlign: i === 3 ? 'center' : i === 4 ? 'right' : 'left' }}>
                                                     {h}
                                                 </div>
                                             ))}
@@ -251,7 +251,7 @@ export default function TwgWorkspace() {
                                                         padding: '14px 24px',
                                                         borderTop: '1px solid var(--border)',
                                                         alignItems: 'center',
-                                                        background: hoveredRow === (m.id || String(i)) ? 'var(--accent-soft)' : 'transparent',
+                                                        background: hoveredRow === (m.id || String(i)) ? 'var(--surface-2)' : 'transparent',
                                                         cursor: 'pointer',
                                                     }}
                                                     onMouseEnter={() => setHoveredRow(m.id || String(i))}
@@ -259,7 +259,7 @@ export default function TwgWorkspace() {
                                                 >
                                                     <div>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                            <span style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 14, fontWeight: 500, color: hoveredRow === (m.id || String(i)) ? 'var(--accent)' : 'var(--ink-900)' }}>
+                                                            <span style={{ fontFamily: "'Geist', 'Inter', system-ui, sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em', color: hoveredRow === (m.id || String(i)) ? 'var(--accent)' : 'var(--ink-900)' }}>
                                                                 {m.title}
                                                             </span>
                                                             {['in_progress', 'IN_PROGRESS'].includes(m.status) && (
@@ -273,9 +273,11 @@ export default function TwgWorkspace() {
                                                     <div style={{ fontSize: 12, color: 'var(--ink-600)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
                                                         {m.type || 'Session'}
                                                     </div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                        <div style={{ width: 6, height: 6, borderRadius: 6, background: getStatusDotColor(m.status), flexShrink: 0 }} />
-                                                        <span style={{ fontSize: 12, color: 'var(--ink-700)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif", textTransform: 'capitalize' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                        <span
+                                                            className="text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
+                                                            style={{ background: `color-mix(in srgb, ${getStatusDotColor(m.status)} 12%, transparent)`, color: getStatusDotColor(m.status) }}
+                                                        >
                                                             {m.status || 'Scheduled'}
                                                         </span>
                                                     </div>
@@ -302,7 +304,7 @@ export default function TwgWorkspace() {
                                         {events.length > MEETINGS_PER_PAGE && (
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', padding: '12px 24px' }}>
                                                 <span style={{ fontSize: 12, color: 'var(--ink-500)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
-                                                    Showing {meetingsPage * MEETINGS_PER_PAGE + 1}–{Math.min((meetingsPage + 1) * MEETINGS_PER_PAGE, events.length)} of {events.length}
+                                                    Showing <span className="font-mono-geist">{meetingsPage * MEETINGS_PER_PAGE + 1}–{Math.min((meetingsPage + 1) * MEETINGS_PER_PAGE, events.length)}</span> of <span className="font-mono-geist">{events.length}</span>
                                                 </span>
                                                 <div style={{ display: 'flex', gap: 8 }}>
                                                     <button
@@ -342,10 +344,10 @@ export default function TwgWorkspace() {
                         const dotColor = (s: string) => s === 'completed' ? 'var(--sage)' : s === 'overdue' ? 'var(--terra)' : s === 'in_progress' ? 'var(--accent)' : 'var(--amber)';
                         const fmtDue = (d: string) => { const dt = new Date(d); return dt.getFullYear() < 2000 ? '—' : dt.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }); };
                         return (
-                            <div style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '48px 1fr 140px', background: 'var(--ink-50)', padding: '10px 24px', borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', overflow: 'hidden', background: 'var(--surface)' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '48px 1fr 140px', background: 'var(--surface-2)', padding: '10px 24px', borderBottom: '1px solid var(--border)' }}>
                                     {['#', 'Description', 'Status'].map((h, i) => (
-                                        <div key={h} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif", textAlign: i === 2 ? 'right' : 'left' }}>{h}</div>
+                                        <div key={h} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 600, color: 'var(--ink-500)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif", textAlign: i === 2 ? 'right' : 'left' }}>{h}</div>
                                     ))}
                                 </div>
                                 {actionItems.map((action: any, i: number) => (
@@ -359,9 +361,11 @@ export default function TwgWorkspace() {
                                                 {action.owner?.full_name || 'Unassigned'} · Due {fmtDue(action.due_date)}
                                             </p>
                                         </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-                                            <div style={{ width: 6, height: 6, borderRadius: 6, background: dotColor(action.status), flexShrink: 0 }} />
-                                            <span style={{ fontSize: 11, color: 'var(--ink-600)', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                            <span
+                                                className="text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
+                                                style={{ background: `color-mix(in srgb, ${dotColor(action.status)} 12%, transparent)`, color: dotColor(action.status) }}
+                                            >
                                                 {action.status?.replace('_', ' ')}
                                             </span>
                                         </div>
@@ -376,9 +380,9 @@ export default function TwgWorkspace() {
                     )}
 
                     {activeTab === 'documents' && (
-                        <div style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid var(--border)', background: 'var(--ink-50)' }}>
-                                <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--ink-500)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Recent Documents</span>
+                        <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', overflow: 'hidden', background: 'var(--surface)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                                <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 600, color: 'var(--ink-500)', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>Recent Documents</span>
                                 <button
                                     onClick={() => navigate(`/documents?twg=${twgId}`)}
                                     style={{ fontSize: 11, fontWeight: 500, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}

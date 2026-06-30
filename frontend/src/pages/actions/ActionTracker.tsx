@@ -128,10 +128,10 @@ export default function ActionTracker() {
 
             {/* Page header */}
             <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)', marginBottom: 6 }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--ink-500)', marginBottom: 6 }}>
                     Action Tracker
                 </div>
-                <h1 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
+                <h1 style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800, fontSize: 18, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
                     {isFacilitator ? 'Actions' : 'My Actions'}
                 </h1>
             </div>
@@ -161,8 +161,8 @@ export default function ActionTracker() {
                             cursor: 'pointer',
                         }}
                     >
-                        <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{s.label}</div>
-                        <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 28, color: s.accent, letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1 }}>{s.value}</div>
+                        <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>{s.label}</div>
+                        <div style={{ fontFamily: "'Geist Mono', monospace", fontWeight: 800, fontSize: 28, color: s.accent, letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.value}</div>
                         <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 4 }}>{s.sub}</div>
                     </div>
                 ))}
@@ -209,7 +209,7 @@ export default function ActionTracker() {
             </div>
 
             {/* Table */}
-            <div className="resp-table-mobile" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <div className="resp-table-mobile" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
                 {/* Header */}
                 <div
                     className="resp-thead"
@@ -217,12 +217,12 @@ export default function ActionTracker() {
                         display: 'grid',
                         gridTemplateColumns: '1fr 150px 110px 90px 110px 130px',
                         padding: '10px 16px',
-                        background: 'var(--ink-50)',
+                        background: 'var(--surface-2)',
                         borderBottom: '1px solid var(--border)',
                     }}
                 >
                     {['Description', 'Owner', 'Due Date', 'Priority', 'Status', 'Actions'].map(col => (
-                        <div key={col} style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>
+                        <div key={col} style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>
                             {col}
                         </div>
                     ))}
@@ -257,7 +257,7 @@ export default function ActionTracker() {
                                     opacity: isCompleted ? 0.55 : 1,
                                     transition: 'background 0.1s',
                                 }}
-                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--ink-50)')}
+                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                             >
                                 {/* Description */}
@@ -306,10 +306,10 @@ export default function ActionTracker() {
                                 {/* Status badge */}
                                 <div data-label="Status">
                                     <span style={{
-                                        fontSize: 11, fontWeight: 500, padding: '3px 8px',
+                                        fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+                                        padding: '3px 8px', borderRadius: 999,
                                         background: meta.bg, color: meta.color,
-                                        border: `1px solid ${meta.color}`,
-                                        whiteSpace: 'nowrap',
+                                        whiteSpace: 'nowrap', display: 'inline-block',
                                     }}>
                                         {meta.label}
                                     </span>

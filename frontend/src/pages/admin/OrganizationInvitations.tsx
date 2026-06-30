@@ -199,27 +199,27 @@ export default function OrganizationInvitations() {
         fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none'
     }
     const labelStyle: React.CSSProperties = {
-        display: 'block', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
-        color: 'var(--ink-500)', fontWeight: 500, marginBottom: 6
+        display: 'block', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
+        color: 'var(--ink-500)', fontWeight: 600, marginBottom: 6
     }
 
     return (
         <div style={{ maxWidth: 1180, margin: '0 auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
             {/* Page header */}
             <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)', marginBottom: 6 }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--ink-500)', marginBottom: 6 }}>
                     Management · onboarding
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                    <h1 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
+                    <h1 style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800, fontSize: 18, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
                         Organisation invitations
                     </h1>
                     <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={loadInvitations} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <button onClick={loadInvitations} className="clickable-scale" style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                             <span className="material-symbols-outlined" style={{ fontSize: 14 }}>refresh</span>
                             Refresh
                         </button>
-                        <button onClick={() => { if (twgs.length === 0) loadTwgs(); setIsCreateModalOpen(true); }} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <button onClick={() => { if (twgs.length === 0) loadTwgs(); setIsCreateModalOpen(true); }} className="clickable-scale" style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                             <span className="material-symbols-outlined" style={{ fontSize: 14 }}>mail</span>
                             New Invitation
                         </button>
@@ -236,8 +236,8 @@ export default function OrganizationInvitations() {
                     { label: 'Expired', value: expiredCount, accent: 'var(--ink-400)', sub: 'timed out' },
                 ].map((stat, i, arr) => (
                     <div key={stat.label} style={{ paddingRight: 24, borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none', paddingLeft: i > 0 ? 24 : 0 }}>
-                        <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{stat.label}</div>
-                        <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 28, color: stat.accent, letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{stat.value}</div>
+                        <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>{stat.label}</div>
+                        <div style={{ fontFamily: "'Geist Mono', monospace", fontWeight: 800, fontSize: 28, color: stat.accent, letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{stat.value}</div>
                         <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 6 }}>{stat.sub}</div>
                     </div>
                 ))}
@@ -245,8 +245,8 @@ export default function OrganizationInvitations() {
 
             {/* Martin notes strip */}
             <div style={{ borderLeft: '2px solid var(--accent)', padding: '10px 16px', background: 'var(--accent-soft)', marginBottom: 24 }}>
-                <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600, fontStyle: 'normal' }}>Martin notes</span>
-                <p style={{ fontFamily: "'Source Serif 4', serif", fontSize: 14, color: 'var(--ink-700)', margin: '4px 0 0', fontStyle: 'italic', lineHeight: 1.5 }}>
+                <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600, fontStyle: 'normal' }}>Martin notes</span>
+                <p style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--ink-700)', margin: '4px 0 0', lineHeight: 1.5 }}>
                     Send personalised invitations to external organisations. Pending invitations expire after 30 days. Use the chat feature to answer questions before they respond.
                 </p>
             </div>
@@ -270,7 +270,7 @@ export default function OrganizationInvitations() {
             </div>
 
             {/* Table */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
                 {isLoading ? (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 256 }}>
                         <div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
@@ -279,9 +279,9 @@ export default function OrganizationInvitations() {
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', textAlign: 'left', fontSize: 13, borderCollapse: 'collapse' }}>
                             <thead>
-                                <tr style={{ background: 'var(--ink-50)', borderBottom: '1px solid var(--border)' }}>
+                                <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
                                     {['Organisation', 'Contact', 'TWG', 'Sent', 'Expires', 'Status', 'Actions'].map(col => (
-                                        <th key={col} style={{ padding: '10px 16px', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{col}</th>
+                                        <th key={col} style={{ padding: '10px 16px', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>{col}</th>
                                     ))}
                                 </tr>
                             </thead>
@@ -293,7 +293,7 @@ export default function OrganizationInvitations() {
                                         onMouseLeave={() => setHoveredRow(null)}
                                         style={{
                                             borderBottom: idx < invitations.length - 1 ? '1px solid var(--border)' : 'none',
-                                            background: hoveredRow === invitation.id ? 'var(--ink-50)' : 'transparent'
+                                            background: hoveredRow === invitation.id ? 'var(--surface-2)' : 'transparent'
                                         }}
                                     >
                                         <td style={{ padding: '12px 16px' }}>
@@ -303,7 +303,7 @@ export default function OrganizationInvitations() {
                                             <div style={{ fontSize: 13, color: 'var(--ink-700)' }}>{invitation.contact_email}</div>
                                         </td>
                                         <td style={{ padding: '12px 16px' }}>
-                                            <span style={{ fontSize: 11, color: 'var(--ink-600)', background: 'var(--ink-50)', border: '1px solid var(--border)', padding: '2px 8px' }}>
+                                            <span style={{ fontSize: 11, color: 'var(--ink-600)', background: 'var(--surface-2)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 6 }}>
                                                 {invitation.twg_name || 'Unknown'}
                                             </span>
                                         </td>
@@ -314,9 +314,8 @@ export default function OrganizationInvitations() {
                                             {formatDate(invitation.expires_at)}
                                         </td>
                                         <td style={{ padding: '12px 16px' }}>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
-                                                <div style={{ width: 7, height: 7, borderRadius: '50%', background: STATUS_DOT[invitation.status], flexShrink: 0 }}></div>
-                                                <span style={{ color: 'var(--ink-700)', textTransform: 'capitalize' }}>{invitation.status}</span>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '3px 8px', borderRadius: 999, background: `color-mix(in srgb, ${STATUS_DOT[invitation.status]} 12%, transparent)`, color: STATUS_DOT[invitation.status] }}>
+                                                {invitation.status}
                                             </span>
                                         </td>
                                         <td style={{ padding: '12px 16px' }}>
@@ -324,6 +323,7 @@ export default function OrganizationInvitations() {
                                                 {/* Chat */}
                                                 <button
                                                     onClick={() => { setSelectedInvitation(invitation); setIsChatModalOpen(true); }}
+                                                    className="clickable-scale"
                                                     style={{ background: invitation.unread_message_count > 0 ? 'var(--accent-soft)' : 'none', border: 'none', cursor: 'pointer', color: invitation.unread_message_count > 0 ? 'var(--accent)' : 'var(--ink-400)', padding: 5, position: 'relative' }}
                                                     title={invitation.has_messages ? 'View Conversation' : 'Start Conversation'}
                                                 >
@@ -337,6 +337,7 @@ export default function OrganizationInvitations() {
                                                 {/* Copy link */}
                                                 <button
                                                     onClick={() => { const link = `${window.location.origin}/invitations/${invitation.id}/respond`; navigator.clipboard.writeText(link); toast.success('Invitation link copied!'); }}
+                                                    className="clickable-scale"
                                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)', padding: 5 }}
                                                     title="Copy Link"
                                                 >
@@ -347,6 +348,7 @@ export default function OrganizationInvitations() {
                                                     <button
                                                         onClick={() => handleResendInvitation(invitation)}
                                                         disabled={resendingId === invitation.id}
+                                                        className="clickable-scale"
                                                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-400)', padding: 5, opacity: resendingId === invitation.id ? 0.5 : 1 }}
                                                         title="Resend"
                                                     >
@@ -358,7 +360,7 @@ export default function OrganizationInvitations() {
                                                     </button>
                                                 )}
                                                 {/* Delete */}
-                                                <button onClick={() => handleDeleteInvitation(invitation.id, invitation.organization_name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--terra)', padding: 5 }} title="Delete">
+                                                <button onClick={() => handleDeleteInvitation(invitation.id, invitation.organization_name)} className="clickable-scale" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--terra)', padding: 5 }} title="Delete">
                                                     <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
                                                 </button>
                                                 {/* Response date */}
@@ -392,8 +394,8 @@ export default function OrganizationInvitations() {
                             {((page - 1) * pageSize) + 1}–{Math.min(page * pageSize, total)} of {total}
                         </span>
                         <div style={{ display: 'flex', gap: 6 }}>
-                            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', opacity: page === 1 ? 0.4 : 1 }}>Previous</button>
-                            <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages} style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', opacity: page === pages ? 0.4 : 1 }}>Next</button>
+                            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="clickable-scale" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', opacity: page === 1 ? 0.4 : 1 }}>Previous</button>
+                            <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages} className="clickable-scale" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', opacity: page === pages ? 0.4 : 1 }}>Next</button>
                         </div>
                     </div>
                 )}
@@ -404,7 +406,7 @@ export default function OrganizationInvitations() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: '100%', maxWidth: 480, overflow: 'hidden' }}>
                         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
-                            <h3 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 20, color: 'var(--ink-900)', margin: '0 0 4px' }}>New Organisation Invitation</h3>
+                            <h3 style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800, letterSpacing: '-0.02em', fontSize: 16, color: 'var(--ink-900)', margin: '0 0 4px' }}>New Organisation Invitation</h3>
                             <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: 0 }}>Invite an external organisation to join a TWG</p>
                         </div>
                         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '60vh', overflowY: 'auto' }}>
@@ -441,7 +443,7 @@ export default function OrganizationInvitations() {
                                                         <p style={{ fontSize: 10, color: 'var(--ink-400)', margin: 0 }}>{formatFileSize(file.size)}</p>
                                                     </div>
                                                 </div>
-                                                <button type="button" onClick={() => removeAttachment(index)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--terra)', padding: 4 }}>
+                                                <button type="button" onClick={() => removeAttachment(index)} className="clickable-scale" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--terra)', padding: 4 }}>
                                                     <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
                                                 </button>
                                             </div>
@@ -455,8 +457,8 @@ export default function OrganizationInvitations() {
                             </label>
                         </div>
                         <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                            <button onClick={() => { setIsCreateModalOpen(false); resetCreateForm(); }} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                            <button onClick={handleCreateInvitation} disabled={!createForm.organization_name || !createForm.contact_email || !createForm.twg_id || isSubmitting} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: !createForm.organization_name || !createForm.contact_email || !createForm.twg_id || isSubmitting ? 0.5 : 1 }}>
+                            <button onClick={() => { setIsCreateModalOpen(false); resetCreateForm(); }} className="clickable-scale" style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                            <button onClick={handleCreateInvitation} disabled={!createForm.organization_name || !createForm.contact_email || !createForm.twg_id || isSubmitting} className="clickable-scale" style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: !createForm.organization_name || !createForm.contact_email || !createForm.twg_id || isSubmitting ? 0.5 : 1 }}>
                                 {isSubmitting && <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }}></div>}
                                 Send Invitation
                             </button>
@@ -471,7 +473,7 @@ export default function OrganizationInvitations() {
                     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: '100%', maxWidth: 600, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
                         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                             <div>
-                                <h3 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 20, color: 'var(--ink-900)', margin: '0 0 4px' }}>
+                                <h3 style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800, letterSpacing: '-0.02em', fontSize: 16, color: 'var(--ink-900)', margin: '0 0 4px' }}>
                                     Conversation with {selectedInvitation.organization_name}
                                 </h3>
                                 <p style={{ fontSize: 12, color: 'var(--ink-500)', margin: 0 }}>

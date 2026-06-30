@@ -4,28 +4,30 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Quiet Executive Design System — CSS Token Variables ──────── */
-/* Light mode */
+/* ─── Quiet Paper Design System — CSS Token Variables ──────────
+   Warm-paper neutrals + teal accent. Token names unchanged so all existing
+   var(--…) usages keep working. Managed by the `waiis-design` skill. */
+/* Light mode — warm paper */
 :root {
-  --bg:           #f6f6f8;
+  --bg:           #faf8f4;
   --surface:      #ffffff;
-  --surface-2:    #fbfbfd;
-  --border:       #e5e8ee;
-  --border-soft:  #eef0f4;
+  --surface-2:    #f6f3ec;
+  --border:       #eae4d9;
+  --border-soft:  #f2ede4;
 
-  --ink-900: #0d121b;
-  --ink-800: #1e293b;
-  --ink-700: #334155;
-  --ink-600: #4c669a;
-  --ink-500: #64748b;
-  --ink-400: #94a3b8;
-  --ink-300: #cbd5e1;
-  --ink-200: #e2e8f0;
-  --ink-100: #f1f5f9;
-  --ink-50:  #f8fafc;
+  --ink-900: #1c1a16;
+  --ink-800: #2a2722;
+  --ink-700: #46413a;
+  --ink-600: #5f594f;
+  --ink-500: #847c6f;
+  --ink-400: #a59c8d;
+  --ink-300: #cdc6b8;
+  --ink-200: #e6e0d4;
+  --ink-100: #f1ece2;
+  --ink-50:  #f8f5ef;
 
-  --accent:       #1152d4;
-  --accent-soft:  #e8effe;
+  --accent:       #0d9488;
+  --accent-soft:  #d6f1ec;
   --accent-ink:   #ffffff;
 
   --sage:  #15803d;
@@ -33,30 +35,35 @@
   --terra: #b91c1c;
   --navy:  #1e3a5f;
   --gold:  #a16207;
+
+  --ease-quiet: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-page:   0.5s;
+  --radius-card: 16px;
+  --radius-ctl:  11px;
 }
 
-/* Dark mode */
+/* Dark mode — warm near-black, teal accent */
 .dark {
-  --bg:           #0b1220;
-  --surface:      #111827;
-  --surface-2:    #151c2c;
-  --border:       #1f2937;
-  --border-soft:  #182032;
+  --bg:           #14110d;
+  --surface:      #1b1813;
+  --surface-2:    #211d17;
+  --border:       #322c23;
+  --border-soft:  #262019;
 
-  --ink-900: #f8fafc;
-  --ink-800: #e2e8f0;
-  --ink-700: #cbd5e1;
-  --ink-600: #a0aec0;
-  --ink-500: #94a3b8;
-  --ink-400: #64748b;
-  --ink-300: #475569;
-  --ink-200: #1f2937;
-  --ink-100: #151c2c;
-  --ink-50:  #101622;
+  --ink-900: #f7f4ee;
+  --ink-800: #e7e2d8;
+  --ink-700: #cfc8ba;
+  --ink-600: #aaa090;
+  --ink-500: #8c8273;
+  --ink-400: #6f6657;
+  --ink-300: #4d473c;
+  --ink-200: #322c23;
+  --ink-100: #211d17;
+  --ink-50:  #1a160f;
 
-  --accent:       #4d8bff;
-  --accent-soft:  #16284d;
-  --accent-ink:   #0b1220;
+  --accent:       #2dd4bf;
+  --accent-soft:  #133b37;
+  --accent-ink:   #06231f;
 
   --sage:  #34d399;
   --amber: #fbbf24;
@@ -66,8 +73,12 @@
 }
 
 /* ─── Typography helpers ─────────────────────────────────────────── */
-.font-serif-display {
-  font-family: 'Source Serif 4', Georgia, serif;
+/* Quiet Paper: headings are heavy Geist, NOT serif (template has no serif).
+   Redefining .font-serif-display flips every existing heading to the new architecture. */
+.font-serif-display, .font-display {
+  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 .font-geist {
   font-family: 'Geist', 'Inter', system-ui, sans-serif;
@@ -89,27 +100,30 @@
 
 @layer components {
   .btn-primary {
-    @apply px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-800 transition-colors duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply px-4 py-2 bg-primary text-white rounded-lg hover:bg-teal-700 transition-colors duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed;
   }
   
   .btn-secondary {
     @apply px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors duration-200 font-medium dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600;
   }
 
-  .card {
-    @apply rounded-xl;
-    background: rgba(255, 255, 255, 0.72);
-    backdrop-filter: blur(24px) saturate(200%);
-    -webkit-backdrop-filter: blur(24px) saturate(200%);
-    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04), inset 0 1px 0 rgba(255,255,255,.9);
+  /* Quiet Paper: flat surface — no glass, no heavy shadow */
+  .card, .qp-card {
+    @apply rounded-2xl;
+    background: var(--surface);
+    border: 1px solid var(--border);
   }
-  .dark .card {
-    background: rgba(30, 41, 59, 0.70);
-    box-shadow: 0 2px 8px rgba(0,0,0,.18), 0 8px 24px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.06);
+  .dark .card, .dark .qp-card {
+    background: var(--surface);
+    border-color: var(--border);
+  }
+  .qp-eyebrow {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    font-weight: 600; color: var(--ink-500);
   }
 
   .input-field {
-    @apply w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-dark-border bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all;
+    @apply w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-dark-border bg-white dark:bg-slate-800/50 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition-all;
   }
 }
 
@@ -122,10 +136,10 @@
   animation: slide-in-left 0.2s ease-out;
 }
 
-/* Custom Scrollbar for better aesthetics */
+/* Custom Scrollbar — thin, warm */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -133,7 +147,11 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 dark:bg-slate-600 rounded-full hover:bg-slate-400 dark:hover:bg-slate-500;
+  background: var(--ink-300);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-400);
 }
 
 /* Thin scrollbar for compact containers like calendar day cells */
@@ -147,49 +165,39 @@
   @apply bg-slate-300 dark:bg-slate-600 rounded-full;
 }
 
-/* ─── Warm Frosted Glass System ───────────────────────────── */
+/* ─── Quiet Paper Surfaces (flat — glass retired) ───────────── */
 
-/* Main content area gradient */
-.bg-frosted-warm {
-  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 50%, #f0f4ff 100%);
-  background-attachment: fixed;
-}
-.dark .bg-frosted-warm {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0d1526 100%);
-}
+/* Main content area — flat warm paper (no gradient) */
+.bg-frosted-warm { background: var(--bg); }
+.dark .bg-frosted-warm { background: var(--bg); }
 
-/* Glass card — primary surface */
+/* Primary surface — flat */
 .glass-card {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(24px) saturate(200%);
-  -webkit-backdrop-filter: blur(24px) saturate(200%);
-  box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04), inset 0 1px 0 rgba(255,255,255,.9);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
 }
-.dark .glass-card {
-  background: rgba(30, 41, 59, 0.70);
-  box-shadow: 0 2px 8px rgba(0,0,0,.18), 0 8px 24px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.06);
-}
+.dark .glass-card { background: var(--surface); border-color: var(--border); }
 
-/* Glass card — Martin AI accent (blue tint) */
+/* Martin AI accent surface — teal tint, flat */
 .glass-martin {
-  background: rgba(239, 246, 255, 0.82);
-  backdrop-filter: blur(24px) saturate(200%);
-  -webkit-backdrop-filter: blur(24px) saturate(200%);
-  box-shadow: 0 2px 8px rgba(17,82,212,.08), 0 8px 24px rgba(17,82,212,.05), inset 0 1px 0 rgba(255,255,255,.9);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: var(--radius-card);
 }
 .dark .glass-martin {
-  background: rgba(17, 37, 75, 0.72);
-  box-shadow: 0 2px 8px rgba(0,0,0,.2), 0 8px 24px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.05);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
 }
 
-/* Frosted nav / sidebar bar */
+/* Nav / topbar bar — the one allowed translucent surface */
 .glass-nav {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .dark .glass-nav {
-  background: rgba(15, 23, 42, 0.88);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
 }
 
 /* Hide scrollbar helper */
@@ -202,38 +210,11 @@
   .bottom-tab-bar { display: none !important; }
 }
 
-/* ─── Responsive KPI strip ───
-   Desktop: 4-col grid with vertical rules.
-   Mobile: horizontal scroll, each cell min 180px, no rules. */
-.kpi-strip {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  padding: 22px 32px;
-}
-@media (max-width: 640px) {
-  .kpi-strip {
-    display: flex;
-    overflow-x: auto;
-    gap: 24px;
-    padding: 18px 16px;
-    -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x mandatory;
-  }
-  .kpi-strip::-webkit-scrollbar { display: none; }
-  .kpi-strip > * {
-    flex-shrink: 0;
-    min-width: 180px;
-    border-right: none !important;
-    padding-right: 0 !important;
-    scroll-snap-align: start;
-  }
-}
-
 /* ─── Responsive table → card transform (under 768px) ───
    Apply to wrappers around grid-template-columns based rows.
    - Hide the header row
-   - Stack each row vertically with labels visible
-   - Each child cell with data-label shows the label as an uppercase eyebrow */
+   - Make each row vertically stack with labels visible
+   - Each child cell gets a data-label that shows as eyebrow */
 .resp-table-mobile { }
 @media (max-width: 767px) {
   .resp-table-mobile > .resp-thead { display: none !important; }
@@ -292,4 +273,70 @@
   .doc-table .col-doc-label,
   .doc-table .col-doc-actions-extra { display: none !important; }
   .doc-table colgroup { display: none !important; }
+}
+
+/* ─── Responsive KPI strip ───
+   Desktop: 4-col grid with vertical rules.
+   Mobile: horizontal scroll, each cell min 180px, no rules. */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 22px 32px;
+}
+@media (max-width: 640px) {
+  .kpi-strip {
+    display: flex;
+    overflow-x: auto;
+    gap: 24px;
+    padding: 18px 16px;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+  }
+  .kpi-strip::-webkit-scrollbar { display: none; }
+  .kpi-strip > * {
+    flex-shrink: 0;
+    min-width: 180px;
+    border-right: none !important;
+    padding-right: 0 !important;
+    scroll-snap-align: start;
+  }
+}
+
+/* ─── Quiet Paper Motion System ─────────────────────────────────
+   Staggered blur-slide entrances + press-to-scale. Managed by the
+   `waiis-design` skill. Honors prefers-reduced-motion. */
+@keyframes qp-blur-slide-in {
+  0%   { opacity: 0; transform: translateY(16px); filter: blur(12px); }
+  100% { opacity: 1; transform: translateY(0);    filter: blur(0); }
+}
+.animate-blur-slide {
+  animation: qp-blur-slide-in var(--dur-page, 0.5s) var(--ease-quiet, cubic-bezier(0.16,1,0.3,1)) both;
+}
+.stagger-1 { animation-delay: 60ms; }
+.stagger-2 { animation-delay: 120ms; }
+.stagger-3 { animation-delay: 180ms; }
+.stagger-4 { animation-delay: 240ms; }
+.stagger-5 { animation-delay: 300ms; }
+.stagger-6 { animation-delay: 360ms; }
+.stagger-7 { animation-delay: 420ms; }
+.stagger-8 { animation-delay: 480ms; }
+
+@keyframes qp-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.animate-fade-in { animation: qp-fade-in .3s var(--ease-quiet, ease-out) both; }
+
+.clickable-scale { transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1); }
+.clickable-scale:active { transform: scale(0.96); }
+
+.qp-transition {
+  transition: background-color .3s var(--ease-quiet, ease),
+              color .3s var(--ease-quiet, ease),
+              border-color .3s var(--ease-quiet, ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-blur-slide, .animate-fade-in, .clickable-scale {
+    animation: none !important;
+    transition: none !important;
+  }
+  .clickable-scale:active { transform: none !important; }
 }

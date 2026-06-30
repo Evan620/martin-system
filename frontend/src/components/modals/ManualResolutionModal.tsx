@@ -70,7 +70,7 @@ const ManualResolutionModal: React.FC<ManualResolutionModalProps> = ({ isOpen, c
                         </h2>
                         <p className="text-xs text-red-600/70 dark:text-red-400/70">Override AI Escalation for Conflict: {conflict.description}</p>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 clickable-scale">
                         <span className="material-symbols-outlined">close</span>
                     </button>
                 </div>
@@ -85,8 +85,8 @@ const ManualResolutionModal: React.FC<ManualResolutionModalProps> = ({ isOpen, c
                                 <div
                                     key={m.id}
                                     onClick={() => setSelectedMeetingId(m.id)}
-                                    className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedMeetingId === m.id
-                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                    className={`p-3 rounded-xl border-2 cursor-pointer transition-all clickable-scale ${selectedMeetingId === m.id
+                                            ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
                                             : 'border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                                         }`}
                                 >
@@ -103,7 +103,7 @@ const ManualResolutionModal: React.FC<ManualResolutionModalProps> = ({ isOpen, c
                         <div className="flex gap-4">
                             <button
                                 onClick={() => setAction('reschedule')}
-                                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-all ${action === 'reschedule'
+                                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-all clickable-scale ${action === 'reschedule'
                                         ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900'
                                         : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400'
                                     }`}
@@ -112,7 +112,7 @@ const ManualResolutionModal: React.FC<ManualResolutionModalProps> = ({ isOpen, c
                             </button>
                             <button
                                 onClick={() => setAction('cancel')}
-                                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-all ${action === 'cancel'
+                                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-all clickable-scale ${action === 'cancel'
                                         ? 'bg-red-600 text-white border-red-600'
                                         : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400'
                                     }`}
@@ -130,7 +130,7 @@ const ManualResolutionModal: React.FC<ManualResolutionModalProps> = ({ isOpen, c
                                 type="datetime-local"
                                 value={newTime}
                                 onChange={(e) => setNewTime(e.target.value)}
-                                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
                             />
                         </div>
                     )}
@@ -141,7 +141,7 @@ const ManualResolutionModal: React.FC<ManualResolutionModalProps> = ({ isOpen, c
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                             placeholder="Reason for decision..."
-                            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm h-20 resize-none outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm h-20 resize-none outline-none focus:ring-2 focus:ring-teal-500"
                         />
                     </div>
                 </div>
@@ -150,7 +150,7 @@ const ManualResolutionModal: React.FC<ManualResolutionModalProps> = ({ isOpen, c
                 <div className="bg-slate-50 dark:bg-slate-800/50 px-6 py-4 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+                        className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors clickable-scale"
                     >
                         Close
                     </button>
@@ -158,7 +158,7 @@ const ManualResolutionModal: React.FC<ManualResolutionModalProps> = ({ isOpen, c
                         onClick={handleSubmit}
                         disabled={loading || !selectedMeetingId || (action === 'reschedule' && !newTime)}
                         className={`px-6 py-2 rounded-xl text-sm font-bold text-white shadow-lg transition-all active:scale-95 ${loading ? 'opacity-50 cursor-not-allowed' :
-                                action === 'cancel' ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'
+                                action === 'cancel' ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' : 'bg-teal-600 hover:bg-teal-700 shadow-teal-500/20'
                             }`}
                     >
                         {loading ? 'Processing...' : 'Confirm Resolution'}

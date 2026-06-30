@@ -113,12 +113,12 @@ export default function MinutesVersionHistory({ meetingId, isOpen, onClose, onRe
                                         key={version.id}
                                         onClick={() => setSelectedVersion(version)}
                                         className={`w-full text-left p-4 rounded-xl transition-all ${selectedVersion?.id === version.id
-                                                ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500'
+                                                ? 'bg-teal-50 dark:bg-teal-900/20 border-2 border-teal-500'
                                                 : 'bg-slate-50 dark:bg-slate-800 border-2 border-transparent hover:border-slate-300 dark:hover:border-slate-600'
                                             }`}
                                     >
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className="font-bold text-sm text-blue-600 dark:text-blue-400">
+                                            <span className="font-bold text-sm text-teal-600 dark:text-teal-400">
                                                 Version {version.version_number}
                                             </span>
                                             <span className="text-xs text-slate-500">
@@ -160,7 +160,7 @@ export default function MinutesVersionHistory({ meetingId, isOpen, onClose, onRe
                                     <button
                                         onClick={() => handleRestore(selectedVersion)}
                                         disabled={restoring}
-                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-400 text-white rounded-lg font-bold transition-all flex items-center gap-2"
+                                        className="px-4 py-2 bg-teal-600 hover:bg-teal-500 disabled:bg-slate-400 text-white rounded-lg font-bold transition-all flex items-center gap-2 clickable-scale"
                                     >
                                         {restoring ? (
                                             <>

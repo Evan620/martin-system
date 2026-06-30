@@ -61,34 +61,34 @@ export default function CalendarGrid({
 
     if (isLoading) {
         return (
-            <div className="flex h-[400px] items-center justify-center glass-card rounded-2xl">
-                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <div className="flex h-[400px] items-center justify-center bg-[var(--surface)] border border-[var(--border)] rounded-2xl">
+                <div className="w-8 h-8 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
             </div>
         );
     }
 
     return (
-        <div className="glass-card rounded-2xl overflow-hidden flex flex-col h-full">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden flex flex-col h-full">
             {/* Header / Navigation */}
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 rounded-lg p-1">
-                        <button onClick={prevMonth} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md text-slate-500">
+                    <div className="flex items-center gap-1 rounded-lg p-1 border" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                        <button onClick={prevMonth} className="p-1 rounded-md text-[var(--ink-500)] hover:bg-[var(--surface)]">
                             <span className="material-symbols-outlined text-lg">chevron_left</span>
                         </button>
-                        <button onClick={resetDate} className="px-3 text-sm font-bold text-slate-700 dark:text-slate-200 min-w-[120px] text-center">
+                        <button onClick={resetDate} className="px-3 text-sm font-extrabold tracking-tight text-[var(--ink-900)] min-w-[120px] text-center font-mono-geist">
                             {format(currentDate, 'MMMM yyyy')}
                         </button>
-                        <button onClick={nextMonth} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md text-slate-500">
+                        <button onClick={nextMonth} className="p-1 rounded-md text-[var(--ink-500)] hover:bg-[var(--surface)]">
                             <span className="material-symbols-outlined text-lg">chevron_right</span>
                         </button>
                     </div>
                 </div>
 
                 {/* Legend */}
-                <div className="hidden sm:flex items-center gap-3 text-xs text-slate-500">
+                <div className="hidden sm:flex items-center gap-3 text-[10px] uppercase tracking-wider font-semibold text-[var(--ink-500)]">
                     <div className="flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        <span className="w-2 h-2 rounded-full bg-teal-500"></span>
                         <span>In-Person</span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -106,9 +106,9 @@ export default function CalendarGrid({
             <div className="flex-1 overflow-x-auto">
               <div className="min-w-[500px]">
                 {/* Weekday Headers */}
-                <div className="grid grid-cols-7 border-b border-white/50 dark:border-white/10 bg-white/30 dark:bg-white/5">
+                <div className="grid grid-cols-7 border-b border-[var(--border)]" style={{ background: 'var(--surface-2)' }}>
                     {weekDays.map(day => (
-                        <div key={day} className="py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <div key={day} className="py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-500)]">
                             {day}
                         </div>
                     ))}
@@ -126,17 +126,18 @@ export default function CalendarGrid({
                             key={day.toString()}
                             onClick={() => onDateClick?.(day)}
                             className={`
-                                border-b border-r border-slate-100 dark:border-slate-700/50 p-2 relative group flex flex-col cursor-pointer transition-colors overflow-hidden
-                                ${!isCurrentMonth ? 'bg-white/20 dark:bg-slate-900/20 text-slate-300 dark:text-slate-700' : 'bg-transparent hover:bg-blue-50/20'}
-                                ${isTodayDate ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}
+                                border-b border-r border-[var(--border)] p-3 relative group flex flex-col cursor-pointer transition-colors overflow-hidden
+                                ${!isCurrentMonth ? 'text-[var(--ink-300)]' : 'bg-transparent hover:bg-[var(--surface-2)]'}
+                                ${isTodayDate ? 'bg-[var(--surface-2)]' : ''}
                             `}
                         >
                             <div className="flex justify-between items-start mb-1 shrink-0">
                                 <span className={`
-                                    text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full
-                                    ${isTodayDate ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-700 dark:text-slate-400'}
+                                    text-xs font-bold font-mono-geist w-6 h-6 flex items-center justify-center rounded-full
+                                    ${isTodayDate ? 'text-white shadow-sm' : 'text-[var(--ink-700)]'}
                                     ${!isCurrentMonth ? 'opacity-30' : ''}
-                                `}>
+                                `}
+                                style={isTodayDate ? { background: 'var(--accent)', color: 'var(--accent-ink)' } : undefined}>
                                     {format(day, 'd')}
                                 </span>
                             </div>
@@ -153,7 +154,7 @@ export default function CalendarGrid({
                                             px-1.5 py-1 rounded text-[10px] cursor-pointer transition-all border group/event truncate flex items-center gap-1
                                             ${event.type === 'virtual'
                                                 ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-100 dark:border-purple-800 hover:bg-purple-100'
-                                                : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-800 hover:bg-blue-100'}
+                                                : 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-800 hover:bg-teal-100'}
                                             ${event.has_conflicts ? 'border-amber-400 ring-1 ring-amber-400/30' : ''}
                                         `}
                                         title={`${event.title} (${event.twg_name})`}

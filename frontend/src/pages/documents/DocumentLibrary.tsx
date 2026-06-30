@@ -350,17 +350,18 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
         <div style={{ maxWidth: 1180, margin: '0 auto', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
             {/* Page header */}
             <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)', marginBottom: 6 }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--ink-500)', marginBottom: 6 }}>
                     Document library
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                    <h1 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
+                    <h1 className="font-display" style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-0.02em', color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
                         Documents
                     </h1>
                     <div style={{ display: 'flex', gap: 8 }}>
                         {selectedDocs.length > 0 && (
                             <button
                                 onClick={handleBulkDelete}
+                                className="clickable-scale"
                                 style={{ background: 'var(--terra)', border: '1px solid var(--terra)', color: '#fff', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                             >
                                 Delete {selectedDocs.length}
@@ -368,6 +369,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                         )}
                         <button
                             onClick={() => setShowUploadModal(true)}
+                            className="clickable-scale"
                             style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                         >
                             <span className="material-symbols-outlined" style={{ fontSize: 14 }}>upload_file</span>
@@ -525,7 +527,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                         {isSearching && (
                             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 16, marginBottom: 16 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                                    <span style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600 }}>
+                                    <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600 }}>
                                         AI Knowledge Fragments
                                     </span>
                                     <button onClick={() => { setIsSearching(false); setSearchQuery(''); }} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -536,8 +538,8 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                     {searchResults.length > 0 ? searchResults.map((result, idx) => (
                                         <div key={idx} style={{ background: 'var(--ink-50)', border: '1px solid var(--border)', padding: 12 }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                                <span style={{ fontSize: 10, color: 'var(--ink-500)', fontWeight: 600, textTransform: 'uppercase' }} className="truncate">{result.metadata.file_name}</span>
-                                                <span style={{ fontSize: 10, color: 'var(--sage)', fontWeight: 600, whiteSpace: 'nowrap', marginLeft: 8 }}>{(result.score * 100).toFixed(0)}%</span>
+                                                <span style={{ fontSize: 10, color: 'var(--ink-500)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }} className="truncate">{result.metadata.file_name}</span>
+                                                <span style={{ fontSize: 10, color: 'var(--sage)', fontWeight: 600, whiteSpace: 'nowrap', marginLeft: 8, fontFamily: "'Geist Mono', monospace" }}>{(result.score * 100).toFixed(0)}%</span>
                                             </div>
                                             <p style={{ fontSize: 11, color: 'var(--ink-600)', fontStyle: 'italic', margin: 0 }} className="line-clamp-2">"{result.metadata.text}"</p>
                                         </div>
@@ -549,7 +551,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                         )}
 
                         {/* Table */}
-                        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
                             <div style={{ overflowX: 'auto' }}>
                                 <table className="doc-table" style={{ width: '100%', minWidth: 960, tableLayout: 'fixed', textAlign: 'left', fontSize: 13, borderCollapse: 'collapse' }}>
                                     <colgroup>
@@ -564,7 +566,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                         <col style={{ width: 96 }} />
                                     </colgroup>
                                     <thead>
-                                        <tr style={{ background: 'var(--ink-50)', borderBottom: '1px solid var(--border)' }}>
+                                        <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
                                             <th style={{ padding: '10px 12px' }}>
                                                 <input
                                                     type="checkbox"
@@ -583,7 +585,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                 { label: 'Label', cls: 'col-doc-label' },
                                                 { label: '', cls: '' },
                                             ].map(c => (
-                                                <th key={c.label} className={c.cls} style={{ padding: '10px 12px', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{c.label}</th>
+                                                <th key={c.label} className={c.cls} style={{ padding: '12px 12px', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>{c.label}</th>
                                             ))}
                                         </tr>
                                     </thead>
@@ -599,7 +601,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                     borderBottom: idx < paginatedDocs.length - 1 ? '1px solid var(--border)' : 'none',
                                                     background: selectedDocs.includes(doc.id) ? 'var(--accent-soft)' : 'transparent',
                                                 }}
-                                                onMouseEnter={e => { if (!selectedDocs.includes(doc.id)) (e.currentTarget as HTMLElement).style.background = 'var(--ink-50)' }}
+                                                onMouseEnter={e => { if (!selectedDocs.includes(doc.id)) (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
                                                 onMouseLeave={e => { if (!selectedDocs.includes(doc.id)) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                                             >
                                                 <td style={{ padding: '10px 12px' }}>
@@ -624,10 +626,10 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                     </button>
                                                 </td>
                                                 <td className="col-doc-type" style={{ padding: '10px 12px' }}>
-                                                    <span style={{ fontSize: 11, color: 'var(--ink-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{getDocumentType(doc)}</span>
+                                                    <span style={{ fontSize: 10, color: 'var(--ink-500)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>{getDocumentType(doc)}</span>
                                                 </td>
                                                 <td className="col-doc-context" style={{ padding: '10px 12px' }}>
-                                                    <span style={{ fontSize: 11, color: 'var(--ink-600)', background: 'var(--ink-50)', border: '1px solid var(--border)', padding: '2px 8px' }}>
+                                                    <span style={{ fontSize: 11, color: 'var(--ink-600)', background: 'var(--surface-2)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 6 }}>
                                                         {doc.twg ? doc.twg.name : 'Global'}
                                                     </span>
                                                 </td>
@@ -639,7 +641,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                 </td>
                                                 <td className="col-doc-rag" style={{ padding: '10px 12px' }}>
                                                     {doc.ingested_at ? (
-                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--sage)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 8, fontWeight: 700, color: 'var(--sage)', textTransform: 'uppercase', letterSpacing: '0.08em', background: 'color-mix(in srgb, var(--sage) 10%, transparent)', padding: '2px 8px', borderRadius: 999 }}>
                                                             <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--sage)' }}></div>
                                                             Synced
                                                         </span>
@@ -658,7 +660,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                                     )}
                                                 </td>
                                                 <td className="col-doc-label" style={{ padding: '10px 12px' }}>
-                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: doc.is_confidential ? 'var(--terra)' : 'var(--sage)' }}>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: doc.is_confidential ? 'var(--terra)' : 'var(--sage)', background: doc.is_confidential ? 'color-mix(in srgb, var(--terra) 10%, transparent)' : 'color-mix(in srgb, var(--sage) 10%, transparent)', padding: '2px 8px', borderRadius: 999 }}>
                                                         <div style={{ width: 6, height: 6, borderRadius: '50%', background: doc.is_confidential ? 'var(--terra)' : 'var(--sage)' }}></div>
                                                         {doc.is_confidential ? 'Confidential' : 'Public'}
                                                     </span>
@@ -719,7 +721,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                             Prev
                                         </button>
                                         {[...Array(totalPages)].map((_, i) => (
-                                            <button key={i} onClick={() => setCurrentPage(i + 1)} style={{ background: currentPage === i + 1 ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${currentPage === i + 1 ? 'var(--accent)' : 'var(--border)'}`, color: currentPage === i + 1 ? 'var(--accent-ink)' : 'var(--ink-600)', padding: '4px 8px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                            <button key={i} onClick={() => setCurrentPage(i + 1)} style={{ background: currentPage === i + 1 ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${currentPage === i + 1 ? 'var(--accent)' : 'var(--border)'}`, color: currentPage === i + 1 ? 'var(--accent-ink)' : 'var(--ink-600)', padding: '4px 8px', fontSize: 12, cursor: 'pointer', fontFamily: "'Geist Mono', monospace" }}>
                                                 {i + 1}
                                             </button>
                                         ))}
@@ -739,10 +741,10 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', width: '100%', maxWidth: 440, overflow: 'hidden' }}>
                         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <h3 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 20, color: 'var(--ink-900)', margin: 0 }}>
+                            <h3 className="font-display" style={{ fontWeight: 800, letterSpacing: '-0.02em', fontSize: 16, color: 'var(--ink-900)', margin: 0 }}>
                                 {uploadStep === 'initial' ? 'Upload document' : uploadStep === 'ready_to_ingest' ? 'Upload successful' : uploadStep === 'ingesting' ? 'Processing...' : 'Complete'}
                             </h3>
-                            <button onClick={() => { setShowUploadModal(false); setUploadStep('initial'); setSelectedFile(null); setSelectedDocType(''); setCustomDocType(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-500)', display: 'flex', padding: 4 }}>
+                            <button onClick={() => { setShowUploadModal(false); setUploadStep('initial'); setSelectedFile(null); setSelectedDocType(''); setCustomDocType(''); }} className="clickable-scale" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-500)', display: 'flex', padding: 4 }}>
                                 <span className="material-symbols-outlined" style={{ fontSize: 20 }}>close</span>
                             </button>
                         </div>
@@ -761,7 +763,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                     </div>
 
                                     <div>
-                                        <label style={{ display: 'block', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 6 }}>Assign to TWG</label>
+                                        <label style={{ display: 'block', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600, marginBottom: 6 }}>Assign to TWG</label>
                                         <select value={selectedTwgId} onChange={(e) => setSelectedTwgId(e.target.value)} disabled={!!twgId} style={{ width: '100%', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', fontSize: 13, color: 'var(--ink-700)', fontFamily: 'inherit', cursor: twgId ? 'not-allowed' : 'pointer', opacity: twgId ? 0.6 : 1 }}>
                                             <option value="" disabled>Select knowledge base...</option>
                                             {isAdmin && <option value="global">Global Secretariat</option>}
@@ -779,7 +781,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                     </div>
 
                                     <div>
-                                        <label style={{ display: 'block', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 6 }}>Document Type</label>
+                                        <label style={{ display: 'block', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600, marginBottom: 6 }}>Document Type</label>
                                         <select value={selectedDocType} onChange={(e) => setSelectedDocType(e.target.value)} style={{ width: '100%', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', fontSize: 13, color: 'var(--ink-700)', fontFamily: 'inherit', cursor: 'pointer' }}>
                                             <option value="" disabled>Select type...</option>
                                             <option value="Meeting Minutes">Meeting Minutes</option>
@@ -799,7 +801,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                         <span style={{ fontSize: 12, color: 'var(--terra)', fontWeight: 500 }}>Mark as CONFIDENTIAL</span>
                                     </label>
 
-                                    <button onClick={handleUpload} disabled={!selectedFile || !selectedTwgId || uploading} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: !selectedFile || !selectedTwgId || uploading ? 0.5 : 1 }}>
+                                    <button onClick={handleUpload} disabled={!selectedFile || !selectedTwgId || uploading} className="clickable-scale" style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: !selectedFile || !selectedTwgId || uploading ? 0.5 : 1 }}>
                                         {uploading ? <><span className="material-symbols-outlined animate-spin" style={{ fontSize: 16 }}>progress_activity</span> Uploading...</> : 'Upload Document'}
                                     </button>
                                 </div>
@@ -810,9 +812,9 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                     <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                                         <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--sage)' }}>check_circle</span>
                                     </div>
-                                    <h4 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 18, color: 'var(--ink-900)', margin: '0 0 8px' }}>File uploaded</h4>
+                                    <h4 className="font-display" style={{ fontWeight: 800, letterSpacing: '-0.02em', fontSize: 16, color: 'var(--ink-900)', margin: '0 0 8px' }}>File uploaded</h4>
                                     <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: '0 0 20px' }}>Ingest into Knowledge Base for AI search?</p>
-                                    <button onClick={handleModalIngest} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
+                                    <button onClick={handleModalIngest} className="clickable-scale" style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
                                         <span className="material-symbols-outlined" style={{ fontSize: 16 }}>database_upload</span>
                                         Ingest to Knowledge Base
                                     </button>
@@ -825,7 +827,7 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                             {uploadStep === 'ingesting' && (
                                 <div style={{ textAlign: 'center', padding: '24px 0' }}>
                                     <div className="animate-spin rounded-full" style={{ width: 48, height: 48, border: '3px solid var(--border)', borderTopColor: 'var(--accent)', margin: '0 auto 16px' }}></div>
-                                    <h4 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 18, color: 'var(--ink-900)', margin: '0 0 8px' }}>Processing vectors...</h4>
+                                    <h4 className="font-display" style={{ fontWeight: 800, letterSpacing: '-0.02em', fontSize: 16, color: 'var(--ink-900)', margin: '0 0 8px' }}>Processing vectors...</h4>
                                     <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: 0 }}>Generating embeddings and updating index.</p>
                                 </div>
                             )}
@@ -835,9 +837,9 @@ export default function DocumentLibrary({ twgId }: { twgId?: string } = {}) {
                                     <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                                         <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--accent)' }}>auto_awesome</span>
                                     </div>
-                                    <h4 style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 18, color: 'var(--ink-900)', margin: '0 0 8px' }}>Ingestion complete</h4>
+                                    <h4 className="font-display" style={{ fontWeight: 800, letterSpacing: '-0.02em', fontSize: 16, color: 'var(--ink-900)', margin: '0 0 8px' }}>Ingestion complete</h4>
                                     <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: '0 0 20px' }}>Your document is now searchable by AI agents.</p>
-                                    <button onClick={() => { setShowUploadModal(false); setUploadStep('initial'); setSelectedDocType(''); setCustomDocType(''); fetchData(); }} style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
+                                    <button onClick={() => { setShowUploadModal(false); setUploadStep('initial'); setSelectedDocType(''); setCustomDocType(''); fetchData(); }} className="clickable-scale" style={{ background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--accent-ink)', padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
                                         Close
                                     </button>
                                 </div>

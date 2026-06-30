@@ -154,11 +154,11 @@ const CoreWorkspace = () => {
         <div className="rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] bg-white dark:bg-[#1a202c] overflow-hidden">
             <div className="px-6 py-4 border-b border-[#e7ebf3] dark:border-[#2d3748] flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/30">
                 <div>
-                    <h3 className="text-lg font-black text-[#0d121b] dark:text-white flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[#1152d4]">cloud_circle</span>
+                    <h3 className="font-display flex items-center gap-2" style={{ fontWeight: 800, letterSpacing: '-0.02em', fontSize: 16, color: 'var(--ink-900)' }}>
+                        <span className="material-symbols-outlined" style={{ color: 'var(--accent)' }}>cloud_circle</span>
                         Core Workspace
                     </h3>
-                    <p className="text-xs text-[#8a9dbd] font-bold uppercase tracking-wider mt-1">
+                    <p className="mt-1" style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--ink-500)' }}>
                         Shared Drive Documents
                     </p>
                 </div>
@@ -167,7 +167,7 @@ const CoreWorkspace = () => {
                         <select
                             value={selectedTwgFilter}
                             onChange={e => setSelectedTwgFilter(e.target.value)}
-                            className="text-xs font-bold border border-[#cfd7e7] dark:border-[#4a5568] rounded-lg px-3 py-2 bg-white dark:bg-[#2d3748] text-[#4c669a] dark:text-[#a0aec0] focus:ring-[#1152d4] focus:border-[#1152d4]"
+                            className="text-xs font-bold border border-[#cfd7e7] dark:border-[#4a5568] rounded-lg px-3 py-2 bg-white dark:bg-[#2d3748] text-[#4c669a] dark:text-[#a0aec0] focus:ring-teal-500 focus:border-teal-500"
                         >
                             <option value="">All TWGs</option>
                             {filterableTwgs.map((t: any) => (
@@ -178,7 +178,8 @@ const CoreWorkspace = () => {
                     {canUpload && (
                         <button
                             onClick={() => setShowUpload(!showUpload)}
-                            className={`p-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${showUpload ? 'bg-red-50 text-red-600' : 'bg-[#1152d4] text-white hover:bg-[#0d3ea8]'}`}
+                            className={`clickable-scale p-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${showUpload ? 'bg-red-50 text-red-600' : 'text-white'}`}
+                            style={showUpload ? undefined : { background: 'var(--accent)' }}
                         >
                             <span className="material-symbols-outlined text-[18px]">{showUpload ? 'close' : 'add'}</span>
                             {showUpload ? 'Close' : 'Add Document'}
@@ -186,20 +187,20 @@ const CoreWorkspace = () => {
                     )}
                     <button
                         onClick={() => setViewMode('grid')}
-                        className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-[#4a5568] shadow-sm text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
+                        className={`clickable-scale p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-[#4a5568] shadow-sm text-teal-600' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
                     >
                         <span className="material-symbols-outlined text-[20px]">grid_view</span>
                     </button>
                     <button
                         onClick={() => setViewMode('list')}
-                        className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white dark:bg-[#4a5568] shadow-sm text-[#1152d4]' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
+                        className={`clickable-scale p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white dark:bg-[#4a5568] shadow-sm text-teal-600' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
                     >
                         <span className="material-symbols-outlined text-[20px]">view_list</span>
                     </button>
                     <button
                         onClick={loadFiles}
                         disabled={loading}
-                        className="p-2 rounded-lg bg-gray-100 dark:bg-[#2d3748] text-[#8a9dbd] hover:text-[#1152d4] transition-all disabled:opacity-50"
+                        className="clickable-scale p-2 rounded-lg bg-gray-100 dark:bg-[#2d3748] text-[#8a9dbd] hover:text-teal-600 transition-all disabled:opacity-50"
                     >
                         <span className={`material-symbols-outlined text-[20px] ${loading ? 'animate-spin' : ''}`}>sync</span>
                     </button>
@@ -208,7 +209,7 @@ const CoreWorkspace = () => {
 
             {/* Admin Upload Section - Conditional */}
             {showUpload && canUpload && (
-                <div className="p-6 border-b border-[#e7ebf3] dark:border-[#2d3748] bg-blue-50/20 dark:bg-blue-900/10 animate-in slide-in-from-top-2">
+                <div className="p-6 border-b border-[#e7ebf3] dark:border-[#2d3748] bg-teal-50/20 dark:bg-teal-900/10 animate-in slide-in-from-top-2">
                     <SharedDocumentsManager onUploadSuccess={handleUploadSuccess} />
                 </div>
             )}
@@ -223,14 +224,14 @@ const CoreWorkspace = () => {
 
                 {loading && filteredFiles.length === 0 ? (
                     <div className="flex justify-center py-12">
-                        <span className="material-symbols-outlined text-4xl text-[#1152d4] animate-spin">progress_activity</span>
+                        <span className="material-symbols-outlined text-4xl text-teal-600 animate-spin">progress_activity</span>
                     </div>
                 ) : filteredFiles.length === 0 ? (
                     <div className="text-center py-12 border-2 border-dashed border-[#cfd7e7] rounded-xl bg-gray-50/50">
                         <span className="material-symbols-outlined text-4xl text-[#8a9dbd] mb-2">folder_off</span>
-                        <p className="text-[#8a9dbd] font-bold">No core documents found.</p>
+                        <p className="font-bold text-xs tracking-tight" style={{ color: 'var(--ink-500)' }}>No core documents found.</p>
                         {canUpload && !showUpload && (
-                            <button onClick={() => setShowUpload(true)} className="mt-4 text-xs font-bold text-[#1152d4] hover:underline uppercase">
+                            <button onClick={() => setShowUpload(true)} className="mt-4 text-xs font-bold text-teal-600 hover:underline uppercase">
                                 Upload First Document
                             </button>
                         )}
@@ -257,12 +258,12 @@ const CoreWorkspace = () => {
                                             <h3 className="font-bold text-sm line-clamp-2 mb-2 leading-tight">
                                                 {file.name}
                                             </h3>
-                                            <div className="mt-auto flex items-center gap-1 text-[10px] uppercase font-black opacity-60">
+                                            <div className="font-mono-geist mt-auto flex items-center gap-1 text-[10px] uppercase font-bold opacity-60">
                                                 <span className="material-symbols-outlined text-[12px]">schedule</span>
                                                 {new Date(file.modifiedTime).toLocaleDateString()}
                                             </div>
                                             {file.size && (
-                                                <div className="text-[10px] text-gray-600 mt-1">
+                                                <div className="font-mono-geist text-[10px] text-gray-600 mt-1">
                                                     {formatFileSize(file.size)}
                                                 </div>
                                             )}
@@ -273,14 +274,14 @@ const CoreWorkspace = () => {
                                                         const twg = allTwgs.find(t => t.id === twgId);
                                                         if (!twg) return null;
                                                         return (
-                                                            <span key={twgId} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                                            <span key={twgId} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wider" style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
                                                                 <span className="material-symbols-outlined text-[10px]">group</span>
                                                                 {twg.name}
                                                             </span>
                                                         );
                                                     })}
                                                     {file.scope.length > 3 && (
-                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-[9px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wider font-mono-geist" style={{ background: 'var(--surface-2)', color: 'var(--ink-500)' }}>
                                                             +{file.scope.length - 3}
                                                         </span>
                                                     )}
@@ -288,7 +289,7 @@ const CoreWorkspace = () => {
                                             )}
                                             {file.access_control === 'all_twgs' && (
                                                 <div className="flex flex-wrap gap-1 mt-2">
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-900/20 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wider" style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
                                                         <span className="material-symbols-outlined text-[10px]">public</span>
                                                         All TWGs
                                                     </span>
@@ -299,7 +300,7 @@ const CoreWorkspace = () => {
                                             <button
                                                 onClick={(e) => handleDelete(file.id, file.name, e)}
                                                 disabled={deletingId === file.id}
-                                                className="absolute top-2 right-2 p-1.5 bg-white dark:bg-[#2d3748] rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 shadow-sm"
+                                                className="clickable-scale absolute top-2 right-2 p-1.5 bg-white dark:bg-[#2d3748] rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 shadow-sm"
                                                 title="Delete file"
                                             >
                                                 {deletingId === file.id ? (
@@ -317,7 +318,7 @@ const CoreWorkspace = () => {
                                 {filteredFiles.map((file) => (
                                     <div
                                         key={file.id}
-                                        className="flex items-center p-3 rounded-xl border border-[#e7ebf3] hover:border-[#1152d4] bg-white hover:shadow-md transition-all group"
+                                        className="flex items-center p-3 rounded-xl border border-[#e7ebf3] hover:border-teal-600 bg-white hover:shadow-md transition-all group"
                                     >
                                         <a
                                             href={file.webViewLink}
@@ -329,9 +330,9 @@ const CoreWorkspace = () => {
                                                 <span className="material-symbols-outlined text-[20px]">{getIcon(file.mimeType)}</span>
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-bold text-[#0d121b] group-hover:text-[#1152d4] transition-colors truncate">{file.name}</p>
+                                                <p className="text-xs font-bold text-[#0d121b] group-hover:text-teal-600 transition-colors truncate tracking-tight">{file.name}</p>
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    <p className="text-[10px] font-bold text-[#8a9dbd] uppercase tracking-wider">
+                                                    <p className="font-mono-geist text-[9px] font-semibold uppercase tracking-wider" style={{ color: 'var(--ink-400)' }}>
                                                         Modified {new Date(file.modifiedTime).toLocaleDateString()}
                                                         {file.size && ` • ${formatFileSize(file.size)}`}
                                                     </p>
@@ -342,34 +343,34 @@ const CoreWorkspace = () => {
                                                                 const twg = allTwgs.find(t => t.id === twgId);
                                                                 if (!twg) return null;
                                                                 return (
-                                                                    <span key={twgId} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                                                    <span key={twgId} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wider" style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
                                                                         <span className="material-symbols-outlined text-[10px]">group</span>
                                                                         {twg.name}
                                                                     </span>
                                                                 );
                                                             })}
                                                             {file.scope.length > 2 && (
-                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-[9px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wider font-mono-geist" style={{ background: 'var(--surface-2)', color: 'var(--ink-500)' }}>
                                                                     +{file.scope.length - 2}
                                                                 </span>
                                                             )}
                                                         </div>
                                                     )}
                                                     {file.access_control === 'all_twgs' && (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-900/20 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wider" style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
                                                             <span className="material-symbols-outlined text-[10px]">public</span>
                                                             All TWGs
                                                         </span>
                                                     )}
                                                 </div>
                                             </div>
-                                            <span className="material-symbols-outlined text-[#8a9dbd] group-hover:text-[#1152d4] opacity-0 group-hover:opacity-100 transition-all ml-4">open_in_new</span>
+                                            <span className="material-symbols-outlined text-[#8a9dbd] group-hover:text-teal-600 opacity-0 group-hover:opacity-100 transition-all ml-4">open_in_new</span>
                                         </a>
                                         {isAdmin && (
                                             <button
                                                 onClick={(e) => handleDelete(file.id, file.name, e)}
                                                 disabled={deletingId === file.id}
-                                                className="ml-2 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all disabled:opacity-50"
+                                                className="clickable-scale ml-2 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all disabled:opacity-50"
                                                 title="Delete file"
                                             >
                                                 {deletingId === file.id ? (

@@ -11,7 +11,7 @@ export default function AgentAssistant() {
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M9 5l7 7-7 7" /></svg>
                         <span>Infrastructure TWG</span>
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M9 5l7 7-7 7" /></svg>
-                        <span className="text-blue-400 flex items-center gap-1">
+                        <span className="text-teal-400 flex items-center gap-1">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" /></svg>
                             Agent Assistant
                         </span>
@@ -44,7 +44,7 @@ export default function AgentAssistant() {
 
                     {/* Agent Message */}
                     <div className="flex gap-5 max-w-4xl opacity-0 animate-fade-in-up" style={{ animationDelay: '200ms', animationFillMode: 'forwards' }}>
-                        <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-900/40 shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center shadow-lg shadow-teal-900/40 shrink-0">
                             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" /><path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" /></svg>
                         </div>
                         <div className="space-y-2 flex-1">
@@ -66,9 +66,9 @@ export default function AgentAssistant() {
                         <div className="space-y-2 flex-1 text-right">
                             <div className="flex items-center gap-2 justify-end">
                                 <span className="text-[10px] text-slate-500 font-bold">10:25 AM</span>
-                                <span className="text-sm font-bold text-blue-400">You</span>
+                                <span className="text-sm font-bold text-teal-400">You</span>
                             </div>
-                            <div className="bg-blue-600 border border-blue-500 rounded-2xl p-5 inline-block text-left shadow-lg shadow-blue-900/40">
+                            <div className="bg-teal-600 border border-teal-500 rounded-2xl p-5 inline-block text-left shadow-lg shadow-teal-900/40">
                                 <p className="text-sm font-medium leading-relaxed">
                                     Yes, please draft the agenda. Make sure to include a specific section on the cross-border transport initiative. That's a priority for the Minister.
                                 </p>
@@ -84,14 +84,14 @@ export default function AgentAssistant() {
                         <div className="space-y-2">
                             <div className="flex items-center gap-2">
                                 <span className="text-sm font-bold">ECOWAS Agent</span>
-                                <span className="text-[10px] text-blue-500 font-bold animate-pulse">Processing...</span>
+                                <span className="text-[10px] text-teal-500 font-bold animate-pulse">Processing...</span>
                             </div>
                         </div>
                     </div>
 
                     {/* Agent Result Message */}
                     <div className="flex gap-5 max-w-4xl opacity-0 animate-fade-in-up" style={{ animationDelay: '1s', animationFillMode: 'forwards' }}>
-                        <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-900/40 shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center shadow-lg shadow-teal-900/40 shrink-0">
                             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" /><path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" /></svg>
                         </div>
                         <div className="space-y-2 flex-1 pb-20">
@@ -103,13 +103,13 @@ export default function AgentAssistant() {
                                 <p className="text-sm text-slate-300 leading-relaxed">
                                     I have generated a draft agenda incorporating the Cross-Border Transport Initiative as a key discussion point (Item 3.2).
                                 </p>
-                                <div className="p-4 bg-[#161C27] rounded-xl border border-slate-700 flex items-center justify-between group cursor-pointer hover:border-blue-500/50 transition-all">
+                                <div className="p-4 bg-[#161C27] rounded-xl border border-slate-700 flex items-center justify-between group cursor-pointer hover:border-teal-500/50 transition-all">
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 bg-red-900/20 rounded-lg flex items-center justify-center text-red-500">
                                             <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" /></svg>
                                         </div>
                                         <div>
-                                            <p className="text-sm font-bold group-hover:text-blue-400 transition-colors">Draft_Agenda_v1.pdf</p>
+                                            <p className="text-sm font-bold group-hover:text-teal-400 transition-colors">Draft_Agenda_v1.pdf</p>
                                             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Generated just now • 145 KB</p>
                                         </div>
                                     </div>

@@ -151,8 +151,7 @@ export default function KnowledgeBase() {
             <div className="text-center space-y-6">
                 <h1 className="text-4xl font-display font-bold text-slate-900 dark:text-white transition-colors">Global Knowledge Base</h1>
                 <form onSubmit={runSearch} className="max-w-2xl mx-auto relative group">
-                    <div className="absolute inset-0 bg-blue-600/20 blur-xl group-focus-within:bg-blue-600/30 transition-all rounded-full"></div>
-                    <div className="relative flex items-center bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border rounded-2xl p-1 shadow-2xl transition-all">
+                    <div className="relative flex items-center bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border rounded-2xl p-1 transition-all">
                         <div className="pl-4 pr-2 text-slate-400">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                         </div>
@@ -164,7 +163,7 @@ export default function KnowledgeBase() {
                             className="flex-1 bg-transparent border-0 py-3 text-lg focus:ring-0 text-slate-900 dark:text-white placeholder:text-slate-400"
                         />
                         <div className="flex items-center gap-2 pr-2">
-                            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-lg shadow-blue-900/20 flex items-center gap-2">
+                            <button type="submit" className="clickable-scale bg-teal-600 hover:bg-teal-500 text-white font-bold py-2.5 px-6 rounded-xl transition-all flex items-center gap-2">
                                 Search
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
                             </button>
@@ -177,7 +176,7 @@ export default function KnowledgeBase() {
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${tab === activeTab ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                            className={`clickable-scale px-4 py-1.5 rounded-full text-sm font-bold transition-all ${tab === activeTab ? 'bg-teal-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
                         >
                             {tab}
                         </button>
@@ -194,7 +193,7 @@ export default function KnowledgeBase() {
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
                                 Filters
                             </h3>
-                            <button onClick={resetFilters} className="text-[10px] text-blue-600 font-bold hover:underline">Reset</button>
+                            <button onClick={resetFilters} className="text-[10px] text-teal-600 font-bold hover:underline">Reset</button>
                         </div>
 
                         <div className="space-y-4">
@@ -203,7 +202,7 @@ export default function KnowledgeBase() {
                                 <select
                                     value={dateRangeIdx}
                                     onChange={(e) => setDateRangeIdx(Number(e.target.value))}
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border-0 rounded-lg py-2 px-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-colors"
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border-0 rounded-lg py-2 px-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 transition-colors"
                                 >
                                     {DATE_RANGES.map((r, i) => <option key={r.label} value={i}>{r.label}</option>)}
                                 </select>
@@ -218,7 +217,7 @@ export default function KnowledgeBase() {
                                             return (
                                                 <label key={twg.id} className="flex items-center gap-3 cursor-pointer group">
                                                     <input type="checkbox" className="sr-only" checked={checked} onChange={() => toggleTwg(twg.id)} />
-                                                    <div className={`w-4 h-4 rounded border transition-colors flex items-center justify-center ${checked ? 'bg-blue-600 border-blue-600' : 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-dark-border'}`}>
+                                                    <div className={`w-4 h-4 rounded border transition-colors flex items-center justify-center ${checked ? 'bg-teal-600 border-teal-600' : 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-dark-border'}`}>
                                                         {checked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                                                     </div>
                                                     <span className={`text-xs font-medium transition-colors ${checked ? 'text-slate-900 dark:text-white' : 'text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300'}`}>{twg.name}</span>
@@ -235,9 +234,9 @@ export default function KnowledgeBase() {
                 {/* Results Area */}
                 <div className="flex-1 space-y-8">
                     {/* Summary Card */}
-                    <Card className="p-0 overflow-hidden bg-gradient-to-br from-blue-600/10 to-transparent border-blue-500/20 shadow-none">
+                    <Card className="p-0 overflow-hidden bg-gradient-to-br from-teal-600/10 to-transparent border-teal-500/20 shadow-none">
                         <div className="p-6 flex items-start gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-900/40 shrink-0">
+                            <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center text-white shrink-0">
                                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                             </div>
                             <div className="space-y-2">
@@ -246,8 +245,8 @@ export default function KnowledgeBase() {
                                     {loading
                                         ? 'Loading your accessible documents...'
                                         : query
-                                            ? <>Showing <span className="text-blue-600 font-bold">{filteredDocs.length}</span> {filteredDocs.length === 1 ? 'document' : 'documents'} matching <span className="text-blue-600 font-bold">"{query}"</span>{searchingFragments ? ' — running semantic search...' : fragments.length > 0 ? <> and <span className="font-bold">{fragments.length}</span> AI knowledge fragments.</> : '.'}</>
-                                            : <>You have access to <span className="text-blue-600 font-bold">{documents.length}</span> {documents.length === 1 ? 'document' : 'documents'} across the WAIIS working groups. Search above or filter to narrow your results.</>}
+                                            ? <>Showing <span className="text-teal-600 font-bold">{filteredDocs.length}</span> {filteredDocs.length === 1 ? 'document' : 'documents'} matching <span className="text-teal-600 font-bold">"{query}"</span>{searchingFragments ? ' — running semantic search...' : fragments.length > 0 ? <> and <span className="font-bold">{fragments.length}</span> AI knowledge fragments.</> : '.'}</>
+                                            : <>You have access to <span className="text-teal-600 font-bold">{documents.length}</span> {documents.length === 1 ? 'document' : 'documents'} across the WAIIS working groups. Search above or filter to narrow your results.</>}
                                 </p>
                             </div>
                         </div>
@@ -296,7 +295,7 @@ export default function KnowledgeBase() {
                                 {topDocuments.map((doc) => {
                                     const type = fileType(doc.file_name)
                                     return (
-                                        <Card key={doc.id} onClick={() => handleDownload(doc.id)} className="group hover:ring-2 hover:ring-blue-500/50 transition-all cursor-pointer">
+                                        <Card key={doc.id} onClick={() => handleDownload(doc.id)} className="clickable-scale group hover:ring-2 hover:ring-teal-500/50 transition-all cursor-pointer">
                                             <div className="space-y-4">
                                                 <div className="flex justify-between items-start">
                                                     <div className={`p-2 rounded-lg ${type === 'pdf' ? 'bg-red-50 text-red-600 dark:bg-red-900/20' : type === 'doc' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20' : 'bg-orange-50 text-orange-600 dark:bg-orange-900/20'} transition-colors`}>
@@ -307,14 +306,14 @@ export default function KnowledgeBase() {
                                                     </Badge>
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-bold text-sm text-slate-900 dark:text-white transition-colors leading-snug group-hover:text-blue-600 line-clamp-2">{doc.file_name}</h4>
+                                                    <h4 className="font-bold text-sm text-slate-900 dark:text-white transition-colors leading-snug group-hover:text-teal-600 line-clamp-2">{doc.file_name}</h4>
                                                     <p className="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-tighter">{(doc.twg?.name || 'Global Secretariat')} • {new Date(doc.created_at).toLocaleDateString()}</p>
                                                 </div>
                                                 <div className="flex items-center justify-between pt-2">
                                                     <Avatar size="xs" fallback={initials(doc.uploaded_by?.full_name)} />
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleDownload(doc.id) }}
-                                                        className="p-1.5 text-slate-400 hover:text-blue-500 transition-colors"
+                                                        className="clickable-scale p-1.5 text-slate-400 hover:text-teal-500 transition-colors"
                                                         title="Download"
                                                     >
                                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>

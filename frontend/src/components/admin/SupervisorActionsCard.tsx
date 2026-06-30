@@ -44,11 +44,11 @@ export default function SupervisorActionsCard() {
         <div className="bg-white dark:bg-[#1a202c] rounded-xl border border-[#e7ebf3] dark:border-[#2d3748] shadow-sm p-6">
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-purple-500">smart_toy</span>
+                    <span className="material-symbols-outlined text-teal-500">smart_toy</span>
                     <h3 className="text-lg font-bold text-[#0d121b] dark:text-white">Supervisor Autonomous Actions</h3>
                 </div>
-                <div className="flex items-center gap-2 bg-purple-50 dark:bg-purple-900/20 px-3 py-1 rounded-full border border-purple-100 dark:border-purple-800/30">
-                    <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
+                <div className="flex items-center gap-2 bg-teal-50 dark:bg-teal-900/20 px-3 py-1 rounded-full border border-teal-100 dark:border-teal-800/30">
+                    <span className="text-xs font-bold text-teal-700 dark:text-teal-300">
                         {(autonomousData.stats.resolution_rate * 100).toFixed(0)}% Auto-Resolution
                     </span>
                 </div>

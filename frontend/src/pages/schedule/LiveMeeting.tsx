@@ -212,30 +212,30 @@ export default function LiveMeeting() {
 
                     {!agendaAnalysis ? (
                         <div className="text-center py-10 opacity-50">
-                            <div className="animate-spin w-8 h-8 border-2 border-slate-300 border-t-blue-600 rounded-full mx-auto mb-3"></div>
+                            <div className="animate-spin w-8 h-8 border-2 border-slate-300 border-t-teal-600 rounded-full mx-auto mb-3"></div>
                             <p className="text-xs text-slate-500 italic">Listening for insights...</p>
                         </div>
                     ) : (
                         <div className="space-y-6">
                             {/* Current Focus */}
                             <div className="relative">
-                                <div className="absolute -left-3 top-[-10px] bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                <div className="absolute -left-3 top-[-10px] bg-teal-100 text-teal-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                                     Martin Insight
                                 </div>
-                                <div className="p-4 pt-6 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 shadow-sm relative overflow-hidden">
+                                <div className="p-4 pt-6 rounded-xl bg-gradient-to-br from-teal-50 to-teal-50 border border-teal-100 shadow-sm relative overflow-hidden">
                                     <div className="absolute top-0 right-0 p-2 opacity-10">
-                                        <svg className="w-16 h-16 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6l5.25 3.15-.75 1.23-6.5-3.9V7z" /></svg>
+                                        <svg className="w-16 h-16 text-teal-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6l5.25 3.15-.75 1.23-6.5-3.9V7z" /></svg>
                                     </div>
                                     <div className="flex items-start gap-3 relative z-10">
-                                        <div className="mt-1.5 w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping" />
-                                        <div className="w-2.5 h-2.5 rounded-full bg-blue-600 absolute left-0 top-1.5" />
+                                        <div className="mt-1.5 w-2.5 h-2.5 rounded-full bg-teal-600 animate-ping" />
+                                        <div className="w-2.5 h-2.5 rounded-full bg-teal-600 absolute left-0 top-1.5" />
                                         <div>
                                             <h3 className="font-bold text-slate-800 text-sm leading-tight">
                                                 {agendaAnalysis.source === 'live_conflict_detector' ? '🚨 Policy Alert' : (agendaAnalysis.source === 'live_command' ? '🤖 Martin Answer' : (agendaAnalysis.source === 'agenda_monitor' ? '📋 Agenda Sync' : 'System Analysis'))}
                                             </h3>
 
                                             {agendaAnalysis.current_focus && (
-                                                <div className="mt-2 text-[10px] font-bold text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded inline-block">
+                                                <div className="mt-2 text-[10px] font-bold text-teal-600 bg-teal-100/50 px-2 py-0.5 rounded inline-block">
                                                     Current Focus: {agendaAnalysis.current_focus}
                                                 </div>
                                             )}
@@ -295,7 +295,7 @@ export default function LiveMeeting() {
                         <div className="space-y-3">
                             <div className="relative">
                                 <textarea
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none h-24 dark:text-white"
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-none h-24 dark:text-white"
                                     placeholder="Ask Martin a question..."
                                     value={commandInput}
                                     onChange={(e) => setCommandInput(e.target.value)}
@@ -307,9 +307,9 @@ export default function LiveMeeting() {
                                     }}
                                 />
                                 {isThinking && (
-                                    <div className="absolute inset-0 bg-white/50 dark:bg-slate-900/50 flex items-center justify-center rounded-lg backdrop-blur-[1px]">
-                                        <div className="flex items-center gap-2 text-blue-600 font-medium text-xs">
-                                            <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full" />
+                                    <div className="absolute inset-0 bg-white/70 dark:bg-slate-900/70 flex items-center justify-center rounded-lg">
+                                        <div className="flex items-center gap-2 text-teal-600 font-medium text-xs">
+                                            <div className="animate-spin w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full" />
                                             Martin is thinking...
                                         </div>
                                     </div>
@@ -320,14 +320,14 @@ export default function LiveMeeting() {
                                 <button
                                     onClick={() => sendManualCommand()}
                                     disabled={!commandInput.trim() || isThinking}
-                                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold py-2.5 rounded-lg transition-colors shadow-sm"
+                                    className="flex-1 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold py-2.5 rounded-lg transition-colors shadow-sm clickable-scale"
                                 >
                                     Ask Martin
                                 </button>
                                 <button
                                     onClick={requestQuickInsight}
                                     disabled={isThinking}
-                                    className="px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                                    className="px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm clickable-scale"
                                     title="Request an immediate AI scan of the last few minutes"
                                 >
                                     Force Sync

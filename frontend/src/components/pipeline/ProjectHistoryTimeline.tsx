@@ -77,7 +77,7 @@ export const ProjectHistoryTimeline: React.FC<ProjectHistoryTimelineProps> = ({ 
     if (loading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
             </div>
         );
     }
@@ -123,8 +123,8 @@ export const ProjectHistoryTimeline: React.FC<ProjectHistoryTimelineProps> = ({ 
                         <div key={entry.id} className="relative flex gap-4">
                             {/* Timeline dot */}
                             <div className="relative z-10 flex-shrink-0">
-                                <div className="w-12 h-12 rounded-full bg-white dark:bg-slate-800 border-2 border-blue-500 dark:border-blue-400 flex items-center justify-center shadow-sm">
-                                    <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-xl">
+                                <div className="w-12 h-12 rounded-full bg-white dark:bg-slate-800 border-2 border-teal-500 dark:border-teal-400 flex items-center justify-center shadow-sm">
+                                    <span className="material-symbols-outlined text-teal-600 dark:text-teal-400 text-xl">
                                         {index === 0 ? 'radio_button_checked' : 'circle'}
                                     </span>
                                 </div>

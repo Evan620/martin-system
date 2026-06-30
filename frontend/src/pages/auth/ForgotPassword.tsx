@@ -27,7 +27,7 @@ export default function ForgotPassword() {
     if (isSubmitted) {
         return (
             <div className="flex h-screen bg-slate-50 text-slate-900 items-center justify-center p-8">
-                <div className="w-full max-w-md space-y-8 text-center">
+                <div className="w-full max-w-md space-y-8 text-center animate-blur-slide">
                     <div className="flex justify-center">
                         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
                             <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -47,7 +47,7 @@ export default function ForgotPassword() {
                         <p>Didn't receive the email? Check your spam folder or</p>
                         <button
                             onClick={() => setIsSubmitted(false)}
-                            className="text-primary hover:text-blue-800 font-medium mt-1"
+                            className="text-primary hover:text-teal-800 font-medium mt-1"
                         >
                             try another email address
                         </button>
@@ -91,7 +91,7 @@ export default function ForgotPassword() {
 
                 <div className="relative z-10 flex flex-col justify-end p-16 space-y-6 text-white">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center border border-white/10">
+                        <div className="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center border border-white/10">
                             <span className="font-bold text-lg">W</span>
                         </div>
                         <span className="text-xl font-display font-semibold">WAIIS TWG</span>
@@ -99,20 +99,20 @@ export default function ForgotPassword() {
                     <h1 className="text-5xl font-display font-bold leading-tight">
                         Secure Account Recovery
                     </h1>
-                    <p className="text-blue-100 text-lg max-w-lg">
+                    <p className="text-teal-100 text-lg max-w-lg">
                         We'll help you regain access to your account securely. Enter your email to receive reset instructions.
                     </p>
                     <div className="flex gap-2">
                         <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
                         <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
                     </div>
                 </div>
             </div>
 
             {/* Right side - Form */}
             <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white">
-                <div className="w-full max-w-md space-y-8">
+                <div className="w-full max-w-md space-y-8 animate-blur-slide">
                     <div className="flex justify-end">
                         <div className="flex items-center gap-2 px-3 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs text-slate-500">
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -147,7 +147,7 @@ export default function ForgotPassword() {
                         <Button
                             type="submit"
                             isLoading={isLoading}
-                            className="w-full py-3 bg-primary hover:bg-blue-800 text-white font-semibold rounded-lg shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
+                            className="clickable-scale w-full py-3 bg-primary hover:bg-teal-800 text-white font-semibold rounded-lg shadow-lg shadow-teal-200 flex items-center justify-center gap-2"
                         >
                             Send Reset Instructions
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

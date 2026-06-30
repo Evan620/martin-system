@@ -280,7 +280,7 @@ const NewProject: React.FC = () => {
         </div>
         <button
           onClick={() => navigate('/deal-pipeline')}
-          className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+          className="clickable-scale flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
         >
           <span className="material-symbols-outlined text-[20px]">arrow_back</span>
           Back to Pipeline
@@ -472,10 +472,10 @@ const NewProject: React.FC = () => {
                               : [...prev.value_chain_stages, code],
                           }));
                         }}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                        className={`clickable-scale px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                           selected
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600'
+                            ? 'bg-teal-600 text-white border-teal-600'
+                            : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600'
                         }`}
                       >
                         {label}
@@ -584,7 +584,7 @@ const NewProject: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setFormData(prev => ({ ...prev, gender_intentional: true }))}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                className={`clickable-scale px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                   formData.gender_intentional === true
                     ? 'bg-green-600 text-white border-green-600'
                     : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-green-400'
@@ -593,7 +593,7 @@ const NewProject: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setFormData(prev => ({ ...prev, gender_intentional: false }))}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                className={`clickable-scale px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                   formData.gender_intentional === false
                     ? 'bg-slate-600 text-white border-slate-600'
                     : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-slate-400'
@@ -606,7 +606,7 @@ const NewProject: React.FC = () => {
                 placeholder="Describe how this project is intentionally designed to benefit women (ownership, leadership, beneficiaries)..."
                 value={formData.gender_justification ?? ''}
                 onChange={e => setFormData(prev => ({ ...prev, gender_justification: e.target.value }))}
-                className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
               />
             )}
           </div>
@@ -632,19 +632,19 @@ const NewProject: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setFormData(prev => ({ ...prev, youth_focused: true }))}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                className={`clickable-scale px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                   formData.youth_focused === true
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-blue-400'
+                    ? 'bg-teal-600 text-white border-teal-600'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-teal-400'
                 }`}
               >Yes</button>
               <button
                 type="button"
                 onClick={() => setFormData(prev => ({ ...prev, youth_focused: false }))}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                className={`clickable-scale px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                   formData.youth_focused === false
                     ? 'bg-slate-600 text-white border-slate-600'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-blue-400'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-teal-400'
                 }`}
               >No</button>
             </div>
@@ -654,7 +654,7 @@ const NewProject: React.FC = () => {
                 placeholder="Describe the youth employment focus (target age group, jobs created for under-35s, youth ownership)..."
                 value={formData.youth_justification ?? ''}
                 onChange={e => setFormData(prev => ({ ...prev, youth_justification: e.target.value }))}
-                className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
               />
             )}
           </div>
@@ -892,14 +892,14 @@ const NewProject: React.FC = () => {
                 // Save as draft logic
                 alert('Save as draft functionality coming soon!');
               }}
-              className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              className="clickable-scale px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
             >
               Save as Draft
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-2 px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="clickable-scale flex items-center gap-2 px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>

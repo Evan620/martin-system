@@ -1,0 +1,57 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   WAIIS — Quiet Paper Motion System
+   Append to frontend/src/index.css. Pure CSS, no animation library.
+   This is the "smooth" the design is built around: staggered blur-slide
+   entrances + press-to-scale feedback. Everything respects reduced-motion.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── Signature entrance: fade + rise + de-blur ─────────────────────────── */
+@keyframes qp-blur-slide-in {
+  0%   { opacity: 0; transform: translateY(16px); filter: blur(12px); }
+  100% { opacity: 1; transform: translateY(0);    filter: blur(0); }
+}
+
+.animate-blur-slide {
+  animation: qp-blur-slide-in var(--dur-page, 0.5s) var(--ease-quiet, cubic-bezier(0.16,1,0.3,1)) both;
+}
+
+/* Stagger delays for grids/lists (assign .stagger-N to successive children,
+   or set style={{ animationDelay: `${i*60}ms` }} inline for dynamic lists). */
+.stagger-1 { animation-delay: 60ms; }
+.stagger-2 { animation-delay: 120ms; }
+.stagger-3 { animation-delay: 180ms; }
+.stagger-4 { animation-delay: 240ms; }
+.stagger-5 { animation-delay: 300ms; }
+.stagger-6 { animation-delay: 360ms; }
+.stagger-7 { animation-delay: 420ms; }
+.stagger-8 { animation-delay: 480ms; }
+
+/* Lighter fade for small UI bits (dropdown items, badges appearing). */
+@keyframes qp-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.animate-fade-in { animation: qp-fade-in .3s var(--ease-quiet, ease-out) both; }
+
+/* ── Micro-interaction: press-to-scale ─────────────────────────────────── */
+.clickable-scale {
+  transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.clickable-scale:active {
+  transform: scale(0.96);
+}
+
+/* ── Smooth theme + state transitions ──────────────────────────────────── */
+.qp-transition {
+  transition: background-color .3s var(--ease-quiet, ease),
+              color .3s var(--ease-quiet, ease),
+              border-color .3s var(--ease-quiet, ease);
+}
+
+/* ── Accessibility: never animate for reduced-motion users ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .animate-blur-slide,
+  .animate-fade-in,
+  .clickable-scale {
+    animation: none !important;
+    transition: none !important;
+  }
+  .clickable-scale:active { transform: none !important; }
+}

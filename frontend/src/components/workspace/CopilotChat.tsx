@@ -173,7 +173,7 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
             {/* Header */}
             <div className="p-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between transition-colors">
                 <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-900/20">
+                    <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white shadow-lg shadow-teal-900/20">
                         <span className="material-symbols-outlined text-[20px]">smart_toy</span>
                     </div>
                     <div>
@@ -187,7 +187,7 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                 {onToggleExpand && (
                     <button
                         onClick={onToggleExpand}
-                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                        className="clickable-scale p-1.5 text-slate-400 hover:text-teal-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
                         title={isExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
                     >
                         <span className="material-symbols-outlined text-[20px]">
@@ -209,7 +209,7 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                                 {msg.sender === 'system' ? (
                                     <span className="material-symbols-outlined text-[14px] text-red-500">warning</span>
                                 ) : (
-                                    <span className="material-symbols-outlined text-[14px] text-blue-600">smart_toy</span>
+                                    <span className="material-symbols-outlined text-[14px] text-teal-600">smart_toy</span>
                                 )}
                             </div>
                         )}
@@ -218,7 +218,7 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                         <div className={`
                             p-3 rounded-2xl max-w-[95%] text-xs leading-relaxed transition-colors shadow-sm
                             ${msg.sender === 'user'
-                                ? 'bg-blue-600 text-white rounded-tr-none'
+                                ? 'bg-teal-600 text-white rounded-tr-none'
                                 : msg.sender === 'system'
                                     ? 'bg-red-50 text-red-600 border border-red-100'
                                     : 'bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 rounded-tl-none border border-slate-100 dark:border-slate-700'
@@ -234,7 +234,7 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                                         li: ({ children }) => <li className="pl-1">{children}</li>,
                                         strong: ({ children }) => <strong className="font-bold text-slate-900 dark:text-white">{children}</strong>,
                                         em: ({ children }) => <em className="italic">{children}</em>,
-                                        a: ({ href, children }) => <a href={href} className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                                        a: ({ href, children }) => <a href={href} className="text-teal-500 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
                                         code: ({ className, children }) => {
                                             const isBlock = className?.includes('language-');
                                             if (isBlock) {
@@ -267,8 +267,8 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                                     {msg.actions.map(action => (
                                         <button
                                             key={action.action_id}
-                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-colors ${action.style === 'primary'
-                                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                            className={`clickable-scale px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-colors ${action.style === 'primary'
+                                                ? 'bg-teal-600 text-white hover:bg-teal-700'
                                                 : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
                                                 }`}
                                             onClick={() => {
@@ -313,7 +313,7 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                                 <li
                                     key={twg.id}
                                     className={`px-3 py-2 text-xs cursor-pointer flex items-center gap-2 ${idx === mentionIndex
-                                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                        ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400'
                                         : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
                                         }`}
                                     onMouseDown={(e) => {
@@ -321,7 +321,7 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                                         insertMention(twg);
                                     }}
                                 >
-                                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${idx === mentionIndex ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'
+                                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${idx === mentionIndex ? 'bg-teal-500' : 'bg-slate-300 dark:bg-slate-600'
                                         }`} />
                                     <div className="flex-1 truncate">
                                         <span className="font-medium">{twg.name}</span>
@@ -341,7 +341,7 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                         onChange={handleInputChange}
                         onKeyDown={handleKeyDown}
                         placeholder={showMentions ? "Type to search TWGs..." : "Ask Copilot to analyze, draft, or schedule (@ to mention TWG)..."}
-                        className="w-full bg-white dark:bg-slate-800 rounded-xl py-3 pl-4 pr-12 text-xs font-medium text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 transition-all shadow-sm outline-none"
+                        className="w-full bg-white dark:bg-slate-800 rounded-xl py-3 pl-4 pr-12 text-xs font-medium text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-teal-500 transition-all shadow-sm outline-none"
                         disabled={isStreaming}
                         autoFocus
                         autoComplete="off"
@@ -349,7 +349,7 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                     <button
                         onClick={handleSendMessage}
                         disabled={!input.trim() || isStreaming}
-                        className="absolute right-2 top-2 p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors shadow-md shadow-blue-900/20"
+                        className="clickable-scale absolute right-2 top-2 p-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:hover:bg-teal-600 transition-colors shadow-md shadow-teal-900/20"
                     >
                         <span className="material-symbols-outlined text-[16px] block">send</span>
                     </button>

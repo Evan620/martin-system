@@ -195,7 +195,7 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
         <div className="bg-white dark:bg-[#1a202c] rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] p-6">
             <div className="mb-6">
                 <h3 className="text-lg font-black text-[#0d121b] dark:text-white flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#1152d4]">cloud_circle</span>
+                    <span className="material-symbols-outlined text-[var(--accent)]">cloud_circle</span>
                     Add to Core Workspace
                 </h3>
                 <p className="text-xs text-[#8a9dbd] font-bold uppercase tracking-wider mt-1">
@@ -207,8 +207,8 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
             <div className="flex gap-2 mb-6">
                 <button
                     onClick={() => setInputMode('upload')}
-                    className={`flex-1 px-4 py-3 rounded-xl font-bold text-sm transition-all ${inputMode === 'upload'
-                        ? 'bg-[#1152d4] text-white shadow-lg shadow-blue-500/20'
+                    className={`clickable-scale flex-1 px-4 py-3 rounded-xl font-bold text-sm transition-all ${inputMode === 'upload'
+                        ? 'bg-[var(--accent)] text-white shadow-lg shadow-teal-500/20'
                         : 'bg-gray-100 dark:bg-[#2d3748] text-[#4c669a] hover:bg-gray-200 dark:hover:bg-[#4a5568]'
                         }`}
                 >
@@ -217,8 +217,8 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                 </button>
                 <button
                     onClick={() => setInputMode('link')}
-                    className={`flex-1 px-4 py-3 rounded-xl font-bold text-sm transition-all ${inputMode === 'link'
-                        ? 'bg-[#1152d4] text-white shadow-lg shadow-blue-500/20'
+                    className={`clickable-scale flex-1 px-4 py-3 rounded-xl font-bold text-sm transition-all ${inputMode === 'link'
+                        ? 'bg-[var(--accent)] text-white shadow-lg shadow-teal-500/20'
                         : 'bg-gray-100 dark:bg-[#2d3748] text-[#4c669a] hover:bg-gray-200 dark:hover:bg-[#4a5568]'
                         }`}
                 >
@@ -234,8 +234,8 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                     className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${isDragging
-                        ? 'border-[#1152d4] bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-[#cfd7e7] dark:border-[#2d3748] hover:border-[#1152d4]'
+                        ? 'border-[var(--accent)] bg-teal-50 dark:bg-teal-900/20'
+                        : 'border-[#cfd7e7] dark:border-[#2d3748] hover:border-[var(--accent)]'
                         }`}
                 >
                     <input
@@ -257,7 +257,7 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                             <p className="text-sm text-[#8a9dbd] mb-4">or</p>
                             <button
                                 onClick={() => document.getElementById('file-input')?.click()}
-                                className="px-6 py-2 bg-[#1152d4] text-white rounded-lg font-bold hover:bg-[#0d3da0] transition-all"
+                                className="clickable-scale px-6 py-2 bg-[var(--accent)] text-white rounded-lg font-bold hover:bg-teal-700 transition-all"
                             >
                                 Browse Files
                             </button>
@@ -268,7 +268,7 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                     ) : (
                         <div className="space-y-4">
                             <div className="flex items-center justify-center gap-3 p-4 bg-gray-50 dark:bg-[#2d3748] rounded-lg">
-                                <span className="material-symbols-outlined text-[#1152d4] text-3xl">
+                                <span className="material-symbols-outlined text-[var(--accent)] text-3xl">
                                     description
                                 </span>
                                 <div className="flex-1 text-left">
@@ -304,7 +304,7 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                             onChange={(e) => setDriveUrl(e.target.value)}
                             placeholder="Paste Google Drive link (Docs, Sheets, Slides, Folders...)"
                             disabled={uploading}
-                            className="w-full px-4 py-3 rounded-xl border border-[#cfd7e7] dark:border-[#4a5568] bg-white dark:bg-[#2d3748] text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#1152d4]/20 transition-all text-[#4c669a] placeholder:text-gray-400"
+                            className="w-full px-4 py-3 rounded-xl border border-[#cfd7e7] dark:border-[#4a5568] bg-white dark:bg-[#2d3748] text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 transition-all text-[#4c669a] placeholder:text-gray-400"
                         />
                         <p className="text-[10px] text-[#8a9dbd] mt-2">
                             Supports: docs.google.com, sheets.google.com, slides.google.com, drive.google.com
@@ -352,19 +352,19 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                                 <label className="block text-[11px] font-black text-[#8a9dbd] uppercase tracking-wider">
                                     Sharing Scope
                                 </label>
-                                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                                <div className="p-4 bg-teal-50 dark:bg-teal-900/20 rounded-xl border border-teal-200 dark:border-teal-800">
                                     <div className="flex items-start gap-3">
-                                        <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[20px]">lock</span>
+                                        <span className="material-symbols-outlined text-teal-600 dark:text-teal-400 text-[20px]">lock</span>
                                         <div>
-                                            <p className="text-sm font-bold text-blue-800 dark:text-blue-200">Your Assigned TWG(s) Only</p>
-                                            <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                                            <p className="text-sm font-bold text-teal-800 dark:text-teal-200">Your Assigned TWG(s) Only</p>
+                                            <p className="text-xs text-teal-700 dark:text-teal-300 mt-1">
                                                 This document will be shared only with your assigned TWG(s).
                                             </p>
                                             <div className="flex flex-wrap gap-2 mt-2">
                                                 {userLedTwgIds.map(twgId => {
                                                     const twg = allTwgs.find(t => t.id === twgId);
                                                     return twg ? (
-                                                        <span key={twgId} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white dark:bg-blue-950 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                                        <span key={twgId} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white dark:bg-teal-950 text-[10px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
                                                             <span className="material-symbols-outlined text-[12px]">group</span>
                                                             {twg.name}
                                                         </span>
@@ -389,8 +389,8 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                                         <label
                                             key={option.value}
                                             className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all ${accessControl === option.value
-                                                ? 'border-[#1152d4] bg-[#eef2ff] dark:bg-[#1e3a8a]/20'
-                                                : 'border-[#cfd7e7] dark:border-[#4a5568] hover:border-[#1152d4]/30'
+                                                ? 'border-[var(--accent)] bg-teal-50 dark:bg-teal-900/20'
+                                                : 'border-[#cfd7e7] dark:border-[#4a5568] hover:border-[var(--accent)]/30'
                                                 }`}
                                         >
                                             <input
@@ -399,7 +399,7 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                                                 value={option.value}
                                                 checked={accessControl === option.value}
                                                 onChange={(e) => setAccessControl(e.target.value as any)}
-                                                className="size-4 text-[#1152d4] focus:ring-[#1152d4]"
+                                                className="size-4 text-[var(--accent)] focus:ring-[var(--accent)]"
                                             />
                                             <span className="material-symbols-outlined text-[18px] text-[#4c669a]">{option.icon}</span>
                                             <div className="flex-1">
@@ -427,13 +427,13 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                                                                 setSharedTwgIds(prev => prev.filter(id => id !== twg.id));
                                                             }
                                                         }}
-                                                        className="size-4 rounded border-[#cfd7e7] text-[#1152d4] focus:ring-[#1152d4]"
+                                                        className="size-4 rounded border-[#cfd7e7] text-[var(--accent)] focus:ring-[var(--accent)]"
                                                     />
-                                                    <span className="text-sm font-bold text-[#4c669a] group-hover:text-[#1152d4] transition-colors">{twg.name}</span>
+                                                    <span className="text-sm font-bold text-[#4c669a] group-hover:text-[var(--accent)] transition-colors">{twg.name}</span>
                                                 </label>
                                             ))}
                                         {sharedTwgIds.length > 0 && (
-                                            <p className="text-[10px] font-black text-[#1152d4] uppercase tracking-wider mt-2">
+                                            <p className="text-[10px] font-black text-[var(--accent)] uppercase tracking-wider mt-2">
                                                 {sharedTwgIds.length} TWG{sharedTwgIds.length > 1 ? 's' : ''} selected
                                             </p>
                                         )}
@@ -448,7 +448,7 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                         <div className="space-y-2">
                             <div className="w-full bg-gray-200 dark:bg-[#2d3748] rounded-full h-2">
                                 <div
-                                    className="bg-[#1152d4] h-2 rounded-full transition-all duration-300"
+                                    className="bg-[var(--accent)] h-2 rounded-full transition-all duration-300"
                                     style={{ width: `${uploadProgress}%` }}
                                 />
                             </div>
@@ -463,7 +463,7 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                         <button
                             onClick={handleUpload}
                             disabled={uploading || !hasContent}
-                            className="flex-1 px-6 py-3 bg-[#1152d4] text-white rounded-lg font-bold hover:bg-[#0d3da0] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="clickable-scale flex-1 px-6 py-3 bg-[var(--accent)] text-white rounded-lg font-bold hover:bg-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {uploading ? (
                                 <>
@@ -485,7 +485,7 @@ const SharedDocumentsManager = ({ onUploadSuccess }: SharedDocumentsManagerProps
                                     setSelectedFile(null);
                                     setDriveUrl('');
                                 }}
-                                className="px-6 py-3 border border-[#e7ebf3] dark:border-[#2d3748] text-[#8a9dbd] rounded-lg font-bold hover:bg-gray-50 dark:hover:bg-[#2d3748] transition-all"
+                                className="clickable-scale px-6 py-3 border border-[#e7ebf3] dark:border-[#2d3748] text-[#8a9dbd] rounded-lg font-bold hover:bg-gray-50 dark:hover:bg-[#2d3748] transition-all"
                             >
                                 Cancel
                             </button>

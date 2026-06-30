@@ -28,8 +28,8 @@ export default function UserProfile() {
                 <div className="flex gap-8">
                     <button
                         onClick={() => setActiveTab('profile')}
-                        className={`pb-3 px-1 text-sm font-bold transition-colors relative ${activeTab === 'profile'
-                            ? 'text-[#1152d4] dark:text-blue-400'
+                        className={`clickable-scale pb-3 px-1 text-sm font-bold transition-colors relative ${activeTab === 'profile'
+                            ? 'text-[var(--accent)] dark:text-teal-400'
                             : 'text-[#4c669a] dark:text-[#a0aec0] hover:text-[#0d121b] dark:hover:text-white'
                             }`}
                     >
@@ -38,13 +38,13 @@ export default function UserProfile() {
                             Profile
                         </span>
                         {activeTab === 'profile' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1152d4] dark:bg-blue-400"></div>
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] dark:bg-teal-400"></div>
                         )}
                     </button>
                     <button
                         onClick={() => setActiveTab('settings')}
-                        className={`pb-3 px-1 text-sm font-bold transition-colors relative ${activeTab === 'settings'
-                            ? 'text-[#1152d4] dark:text-blue-400'
+                        className={`clickable-scale pb-3 px-1 text-sm font-bold transition-colors relative ${activeTab === 'settings'
+                            ? 'text-[var(--accent)] dark:text-teal-400'
                             : 'text-[#4c669a] dark:text-[#a0aec0] hover:text-[#0d121b] dark:hover:text-white'
                             }`}
                     >
@@ -53,7 +53,7 @@ export default function UserProfile() {
                             Settings
                         </span>
                         {activeTab === 'settings' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1152d4] dark:bg-blue-400"></div>
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] dark:bg-teal-400"></div>
                         )}
                     </button>
                 </div>
@@ -64,9 +64,9 @@ export default function UserProfile() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Profile Overview Card */}
                     <div className="lg:col-span-1">
-                        <div className="glass-card rounded-xl p-6">
+                        <div className="rounded-xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                             <div className="flex flex-col items-center text-center">
-                                <div className="size-24 rounded-full bg-blue-100 flex items-center justify-center text-[#1152d4] mb-4">
+                                <div className="size-24 rounded-full bg-teal-100 flex items-center justify-center text-[var(--accent)] mb-4">
                                     <span className="material-symbols-outlined text-[48px]">person</span>
                                 </div>
                                 <h2 className="text-xl font-bold text-[#0d121b] dark:text-white">
@@ -74,7 +74,7 @@ export default function UserProfile() {
                                 </h2>
                                 <p className="text-sm text-[#4c669a] dark:text-[#a0aec0]">WAIIS Administrator</p>
                                 <div className="mt-4 flex flex-wrap justify-center gap-2">
-                                    <span className="px-2 py-1 bg-blue-50 text-blue-600 dark:bg-blue-900/20 text-blue-400 text-xs font-bold rounded uppercase">
+                                    <span className="px-2 py-1 bg-teal-50 text-teal-600 dark:bg-teal-900/20 text-teal-400 text-xs font-bold rounded uppercase">
                                         {user?.role || 'ADMIN'}
                                     </span>
                                     <span className="px-2 py-1 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs font-bold rounded">VERIFIED</span>
@@ -100,7 +100,7 @@ export default function UserProfile() {
                     {/* Profile Details & Tabs */}
                     <div className="lg:col-span-2 space-y-8">
                         {/* Personal Details Section */}
-                        <div className="glass-card rounded-xl p-6">
+                        <div className="rounded-xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                             <h3 className="text-lg font-bold text-[#0d121b] dark:text-white mb-6">Personal Details</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
@@ -118,17 +118,17 @@ export default function UserProfile() {
                                 </div>
                             </div>
                             <div className="mt-8 flex justify-end">
-                                <button className="px-6 py-2 bg-[#1152d4] text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+                                <button className="clickable-scale px-6 py-2 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-bold rounded-lg hover:bg-teal-700 transition-colors shadow-sm">
                                     Save Profile
                                 </button>
                             </div>
                         </div>
 
                         {/* Account Security */}
-                        <div className="glass-card rounded-xl p-6">
+                        <div className="rounded-xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                             <h3 className="text-lg font-bold text-[#0d121b] dark:text-white mb-6">Account Security</h3>
                             <div className="space-y-4">
-                                <div className="flex items-center justify-between p-4 bg-white/40 dark:bg-white/5 rounded-lg">
+                                <div className="flex items-center justify-between p-4 rounded-lg" style={{ background: 'var(--surface-2)' }}>
                                     <div className="flex items-center gap-3">
                                         <span className="material-symbols-outlined text-[#4c669a]">password</span>
                                         <div>
@@ -138,12 +138,12 @@ export default function UserProfile() {
                                     </div>
                                     <button
                                         onClick={() => setIsPasswordModalOpen(true)}
-                                        className="px-4 py-1.5 text-sm font-bold border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg hover:bg-white dark:hover:bg-[#4a5568] transition-colors"
+                                        className="clickable-scale px-4 py-1.5 text-sm font-bold border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg hover:bg-white dark:hover:bg-[#4a5568] transition-colors"
                                     >
                                         Change
                                     </button>
                                 </div>
-                                <div className="flex items-center justify-between p-4 bg-white/40 dark:bg-white/5 rounded-lg">
+                                <div className="flex items-center justify-between p-4 rounded-lg" style={{ background: 'var(--surface-2)' }}>
                                     <div className="flex items-center gap-3">
                                         <span className="material-symbols-outlined text-emerald-500">verified_user</span>
                                         <div>

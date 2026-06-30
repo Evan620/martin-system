@@ -144,7 +144,7 @@ export default function ScoutCoordsModal({ projectId, onClose, onConfirm }: Prop
                                 <div style={{
                                     background: 'rgba(124,58,237,0.06)', border: '1px solid var(--border, #d1d5db)',
                                     padding: '10px 12px', borderRadius: 6,
-                                    fontFamily: "'Source Serif 4', serif", fontSize: 14, color: 'var(--ink-800, #1f2937)', lineHeight: 1.5,
+                                    fontFamily: "'Geist', serif", fontSize: 14, color: 'var(--ink-800, #1f2937)', lineHeight: 1.5,
                                 }}>
                                     {scouted.reasoning || '(no reasoning provided)'}
                                 </div>

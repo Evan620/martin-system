@@ -116,7 +116,7 @@ export default function GlobalStateDashboard() {
             {/* Header */}
             <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-indigo-500">language</span>
+                    <span className="material-symbols-outlined text-teal-500">language</span>
                     <h2 className="font-semibold text-slate-900 dark:text-white">Supervisor Global State</h2>
                     <span className="text-xs text-slate-500 ml-2">
                         Updated: {format(new Date(state.last_refresh), 'HH:mm:ss')}
@@ -125,7 +125,7 @@ export default function GlobalStateDashboard() {
                 <button
                     onClick={handleRefresh}
                     disabled={refreshing}
-                    className={`p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition ${refreshing ? 'animate-spin' : ''}`}
+                    className={`clickable-scale p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition ${refreshing ? 'animate-spin' : ''}`}
                 >
                     <span className="material-symbols-outlined text-slate-500">refresh</span>
                 </button>
@@ -139,7 +139,7 @@ export default function GlobalStateDashboard() {
                         onClick={() => setActiveTab(tab as any)}
                         className={`px-4 py-2 text-sm font-medium capitalize border-b-2 transition
                             ${activeTab === tab
-                                ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                                ? 'border-teal-500 text-teal-600 dark:text-teal-400'
                                 : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
                     >
                         {tab}
@@ -155,9 +155,9 @@ export default function GlobalStateDashboard() {
                     <div className="space-y-6">
                         {/* KPI Cards */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <StatCard label="Total Meetings" value={state.total_meetings} icon="event" color="blue" />
+                            <StatCard label="Total Meetings" value={state.total_meetings} icon="event" color="teal" />
                             <StatCard label="Documents" value={state.total_documents} icon="description" color="emerald" />
-                            <StatCard label="Pipeline Projects" value={state.total_projects} icon="rocket_launch" color="purple" />
+                            <StatCard label="Pipeline Projects" value={state.total_projects} icon="rocket_launch" color="teal" />
                             <StatCard label="Active Conflicts" value={state.active_conflicts.length} icon="warning" color="amber" />
                         </div>
 
@@ -265,7 +265,7 @@ export default function GlobalStateDashboard() {
                                     <div className="text-xs text-slate-500">{p.twg_name}</div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-sm font-mono font-medium text-indigo-600 dark:text-indigo-400">
+                                    <div className="text-sm font-mono font-medium text-teal-600 dark:text-teal-400">
                                         ${Number(p.investment_size).toLocaleString()}
                                     </div>
                                     <div className="text-xs flex items-center gap-1 justify-end text-slate-500">
@@ -286,9 +286,8 @@ export default function GlobalStateDashboard() {
 
 function StatCard({ label, value, icon, color }: { label: string, value: number, icon: string, color: string }) {
     const colorClasses: Record<string, string> = {
-        blue: "text-blue-600 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400",
+        teal: "text-teal-600 bg-teal-100 dark:bg-teal-900/30 dark:text-teal-400",
         emerald: "text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400",
-        purple: "text-purple-600 bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400",
         amber: "text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400",
     };
 

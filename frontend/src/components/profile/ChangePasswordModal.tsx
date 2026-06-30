@@ -75,7 +75,7 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
                     <h2 className="text-xl font-bold text-[#0d121b] dark:text-white">Change Password</h2>
                     <button
                         onClick={onClose}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                        className="clickable-scale p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                     >
                         <span className="material-symbols-outlined text-[#4c669a]">close</span>
                     </button>
@@ -131,14 +131,14 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
                                 <button
                                     type="button"
                                     onClick={onClose}
-                                    className="flex-1 px-4 py-2 border border-[#e7ebf3] dark:border-[#4a5568] text-sm font-bold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                    className="clickable-scale flex-1 px-4 py-2 border border-[#e7ebf3] dark:border-[#4a5568] text-sm font-bold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <Button
                                     type="submit"
                                     isLoading={isLoading}
-                                    className="flex-1 py-2 bg-[#1152d4] text-white text-sm font-bold rounded-lg hover:bg-blue-700 shadow-sm"
+                                    className="clickable-scale flex-1 py-2 bg-[var(--accent)] text-white text-sm font-bold rounded-lg hover:bg-teal-700 shadow-sm"
                                 >
                                     Update Password
                                 </Button>

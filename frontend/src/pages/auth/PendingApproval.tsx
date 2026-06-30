@@ -4,10 +4,10 @@ import { Card, Button } from '../../components/ui'
 export default function PendingApproval() {
     return (
         <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6">
-            <div className="w-full max-w-md">
+            <div className="w-full max-w-md animate-blur-slide">
                 <Card className="border-slate-800 bg-slate-900/50 p-8 text-center space-y-6">
-                    <div className="w-20 h-20 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto">
-                        <svg className="w-10 h-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="w-20 h-20 bg-teal-600/10 rounded-full flex items-center justify-center mx-auto">
+                        <svg className="w-10 h-10 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
@@ -30,7 +30,7 @@ export default function PendingApproval() {
 
                     <div className="pt-4">
                         <Link to="/login">
-                            <Button className="w-full" variant="outline">
+                            <Button className="clickable-scale w-full" variant="outline">
                                 Back to Login
                             </Button>
                         </Link>

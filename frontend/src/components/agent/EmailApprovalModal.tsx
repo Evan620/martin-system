@@ -63,7 +63,7 @@ export default function EmailApprovalModal({
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-[#e7ebf3] dark:border-[#2d3748]">
                     <div className="flex items-center gap-3">
-                        <div className="size-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                        <div className="size-10 rounded-full bg-teal-600 flex items-center justify-center">
                             <span className="material-symbols-outlined text-white text-[20px]">mail</span>
                         </div>
                         <div>
@@ -73,7 +73,7 @@ export default function EmailApprovalModal({
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
+                        className="clickable-scale p-2 hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
                     >
                         <span className="material-symbols-outlined text-[#6b7280]">close</span>
                     </button>
@@ -83,12 +83,12 @@ export default function EmailApprovalModal({
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
                     {/* Context */}
                     {approvalRequest.draft.context && (
-                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                        <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg p-4">
                             <div className="flex items-start gap-2">
-                                <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 text-[18px] mt-0.5">info</span>
+                                <span className="material-symbols-outlined text-teal-600 dark:text-teal-400 text-[18px] mt-0.5">info</span>
                                 <div>
-                                    <div className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">Context</div>
-                                    <div className="text-sm text-blue-800 dark:text-blue-200">{approvalRequest.draft.context}</div>
+                                    <div className="text-xs font-semibold text-teal-900 dark:text-teal-100 mb-1">Context</div>
+                                    <div className="text-sm text-teal-800 dark:text-teal-200">{approvalRequest.draft.context}</div>
                                 </div>
                             </div>
                         </div>
@@ -107,7 +107,7 @@ export default function EmailApprovalModal({
                                     ...editedDraft,
                                     to: e.target.value.split(',').map(email => email.trim())
                                 })}
-                                className="w-full px-3 py-2 border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg bg-white dark:bg-[#0d121b] text-sm text-[#0d121b] dark:text-white focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
+                                className="w-full px-3 py-2 border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg bg-white dark:bg-[#0d121b] text-sm text-[#0d121b] dark:text-white focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
                             />
                         ) : (
                             <div className="flex flex-wrap gap-2">
@@ -135,7 +135,7 @@ export default function EmailApprovalModal({
                                         cc: e.target.value ? e.target.value.split(',').map(email => email.trim()) : undefined
                                     })}
                                     placeholder="Optional CC recipients (comma-separated)"
-                                    className="w-full px-3 py-2 border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg bg-white dark:bg-[#0d121b] text-sm text-[#0d121b] dark:text-white focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
+                                    className="w-full px-3 py-2 border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg bg-white dark:bg-[#0d121b] text-sm text-[#0d121b] dark:text-white focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
                                 />
                             ) : (
                                 <div className="flex flex-wrap gap-2">
@@ -159,7 +159,7 @@ export default function EmailApprovalModal({
                                 type="text"
                                 value={editedDraft.subject}
                                 onChange={(e) => setEditedDraft({ ...editedDraft, subject: e.target.value })}
-                                className="w-full px-3 py-2 border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg bg-white dark:bg-[#0d121b] text-sm text-[#0d121b] dark:text-white focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
+                                className="w-full px-3 py-2 border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg bg-white dark:bg-[#0d121b] text-sm text-[#0d121b] dark:text-white focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
                             />
                         ) : (
                             <div className="px-3 py-2 bg-gray-50 dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#2d3748] rounded-lg text-sm text-[#0d121b] dark:text-white font-medium">
@@ -228,7 +228,7 @@ export default function EmailApprovalModal({
                 <div className="flex items-center justify-between p-6 border-t border-[#e7ebf3] dark:border-[#2d3748] bg-gray-50 dark:bg-[#0d121b]">
                     <button
                         onClick={() => setIsEditing(!isEditing)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#4c669a] dark:text-[#a0aec0] hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
+                        className="clickable-scale flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#4c669a] dark:text-[#a0aec0] hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
                     >
                         <span className="material-symbols-outlined text-[18px]">
                             {isEditing ? 'cancel' : 'edit'}
@@ -241,7 +241,7 @@ export default function EmailApprovalModal({
                             <>
                                 <button
                                     onClick={() => setShowDeclineInput(true)}
-                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg transition-all"
+                                    className="clickable-scale flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg transition-all"
                                 >
                                     <span className="material-symbols-outlined text-[18px]">cancel</span>
                                     Decline
@@ -249,7 +249,7 @@ export default function EmailApprovalModal({
                                 <button
                                     onClick={handleApprove}
                                     disabled={isApproving}
-                                    className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-lg shadow-md hover:shadow-lg transition-all ${isApproving ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                    className={`clickable-scale flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg shadow-md hover:shadow-lg transition-all ${isApproving ? 'opacity-75 cursor-not-allowed' : ''}`}
                                 >
                                     {isApproving ? (
                                         <span className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
@@ -266,13 +266,13 @@ export default function EmailApprovalModal({
                                         setShowDeclineInput(false);
                                         setDeclineReason('');
                                     }}
-                                    className="px-4 py-2 text-sm font-medium text-[#6b7280] dark:text-[#9ca3af] hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
+                                    className="clickable-scale px-4 py-2 text-sm font-medium text-[#6b7280] dark:text-[#9ca3af] hover:bg-gray-100 dark:hover:bg-[#2d3748] rounded-lg transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleDecline}
-                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-md hover:shadow-lg transition-all"
+                                    className="clickable-scale flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-md hover:shadow-lg transition-all"
                                 >
                                     <span className="material-symbols-outlined text-[18px]">block</span>
                                     Confirm Decline

@@ -105,7 +105,7 @@ export default function Settings() {
     if (loading) {
         return (
             <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
             </div>
         )
     }
@@ -125,7 +125,7 @@ export default function Settings() {
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="px-4 py-2 bg-[#1152d4] text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+                        className="clickable-scale px-4 py-2 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-bold rounded-lg hover:bg-teal-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                     >
                         {saving ? 'Saving...' : 'Save Changes'}
                     </button>
@@ -171,7 +171,7 @@ export default function Settings() {
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="px-4 py-2 bg-[#1152d4] text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+                        className="clickable-scale px-4 py-2 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-bold rounded-lg hover:bg-teal-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                     >
                         {saving ? (
                             <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
@@ -188,7 +188,7 @@ export default function Settings() {
                 <section>
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-base font-bold text-[#0d121b] dark:text-white flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[#1152d4]">smart_toy</span>
+                            <span className="material-symbols-outlined text-[var(--accent)]">smart_toy</span>
                             AI Model Configuration
                         </h3>
                     </div>
@@ -199,7 +199,7 @@ export default function Settings() {
                                 <select
                                     value={formState.llm_provider}
                                     onChange={(e) => handleChange('llm_provider', e.target.value)}
-                                    className="w-full bg-[#f6f6f8] dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg px-3 py-2 text-sm text-[#0d121b] dark:text-white focus:ring-[#1152d4] focus:border-[#1152d4]"
+                                    className="w-full bg-[#f6f6f8] dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg px-3 py-2 text-sm text-[#0d121b] dark:text-white focus:ring-[var(--accent)] focus:border-[var(--accent)]"
                                 >
                                     <option value="openai">OpenAI</option>
                                     <option value="github">GitHub Models (Azure)</option>
@@ -212,7 +212,7 @@ export default function Settings() {
                                     type="text"
                                     value={formState.llm_model}
                                     onChange={(e) => handleChange('llm_model', e.target.value)}
-                                    className="w-full bg-[#f6f6f8] dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg px-3 py-2 text-sm text-[#0d121b] dark:text-white focus:ring-[#1152d4] focus:border-[#1152d4]"
+                                    className="w-full bg-[#f6f6f8] dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg px-3 py-2 text-sm text-[#0d121b] dark:text-white focus:ring-[var(--accent)] focus:border-[var(--accent)]"
                                     placeholder="e.g. gpt-4o-mini"
                                 />
                                 <p className="text-xs text-gray-500 mt-1">Specify the model ID to use for agents.</p>
@@ -225,7 +225,7 @@ export default function Settings() {
                 <section>
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-base font-bold text-[#0d121b] dark:text-white flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[#1152d4]">hub</span>
+                            <span className="material-symbols-outlined text-[var(--accent)]">hub</span>
                             External Integrations
                         </h3>
                         {settings?.enable_google_calendar && (
@@ -284,8 +284,8 @@ export default function Settings() {
                             <div>
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="size-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-blue-600">video_camera_front</span>
+                                        <div className="size-10 rounded-lg bg-teal-100 flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-teal-600">video_camera_front</span>
                                         </div>
                                         <div>
                                             <h4 className="font-bold text-[#0d121b] dark:text-white">Conferencing API</h4>
@@ -330,10 +330,10 @@ export default function Settings() {
             <style>{`
                 .toggle-checkbox:checked {
                     right: 0;
-                    border-color: #1152d4;
+                    border-color: var(--accent);
                 }
                 .toggle-checkbox:checked + .toggle-label {
-                    background-color: #1152d4;
+                    background-color: var(--accent);
                 }
             `}</style>
         </>

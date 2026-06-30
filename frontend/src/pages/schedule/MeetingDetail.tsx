@@ -996,7 +996,7 @@ export default function MeetingDetail() {
                                 <button
                                     onClick={handleRejectMinutes}
                                     disabled={!rejectReason.trim() || isRejectingMinutes}
-                                    className="btn-primary bg-red-600 hover:bg-red-700 border-red-600 disabled:opacity-50"
+                                    className="btn-primary bg-red-600 hover:bg-red-700 border-red-600 disabled:opacity-50 clickable-scale"
                                 >
                                     {isRejectingMinutes ? '⏳ Rejecting...' : 'Confirm Rejection'}
                                 </button>
@@ -1020,7 +1020,7 @@ export default function MeetingDetail() {
                         >
                             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_back</span>
                         </button>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, color: 'var(--ink-500)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--ink-500)' }}>
                             <button onClick={() => navigate('/dashboard')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', font: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit' }}>Home</button>
                             <span style={{ color: 'var(--ink-300)' }}>·</span>
                             {location.state?.from === 'schedule' || location.pathname.includes('/schedule') ? (
@@ -1047,9 +1047,9 @@ export default function MeetingDetail() {
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <h1 style={{
-                                fontFamily: "'Source Serif 4', serif", fontWeight: 400,
-                                fontSize: 32, letterSpacing: '-0.02em', color: 'var(--ink-900)',
-                                margin: 0, lineHeight: 1.15, maxWidth: 820,
+                                fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800,
+                                fontSize: 18, letterSpacing: '-0.02em', color: 'var(--ink-900)',
+                                margin: 0, lineHeight: 1.2, maxWidth: 820,
                             }}>{meeting?.title}</h1>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 10, flexWrap: 'wrap' }}>
                                 {meeting?.status && (
@@ -1158,9 +1158,9 @@ export default function MeetingDetail() {
 
                     const ledgerCell = (label: string, value: React.ReactNode, sub: string, last = false, color?: string): JSX.Element => (
                         <div style={{ paddingRight: 24, borderRight: last ? 'none' : '1px solid var(--border)' }}>
-                            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{label}</div>
+                            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>{label}</div>
                             <div style={{
-                                fontFamily: "'Source Serif 4', serif", fontWeight: 400, fontSize: 24,
+                                fontFamily: "'Geist Mono', monospace", fontWeight: 800, fontSize: 24,
                                 color: color || 'var(--ink-900)', letterSpacing: '-0.02em',
                                 marginTop: 4, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums',
                             }}>{value}</div>
@@ -1223,24 +1223,43 @@ export default function MeetingDetail() {
                     <div style={{ padding: '32px', maxWidth: 1180, margin: '0 auto' }}>
                             {loading ? (
                                 <div className="flex justify-center py-20">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
                                 </div>
                             ) : (
                                 <>
                                     {/* AGENDA TAB */}
                                     {activeTab === 'agenda' && (
-                                        <div className="max-w-4xl space-y-6">
-                                            <div className="flex justify-between items-center">
-                                                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Meeting Agenda</h2>
-                                                <div className="flex gap-2">
+                                        <div style={{ fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
+                                                <div>
+                                                    <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>Meeting agenda</div>
+                                                    <h2 style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800, fontSize: 16, color: 'var(--ink-900)', letterSpacing: '-0.02em', margin: '4px 0 0', lineHeight: 1.2 }}>
+                                                        Topics &amp; running order
+                                                    </h2>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 8 }}>
                                                     {!isEditingAgenda ? (
-                                                        <button onClick={() => setIsEditingAgenda(true)} className="btn-secondary text-sm">
-                                                            Edit Agenda
+                                                        <button onClick={() => setIsEditingAgenda(true)} style={{
+                                                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                                                            background: 'transparent', border: '1px solid var(--border)',
+                                                            color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                                                            cursor: 'pointer', fontFamily: 'inherit',
+                                                        }}>
+                                                            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
+                                                            Edit agenda
                                                         </button>
                                                     ) : (
                                                         <>
-                                                            <button onClick={() => setIsEditingAgenda(false)} className="btn-secondary text-sm">Cancel</button>
-                                                            <button onClick={handleSaveAgenda} className="btn-primary text-sm">Save</button>
+                                                            <button onClick={() => setIsEditingAgenda(false)} style={{
+                                                                background: 'transparent', border: '1px solid var(--border)',
+                                                                color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                                                                cursor: 'pointer', fontFamily: 'inherit',
+                                                            }}>Cancel</button>
+                                                            <button onClick={handleSaveAgenda} style={{
+                                                                background: 'var(--accent)', border: '1px solid var(--accent)',
+                                                                color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                                                                cursor: 'pointer', fontFamily: 'inherit',
+                                                            }}>Save</button>
                                                         </>
                                                     )}
                                                 </div>
@@ -1248,13 +1267,18 @@ export default function MeetingDetail() {
 
                                             {isEditingAgenda ? (
                                                 <textarea
-                                                    className="w-full h-96 p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
                                                     value={agendaContent}
                                                     onChange={(e) => setAgendaContent(e.target.value)}
                                                     placeholder="Enter meeting agenda..."
+                                                    style={{
+                                                        width: '100%', height: 384, padding: 16,
+                                                        background: 'var(--ink-50)', border: '1px solid var(--border)',
+                                                        color: 'var(--ink-900)', fontFamily: "'Geist Mono', monospace",
+                                                        fontSize: 12.5, lineHeight: 1.6, outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+                                                    }}
                                                 />
                                             ) : (
-                                                <Card className="p-6">
+                                                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 28 }}>
                                                     {agendaContent ? (
                                                         <div className="prose prose-slate dark:prose-invert max-w-none">
                                                             <ReactMarkdown
@@ -1277,9 +1301,11 @@ export default function MeetingDetail() {
                                                             </ReactMarkdown>
                                                         </div>
                                                     ) : (
-                                                        <div className="text-slate-400 italic text-center py-10">No agenda has been set for this meeting.</div>
+                                                        <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--ink-400)', fontFamily: "'Geist', system-ui, sans-serif", fontStyle: 'italic', fontSize: 13 }}>
+                                                            No agenda has been set for this meeting.
+                                                        </div>
                                                     )}
-                                                </Card>
+                                                </div>
                                             )}
                                         </div>
                                     )}
@@ -1287,49 +1313,70 @@ export default function MeetingDetail() {
                                     {/* MINUTES & DECISIONS TAB */}
                                     {activeTab === 'minutes' && (
                                         <div className="max-w-4xl space-y-6">
-                                            {/* Transcript Input - Only show if NOT approved */}
+                                            {/* Transcript Input — editorial */}
                                             {minutesStatus !== 'approved' && minutesStatus !== 'APPROVED' && (
-                                                <Card className={`transition-all duration-300 ${isTranscriptExpanded ? 'p-6' : 'p-4'} border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm`}>
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${minutesContent ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                                                                </svg>
+                                                <div style={{
+                                                    background: 'var(--surface)',
+                                                    border: '1px solid var(--border)',
+                                                    padding: isTranscriptExpanded ? 24 : 18,
+                                                    fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
+                                                }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                        <div>
+                                                            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>
+                                                                Transcript &amp; notes
                                                             </div>
-                                                            <div>
-                                                                <h3 className="font-bold text-slate-900 dark:text-white text-sm">Transcript & Notes</h3>
-                                                                {!isTranscriptExpanded && <p className="text-xs text-slate-500">{transcript.length} chars / {transcript.split(/\s+/).length} words</p>}
-                                                            </div>
+                                                            {!isTranscriptExpanded && (
+                                                                <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 4, fontFamily: "'Geist Mono', monospace" }}>
+                                                                    {transcript.length} chars · {transcript.split(/\s+/).filter(Boolean).length} words
+                                                                </div>
+                                                            )}
                                                         </div>
-
-                                                        {!isTranscriptExpanded && (
-                                                            <button
-                                                                onClick={() => setIsTranscriptExpanded(true)}
-                                                                className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded transition-colors"
-                                                            >
-                                                                Review / Edit Source
-                                                            </button>
-                                                        )}
-                                                        {isSavingTranscript && isTranscriptExpanded && <span className="text-xs text-blue-600 animate-pulse">Saving...</span>}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                            {isSavingTranscript && isTranscriptExpanded && (
+                                                                <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--accent)' }} className="animate-pulse">Saving…</span>
+                                                            )}
+                                                            {!isTranscriptExpanded && (
+                                                                <button
+                                                                    onClick={() => setIsTranscriptExpanded(true)}
+                                                                    style={{
+                                                                        background: 'transparent', border: '1px solid var(--border)',
+                                                                        color: 'var(--ink-700)', padding: '6px 12px', fontSize: 11, fontWeight: 500,
+                                                                        cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.04em', textTransform: 'uppercase',
+                                                                    }}
+                                                                >
+                                                                    Review / edit source
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
 
                                                     {isTranscriptExpanded && (
-                                                        <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-200 space-y-4">
-
-
+                                                        <div style={{ marginTop: 16 }} className="animate-in fade-in slide-in-from-top-2 duration-200">
                                                             <textarea
-                                                                className="w-full h-64 p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 font-mono text-sm leading-relaxed resize-y mb-4 transition-all"
                                                                 placeholder="[Facilitator]: Welcome everyone. Today we are discussing..."
                                                                 value={transcript}
                                                                 onChange={(e) => setTranscript(e.target.value)}
                                                                 onBlur={handleSaveTranscript}
+                                                                style={{
+                                                                    width: '100%', height: 260, padding: 16,
+                                                                    background: 'var(--ink-50)',
+                                                                    border: '1px solid var(--border)',
+                                                                    color: 'var(--ink-900)',
+                                                                    fontFamily: "'Geist Mono', monospace",
+                                                                    fontSize: 12.5, lineHeight: 1.6,
+                                                                    resize: 'vertical', outline: 'none', boxSizing: 'border-box',
+                                                                }}
                                                             />
-                                                            <div className="flex justify-end gap-3">
+                                                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
                                                                 {minutesContent && (
                                                                     <button
                                                                         onClick={() => setIsTranscriptExpanded(false)}
-                                                                        className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+                                                                        style={{
+                                                                            background: 'transparent', border: '1px solid var(--border)',
+                                                                            color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                                                                            cursor: 'pointer', fontFamily: 'inherit',
+                                                                        }}
                                                                     >
                                                                         Cancel
                                                                     </button>
@@ -1340,23 +1387,39 @@ export default function MeetingDetail() {
                                                                         handleGenerateSummary();
                                                                     }}
                                                                     disabled={isGeneratingMinutes || !transcript.trim()}
-                                                                    className="btn-primary flex items-center gap-2"
+                                                                    style={{
+                                                                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                                                                        background: 'var(--accent)', border: '1px solid var(--accent)',
+                                                                        color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                                                                        cursor: (isGeneratingMinutes || !transcript.trim()) ? 'default' : 'pointer',
+                                                                        opacity: (isGeneratingMinutes || !transcript.trim()) ? 0.55 : 1,
+                                                                        fontFamily: 'inherit',
+                                                                    }}
                                                                 >
                                                                     {isGeneratingMinutes ? (
-                                                                        <><span className="animate-spin">⏳</span> Processing...</>
+                                                                        <>
+                                                                            <span className="material-symbols-outlined animate-spin" style={{ fontSize: 16 }}>sync</span>
+                                                                            Processing…
+                                                                        </>
                                                                     ) : (
-                                                                        <>{minutesContent ? '🔄 Regenerate Minutes' : '✨ Generate Minutes'}</>
+                                                                        <>
+                                                                            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{minutesContent ? 'autorenew' : 'auto_awesome'}</span>
+                                                                            {minutesContent ? 'Regenerate minutes' : 'Generate minutes'}
+                                                                        </>
                                                                     )}
                                                                 </button>
                                                             </div>
                                                             {!minutesContent && (
-                                                                <p className="text-xs text-slate-400 mt-2 text-center">
+                                                                <p style={{
+                                                                    fontSize: 11, color: 'var(--ink-500)', textAlign: 'center', marginTop: 12,
+                                                                    fontFamily: "'Geist', system-ui, sans-serif", fontStyle: 'italic',
+                                                                }}>
                                                                     Paste your notes above. The AI will cross-reference them with the Knowledge Repository to draft official minutes.
                                                                 </p>
                                                             )}
                                                         </div>
                                                     )}
-                                                </Card>
+                                                </div>
                                             )}
 
                                             {minutesContent && (
@@ -1365,17 +1428,23 @@ export default function MeetingDetail() {
                                                     <div>
                                                         <div className="flex items-center justify-between mb-4">
                                                             <div className="flex items-center gap-3">
-                                                                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Meeting Minutes</h2>
+                                                                <h2 className="font-display text-[var(--ink-900)]" style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>Meeting Minutes</h2>
                                                                 {/* Status Badge */}
-                                                                <span className={`px-2 py-1 text-xs font-bold rounded-full ${minutesStatus === 'APPROVED' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                                                                    minutesStatus === 'PENDING_APPROVAL' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                                                                        minutesStatus === 'REVIEW' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
-                                                                            'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                                                                    }`}>
-                                                                    {minutesStatus === 'APPROVED' ? '✓ Approved' :
-                                                                        minutesStatus === 'PENDING_APPROVAL' ? '⏳ Pending Approval' :
-                                                                            minutesStatus === 'REVIEW' ? '🔄 Needs Revision' :
-                                                                                '📝 Draft'}
+                                                                <span
+                                                                    className="text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
+                                                                    style={{
+                                                                        color: minutesStatus === 'APPROVED' ? 'var(--sage)' :
+                                                                            minutesStatus === 'PENDING_APPROVAL' ? 'var(--amber)' :
+                                                                                minutesStatus === 'REVIEW' ? 'var(--terra)' : 'var(--ink-500)',
+                                                                        background: minutesStatus === 'APPROVED' ? 'color-mix(in srgb, var(--sage) 12%, transparent)' :
+                                                                            minutesStatus === 'PENDING_APPROVAL' ? 'color-mix(in srgb, var(--amber) 12%, transparent)' :
+                                                                                minutesStatus === 'REVIEW' ? 'color-mix(in srgb, var(--terra) 12%, transparent)' : 'var(--surface-2)',
+                                                                    }}
+                                                                >
+                                                                    {minutesStatus === 'APPROVED' ? 'Approved' :
+                                                                        minutesStatus === 'PENDING_APPROVAL' ? 'Pending Approval' :
+                                                                            minutesStatus === 'REVIEW' ? 'Needs Revision' :
+                                                                                'Draft'}
                                                                 </span>
                                                             </div>
                                                             <div className="flex gap-2">
@@ -1434,7 +1503,7 @@ export default function MeetingDetail() {
                                                                         className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                                                                         title="Version History"
                                                                     >
-                                                                        <svg className="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <svg className="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                                         </svg>
                                                                     </button>
@@ -1449,12 +1518,12 @@ export default function MeetingDetail() {
                                                                             title="Translate Minutes"
                                                                         >
                                                                             {isTranslating ? (
-                                                                                <svg className="w-5 h-5 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                                <svg className="w-5 h-5 text-teal-500 animate-spin" fill="none" viewBox="0 0 24 24">
                                                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                                                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                                                                 </svg>
                                                                             ) : (
-                                                                                <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                <svg className="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
                                                                                 </svg>
                                                                             )}
@@ -1471,7 +1540,7 @@ export default function MeetingDetail() {
                                                                                         <button
                                                                                             key={lang.code}
                                                                                             onClick={() => handleTranslate(lang.code)}
-                                                                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 ${translationLanguage === lang.code ? 'text-blue-600 font-medium' : 'text-slate-700 dark:text-slate-300'}`}
+                                                                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 ${translationLanguage === lang.code ? 'text-teal-600 font-medium' : 'text-slate-700 dark:text-slate-300'}`}
                                                                                         >
                                                                                             {lang.label}
                                                                                         </button>
@@ -1485,13 +1554,13 @@ export default function MeetingDetail() {
                                                         </div>
                                                         {/* Translation banner */}
                                                         {translatedContent && (
-                                                            <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-2 mb-4">
-                                                                <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                                                            <div className="flex items-center justify-between bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg px-4 py-2 mb-4">
+                                                                <span className="text-sm text-teal-700 dark:text-teal-300 font-medium">
                                                                     Viewing translation ({translationLanguage === 'fr' ? 'French' : translationLanguage === 'pt' ? 'Portuguese' : 'English'})
                                                                 </span>
                                                                 <button
                                                                     onClick={handleClearTranslation}
-                                                                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 font-medium underline"
+                                                                    className="text-sm text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-200 font-medium underline"
                                                                 >
                                                                     Back to Original
                                                                 </button>
@@ -1499,12 +1568,12 @@ export default function MeetingDetail() {
                                                         )}
                                                         {/* Translating indicator */}
                                                         {isTranslating && (
-                                                            <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-2 mb-4">
-                                                                <svg className="w-4 h-4 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                            <div className="flex items-center gap-2 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg px-4 py-2 mb-4">
+                                                                <svg className="w-4 h-4 text-teal-500 animate-spin" fill="none" viewBox="0 0 24 24">
                                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                                                 </svg>
-                                                                <span className="text-sm text-blue-700 dark:text-blue-300">Translating minutes...</span>
+                                                                <span className="text-sm text-teal-700 dark:text-teal-300">Translating minutes...</span>
                                                             </div>
                                                         )}
                                                         <Card className="p-8">
@@ -1534,7 +1603,7 @@ export default function MeetingDetail() {
                                                     {/* Action Items */}
                                                     <div>
                                                         <div className="flex items-center justify-between mb-4">
-                                                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Action Items</h2>
+                                                            <h2 className="font-display text-[var(--ink-900)]" style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>Action Items</h2>
                                                             {isFacilitator && (
                                                             <div className="flex gap-2">
 
@@ -1590,8 +1659,8 @@ export default function MeetingDetail() {
 
                                                         {/* Add Action Form */}
                                                         {isAddingAction && (
-                                                            <Card className="p-4 mb-4 bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
-                                                                <h4 className="font-bold text-sm mb-3 text-blue-900 dark:text-blue-100">Create New Action Item</h4>
+                                                            <Card className="p-4 mb-4 bg-teal-50 dark:bg-teal-900/10 border-teal-200 dark:border-teal-800">
+                                                                <h4 className="font-bold text-sm mb-3 text-teal-900 dark:text-teal-100">Create New Action Item</h4>
                                                                 <div className="space-y-3">
                                                                     <div>
                                                                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Description *</label>
@@ -1652,25 +1721,33 @@ export default function MeetingDetail() {
                                                             {meetingActionItems.map(item => (
                                                                 <Card
                                                                     key={item.id}
-                                                                    className="p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                                                                    className="p-4 cursor-pointer transition-colors hover:bg-[var(--surface-2)]"
                                                                     onClick={() => handleActionClick(item)}
                                                                 >
                                                                     <div className="flex items-center gap-4">
                                                                         <input type="checkbox" className="w-5 h-5 rounded border-slate-300" />
                                                                         <div className="flex-1">
-                                                                            <div className="font-bold text-slate-900 dark:text-white">{item.description}</div>
+                                                                            <div className="font-bold text-xs leading-snug text-[var(--ink-900)]">{item.description}</div>
                                                                         </div>
                                                                         <div className="flex items-center gap-3">
                                                                             <div className="flex items-center gap-2">
-                                                                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                                                                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center text-white text-xs font-bold">
                                                                                     {item.owner?.avatar || 'U'}
                                                                                 </div>
-                                                                                <span className="text-sm text-slate-600 dark:text-slate-400">{item.owner?.name || 'Unassigned'}</span>
+                                                                                <span className="text-xs text-[var(--ink-500)]">{item.owner?.name || 'Unassigned'}</span>
                                                                             </div>
-                                                                            <span className="text-sm text-slate-500">{item.dueDate}</span>
-                                                                            <Badge variant={item.status === 'pending' ? 'warning' : 'info'} className="text-xs">
+                                                                            <span className="text-[9px] font-semibold font-mono-geist text-[var(--ink-400)]">{item.dueDate}</span>
+                                                                            <span
+                                                                                className="text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
+                                                                                style={{
+                                                                                    color: item.status === 'pending' ? 'var(--amber)' : 'var(--accent)',
+                                                                                    background: item.status === 'pending'
+                                                                                        ? 'color-mix(in srgb, var(--amber) 12%, transparent)'
+                                                                                        : 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                                                                                }}
+                                                                            >
                                                                                 {item.status === 'pending' ? 'Pending' : 'In Progress'}
-                                                                            </Badge>
+                                                                            </span>
                                                                         </div>
                                                                     </div>
                                                                 </Card>
@@ -1684,48 +1761,65 @@ export default function MeetingDetail() {
 
                                     {/* PARTICIPANTS TAB */}
                                     {activeTab === 'participants' && (
-                                        <div className="max-w-4xl space-y-6">
-                                            <div className="flex justify-between items-center">
-                                                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Participant List</h2>
-                                                <div className="flex gap-2">
+                                        <div style={{ fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14, marginBottom: 20, borderBottom: '1px solid var(--border)', gap: 12, flexWrap: 'wrap' }}>
+                                                <div>
+                                                    <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>Participants</div>
+                                                    <h2 style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800, fontSize: 16, color: 'var(--ink-900)', letterSpacing: '-0.02em', margin: '4px 0 0', lineHeight: 1.2 }}>
+                                                        Attendees &amp; RSVPs
+                                                    </h2>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                                     <button
                                                         onClick={handleSendInvites}
                                                         disabled={!meeting?.participants?.length || isSendingInvites || isCheckingConflicts}
-                                                        className="btn-primary text-sm flex items-center gap-1 disabled:opacity-50"
                                                         title="Send email invitations to all participants"
+                                                        style={{
+                                                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                                                            background: 'var(--accent)', border: '1px solid var(--accent)',
+                                                            color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                                                            cursor: (!meeting?.participants?.length || isSendingInvites || isCheckingConflicts) ? 'default' : 'pointer',
+                                                            opacity: (!meeting?.participants?.length || isSendingInvites || isCheckingConflicts) ? 0.55 : 1,
+                                                            fontFamily: 'inherit',
+                                                        }}
                                                     >
-                                                        {isCheckingConflicts ? (
-                                                            <>
-                                                                <span className="animate-spin">🔍</span> Checking conflicts...
-                                                            </>
-                                                        ) : isSendingInvites ? (
-                                                            <>
-                                                                <span className="animate-spin">⏳</span> Sending...
-                                                            </>
-                                                        ) : (
-                                                            <>📧 Send Invites</>
-                                                        )}
+                                                        <span className={`material-symbols-outlined ${(isCheckingConflicts || isSendingInvites) ? 'animate-spin' : ''}`} style={{ fontSize: 16 }}>
+                                                            {isCheckingConflicts ? 'search' : isSendingInvites ? 'sync' : 'mail'}
+                                                        </span>
+                                                        {isCheckingConflicts ? 'Checking conflicts…' : isSendingInvites ? 'Sending…' : 'Send invites'}
                                                     </button>
                                                     <button
                                                         onClick={handleSyncCalendar}
                                                         disabled={!meeting?.participants?.length || isSyncingCalendar}
-                                                        className="btn-secondary text-sm flex items-center gap-1 disabled:opacity-50"
                                                         title="Add this meeting to participants' Google Calendar (no email sent)"
+                                                        style={{
+                                                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                                                            background: 'transparent', border: '1px solid var(--border)',
+                                                            color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                                                            cursor: (!meeting?.participants?.length || isSyncingCalendar) ? 'default' : 'pointer',
+                                                            opacity: (!meeting?.participants?.length || isSyncingCalendar) ? 0.55 : 1,
+                                                            fontFamily: 'inherit',
+                                                        }}
                                                     >
-                                                        {isSyncingCalendar ? (
-                                                            <><span className="animate-spin">⏳</span> Syncing...</>
-                                                        ) : (
-                                                            <>📅 Sync Calendar</>
-                                                        )}
+                                                        <span className={`material-symbols-outlined ${isSyncingCalendar ? 'animate-spin' : ''}`} style={{ fontSize: 16 }}>
+                                                            {isSyncingCalendar ? 'sync' : 'calendar_month'}
+                                                        </span>
+                                                        {isSyncingCalendar ? 'Syncing…' : 'Sync calendar'}
                                                     </button>
                                                     <button
                                                         onClick={() => {
                                                             setIsAddingGuest(!isAddingGuest)
                                                             setIsAddingMember(false)
                                                         }}
-                                                        className="btn-secondary text-sm"
+                                                        style={{
+                                                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                                                            background: 'transparent', border: '1px solid var(--border)',
+                                                            color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                                                            cursor: 'pointer', fontFamily: 'inherit',
+                                                        }}
                                                     >
-                                                        {isAddingGuest ? 'Cancel' : '+ Add Guest'}
+                                                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{isAddingGuest ? 'close' : 'person_add'}</span>
+                                                        {isAddingGuest ? 'Cancel' : 'Add guest'}
                                                     </button>
                                                     {meeting?.twg?.id && (
                                                         <button
@@ -1737,9 +1831,15 @@ export default function MeetingDetail() {
                                                                     handleOpenAddMember()
                                                                 }
                                                             }}
-                                                            className="btn-secondary text-sm"
+                                                            style={{
+                                                                display: 'inline-flex', alignItems: 'center', gap: 6,
+                                                                background: 'transparent', border: '1px solid var(--border)',
+                                                                color: 'var(--ink-700)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                                                                cursor: 'pointer', fontFamily: 'inherit',
+                                                            }}
                                                         >
-                                                            {isAddingMember ? 'Cancel' : '+ Add Member'}
+                                                            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{isAddingMember ? 'close' : 'group_add'}</span>
+                                                            {isAddingMember ? 'Cancel' : 'Add member'}
                                                         </button>
                                                     )}
                                                 </div>
@@ -1809,9 +1909,9 @@ export default function MeetingDetail() {
                                             )}
 
                                             {isAddingGuest && (
-                                                <Card className="p-4 bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800">
+                                                <Card className="p-4 bg-teal-50 dark:bg-teal-900/10 border-teal-100 dark:border-teal-800">
                                                     <div className="flex items-center justify-between mb-3">
-                                                        <h4 className="font-bold text-sm text-blue-900 dark:text-blue-100">
+                                                        <h4 className="font-bold text-sm text-teal-900 dark:text-teal-100">
                                                             {isBulkMode ? 'Add Multiple Guests' : 'Add External Guest'}
                                                         </h4>
                                                         <div className="flex gap-2">
@@ -1822,7 +1922,7 @@ export default function MeetingDetail() {
                                                                     setGuestEmail('')
                                                                     setBulkGuestsText('')
                                                                 }}
-                                                                className="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700 transition-colors"
+                                                                className="text-xs px-2 py-1 rounded bg-teal-100 dark:bg-teal-800 text-teal-700 dark:text-teal-200 hover:bg-teal-200 dark:hover:bg-teal-700 transition-colors clickable-scale"
                                                             >
                                                                 {isBulkMode ? 'Single Guest' : 'Bulk Add'}
                                                             </button>
@@ -1912,148 +2012,176 @@ export default function MeetingDetail() {
                                                 </Card>
                                             )}
 
-                                            <div className="space-y-2">
-                                                {meeting?.participants?.map((p: any) => (
-                                                    <Card key={p.id} className="p-4">
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
-                                                                    {(p.name || p.user?.full_name || p.email || '?')[0].toUpperCase()}
-                                                                </div>
-                                                                <div>
-                                                                    <div className="font-bold text-sm text-slate-900 dark:text-white">
-                                                                        {p.name || p.user?.full_name || 'Guest'}
-                                                                    </div>
-                                                                    <div className="text-xs text-slate-500">
+                                            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
+                                                {meeting?.participants?.length ? meeting.participants.map((p: any, idx: number) => {
+                                                    const name = p.name || p.user?.full_name || 'Guest'
+                                                    const initial = (name[0] || '?').toUpperCase()
+                                                    const rsvpColor =
+                                                        p.rsvp_status === 'accepted' ? 'var(--sage)' :
+                                                            p.rsvp_status === 'declined' ? 'var(--terra)' :
+                                                                'var(--amber)'
+                                                    const isLast = idx === meeting.participants.length - 1
+                                                    return (
+                                                        <div key={p.id}
+                                                            className="qp-transition"
+                                                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
+                                                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                                            style={{
+                                                            display: 'grid',
+                                                            gridTemplateColumns: 'minmax(0, 2.4fr) 1fr auto auto',
+                                                            alignItems: 'center', gap: 16,
+                                                            padding: '14px 20px',
+                                                            borderBottom: isLast ? 'none' : '1px solid var(--border)',
+                                                        }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                                                                <div style={{
+                                                                    width: 32, height: 32,
+                                                                    border: '1px solid var(--border)',
+                                                                    background: 'var(--ink-50)',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 700,
+                                                                    fontSize: 13, color: 'var(--ink-700)',
+                                                                    flexShrink: 0,
+                                                                }}>{initial}</div>
+                                                                <div style={{ minWidth: 0 }}>
+                                                                    <div style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                                                                    <div style={{ fontSize: 11, color: 'var(--ink-500)', fontFamily: "'Geist Mono', monospace", marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                                         {p.email || p.user?.email}
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <div className="flex items-center gap-3">
-                                                                <Badge variant={
-                                                                    p.rsvp_status === 'accepted' ? 'success' :
-                                                                        p.rsvp_status === 'declined' ? 'danger' : 'warning'
-                                                                } className="uppercase text-[10px]">
-                                                                    {p.rsvp_status}
-                                                                </Badge>
-                                                                <select
-                                                                    className="text-xs bg-transparent border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-slate-500"
-                                                                    value={p.rsvp_status}
-                                                                    onChange={(e) => handleUpdateRsvp(p.id, e.target.value)}
-                                                                >
-                                                                    <option value="pending">Pending</option>
-                                                                    <option value="accepted">Accept</option>
-                                                                    <option value="declined">Decline</option>
-                                                                </select>
-                                                                <button
-                                                                    onClick={() => handleRemoveParticipant(p.id)}
-                                                                    className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
-                                                                    title="Remove participant"
-                                                                >
-                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                                    </svg>
-                                                                </button>
+                                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, color: rsvpColor }}>
+                                                                <span style={{ width: 6, height: 6, borderRadius: 6, background: rsvpColor, display: 'inline-block' }} />
+                                                                {p.rsvp_status || 'pending'}
                                                             </div>
+                                                            <select
+                                                                value={p.rsvp_status}
+                                                                onChange={(e) => handleUpdateRsvp(p.id, e.target.value)}
+                                                                style={{
+                                                                    background: 'var(--surface)', border: '1px solid var(--border)',
+                                                                    color: 'var(--ink-700)', padding: '5px 8px', fontSize: 11,
+                                                                    fontFamily: 'inherit', cursor: 'pointer', outline: 'none',
+                                                                }}
+                                                            >
+                                                                <option value="pending">Pending</option>
+                                                                <option value="accepted">Accept</option>
+                                                                <option value="declined">Decline</option>
+                                                            </select>
+                                                            <button
+                                                                onClick={() => handleRemoveParticipant(p.id)}
+                                                                title="Remove participant"
+                                                                style={{
+                                                                    background: 'transparent', border: '1px solid var(--border)',
+                                                                    color: 'var(--ink-500)', padding: '5px 8px', cursor: 'pointer',
+                                                                    display: 'inline-flex', alignItems: 'center',
+                                                                }}
+                                                            >
+                                                                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
+                                                            </button>
                                                         </div>
-                                                    </Card>
-                                                ))}
+                                                    )
+                                                }) : (
+                                                    <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--ink-400)', fontFamily: "'Geist', system-ui, sans-serif", fontStyle: 'italic', fontSize: 13 }}>
+                                                        No participants yet.
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     )}
 
                                     {/* DOCUMENTS TAB */}
                                     {activeTab === 'documents' && (
-                                        <div className="max-w-4xl space-y-6">
-                                            <div className="flex justify-between items-center">
-                                                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Meeting Documents</h2>
-                                                <label className="btn-primary text-sm flex items-center gap-2 cursor-pointer">
-                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                                                    </svg>
-                                                    {isUploadingDoc ? 'Uploading...' : 'Upload Document'}
-                                                    <input
-                                                        type="file"
-                                                        className="hidden"
-                                                        onChange={handleDocumentUpload}
-                                                        disabled={isUploadingDoc}
-                                                    />
+                                        <div style={{ fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
+                                                <div>
+                                                    <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>Documents</div>
+                                                    <h2 style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800, fontSize: 16, color: 'var(--ink-900)', letterSpacing: '-0.02em', margin: '4px 0 0', lineHeight: 1.2 }}>
+                                                        Attachments &amp; transcripts
+                                                    </h2>
+                                                </div>
+                                                <label style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                                    background: 'var(--accent)', border: '1px solid var(--accent)',
+                                                    color: 'var(--accent-ink)', padding: '7px 14px', fontSize: 12, fontWeight: 500,
+                                                    cursor: isUploadingDoc ? 'default' : 'pointer', fontFamily: 'inherit',
+                                                    opacity: isUploadingDoc ? 0.55 : 1,
+                                                }}>
+                                                    <span className={`material-symbols-outlined ${isUploadingDoc ? 'animate-spin' : ''}`} style={{ fontSize: 16 }}>
+                                                        {isUploadingDoc ? 'sync' : 'upload_file'}
+                                                    </span>
+                                                    {isUploadingDoc ? 'Uploading…' : 'Upload document'}
+                                                    <input type="file" style={{ display: 'none' }} onChange={handleDocumentUpload} disabled={isUploadingDoc} />
                                                 </label>
                                             </div>
 
                                             {documents.length === 0 ? (
-                                                <div className="text-center py-20 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
-                                                    <div className="w-16 h-16 bg-slate-200 dark:bg-slate-700 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                                                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                        </svg>
+                                                <div style={{
+                                                    background: 'var(--surface)', border: '1px solid var(--border)',
+                                                    padding: '64px 24px', textAlign: 'center',
+                                                }}>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--ink-300)' }}>description</span>
+                                                    <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800, fontSize: 16, color: 'var(--ink-900)', letterSpacing: '-0.02em', marginTop: 10 }}>
+                                                        No documents yet
                                                     </div>
-                                                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">No Documents Yet</h3>
-                                                    <p className="text-slate-500 max-w-sm mx-auto mt-2">Upload meeting documents, presentations, or attachments here.</p>
+                                                    <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 6, fontFamily: "'Geist', system-ui, sans-serif", fontStyle: 'italic' }}>
+                                                        Upload meeting documents, presentations, or attachments here.
+                                                    </div>
                                                 </div>
                                             ) : (
-                                                <div className="space-y-3">
-                                                    {documents.map((doc: any) => {
+                                                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', overflow: 'hidden' }}>
+                                                    {documents.map((doc: any, idx: number) => {
                                                         const isTranscript = doc.document_type === 'transcript'
+                                                        const isLast = idx === documents.length - 1
+                                                        const iconName = isTranscript ? 'subtitles' :
+                                                            doc.file_name?.endsWith?.('.pdf') ? 'picture_as_pdf' :
+                                                                'description'
                                                         return (
-                                                        <Card
-                                                            key={doc.id}
-                                                            onClick={() => handleDownloadDocument(doc.id)}
-                                                            className="p-4 hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer"
-                                                        >
-                                                            <div className="flex items-center gap-4">
-                                                                <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                                                                    isTranscript ? 'bg-purple-100 dark:bg-purple-900/30' :
-                                                                    doc.file_name?.endsWith('.pdf') ? 'bg-red-100 dark:bg-red-900/30' :
-                                                                    doc.file_name?.endsWith('.docx') || doc.file_name?.endsWith('.doc') ? 'bg-blue-100 dark:bg-blue-900/30' :
-                                                                        'bg-slate-100 dark:bg-slate-800'
-                                                                    }`}>
-                                                                    {isTranscript ? (
-                                                                        <span className="material-symbols-outlined text-purple-600 dark:text-purple-400">subtitles</span>
-                                                                    ) : (
-                                                                    <svg className={`w-6 h-6 ${doc.file_name?.endsWith('.pdf') ? 'text-red-600 dark:text-red-400' :
-                                                                        doc.file_name?.endsWith('.docx') || doc.file_name?.endsWith('.doc') ? 'text-blue-600 dark:text-blue-400' :
-                                                                            'text-slate-600 dark:text-slate-400'
-                                                                        }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                                    </svg>
-                                                                    )}
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <div className="font-bold text-sm text-slate-900 dark:text-white truncate flex items-center gap-2">
-                                                                        {doc.file_name || 'Untitled Document'}
+                                                            <div
+                                                                key={doc.id}
+                                                                onClick={() => handleDownloadDocument(doc.id)}
+                                                                style={{
+                                                                    display: 'flex', alignItems: 'center', gap: 14,
+                                                                    padding: '14px 20px', cursor: 'pointer',
+                                                                    borderBottom: isLast ? 'none' : '1px solid var(--border)',
+                                                                }}
+                                                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
+                                                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                                            >
+                                                                <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--ink-400)', flexShrink: 0 }}>{iconName}</span>
+                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                        <span style={{ fontSize: 13, color: 'var(--ink-900)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                            {doc.file_name || 'Untitled document'}
+                                                                        </span>
                                                                         {isTranscript && (
-                                                                            <span className="text-[10px] font-bold bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full uppercase">Transcript</span>
+                                                                            <span
+                                                                                className="text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
+                                                                                style={{ color: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 12%, transparent)' }}
+                                                                            >
+                                                                                Transcript
+                                                                            </span>
                                                                         )}
                                                                     </div>
-                                                                    <div className="text-xs text-slate-500">
-                                                                        {doc.file_size ? `${(doc.file_size / 1024).toFixed(1)} KB` : ''}
-                                                                        {doc.created_at ? ` Uploaded ${new Date(doc.created_at).toLocaleDateString()}` : ' Recently uploaded'}
-                                                                        {' '}&mdash; Click to download
+                                                                    <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 3, fontFamily: "'Geist Mono', monospace" }}>
+                                                                        {doc.file_size ? `${(doc.file_size / 1024).toFixed(1)} KB` : '—'}
+                                                                        {doc.created_at ? ` · ${new Date(doc.created_at).toLocaleDateString()}` : ''}
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex gap-2">
-                                                                    <button
-                                                                        onClick={(e) => { e.stopPropagation(); handleDownloadDocument(doc.id) }}
-                                                                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                                                                        title="Download"
-                                                                    >
-                                                                        <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                                                        </svg>
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id) }}
-                                                                        className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                                                                        title="Delete"
-                                                                    >
-                                                                        <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                        </svg>
-                                                                    </button>
-                                                                </div>
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); handleDownloadDocument(doc.id) }}
+                                                                    title="Download"
+                                                                    style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-500)', padding: '5px 8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                                                                >
+                                                                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>download</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id) }}
+                                                                    title="Delete"
+                                                                    style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--terra)', padding: '5px 8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                                                                >
+                                                                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
+                                                                </button>
                                                             </div>
-                                                        </Card>
                                                         )
                                                     })}
                                                 </div>
@@ -2063,84 +2191,97 @@ export default function MeetingDetail() {
 
                                     {/* SCHEDULE INTEGRITY TAB */}
                                     {activeTab === 'schedule' && (
-                                        <div className="max-w-4xl space-y-8">
-                                            {/* Header */}
-                                            <div>
-                                                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-                                                    <span className="material-symbols-outlined text-indigo-600">radar</span>
-                                                    Schedule Integrity
+                                        <div style={{ fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+                                            <div style={{ paddingBottom: 14, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
+                                                <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>Schedule integrity</div>
+                                                <h2 style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800, fontSize: 16, color: 'var(--ink-900)', letterSpacing: '-0.02em', margin: '4px 0 6px', lineHeight: 1.2 }}>
+                                                    Conflicts &amp; dependencies
                                                 </h2>
-                                                <p className="text-sm text-slate-500">
+                                                <div style={{ fontSize: 12, color: 'var(--ink-500)' }}>
                                                     Real-time view of scheduling conflicts and logical dependencies for this meeting.
-                                                </p>
+                                                </div>
                                             </div>
 
                                             {/* Conflict Status Section */}
-                                            <div className="space-y-4">
-                                                <h3 className="text-sm font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                                                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                                                    Scheduling Conflicts
-                                                </h3>
+                                            <div style={{ marginBottom: 20 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                                    <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>
+                                                        Scheduling conflicts
+                                                    </div>
+                                                </div>
                                                 {detectedConflicts.length === 0 ? (
-                                                    <Card className="p-6 border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600">
-                                                                <span className="material-symbols-outlined text-2xl">check_circle</span>
+                                                    <div style={{
+                                                        background: 'var(--surface)', border: '1px solid var(--border)',
+                                                        borderLeft: '2px solid var(--sage)',
+                                                        padding: '18px 22px',
+                                                        display: 'flex', alignItems: 'center', gap: 16,
+                                                    }}>
+                                                        <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--sage)', flexShrink: 0 }}>check_circle</span>
+                                                        <div style={{ flex: 1 }}>
+                                                            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-900)' }}>No conflicts detected</div>
+                                                            <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>
+                                                                This meeting has no scheduling overlaps or participant clashes.
                                                             </div>
-                                                            <div>
-                                                                <div className="font-bold text-green-800 dark:text-green-300">No Conflicts Detected</div>
-                                                                <div className="text-sm text-green-600 dark:text-green-400">This meeting has no scheduling overlaps or participant clashes.</div>
-                                                            </div>
-                                                            <button
-                                                                onClick={async () => {
-                                                                    if (!meetingId) return;
-                                                                    setIsCheckingConflicts(true);
-                                                                    try {
-                                                                        const res = await meetings.conflictCheck(meetingId);
-                                                                        setDetectedConflicts(res.data.conflicts || []);
-                                                                    } catch (e) {
-                                                                        console.error('Conflict check failed', e);
-                                                                    } finally {
-                                                                        setIsCheckingConflicts(false);
-                                                                    }
-                                                                }}
-                                                                disabled={isCheckingConflicts}
-                                                                className="ml-auto btn-secondary text-sm flex items-center gap-2"
-                                                            >
-                                                                {isCheckingConflicts ? (
-                                                                    <><span className="animate-spin">⏳</span> Checking...</>
-                                                                ) : (
-                                                                    <>🔍 Re-check</>)}
-                                                            </button>
                                                         </div>
-                                                    </Card>
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (!meetingId) return;
+                                                                setIsCheckingConflicts(true);
+                                                                try {
+                                                                    const res = await meetings.conflictCheck(meetingId);
+                                                                    setDetectedConflicts(res.data.conflicts || []);
+                                                                } catch (e) {
+                                                                    console.error('Conflict check failed', e);
+                                                                } finally {
+                                                                    setIsCheckingConflicts(false);
+                                                                }
+                                                            }}
+                                                            disabled={isCheckingConflicts}
+                                                            style={{
+                                                                display: 'inline-flex', alignItems: 'center', gap: 6,
+                                                                background: 'transparent', border: '1px solid var(--border)',
+                                                                color: 'var(--ink-700)', padding: '6px 12px', fontSize: 11, fontWeight: 500,
+                                                                cursor: isCheckingConflicts ? 'default' : 'pointer', fontFamily: 'inherit',
+                                                                opacity: isCheckingConflicts ? 0.55 : 1,
+                                                            }}
+                                                        >
+                                                            <span className={`material-symbols-outlined ${isCheckingConflicts ? 'animate-spin' : ''}`} style={{ fontSize: 14 }}>
+                                                                {isCheckingConflicts ? 'sync' : 'search'}
+                                                            </span>
+                                                            {isCheckingConflicts ? 'Checking…' : 'Re-check'}
+                                                        </button>
+                                                    </div>
                                                 ) : (
-                                                    <div className="space-y-3">
+                                                    <div>
                                                         {detectedConflicts.map((conflict: any, idx: number) => (
-                                                            <Card key={idx} className="p-4 border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10">
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600">
-                                                                        <span className="material-symbols-outlined">warning</span>
+                                                            <div key={idx} style={{
+                                                                background: 'var(--surface)', border: '1px solid var(--border)',
+                                                                borderLeft: '2px solid var(--terra)',
+                                                                padding: '14px 22px',
+                                                                marginBottom: 8,
+                                                                display: 'flex', alignItems: 'center', gap: 14,
+                                                            }}>
+                                                                <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--terra)', flexShrink: 0 }}>warning</span>
+                                                                <div style={{ flex: 1 }}>
+                                                                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-900)' }}>
+                                                                        {conflict.type === 'participant' ? 'Participant clash' :
+                                                                            conflict.type === 'room' ? 'Room double-booking' : 'Time overlap'}
                                                                     </div>
-                                                                    <div className="flex-1">
-                                                                        <div className="font-bold text-red-800 dark:text-red-300">
-                                                                            {conflict.type === 'participant' ? 'Participant Clash' :
-                                                                                conflict.type === 'room' ? 'Room Double-Booking' : 'Time Overlap'}
-                                                                        </div>
-                                                                        <div className="text-sm text-red-600 dark:text-red-400">
-                                                                            {conflict.description || conflict.message || `Conflicts with: ${conflict.conflicting_meeting_title || 'Unknown'}`}
-                                                                        </div>
+                                                                    <div style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 2 }}>
+                                                                        {conflict.description || conflict.message || `Conflicts with: ${conflict.conflicting_meeting_title || 'Unknown'}`}
                                                                     </div>
-                                                                    {conflict.conflicting_meeting_id && (
-                                                                        <button
-                                                                            onClick={() => navigate(`/meetings/${conflict.conflicting_meeting_id}`)}
-                                                                            className="btn-secondary text-xs"
-                                                                        >
-                                                                            View Conflict
-                                                                        </button>
-                                                                    )}
                                                                 </div>
-                                                            </Card>
+                                                                {conflict.conflicting_meeting_id && (
+                                                                    <button
+                                                                        onClick={() => navigate(`/meetings/${conflict.conflicting_meeting_id}`)}
+                                                                        style={{
+                                                                            background: 'transparent', border: '1px solid var(--border)',
+                                                                            color: 'var(--ink-700)', padding: '6px 12px', fontSize: 11, fontWeight: 500,
+                                                                            cursor: 'pointer', fontFamily: 'inherit',
+                                                                        }}
+                                                                    >View conflict</button>
+                                                                )}
+                                                            </div>
                                                         ))}
                                                         <button
                                                             onClick={async () => {
@@ -2156,12 +2297,19 @@ export default function MeetingDetail() {
                                                                 }
                                                             }}
                                                             disabled={isCheckingConflicts}
-                                                            className="btn-secondary text-sm w-full justify-center flex items-center gap-2"
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                                                width: '100%', marginTop: 8,
+                                                                background: 'transparent', border: '1px solid var(--border)',
+                                                                color: 'var(--ink-700)', padding: '8px 14px', fontSize: 12, fontWeight: 500,
+                                                                cursor: isCheckingConflicts ? 'default' : 'pointer', fontFamily: 'inherit',
+                                                                opacity: isCheckingConflicts ? 0.55 : 1,
+                                                            }}
                                                         >
-                                                            {isCheckingConflicts ? (
-                                                                <><span className="animate-spin">⏳</span> Checking...</>
-                                                            ) : (
-                                                                <>🔍 Re-check Conflicts</>)}
+                                                            <span className={`material-symbols-outlined ${isCheckingConflicts ? 'animate-spin' : ''}`} style={{ fontSize: 14 }}>
+                                                                {isCheckingConflicts ? 'sync' : 'search'}
+                                                            </span>
+                                                            {isCheckingConflicts ? 'Checking…' : 'Re-check conflicts'}
                                                         </button>
                                                     </div>
                                                 )}
@@ -2169,8 +2317,8 @@ export default function MeetingDetail() {
 
                                             {/* Predecessors */}
                                             <div className="space-y-4">
-                                                <h3 className="text-sm font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                                                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                                                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-500)] flex items-center gap-2">
+                                                    <span className="w-2 h-2 rounded-full" style={{ background: 'var(--accent)' }}></span>
                                                     Predecessors (Required Before)
                                                 </h3>
                                                 {!meeting?.predecessors?.length ? (
@@ -2183,28 +2331,29 @@ export default function MeetingDetail() {
                                                         {meeting?.predecessors?.map((dep: any) => (
                                                             <Card
                                                                 key={dep.id}
-                                                                className="p-4 hover:border-blue-400 transition-all cursor-pointer group"
+                                                                className="p-4 hover:border-teal-400 transition-all cursor-pointer group"
                                                                 onClick={() => navigate(`/meetings/${dep.source_meeting_id}`)}
                                                             >
                                                                 <div className="flex items-center justify-between">
                                                                     <div className="flex items-center gap-4">
-                                                                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                                                                        <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600">
                                                                             <span className="material-symbols-outlined">event_available</span>
                                                                         </div>
                                                                         <div>
-                                                                            <div className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">
+                                                                            <div className="font-bold text-slate-900 dark:text-white group-hover:text-teal-600 transition-colors">
                                                                                 {dep.source_meeting_title}
                                                                             </div>
-                                                                            <div className="text-xs text-slate-500">
-                                                                                Type: <span className="font-mono text-blue-600 font-bold">{dep.dependency_type}</span>
-                                                                                {dep.lag_minutes > 0 && ` • Lag: ${dep.lag_minutes}m`}
-                                                                                <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500">
+                                                                            <div className="text-xs text-[var(--ink-500)]">
+                                                                                Type: <span className="font-mono-geist font-bold" style={{ color: 'var(--accent)' }}>{dep.dependency_type}</span>
+                                                                                {dep.lag_minutes > 0 && <> • Lag: <span className="font-mono-geist">{dep.lag_minutes}m</span></>}
+                                                                                <span className="ml-2 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider"
+                                                                                    style={{ background: 'var(--surface-2)', color: 'var(--ink-500)' }}>
                                                                                     {dep.source_type || 'MANUAL'}
                                                                                 </span>
                                                                             </div>
                                                                         </div>
                                                                     </div>
-                                                                    <span className="material-symbols-outlined text-slate-300 group-hover:text-blue-400 transition-colors">arrow_forward</span>
+                                                                    <span className="material-symbols-outlined text-slate-300 group-hover:text-teal-400 transition-colors">arrow_forward</span>
                                                                 </div>
                                                             </Card>
                                                         ))}
@@ -2214,7 +2363,7 @@ export default function MeetingDetail() {
 
                                             {/* Successors */}
                                             <div className="space-y-4">
-                                                <h3 className="text-sm font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                                                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-500)] flex items-center gap-2">
                                                     <span className="w-2 h-2 rounded-full bg-purple-500"></span>
                                                     Successors (Depends on this)
                                                 </h3>
@@ -2240,9 +2389,9 @@ export default function MeetingDetail() {
                                                                             <div className="font-bold text-slate-900 dark:text-white group-hover:text-purple-600 transition-colors">
                                                                                 {dep.target_meeting_title}
                                                                             </div>
-                                                                            <div className="text-xs text-slate-500">
-                                                                                Type: <span className="font-mono text-purple-600 font-bold">{dep.dependency_type}</span>
-                                                                                {dep.lag_minutes > 0 && ` • Lag: ${dep.lag_minutes}m`}
+                                                                            <div className="text-xs text-[var(--ink-500)]">
+                                                                                Type: <span className="font-mono-geist text-purple-600 font-bold">{dep.dependency_type}</span>
+                                                                                {dep.lag_minutes > 0 && <> • Lag: <span className="font-mono-geist">{dep.lag_minutes}m</span></>}
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -2274,7 +2423,7 @@ export default function MeetingDetail() {
                                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Meeting Title *</label>
                                     <input
                                         type="text"
-                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
                                         value={editTitle}
                                         onChange={e => setEditTitle(e.target.value)}
                                         placeholder="Enter meeting title"
@@ -2284,7 +2433,7 @@ export default function MeetingDetail() {
                                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Date & Time *</label>
                                     <input
                                         type="datetime-local"
-                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
                                         value={editDate}
                                         onChange={e => setEditDate(e.target.value)}
                                     />
@@ -2293,7 +2442,7 @@ export default function MeetingDetail() {
                                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Location</label>
                                     <input
                                         type="text"
-                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
                                         value={editLocation}
                                         onChange={e => setEditLocation(e.target.value)}
                                         placeholder="Meeting location or video link"
@@ -2310,7 +2459,7 @@ export default function MeetingDetail() {
                                 <button
                                     onClick={handleUpdateMeeting}
                                     disabled={!editTitle || !editDate}
-                                    className="btn-primary"
+                                    className="btn-primary clickable-scale"
                                 >
                                     Save Changes
                                 </button>
@@ -2344,7 +2493,7 @@ export default function MeetingDetail() {
 
                         {seriesLoading ? (
                             <div className="p-12 text-center">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto"></div>
                                 <p className="mt-3 text-sm text-slate-500">Loading series details...</p>
                             </div>
                         ) : seriesData && !seriesEditMode ? (
@@ -2424,7 +2573,7 @@ export default function MeetingDetail() {
                                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Series Title</label>
                                     <input
                                         type="text"
-                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
                                         value={seriesTitle}
                                         onChange={e => setSeriesTitle(e.target.value)}
                                     />
@@ -2434,7 +2583,7 @@ export default function MeetingDetail() {
                                         <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Start Time</label>
                                         <input
                                             type="time"
-                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
                                             value={seriesTime}
                                             onChange={e => setSeriesTime(e.target.value)}
                                         />
@@ -2445,7 +2594,7 @@ export default function MeetingDetail() {
                                             type="number"
                                             min={15}
                                             step={15}
-                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
                                             value={seriesDuration}
                                             onChange={e => setSeriesDuration(Number(e.target.value))}
                                         />
@@ -2455,7 +2604,7 @@ export default function MeetingDetail() {
                                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Location</label>
                                     <input
                                         type="text"
-                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
                                         value={seriesLocation}
                                         onChange={e => setSeriesLocation(e.target.value)}
                                         placeholder="Meeting location or video link"
@@ -2470,7 +2619,7 @@ export default function MeetingDetail() {
                                                 name="seriesScope"
                                                 checked={seriesUpdateScope === 'future'}
                                                 onChange={() => setSeriesUpdateScope('future')}
-                                                className="text-indigo-600"
+                                                className="text-teal-600"
                                             />
                                             <span className="text-sm text-slate-700 dark:text-slate-300">Future instances only</span>
                                         </label>
@@ -2480,7 +2629,7 @@ export default function MeetingDetail() {
                                                 name="seriesScope"
                                                 checked={seriesUpdateScope === 'all'}
                                                 onChange={() => setSeriesUpdateScope('all')}
-                                                className="text-indigo-600"
+                                                className="text-teal-600"
                                             />
                                             <span className="text-sm text-slate-700 dark:text-slate-300">All instances</span>
                                         </label>
@@ -2524,14 +2673,14 @@ export default function MeetingDetail() {
                                             <button
                                                 onClick={handleUpdateSeries}
                                                 disabled={seriesActionLoading || !seriesTitle}
-                                                className="btn-primary bg-indigo-600 hover:bg-indigo-700"
+                                                className="btn-primary bg-teal-600 hover:bg-teal-700 clickable-scale"
                                             >
                                                 {seriesActionLoading ? 'Saving...' : 'Save Changes'}
                                             </button>
                                         ) : (
                                             <button
                                                 onClick={() => setSeriesEditMode(true)}
-                                                className="btn-primary bg-indigo-600 hover:bg-indigo-700"
+                                                className="btn-primary bg-teal-600 hover:bg-teal-700 clickable-scale"
                                             >
                                                 Edit Series
                                             </button>
@@ -2604,7 +2753,7 @@ export default function MeetingDetail() {
                                     </div>
                                     <div className="flex justify-end gap-2 mt-4">
                                         <button onClick={() => setIsEditingSelected(false)} className="btn-secondary text-sm">Cancel</button>
-                                        <button onClick={handleUpdateAction} className="btn-primary text-sm" disabled={isLoadingAction}>Save Changes</button>
+                                        <button onClick={handleUpdateAction} className="btn-primary text-sm clickable-scale" disabled={isLoadingAction}>Save Changes</button>
                                     </div>
                                 </div>
                             ) : (
@@ -2616,7 +2765,7 @@ export default function MeetingDetail() {
                                         <div>
                                             <span className="text-slate-500 block text-xs uppercase tracking-wider font-bold mb-1">Owner</span>
                                             <div className="flex items-center gap-2">
-                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${selectedAction.owner ? 'bg-indigo-500' : 'bg-slate-400'}`}>
+                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${selectedAction.owner ? 'bg-teal-500' : 'bg-slate-400'}`}>
                                                     {selectedAction.owner?.avatar || (typeof selectedAction.owner === 'string' && selectedAction.owner ? selectedAction.owner.charAt(0).toUpperCase() : '?')}
                                                 </div>
                                                 <span className="font-medium text-slate-700 dark:text-slate-300">{selectedAction.owner?.name || selectedAction.owner || 'Unassigned'}</span>

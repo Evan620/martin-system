@@ -47,7 +47,7 @@ const InputModal: React.FC<InputModalProps> = ({
             case 'warning':
                 return 'bg-yellow-600 hover:bg-yellow-500 text-white ring-yellow-500'
             default:
-                return 'bg-blue-600 hover:bg-blue-500 text-white ring-blue-500'
+                return 'bg-teal-600 hover:bg-teal-500 text-white ring-teal-500'
         }
     }
 
@@ -88,14 +88,14 @@ const InputModal: React.FC<InputModalProps> = ({
                     <button
                         onClick={onCancel}
                         disabled={isLoading}
-                        className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed clickable-scale"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleConfirm}
                         disabled={isLoading}
-                        className={`px-4 py-2 rounded-lg font-medium transition-all shadow-lg shadow-current/20 flex items-center gap-2 ${getVariantClasses()} disabled:opacity-70 disabled:cursor-not-allowed`}
+                        className={`px-4 py-2 rounded-lg font-medium transition-all shadow-lg shadow-current/20 flex items-center gap-2 clickable-scale ${getVariantClasses()} disabled:opacity-70 disabled:cursor-not-allowed`}
                     >
                         {isLoading && (
                             <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

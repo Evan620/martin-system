@@ -120,8 +120,8 @@ const Incubation: React.FC = () => {
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 16, marginBottom: 24 }}>
                 <div>
-                    <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7c3aed', fontWeight: 600 }}>R5 · Pre-pipeline</div>
-                    <h1 style={{ fontFamily: "'Source Serif 4', serif", fontSize: 28, fontWeight: 400, color: 'var(--ink-900)', margin: '4px 0 0', letterSpacing: '-0.01em' }}>
+                    <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7c3aed', fontWeight: 600, fontFamily: "'Geist Mono', monospace" }}>R5 · Pre-pipeline</div>
+                    <h1 style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 18, fontWeight: 800, color: 'var(--ink-900)', margin: '4px 0 0', letterSpacing: '-0.02em' }}>
                         ⚗ Incubation Track
                     </h1>
                     <p style={{ fontSize: 13, color: 'var(--ink-500)', margin: '6px 0 0', maxWidth: 640 }}>
@@ -209,8 +209,8 @@ const Incubation: React.FC = () => {
 function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
     return (
         <div style={{ paddingRight: 24, borderRight: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 500 }}>{label}</div>
-            <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 22, color: '#7c3aed', marginTop: 4, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>{label}</div>
+            <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', color: '#7c3aed', marginTop: 4, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
             <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 4 }}>{sub}</div>
         </div>
     );
@@ -259,8 +259,12 @@ function ProjectCard({
         >
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                 <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 10, color: '#7c3aed', fontWeight: 600, letterSpacing: '0.06em' }}>⚗ INCUBATION</div>
-                    <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 17, color: 'var(--ink-900)', marginTop: 2, letterSpacing: '-0.005em' }}>
+                    <span style={{
+                        display: 'inline-block', fontSize: 8, color: '#7c3aed', fontWeight: 700,
+                        letterSpacing: '0.08em', textTransform: 'uppercase', padding: '2px 8px',
+                        borderRadius: 999, background: 'color-mix(in srgb, #7c3aed 12%, transparent)',
+                    }}>⚗ Incubation</span>
+                    <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 800, fontSize: 16, color: 'var(--ink-900)', marginTop: 6, letterSpacing: '-0.02em' }}>
                         {project.name}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--ink-500)', marginTop: 2 }}>
@@ -300,8 +304,8 @@ function ProjectCard({
                 padding: '10px 12px', background: 'var(--ink-50)',
             }}>
                 <div>
-                    <div style={{ fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-500)' }}>AfCEN</div>
-                    <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: 22, color: 'var(--ink-900)', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>AfCEN</div>
+                    <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--ink-900)', fontVariantNumeric: 'tabular-nums' }}>
                         {score.toFixed(0)}
                     </div>
                 </div>

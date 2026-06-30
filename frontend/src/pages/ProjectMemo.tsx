@@ -207,8 +207,8 @@ Use formal business language, clear headings, bullet points. No emojis.`,
               Investment Memo
             </h1>
             {isGenerating && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-sm font-medium">
-                <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+              <div className="flex items-center gap-2 px-3 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded-full text-sm font-medium">
+                <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
                 <span>AI Generating...</span>
               </div>
             )}
@@ -221,7 +221,7 @@ Use formal business language, clear headings, bullet points. No emojis.`,
           <button
             onClick={copyToClipboard}
             disabled={!memoContent || isGenerating}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="clickable-scale flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-[18px]">content_copy</span>
             Copy
@@ -229,7 +229,7 @@ Use formal business language, clear headings, bullet points. No emojis.`,
           <button
             onClick={exportMemo}
             disabled={!memoContent || isGenerating}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="clickable-scale flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-[18px]">download</span>
             Export
@@ -237,7 +237,7 @@ Use formal business language, clear headings, bullet points. No emojis.`,
           <button
             onClick={() => generateMemo()}
             disabled={isGenerating}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="clickable-scale flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-[18px]">refresh</span>
             Regenerate
@@ -246,8 +246,8 @@ Use formal business language, clear headings, bullet points. No emojis.`,
       </div>
 
       {/* AI Info Banner */}
-      <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-100 dark:border-purple-800/50 rounded-xl p-4 flex items-start gap-4">
-        <div className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm shrink-0 text-purple-600 dark:text-purple-400">
+      <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-800/50 rounded-xl p-4 flex items-start gap-4">
+        <div className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm shrink-0 text-teal-600 dark:text-teal-400">
           <span className="material-symbols-outlined">auto_awesome</span>
         </div>
         <div className="flex-1">
@@ -306,7 +306,7 @@ Use formal business language, clear headings, bullet points. No emojis.`,
               </p>
               <button
                 onClick={() => generateMemo()}
-                className="mt-4 flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+                className="clickable-scale mt-4 flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-teal-700 transition-colors"
               >
                 <span className="material-symbols-outlined text-[18px]">refresh</span>
                 Regenerate
@@ -322,7 +322,7 @@ Use formal business language, clear headings, bullet points. No emojis.`,
               <p className="text-slate-600 dark:text-slate-400 font-medium">No memo generated yet</p>
               <button
                 onClick={() => generateMemo()}
-                className="mt-4 flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+                className="clickable-scale mt-4 flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-teal-700 transition-colors"
               >
                 <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
                 Generate Memo

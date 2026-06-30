@@ -34,15 +34,32 @@ export default function LiveTimeline({ items }: LiveTimelineProps) {
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'critical': return 'bg-red-500';
-            case 'completed': return 'bg-emerald-500';
-            case 'warning': return 'bg-amber-500';
-            default: return 'bg-blue-500';
+            case 'critical': return 'var(--terra)';
+            case 'completed': return 'var(--sage)';
+            case 'warning': return 'var(--amber)';
+            default: return 'var(--accent)';
+        }
+    };
+
+    const getStatusLabel = (status: string) => {
+        switch (status) {
+            case 'critical': return 'Critical';
+            case 'completed': return 'Done';
+            case 'warning': return 'Warning';
+            default: return 'Scheduled';
         }
     };
 
     return (
-        <div className="bg-[#f6f8fa] dark:bg-[#1a202c] rounded-3xl p-6 h-full flex flex-col shadow-sm border border-[#eef0f2] dark:border-[#2d3748]">
+        <div
+            className="p-5 h-full flex flex-col"
+            style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-card)',
+                overflow: 'hidden',
+            }}
+        >
             <style>{`
                 .no-scrollbar::-webkit-scrollbar {
                     display: none;
@@ -54,9 +71,12 @@ export default function LiveTimeline({ items }: LiveTimelineProps) {
             `}</style>
 
             {/* Header */}
-            <div className="flex items-center justify-between mb-8">
-                <h3 className="text-xl font-bold text-[#1e293b] dark:text-white tracking-tight">Live Timeline</h3>
-                <span className="material-symbols-outlined text-blue-500 text-2xl">schedule</span>
+            <div className="flex items-center justify-between mb-6">
+                <h3
+                    className="font-display"
+                    style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--ink-900)' }}
+                >Live Timeline</h3>
+                <span className="material-symbols-outlined text-2xl" style={{ color: 'var(--accent)' }}>schedule</span>
             </div>
 
             {/* Timeline Content */}
@@ -69,24 +89,42 @@ export default function LiveTimeline({ items }: LiveTimelineProps) {
                                 {/* Date Header with Line */}
                                 <div className="flex items-end gap-4 mb-4">
                                     <div className="flex flex-col leading-none">
-                                        <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase mb-1">{month}</span>
-                                        <span className="text-2xl font-bold text-[#0f172a] dark:text-white">{day}</span>
+                                        <span
+                                            className="uppercase mb-1"
+                                            style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', color: 'var(--ink-500)' }}
+                                        >{month}</span>
+                                        <span
+                                            className="font-mono-geist"
+                                            style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', fontFamily: "'Geist Mono', monospace", color: 'var(--ink-900)' }}
+                                        >{day}</span>
                                     </div>
-                                    <div className="h-px bg-[#e2e8f0] dark:bg-[#2d3748] flex-1 mb-2"></div>
+                                    <div className="h-px flex-1 mb-2" style={{ background: 'var(--border)' }}></div>
                                 </div>
 
                                 {/* Events List */}
-                                <div className="space-y-6 pl-2">
+                                <div className="space-y-5 pl-2">
                                     {dayItems.map((item, idx) => (
-                                        <div key={`${dateKey}-${idx}`} className="flex justify-between items-start group cursor-pointer">
-                                            <div className="flex-1 pr-4">
-                                                <h4 className="font-bold text-[#0f172a] dark:text-white text-[15px] mb-0.5 group-hover:text-blue-600 transition-colors">{item.title}</h4>
-                                                <p className="text-sm text-[#64748b] dark:text-[#94a3b8]">{item.twg}</p>
+                                        <div key={`${dateKey}-${idx}`} className="flex justify-between items-start gap-3 group cursor-pointer">
+                                            <div className="flex-1 pr-2">
+                                                <h4
+                                                    className="font-bold mb-0.5 transition-colors"
+                                                    style={{ fontSize: 13, lineHeight: 1.35, color: 'var(--ink-900)' }}
+                                                >{item.title}</h4>
+                                                <p
+                                                    className="uppercase"
+                                                    style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', color: 'var(--ink-500)' }}
+                                                >{item.twg}</p>
                                             </div>
-                                            {/* Status Dot */}
-                                            <div className="pt-2">
-                                                <div className={`size-2.5 rounded-full ${getStatusColor(item.status)} ring-4 ring-transparent group-hover:ring-blue-50 dark:group-hover:ring-blue-900/20 transition-all`}></div>
-                                            </div>
+                                            {/* Status Pill */}
+                                            <span
+                                                className="uppercase shrink-0"
+                                                style={{
+                                                    fontSize: 8, fontWeight: 700, letterSpacing: '0.08em',
+                                                    padding: '3px 7px', borderRadius: 999,
+                                                    color: getStatusColor(item.status),
+                                                    background: `color-mix(in srgb, ${getStatusColor(item.status)} 12%, transparent)`,
+                                                }}
+                                            >{getStatusLabel(item.status)}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -95,7 +133,7 @@ export default function LiveTimeline({ items }: LiveTimelineProps) {
                     })
                 ) : (
                     <div className="text-center py-12">
-                        <p className="text-[#64748b] text-sm">No scheduled events.</p>
+                        <p style={{ fontSize: 12, color: 'var(--ink-400)' }}>No scheduled events.</p>
                     </div>
                 )}
             </div>
@@ -104,7 +142,12 @@ export default function LiveTimeline({ items }: LiveTimelineProps) {
             <div className="mt-6 pt-4">
                 <button
                     onClick={() => navigate('/schedule')}
-                    className="w-full py-3.5 bg-[#f1f5f9] dark:bg-[#2d3748] rounded-xl text-sm font-semibold text-[#0f172a] dark:text-white hover:bg-[#e2e8f0] dark:hover:bg-[#4a5568] transition-colors"
+                    className="w-full py-3 rounded-lg transition-colors"
+                    style={{
+                        fontSize: 12, fontWeight: 600,
+                        background: 'var(--surface-2)', color: 'var(--ink-900)',
+                        border: '1px solid var(--border)',
+                    }}
                 >
                     View All Events
                 </button>

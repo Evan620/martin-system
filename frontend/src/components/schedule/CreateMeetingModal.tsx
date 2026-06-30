@@ -3,6 +3,7 @@ import { Card } from '../ui';
 import { meetings, twgs, recurringMeetings } from '../../services/api';
 import { useAppSelector } from '../../hooks/useRedux';
 import { UserRole } from '../../types/auth';
+import { eventLocalToUTCISO, EVENT_TIME_ZONE } from '../../utils/dates';
 
 interface CreateMeetingModalProps {
     isOpen: boolean;
@@ -103,18 +104,14 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
 
         try {
             // TIMEZONE HANDLING:
-            // 1. User enters date/time in their LOCAL timezone (e.g., "2026-01-27" + "14:00")
-            // 2. new Date() interprets this as local time
-            // 3. toISOString() automatically converts to UTC
-            // 4. Backend stores as UTC (naive datetime)
-            // 5. Frontend displays by converting UTC back to local
+            // The entered date/time is always the canonical event timezone (EAT),
+            // NOT the creator's browser timezone. We convert EAT -> UTC for storage
+            // so the meeting shows the same time for every viewer regardless of where
+            // it was scheduled from. (The display side renders stored UTC back to EAT.)
+            const scheduledAtUTC = eventLocalToUTCISO(formData.date, formData.time);
 
-            const localDateTime = new Date(`${formData.date}T${formData.time}:00`);
-            const scheduledAtUTC = localDateTime.toISOString();
-
-            console.log('📅 User input (local):', `${formData.date} ${formData.time}`);
-            console.log('🌍 User timezone:', Intl.DateTimeFormat().resolvedOptions().timeZone);
-            console.log('⏰ Sending to backend (UTC):', scheduledAtUTC);
+            console.log('📅 Entered (EAT):', `${formData.date} ${formData.time}`);
+            console.log('⏰ Stored (UTC):', scheduledAtUTC);
 
             if (recurrence.isRecurring) {
                 // Create recurring meeting
@@ -149,7 +146,10 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                     },
                     start_date: scheduledAtUTC,
                     start_time: formData.time,
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    // Generate recurring instances in the canonical event tz (EAT),
+                    // not the creator's browser tz, so every instance lands at the
+                    // intended EAT wall-clock time.
+                    timezone: EVENT_TIME_ZONE,
                 };
 
                 console.log('🔄 Creating recurring meeting:', recurringData);

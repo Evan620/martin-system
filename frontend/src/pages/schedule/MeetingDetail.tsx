@@ -5,7 +5,7 @@ import { RootState } from '../../store'
 import { meetings, actionItems, twgs, recurringMeetings } from '../../services/api'
 import { UserRole } from '../../types/auth'
 import { Card, Badge } from '../../components/ui'
-import { toLocalInputValue, formatMeetingDate, formatMeetingTime } from '../../utils/dates'
+import { toEventInputValue, eventInputToUTCISO, formatMeetingDate, formatMeetingTime } from '../../utils/dates'
 import MinutesVersionHistory from '../../components/schedule/MinutesVersionHistory'
 
 import ConflictModal from '../../components/modals/ConflictModal'
@@ -739,8 +739,9 @@ export default function MeetingDetail() {
     const handleUpdateMeeting = async () => {
         if (!meetingId) return;
         try {
-            // Convert local datetime-local value to UTC ISO string (same as create form)
-            const scheduledAtUTC = editDate ? new Date(editDate).toISOString() : undefined;
+            // Interpret the datetime-local value as EAT (Africa/Nairobi) wall-clock
+            // and convert to UTC ISO for storage — browser-independent, same as create form.
+            const scheduledAtUTC = editDate ? eventInputToUTCISO(editDate) : undefined;
             await meetings.update(meetingId, {
                 title: editTitle,
                 scheduled_at: scheduledAtUTC,
@@ -773,7 +774,7 @@ export default function MeetingDetail() {
 
     const openEditModal = () => {
         setEditTitle(meeting?.title || '')
-        setEditDate(meeting?.scheduled_at ? toLocalInputValue(meeting.scheduled_at) : '')
+        setEditDate(meeting?.scheduled_at ? toEventInputValue(meeting.scheduled_at) : '')
         setEditLocation(meeting?.location || '')
         setIsEditingMeeting(true)
     }

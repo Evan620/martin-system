@@ -363,18 +363,23 @@ def request_booking_tool(
 
         from zoneinfo import ZoneInfo
 
-        if user_timezone and start_time.tzinfo is None:
+        if start_time.tzinfo is None:
+            # A naive datetime is the canonical event timezone EAT (Africa/Nairobi)
+            # unless the caller passes an explicit user_timezone. It must ALWAYS be
+            # localized then converted to naive UTC for storage. Falling through
+            # without conversion would store EAT as if it were UTC (wrong by +3h).
+            tz_name = user_timezone or "Africa/Nairobi"
             try:
-                user_tz = ZoneInfo(user_timezone)
+                user_tz = ZoneInfo(tz_name)
                 local_dt = start_time.replace(tzinfo=user_tz)
                 utc_time = local_dt.astimezone(tz.utc).replace(tzinfo=None)
                 loguru_logger.info(
-                    f"[BOOKING_TOOL] Converted User Local Time ({start_time_iso} {user_timezone}) -> UTC: {utc_time}"
+                    f"[BOOKING_TOOL] Converted Local Time ({start_time_iso} {tz_name}) -> UTC: {utc_time}"
                 )
                 start_time = utc_time
             except Exception as e:
                 loguru_logger.error(f"[BOOKING_TOOL] Timezone conversion failed: {e}. Fallback to UTC assumption.")
-        elif start_time.tzinfo is not None:
+        else:
             start_time = start_time.astimezone(tz.utc).replace(tzinfo=None)
 
         # Smart Location Inference
@@ -548,6 +553,8 @@ def update_meeting_tool(
     from app.models.models import Meeting
     from sqlalchemy import select
     from loguru import logger as loguru_logger
+    from zoneinfo import ZoneInfo
+    from datetime import timezone as tz
 
     try:
         session = get_sync_db_session()
@@ -566,7 +573,15 @@ def update_meeting_tool(
 
             if new_time_iso:
                 try:
-                    dt = datetime.fromisoformat(new_time_iso)
+                    # Preserve any UTC offset (Z -> +00:00) so fromisoformat
+                    # yields an aware datetime instead of silently dropping tz.
+                    dt = datetime.fromisoformat(new_time_iso.replace('Z', '+00:00'))
+                    if dt.tzinfo is None:
+                        # Naive value is canonical EAT (Africa/Nairobi); localize
+                        # then convert to naive UTC for storage. Without this the
+                        # EAT time would be stored as UTC (wrong by +3h).
+                        dt = dt.replace(tzinfo=ZoneInfo("Africa/Nairobi"))
+                    dt = dt.astimezone(tz.utc).replace(tzinfo=None)
                     meeting.scheduled_at = dt
                     changes.append(f"Time -> {new_time_iso}")
                 except ValueError:

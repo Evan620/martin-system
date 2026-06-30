@@ -328,7 +328,16 @@ def update_meeting(
                 
             if new_time_iso:
                 try:
-                    dt = datetime.fromisoformat(new_time_iso)
+                    from datetime import timezone as _tz
+                    from zoneinfo import ZoneInfo
+                    dt = datetime.fromisoformat(new_time_iso.replace("Z", "+00:00"))
+                    # Naive input is interpreted as the canonical event timezone
+                    # (EAT, Africa/Nairobi) then converted to UTC for storage.
+                    # Aware input is converted to UTC directly (no double-shift).
+                    if dt.tzinfo:
+                        dt = dt.astimezone(_tz.utc).replace(tzinfo=None)
+                    else:
+                        dt = dt.replace(tzinfo=ZoneInfo("Africa/Nairobi")).astimezone(_tz.utc).replace(tzinfo=None)
                     meeting.scheduled_at = dt
                     changes.append(f"Time -> {new_time_iso}")
                 except ValueError:
@@ -474,11 +483,17 @@ async def create_meeting(
         from sqlalchemy import select
         import uuid as _uuid
         from datetime import timezone
+        from zoneinfo import ZoneInfo
 
-        # Parse and normalise to naive UTC
+        # Parse and normalise to naive UTC.
+        # Naive input is interpreted as the canonical event timezone (EAT,
+        # Africa/Nairobi) before converting to UTC for storage. Aware input
+        # is converted to UTC directly (no double-shift).
         dt = datetime.fromisoformat(scheduled_at_iso)
         if dt.tzinfo:
             dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        else:
+            dt = dt.replace(tzinfo=ZoneInfo("Africa/Nairobi")).astimezone(timezone.utc).replace(tzinfo=None)
 
         async with AsyncSessionLocal() as session:
             # Validate TWG exists

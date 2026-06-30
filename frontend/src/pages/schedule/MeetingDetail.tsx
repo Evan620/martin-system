@@ -1743,6 +1743,11 @@ export default function MeetingDetail() {
                                                                                     {item.owner?.avatar || 'U'}
                                                                                 </div>
                                                                                 <span className="text-xs text-[var(--ink-500)]">{item.owner?.name || 'Unassigned'}</span>
+                                                                                {item.ownerMatched === false && item.rawOwnerName ? (
+                                                                                    <span className="text-[10px] italic" style={{ color: 'var(--amber)' }} title="Extracted from minutes — not yet matched to a member">
+                                                                                        (unmatched)
+                                                                                    </span>
+                                                                                ) : null}
                                                                             </div>
                                                                             <span className="text-[9px] font-semibold font-mono-geist text-[var(--ink-400)]">{item.dueDate}</span>
                                                                             <span

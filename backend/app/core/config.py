@@ -399,7 +399,55 @@ class Settings(BaseSettings):
         default=60,
         description="Maximum backoff time after repeated Attendee API failures or rate limits"
     )
-    
+    # SAFETY: when True (default), Martin DRAFTS minutes and leaves them in a
+    # review/pending state for a human to approve before official distribution.
+    # Set False to restore fully automatic approve-and-email behavior.
+    ATTENDEE_REQUIRE_MINUTES_REVIEW: bool = Field(
+        default=True,
+        description="If True, auto-generated meeting minutes are left for human review instead of being auto-approved and emailed"
+    )
+    MINUTES_AUTO_EXTRACT_ACTIONS: bool = Field(
+        default=False,
+        description="If True, saving/finalizing meeting minutes auto-extracts action items from the minutes text (deduped). Off by default to preserve existing manual-extract behavior."
+    )
+
+    @property
+    def attendee_missing_vars(self) -> List[str]:
+        """Names of the ATTENDEE_* vars required for bot dispatch/webhooks that are unset.
+
+        Used as a startup/health visibility signal so dispatch is not a silent
+        no-op when the deployment forgot to wire the Attendee env vars.
+        """
+        required = {
+            "ATTENDEE_API_URL": self.ATTENDEE_API_URL,
+            "ATTENDEE_API_KEY": self.ATTENDEE_API_KEY,
+            "ATTENDEE_WEBHOOK_SECRET": self.ATTENDEE_WEBHOOK_SECRET,
+            "ATTENDEE_WEBHOOK_URL": self.ATTENDEE_WEBHOOK_URL,
+        }
+        return [name for name, value in required.items() if not (value or "").strip()]
+
+    @property
+    def attendee_dispatch_ready(self) -> bool:
+        """True only when the core Attendee API vars (URL + key) are configured."""
+        return bool(self.ATTENDEE_API_URL.strip()) and bool(self.ATTENDEE_API_KEY.strip())
+
+    def log_attendee_config_status(self) -> None:
+        """Emit a one-line WARNING when ATTENDEE_* vars are missing.
+
+        No network calls — purely reads local settings so an unconfigured
+        deployment is visible in startup logs rather than silently dropping
+        meeting-bot dispatch and webhook verification.
+        """
+        import logging as _logging
+        _log = _logging.getLogger(__name__)
+        missing = self.attendee_missing_vars
+        if missing:
+            _log.warning(
+                "Attendee meeting-bot not fully configured — missing %s; "
+                "bot dispatch and/or webhook signature verification will be a no-op until set",
+                ", ".join(missing),
+            )
+
     @property
     def is_production(self) -> bool:
         """True when running in production.

@@ -174,6 +174,26 @@ def has_twg_access(user: User, twg_id: uuid.UUID) -> bool:
     return twg_id in user_twg_ids
 
 
+async def validate_subgroup_in_twg(db: AsyncSession, subgroup_id, twg_id) -> None:
+    """Ensure a sub-group exists and belongs to the given TWG.
+
+    Used when attaching a meeting or action item to a sub-group (R4 sub-group
+    health). Attaching to a sub-group from a DIFFERENT TWG would corrupt that
+    TWG's health metrics and surface the row in another TWG's health view, so we
+    reject it. A None subgroup_id is a no-op (item belongs to the TWG at large).
+    Raises HTTPException(400/404) on a bad reference.
+    """
+    if subgroup_id is None:
+        return
+    from app.models.models import SubGroup
+    result = await db.execute(select(SubGroup).where(SubGroup.id == subgroup_id))
+    subgroup = result.scalar_one_or_none()
+    if subgroup is None:
+        raise HTTPException(status_code=404, detail="Sub-group not found")
+    if subgroup.twg_id != twg_id:
+        raise HTTPException(status_code=400, detail="Sub-group does not belong to this TWG")
+
+
 # Roles allowed to see documents flagged is_confidential (gap report P0-9).
 CONFIDENTIAL_DOC_ROLES = (
     UserRole.ADMIN,

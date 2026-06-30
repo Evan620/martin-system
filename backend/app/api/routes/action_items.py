@@ -10,7 +10,7 @@ import logging
 from app.core.database import get_db
 from app.models.models import ActionItem, ActionItemStatus, User, UserRole, NotificationType
 from app.schemas.schemas import ActionItemCreate, ActionItemUpdate, ActionItemRead
-from app.api.deps import get_current_active_user, require_facilitator, has_twg_access
+from app.api.deps import get_current_active_user, require_facilitator, has_twg_access, validate_subgroup_in_twg
 from app.core.action_item_constants import VALID_STATUS_TRANSITIONS
 from app.services.notification_service import create_notification
 
@@ -32,6 +32,9 @@ async def create_action_item(
     """
     if not has_twg_access(current_user, item_in.twg_id):
         raise HTTPException(status_code=403, detail="You do not have access to this TWG")
+
+    # If attributing to a sub-group, it must belong to this TWG (R4 health integrity).
+    await validate_subgroup_in_twg(db, item_in.subgroup_id, item_in.twg_id)
 
     db_item = ActionItem(**item_in.model_dump())
     db.add(db_item)
@@ -108,6 +111,7 @@ async def list_action_items(
     skip: int = 0,
     limit: int = 100,
     twg_id: Optional[uuid.UUID] = None,
+    owner_id: Optional[uuid.UUID] = None,
     mine_only: bool = False,
     status: Optional[str] = None,
     current_user: User = Depends(get_current_active_user),
@@ -118,6 +122,9 @@ async def list_action_items(
 
     - mine_only=true: Returns items owned by current user.
     - twg_id: Filter by TWG (Access checked).
+    - owner_id: Filter by owner (Access checked — only ADMIN/SECRETARIAT_LEAD,
+      or a facilitator who shares a TWG with that owner, may read another
+      user's items; everyone else may only read their own).
     - status: Filter by status (PENDING, IN_PROGRESS, COMPLETED, OVERDUE).
     """
     query = select(ActionItem).options(selectinload(ActionItem.owner)).offset(skip).limit(limit)
@@ -129,7 +136,22 @@ async def list_action_items(
          query = query.where(ActionItem.twg_id == twg_id)
          if current_user.role not in [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD] and not has_twg_access(current_user, twg_id):
               raise HTTPException(status_code=403, detail="Access denied to this TWG's items")
-    elif not mine_only and current_user.role not in [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]:
+
+    if owner_id:
+        query = query.where(ActionItem.owner_id == owner_id)
+        # Access guard mirrors the twg_id branch and is LEAK-SAFE: a non-privileged
+        # caller may only ever see action items that live in one of THEIR OWN TWGs.
+        # Scoping the query to the caller's TWGs (rather than merely checking that
+        # the caller shares *some* TWG with the owner) prevents a cross-TWG leak —
+        # otherwise a caller sharing TWG-A with an owner could read that owner's
+        # items in TWG-B, which the caller has no access to. Self-reads are
+        # naturally covered (the caller's own items live in the caller's TWGs).
+        # ADMIN / SECRETARIAT_LEAD are unrestricted.
+        if current_user.role not in [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]:
+            caller_twg_ids = [twg.id for twg in current_user.twgs]
+            query = query.where(ActionItem.twg_id.in_(caller_twg_ids))
+
+    if not mine_only and not twg_id and not owner_id and current_user.role not in [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]:
         user_twg_ids = [twg.id for twg in current_user.twgs]
         query = query.where(ActionItem.twg_id.in_(user_twg_ids))
 
@@ -185,6 +207,9 @@ async def update_action_item(
             )
 
     update_data = item_in.model_dump(exclude_unset=True)
+    # If (re)attributing to a sub-group, it must belong to this item's TWG.
+    if "subgroup_id" in update_data:
+        await validate_subgroup_in_twg(db, update_data["subgroup_id"], db_item.twg_id)
     for key, value in update_data.items():
         setattr(db_item, key, value)
 

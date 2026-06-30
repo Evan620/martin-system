@@ -7,6 +7,7 @@ from app.jobs.scheduled_tasks import (
     weekly_progress_report,
     setup_event_listeners,
 )
+from app.tasks.action_item_reminders import send_due_soon_action_item_reminders
 import logging
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,17 @@ class SchedulerService:
             check_overdue_action_items,
             trigger=IntervalTrigger(hours=6),
             id="check_overdue_action_items",
+            replace_existing=True
+        )
+
+        # Due-soon action item reminders (R3) — nudges owners of items due in
+        # the next 24-48h. Async coroutine opening its own AsyncSessionLocal,
+        # same pattern/cadence as check_overdue_action_items. Per-item AuditLog
+        # dedup makes the 6h interval safe (no double-nudging).
+        self.scheduler.add_job(
+            send_due_soon_action_item_reminders,
+            trigger=IntervalTrigger(hours=6),
+            id="send_due_soon_action_item_reminders",
             replace_existing=True
         )
 

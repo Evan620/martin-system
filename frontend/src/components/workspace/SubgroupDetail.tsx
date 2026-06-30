@@ -25,6 +25,23 @@ interface SubGroup {
     member_count: number
     document_count: number
     status: string
+    // Additive R4 health fields (carried on the subgroup object from the list response)
+    health_status?: 'healthy' | 'at_risk' | 'stalled'
+    last_active_at?: string | null
+    days_since_active?: number | null
+}
+
+const HEALTH_BADGE: Record<string, { label: string; cls: string }> = {
+    healthy: { label: 'Healthy', cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+    at_risk: { label: 'At risk', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+    stalled: { label: 'Stalled', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+}
+
+function lastActiveLabel(sg: SubGroup): string {
+    if (sg.days_since_active === 0) return 'Active today'
+    if (typeof sg.days_since_active === 'number') return `Active ${sg.days_since_active}d ago`
+    if (sg.last_active_at) return `Active ${new Date(sg.last_active_at).toLocaleDateString()}`
+    return 'No activity yet'
 }
 
 interface SubgroupDetailProps {
@@ -128,10 +145,23 @@ export default function SubgroupDetail({ twgId, twgName, subgroup: initialSubgro
 
             {/* Header */}
             <div>
-                <h3 className="text-xl font-display font-bold text-slate-900 dark:text-white">{sg.name}</h3>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xl font-display font-bold text-slate-900 dark:text-white">{sg.name}</h3>
+                    {sg.health_status && HEALTH_BADGE[sg.health_status] && (
+                        <span
+                            title="Effectiveness signal: based on recent activity and action-item closure"
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${HEALTH_BADGE[sg.health_status].cls}`}
+                        >
+                            {HEALTH_BADGE[sg.health_status].label}
+                        </span>
+                    )}
+                </div>
                 <p className="text-xs text-slate-400 mt-1">
                     {sg.lead && <>Lead: {sg.lead.full_name} &nbsp;·&nbsp; </>}
                     {twgName}
+                    {(sg.last_active_at !== undefined || sg.days_since_active !== undefined) && (
+                        <> &nbsp;·&nbsp; {lastActiveLabel(sg)}</>
+                    )}
                 </p>
                 {sg.description && (
                     <p className="text-sm text-slate-500 mt-2 italic">{sg.description}</p>

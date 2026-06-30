@@ -229,8 +229,8 @@ async def create_action_item(
         return err
     if not description or not description.strip():
         return {"status": "invalid_input", "reason": "Description is required"}
-    if priority not in {"low", "medium", "high"}:
-        return {"status": "invalid_input", "reason": "priority must be low/medium/high"}
+    if priority not in {"low", "medium", "high", "urgent"}:
+        return {"status": "invalid_input", "reason": "priority must be low/medium/high/urgent"}
     if due_date:
         try:
             date.fromisoformat(due_date)
@@ -280,5 +280,84 @@ async def bulk_create_action_items(
         action_type="bulk_create_action_items",
         summary=f"Create {len(items)} action item(s) tied to meeting {meeting_id[:8]}.",
         payload={"meeting_id": meeting_id, "items": items},
+        irreversible=False,
+    )
+
+
+async def extract_action_items_from_minutes(
+    user_id: str,
+    user_role: UserRole,
+    meeting_id: Optional[str] = None,
+    minutes_text: Optional[str] = None,
+    twg_id: Optional[str] = None,
+    confirmed: bool = False,
+    action_id: Optional[str] = None,
+) -> dict:
+    """Conversational Martin tool (R1): extract action items from meeting minutes
+    and create them, so the supervisor agent can do it directly in chat.
+
+    Two modes, mirroring the REST endpoints:
+      - meeting mode: pass `meeting_id` to extract from that meeting's saved
+        minutes (or transcript) and create items tied to it (owner fuzzy-matched
+        against participants);
+      - free-text mode: pass `minutes_text` + `twg_id` to extract from pasted /
+        ad-hoc notes not tied to a scheduled meeting (optionally also `meeting_id`
+        to link + fuzzy-match owners).
+
+    Confirm-then-execute: this call validates inputs + role and returns
+    confirmation_required. The bound /agents/execute handler performs the actual
+    LLM extraction and ActionItem creation (reusing the shared
+    create_action_items_from_extraction service: raw owner name preserved,
+    +14-day default due date, dedup so re-running never duplicates items).
+    """
+    err = require_role(user_role, EDIT_ROLES)
+    if err:
+        return err
+
+    has_meeting = bool(meeting_id and str(meeting_id).strip())
+    text = (minutes_text or "").strip()
+
+    # Need at least one valid source: an existing meeting, or free text + a TWG.
+    if not has_meeting and not text:
+        return {
+            "status": "invalid_input",
+            "reason": "Provide either meeting_id (extract from that meeting's minutes) "
+                      "or minutes_text + twg_id (free-text extraction).",
+        }
+    if text and not has_meeting and not (twg_id and str(twg_id).strip()):
+        return {
+            "status": "invalid_input",
+            "reason": "Free-text extraction requires twg_id (which TWG the items belong to).",
+        }
+
+    # Validate UUIDs up front so we fail fast with a clear message.
+    if has_meeting:
+        try:
+            UUID(str(meeting_id))
+        except ValueError:
+            return {"status": "invalid_input", "reason": "meeting_id is not a UUID"}
+    if twg_id and str(twg_id).strip():
+        try:
+            UUID(str(twg_id))
+        except ValueError:
+            return {"status": "invalid_input", "reason": "twg_id is not a UUID"}
+
+    if confirmed:
+        return {"status": "ok", "result": "executed via /agents/execute"}
+
+    if has_meeting:
+        summary = f"Extract action items from meeting {str(meeting_id)[:8]}'s minutes and create them."
+    else:
+        preview = text[:60] + ("…" if len(text) > 60 else "")
+        summary = f'Extract action items from the provided notes ("{preview}") and create them.'
+
+    return propose_action(
+        action_type="extract_action_items_from_minutes",
+        summary=summary,
+        payload={
+            "meeting_id": str(meeting_id) if has_meeting else None,
+            "minutes_text": text or None,
+            "twg_id": str(twg_id) if (twg_id and str(twg_id).strip()) else None,
+        },
         irreversible=False,
     )

@@ -270,6 +270,9 @@ class MeetingBase(SchemaBase):
     status: MeetingStatus = MeetingStatus.SCHEDULED
     meeting_type: str = "virtual"
     transcript: Optional[str] = None
+    # Optional sub-group attribution (R4 sub-group health). Must belong to twg_id;
+    # validated server-side. NULL = meeting belongs to the TWG at large.
+    subgroup_id: Optional[uuid.UUID] = None
 
 class MeetingCreate(MeetingBase):
     pass
@@ -282,6 +285,7 @@ class MeetingUpdate(SchemaBase):
     status: Optional[MeetingStatus] = None
     meeting_type: Optional[str] = None
     transcript: Optional[str] = None
+    subgroup_id: Optional[uuid.UUID] = None
 
 class MeetingCancel(SchemaBase):
     reason: Optional[str] = None
@@ -496,6 +500,9 @@ class ActionItemBase(SchemaBase):
     due_date: Optional[datetime] = None
     status: ActionItemStatus = ActionItemStatus.PENDING
     priority: ActionItemPriority = ActionItemPriority.MEDIUM
+    # Optional sub-group attribution (R4 sub-group health). Must belong to twg_id;
+    # validated server-side. NULL = item belongs to the TWG at large.
+    subgroup_id: Optional[uuid.UUID] = None
 
 class ActionItemCreate(ActionItemBase):
     pass
@@ -506,6 +513,7 @@ class ActionItemUpdate(SchemaBase):
     due_date: Optional[datetime] = None
     status: Optional[ActionItemStatus] = None
     priority: Optional[ActionItemPriority] = None
+    subgroup_id: Optional[uuid.UUID] = None
 
 class ActionItemRead(ActionItemBase):
     id: uuid.UUID

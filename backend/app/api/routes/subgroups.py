@@ -7,9 +7,10 @@ from datetime import datetime
 import uuid
 
 from app.core.database import get_db
-from app.models.models import SubGroup, TWG, User, UserRole, Document, subgroup_members
+from app.models.models import SubGroup, TWG, User, UserRole, Document, subgroup_members, Meeting, ActionItem
 from app.schemas.schemas import SubGroupCreate, SubGroupRead, SubGroupUpdate, SubGroupMemberAdd
-from app.api.deps import get_current_active_user, filter_confidential_documents
+from app.api.deps import get_current_active_user, filter_confidential_documents, has_twg_access
+from app.services.subgroup_health import compute_subgroup_health, compute_subgroup_health_for_id
 
 router = APIRouter(prefix="/twgs", tags=["Subgroups"])
 
@@ -56,7 +57,13 @@ def _to_user_simple(user: User) -> dict:
     return {"id": str(user.id), "full_name": user.full_name, "email": user.email}
 
 
-@router.get("/{twg_id}/subgroups/", response_model=List[SubGroupRead])
+# NOTE: this route intentionally does NOT declare response_model=SubGroupRead.
+# It returns every field SubGroupRead declares (unchanged) PLUS additive health
+# fields (health_status / last_active_at / health). Pydantic's default
+# extra="ignore" on the schema would silently strip those extra keys, so the
+# response_model is dropped here to let the additive fields reach the client.
+# The shape of every pre-existing key is preserved exactly.
+@router.get("/{twg_id}/subgroups/")
 async def list_subgroups(
     twg_id: uuid.UUID,
     current_user: User = Depends(get_current_active_user),
@@ -70,8 +77,32 @@ async def list_subgroups(
         .order_by(SubGroup.created_at)
     )
     subgroups = result.scalars().all()
+
+    # Bulk-fetch meetings + action items attributed to these sub-groups (via the
+    # new subgroup_id FK) in two queries, then group in-memory to avoid N+1.
+    sg_ids = [sg.id for sg in subgroups]
+    meetings_by_sg: dict = {}
+    items_by_sg: dict = {}
+    if sg_ids:
+        m_res = await db.execute(
+            select(Meeting).where(Meeting.subgroup_id.in_(sg_ids))
+        )
+        for m in m_res.scalars().all():
+            meetings_by_sg.setdefault(m.subgroup_id, []).append(m)
+        ai_res = await db.execute(
+            select(ActionItem).where(ActionItem.subgroup_id.in_(sg_ids))
+        )
+        for ai in ai_res.scalars().all():
+            items_by_sg.setdefault(ai.subgroup_id, []).append(ai)
+
     out = []
     for sg in subgroups:
+        health = compute_subgroup_health(
+            sg,
+            meetings=meetings_by_sg.get(sg.id, []),
+            action_items=items_by_sg.get(sg.id, []),
+            documents=list(sg.documents),
+        )
         d = {
             "id": sg.id,
             "name": sg.name,
@@ -84,6 +115,11 @@ async def list_subgroups(
             "members": [_to_user_simple(m) for m in sg.members],
             "member_count": len(sg.members),
             "document_count": len(sg.documents),
+            # --- additive health fields (R4) ---
+            "health_status": health["status"],
+            "last_active_at": health["last_active_at"],
+            "days_since_active": health["days_since_active"],
+            "health": health,
         }
         out.append(d)
     return out
@@ -162,6 +198,36 @@ async def get_subgroup(
         "members": [_to_user_simple(m) for m in sg.members],
         "member_count": len(sg.members),
         "document_count": len(sg.documents),
+    }
+
+
+@router.get("/{twg_id}/subgroups/{sg_id}/health")
+async def get_subgroup_health(
+    twg_id: uuid.UUID,
+    sg_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Detailed effectiveness/health signal for a single sub-group (R4).
+
+    Access control: a sub-group's health is only visible to users with access
+    to its parent TWG, so health never leaks across TWGs. Reuses the shared
+    has_twg_access guard used elsewhere in the platform.
+    """
+    if not has_twg_access(current_user, twg_id):
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have access to this TWG's sub-groups",
+        )
+    sg = await _get_subgroup_or_404(sg_id, twg_id, db)
+    health = await compute_subgroup_health_for_id(db, sg)
+    return {
+        "id": str(sg.id),
+        "twg_id": str(sg.twg_id),
+        "name": sg.name,
+        "lead": _to_user_simple(sg.lead) if sg.lead else None,
+        **health,
     }
 
 

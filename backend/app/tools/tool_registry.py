@@ -75,6 +75,7 @@ PIPELINE_WRITE_TOOLS: Set[str] = {
     "graduate_from_incubation",
     "create_action_item",
     "bulk_create_action_items",
+    "extract_action_items_from_minutes",
 }
 
 # Pipeline read tools — no role gate beyond TWG scoping where applicable.
@@ -475,6 +476,7 @@ class ToolRegistry:
         from app.tools.pipeline_write_tools import (
             advance_project_stage, decline_project, mark_flagship, rescore_project,
             graduate_from_incubation, create_action_item, bulk_create_action_items,
+            extract_action_items_from_minutes,
         )
         # Pipeline read tools (Tier 1) — read-only aggregates and lists.
         from app.tools.pipeline_read_tools import (
@@ -497,6 +499,10 @@ class ToolRegistry:
              "Create an action item / task linked to a project or meeting."),
             (bulk_create_action_items, "bulk_create_action_items",
              "Create several action items in one call."),
+            (extract_action_items_from_minutes, "extract_action_items_from_minutes",
+             "Extract action items from meeting minutes and create them. Pass meeting_id "
+             "to use a meeting's saved minutes, or minutes_text + twg_id for free-text / "
+             "pasted notes. Confirm-then-execute."),
             (pipeline_summary, "pipeline_summary",
              "Counts by stage, total investment, and period delta. Scope: all|twg|mine."),
             (at_risk_projects, "at_risk_projects",

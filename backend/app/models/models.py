@@ -407,6 +407,7 @@ class Meeting(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     twg_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("twgs.id"))
+    subgroup_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("subgroups.id", ondelete="SET NULL"), nullable=True)
     title: Mapped[str] = mapped_column(String(255))
     scheduled_at: Mapped[datetime] = mapped_column(DateTime)
     duration_minutes: Mapped[int] = mapped_column(default=60)
@@ -426,6 +427,7 @@ class Meeting(Base):
 
     # Relationships
     twg: Mapped["TWG"] = relationship(back_populates="meetings")
+    subgroup: Mapped[Optional["SubGroup"]] = relationship("SubGroup")
     participants: Mapped[List["MeetingParticipant"]] = relationship(
         "MeetingParticipant", back_populates="meeting", cascade="all, delete-orphan"
     )
@@ -562,9 +564,11 @@ class ActionItem(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     twg_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("twgs.id"))
+    subgroup_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("subgroups.id", ondelete="SET NULL"), nullable=True)
     meeting_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("meetings.id"), nullable=True)
     description: Mapped[str] = mapped_column(Text)
     owner_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    raw_owner_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Raw owner name from minutes before fuzzy-matching
     due_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     status: Mapped[ActionItemStatus] = mapped_column(Enum(ActionItemStatus), default=ActionItemStatus.PENDING)
     priority: Mapped[ActionItemPriority] = mapped_column(Enum(ActionItemPriority), default=ActionItemPriority.MEDIUM)
@@ -574,6 +578,7 @@ class ActionItem(Base):
 
     # Relationships
     twg: Mapped["TWG"] = relationship(back_populates="action_items")
+    subgroup: Mapped[Optional["SubGroup"]] = relationship("SubGroup")
     meeting: Mapped[Optional["Meeting"]] = relationship(back_populates="action_items")
     owner: Mapped[Optional["User"]] = relationship(back_populates="owned_action_items")
 

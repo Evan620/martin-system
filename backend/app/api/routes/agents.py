@@ -1484,6 +1484,9 @@ async def execute_action(
         elif action_type == "bulk_create_action_items":
             return await _execute_bulk_create_action_items(payload, current_user, db, request.action_id)
 
+        elif action_type == "extract_action_items_from_minutes":
+            return await _execute_extract_action_items_from_minutes(payload, current_user, db, request.action_id)
+
         elif action_type in ("send_whatsapp_message", "send_whatsapp_to_group"):
             return await _execute_send_whatsapp(payload, current_user, db, request.action_id)
 
@@ -1986,3 +1989,94 @@ async def _execute_bulk_create_action_items(
     _finalize_action(action_id)
     return {"success": True, "count": len(created_ids), "ids": created_ids,
             "message": f"Created {len(created_ids)} action item(s)."}
+
+
+async def _execute_extract_action_items_from_minutes(
+    payload: dict, current_user: User, db: AsyncSession, action_id: str
+) -> dict:
+    """R1: extract action items from a meeting's saved minutes/transcript or from
+    free-text notes, then create them — reusing the SAME shared service the REST
+    endpoints use (create_action_items_from_extraction: raw owner name preserved,
+    +14-day default due date, dedup so re-running never duplicates)."""
+    from sqlalchemy.orm import selectinload
+    from app.api.routes.meetings import create_action_items_from_extraction
+    from app.services.document_synthesizer import DocumentSynthesizer
+    from app.services.llm_service import llm_service
+    from app.models.models import Meeting as _Meeting, MeetingParticipant as _MP, TWG as _TWG
+
+    meeting_id_raw = payload.get("meeting_id")
+    minutes_text = (payload.get("minutes_text") or "").strip()
+    twg_id_raw = payload.get("twg_id")
+
+    meeting_id = None
+    twg_id = None
+    participant_names: list = []
+    pillar_name = "energy_infrastructure"
+    source_text = ""
+
+    if meeting_id_raw:
+        meeting_id = uuid.UUID(str(meeting_id_raw))
+        m = (await db.execute(
+            _select(_Meeting).options(
+                selectinload(_Meeting.twg),
+                selectinload(_Meeting.minutes),
+                selectinload(_Meeting.participants).selectinload(_MP.user),
+            ).where(_Meeting.id == meeting_id)
+        )).scalar_one_or_none()
+        if not m:
+            raise HTTPException(status_code=404, detail="Meeting not found")
+        if not has_twg_access(current_user, m.twg_id):
+            raise HTTPException(status_code=403, detail="Access denied to this meeting's TWG")
+        twg_id = m.twg_id
+        source_text = minutes_text or (m.minutes.content if m.minutes else "") or (m.transcript or "")
+        if m.twg and getattr(m.twg, "pillar", None):
+            pillar_name = m.twg.pillar.value if hasattr(m.twg.pillar, "value") else str(m.twg.pillar)
+        participant_names = [
+            p.user.full_name for p in (m.participants or [])
+            if getattr(p, "user", None) and p.user.full_name
+        ]
+    else:
+        if not minutes_text:
+            raise HTTPException(status_code=400, detail="minutes_text or meeting_id is required")
+        if not twg_id_raw:
+            raise HTTPException(status_code=400, detail="twg_id is required for free-text extraction")
+        twg_id = uuid.UUID(str(twg_id_raw))
+        if not has_twg_access(current_user, twg_id):
+            raise HTTPException(status_code=403, detail="Access denied to this TWG")
+        twg = (await db.execute(_select(_TWG).where(_TWG.id == twg_id))).scalar_one_or_none()
+        if not twg:
+            raise HTTPException(status_code=404, detail="TWG not found")
+        if getattr(twg, "pillar", None):
+            pillar_name = twg.pillar.value if hasattr(twg.pillar, "value") else str(twg.pillar)
+        source_text = minutes_text
+
+    if not source_text or not source_text.strip():
+        raise HTTPException(status_code=400, detail="No minutes or transcript text available to extract actions from")
+
+    synthesizer = DocumentSynthesizer(llm_client=llm_service)
+    try:
+        extracted_items = await synthesizer.extract_action_items(
+            source_text, pillar_name, participants=participant_names,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Action item extraction failed: {e}")
+
+    extract_result = await create_action_items_from_extraction(
+        db, extracted_items, twg_id=twg_id, meeting_id=meeting_id,
+    )
+    created_count = extract_result["created_count"]
+    await _audit(
+        db, user=current_user, action_id=action_id, tool_name="extract_action_items_from_minutes",
+        target_id=meeting_id or twg_id, before=None, after={"count": created_count},
+        summary=f"extracted {created_count} action items from minutes",
+    )
+    await db.commit()
+    _finalize_action(action_id)
+    return {
+        "success": True,
+        "count": created_count,
+        "created_items": extract_result["created_items"],
+        "meeting_id": str(meeting_id) if meeting_id else None,
+        "twg_id": str(twg_id) if twg_id else None,
+        "message": f"Created {created_count} action item(s) from minutes.",
+    }

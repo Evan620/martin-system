@@ -258,10 +258,26 @@ class AttendeeService:
 
             # Generate Minutes
             synthesizer = DocumentSynthesizer(llm_client=get_llm_service())
+            # Best-effort real participant list for speaker attribution. The
+            # meeting is loaded with participants+user eager-loaded by both the
+            # webhook and poll callers; fall back to the transcript if absent.
+            attendees_list = "See transcript (Attendee)"
+            try:
+                names = []
+                for p in (meeting.participants or []):
+                    user = getattr(p, "user", None)
+                    if user is not None:
+                        name = getattr(user, "full_name", None) or getattr(user, "email", None)
+                        if name:
+                            names.append(name.strip())
+                if names:
+                    attendees_list = ", ".join(dict.fromkeys(names))
+            except Exception as attendee_err:
+                logger.debug(f"Could not build participant list, using transcript fallback: {attendee_err}")
             minutes_ctx = {
                 "meeting_title": meeting.title,
                 "meeting_date": str(meeting.scheduled_at),
-                "attendees_list": "See transcript (Attendee)",
+                "attendees_list": attendees_list,
             }
 
             res = await asyncio.to_thread(synthesizer.synthesize_minutes, transcript_text, minutes_ctx)
@@ -733,16 +749,35 @@ class AttendeeService:
             await db.commit()
             logger.info("Webhook processing complete — transcript saved, minutes drafted.")
 
-            # Auto-approve and distribute
-            try:
-                logger.info(f"Auto-approving and distributing minutes for '{meeting.title}'...")
-                await self.finalize_and_distribute_minutes(meeting, db)
-                await db.commit()
-                logger.info(f"Minutes auto-approved and distributed for '{meeting.title}'")
-            except Exception as approve_err:
-                logger.error(f"Auto-approval/distribution failed: {approve_err}")
-                import traceback
-                logger.error(traceback.format_exc())
+            minutes_approved = False
+            if settings.ATTENDEE_REQUIRE_MINUTES_REVIEW:
+                # SAFE default: leave minutes in the human approval queue using the
+                # existing review mechanism. Do NOT auto-email official minutes.
+                try:
+                    if meeting.minutes:
+                        await db.refresh(meeting.minutes)
+                        meeting.minutes.status = MinutesStatus.PENDING_APPROVAL
+                        await db.commit()
+                    logger.info(
+                        f"Minutes for '{meeting.title}' left PENDING_APPROVAL for human review "
+                        f"(ATTENDEE_REQUIRE_MINUTES_REVIEW=True)"
+                    )
+                except Exception as review_err:
+                    logger.error(f"Failed to mark minutes pending review: {review_err}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+            else:
+                # Auto-approve and distribute (legacy behavior)
+                try:
+                    logger.info(f"Auto-approving and distributing minutes for '{meeting.title}'...")
+                    await self.finalize_and_distribute_minutes(meeting, db)
+                    await db.commit()
+                    minutes_approved = True
+                    logger.info(f"Minutes auto-approved and distributed for '{meeting.title}'")
+                except Exception as approve_err:
+                    logger.error(f"Auto-approval/distribution failed: {approve_err}")
+                    import traceback
+                    logger.error(traceback.format_exc())
 
             # Broadcast real-time update
             try:
@@ -752,7 +787,7 @@ class AttendeeService:
                     "status": "COMPLETED",
                     "has_transcript": True,
                     "has_minutes": True,
-                    "minutes_approved": True,
+                    "minutes_approved": minutes_approved,
                     "title": meeting.title,
                 })
             except Exception as broadcast_err:

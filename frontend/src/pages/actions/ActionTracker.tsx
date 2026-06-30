@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSelector } from 'react-redux'
 import { RootState } from '../../store'
 import { UserRole } from '../../types/auth'
-import { actionItems } from '../../services/api'
+import api, { actionItems, twgs } from '../../services/api'
 
 interface ActionItemData {
     id: string
@@ -26,6 +26,16 @@ interface SummaryData {
     overdue: number
     due_this_week: number
     completed_this_week: number
+}
+
+interface TwgOption {
+    id: string
+    name: string
+}
+
+interface OwnerOption {
+    id: string
+    full_name: string
 }
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -53,15 +63,55 @@ export default function ActionTracker() {
     const [mineOnly, setMineOnly] = useState(!isFacilitator)
     const [updatingId, setUpdatingId] = useState<string | null>(null)
 
+    // Facilitator-only cross-TWG / cross-owner filters. The backend enforces
+    // its own access guards on twg_id / owner_id; these selectors are also
+    // gated in the UI so plain members never see them.
+    const [twgFilter, setTwgFilter] = useState<string>('')
+    const [ownerFilter, setOwnerFilter] = useState<string>('')
+    const [twgOptions, setTwgOptions] = useState<TwgOption[]>([])
+    const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([])
+
+    // Load the TWG list for the selector (facilitators / admins / leads only).
+    useEffect(() => {
+        if (!isFacilitator) return
+        twgs.dropdown()
+            .then(res => setTwgOptions(res.data || []))
+            .catch(err => console.error('Failed to load TWGs:', err))
+    }, [isFacilitator])
+
+    // Owners are TWG-scoped: load members of the selected TWG. Clearing the TWG
+    // also clears the owner selection so we never send a stale owner_id.
+    useEffect(() => {
+        if (!isFacilitator || !twgFilter) {
+            setOwnerOptions([])
+            setOwnerFilter('')
+            return
+        }
+        twgs.listMembers(twgFilter)
+            .then(res => setOwnerOptions(
+                (res.data || []).map((m: any) => ({ id: m.id, full_name: m.full_name }))
+            ))
+            .catch(err => console.error('Failed to load TWG members:', err))
+    }, [isFacilitator, twgFilter])
+
     const fetchData = useCallback(async () => {
         try {
             const params: Record<string, any> = {}
             if (statusFilter) params.status = statusFilter
-            if (mineOnly) params.mine_only = true
+            // Facilitator cross-cutting filters take precedence over mine_only.
+            if (isFacilitator && (twgFilter || ownerFilter)) {
+                if (twgFilter) params.twg_id = twgFilter
+                if (ownerFilter) params.owner_id = ownerFilter
+            } else if (mineOnly) {
+                params.mine_only = true
+            }
+
+            const summaryParams: Record<string, any> = {}
+            if (isFacilitator && twgFilter) summaryParams.twg_id = twgFilter
 
             const [itemsRes, summaryRes] = await Promise.all([
-                actionItems.list(params),
-                actionItems.summary(),
+                api.get('/action-items/', { params }),
+                api.get('/action-items/summary', { params: summaryParams }),
             ])
             setItems(itemsRes.data)
             setSummary(summaryRes.data)
@@ -70,7 +120,7 @@ export default function ActionTracker() {
         } finally {
             setLoading(false)
         }
-    }, [statusFilter, mineOnly])
+    }, [statusFilter, mineOnly, isFacilitator, twgFilter, ownerFilter])
 
     useEffect(() => { fetchData() }, [fetchData])
 
@@ -195,17 +245,57 @@ export default function ActionTracker() {
                         </button>
                     ))}
                 </div>
-                <button
-                    onClick={() => setMineOnly(!mineOnly)}
-                    style={{
-                        fontSize: 12, padding: '5px 14px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
-                        background: mineOnly ? 'var(--accent)' : 'transparent',
-                        border: `1px solid ${mineOnly ? 'var(--accent)' : 'var(--border)'}`,
-                        color: mineOnly ? 'var(--accent-ink)' : 'var(--ink-600)',
-                    }}
-                >
-                    My Items
-                </button>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {/* Facilitator-only: filter by TWG and by owner. */}
+                    {isFacilitator && (
+                        <>
+                            <select
+                                value={twgFilter}
+                                onChange={e => { setTwgFilter(e.target.value); setMineOnly(false) }}
+                                style={{
+                                    fontSize: 12, padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+                                    background: twgFilter ? 'var(--accent-soft)' : 'var(--surface)',
+                                    border: `1px solid ${twgFilter ? 'var(--accent)' : 'var(--border)'}`,
+                                    color: 'var(--ink-700)',
+                                }}
+                            >
+                                <option value="">All TWGs</option>
+                                {twgOptions.map(t => (
+                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={ownerFilter}
+                                onChange={e => { setOwnerFilter(e.target.value); setMineOnly(false) }}
+                                disabled={!twgFilter}
+                                title={!twgFilter ? 'Select a TWG to filter by owner' : undefined}
+                                style={{
+                                    fontSize: 12, padding: '5px 10px', cursor: twgFilter ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontWeight: 500,
+                                    background: ownerFilter ? 'var(--accent-soft)' : 'var(--surface)',
+                                    border: `1px solid ${ownerFilter ? 'var(--accent)' : 'var(--border)'}`,
+                                    color: 'var(--ink-700)',
+                                    opacity: twgFilter ? 1 : 0.5,
+                                }}
+                            >
+                                <option value="">All owners</option>
+                                {ownerOptions.map(o => (
+                                    <option key={o.id} value={o.id}>{o.full_name}</option>
+                                ))}
+                            </select>
+                        </>
+                    )}
+                    <button
+                        onClick={() => { setMineOnly(!mineOnly); if (!mineOnly) { setTwgFilter(''); setOwnerFilter('') } }}
+                        style={{
+                            fontSize: 12, padding: '5px 14px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+                            background: mineOnly ? 'var(--accent)' : 'transparent',
+                            border: `1px solid ${mineOnly ? 'var(--accent)' : 'var(--border)'}`,
+                            color: mineOnly ? 'var(--accent-ink)' : 'var(--ink-600)',
+                        }}
+                    >
+                        My Items
+                    </button>
+                </div>
             </div>
 
             {/* Table */}

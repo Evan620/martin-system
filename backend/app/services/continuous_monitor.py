@@ -34,6 +34,7 @@ from app.models.models import (
 )
 from app.services.conflict_detector import ConflictDetector
 from app.services.attendee_service import attendee_service
+from app.services.subgroup_health import scan_stalled_subgroups
 
 class ContinuousMonitor:
     """
@@ -52,7 +53,14 @@ class ContinuousMonitor:
             return
             
         logger.info("Starting Continuous Monitor...")
-        
+
+        # Visibility: warn (once, at startup) if the Attendee meeting-bot env vars
+        # are unset so bot dispatch / webhook verification isn't a silent no-op.
+        try:
+            settings.log_attendee_config_status()
+        except Exception as cfg_e:
+            logger.debug(f"Attendee config status check failed: {cfg_e}")
+
         # Wire up error listener for crash resilience
         self.scheduler.add_listener(self._on_job_event, EVENT_JOB_ERROR | EVENT_JOB_MISSED)
         
@@ -124,7 +132,19 @@ class ContinuousMonitor:
             replace_existing=True,
             misfire_grace_time=300  # tolerate up to 5 min delay
         )
-        
+
+        # 10. Scan for stalled sub-groups (R4) — alerts the sub-group lead when
+        # a group is "stalling". Opens its own session via get_db_session_context
+        # and de-duplicates alerts within ALERT_DEDUP_HOURS (24h), so the 6h
+        # interval will not spam leads.
+        self.scheduler.add_job(
+            scan_stalled_subgroups,
+            trigger=IntervalTrigger(hours=6),
+            id="scan_stalled_subgroups",
+            replace_existing=True,
+            misfire_grace_time=300  # tolerate up to 5 min delay
+        )
+
         self.scheduler.start()
         self.is_running = True
         logger.info("Continuous Monitor started.")
@@ -262,6 +282,120 @@ class ContinuousMonitor:
             except Exception as e:
                 logger.error(f"Error syncing calendar links: {e}")
 
+    async def _resolve_bot_alert_recipient(self, meeting: Meeting, db: AsyncSession) -> Optional[UUID]:
+        """Best-effort: find a user to notify about a meeting-bot dispatch problem.
+
+        Prefers the meeting's TWG technical lead, then any ADMIN/SECRETARIAT_LEAD.
+        Returns None if no recipient can be resolved (caller then logs only).
+        """
+        try:
+            twg = await db.get(TWG, meeting.twg_id) if meeting.twg_id else None
+            if twg and getattr(twg, "technical_lead_id", None):
+                return twg.technical_lead_id
+        except Exception as e:
+            logger.debug(f"Could not resolve TWG lead for bot alert: {e}")
+        try:
+            from app.models.models import UserRole
+            stmt = (
+                select(User.id)
+                .where(User.role.in_([UserRole.SECRETARIAT_LEAD, UserRole.ADMIN]))
+                .limit(1)
+            )
+            res = await db.execute(stmt)
+            return res.scalars().first()
+        except Exception as e:
+            logger.debug(f"Could not resolve admin fallback for bot alert: {e}")
+            return None
+
+    async def _notify_bot_dispatch_issue(self, meeting: Meeting, reason: str, db: AsyncSession):
+        """Surface a meeting that should have had a bot but didn't, via a notification.
+
+        Non-destructive: best-effort recipient resolution; if none is found we
+        only log. Failures here never affect the dispatch path.
+        """
+        try:
+            link = f"/meetings/{meeting.id}"
+            # Idempotent: do not re-alert if an alert for this meeting already exists.
+            existing = await db.execute(
+                select(Notification.id).where(
+                    and_(
+                        Notification.link == link,
+                        Notification.title == "Meeting bot not dispatched",
+                    )
+                ).limit(1)
+            )
+            if existing.scalars().first():
+                logger.debug(f"Bot-dispatch alert already exists for '{meeting.title}', skipping")
+                return
+
+            user_id = await self._resolve_bot_alert_recipient(meeting, db)
+            if not user_id:
+                logger.warning(
+                    f"Meeting bot not dispatched for '{meeting.title}' ({reason}); "
+                    f"no recipient resolved for alert notification"
+                )
+                return
+            from app.services.notification_service import create_notification
+            await create_notification(
+                db=db,
+                user_id=user_id,
+                type=NotificationType.WARNING,
+                title="Meeting bot not dispatched",
+                content=(
+                    f"Martin could not send a recording bot to '{meeting.title}'. "
+                    f"Reason: {reason}. Minutes will not be auto-generated for this meeting "
+                    f"unless a transcript is provided manually."
+                ),
+                link=f"/meetings/{meeting.id}",
+            )
+            logger.info(f"Bot-dispatch alert notification created for '{meeting.title}' ({reason})")
+        except Exception as e:
+            logger.error(f"Failed to create bot-dispatch alert for '{meeting.title}': {e}")
+
+    async def _notify_meetings_missing_bot_link(self, db: AsyncSession):
+        """Alert on meetings that are about to start but can't get a bot (no usable link).
+
+        These never enter the dispatch query (which requires a video_link), so
+        without this they would be silently skipped. Idempotent: skips a meeting
+        if a matching alert notification (same /meetings/{id} link) already exists,
+        so the 60s cadence does not produce duplicate alerts. Non-destructive —
+        only reads meetings and inserts notifications.
+        """
+        try:
+            now = datetime.utcnow()
+            dispatch_window = now + timedelta(minutes=settings.ATTENDEE_DISPATCH_MINUTES_BEFORE)
+            stmt = select(Meeting).where(
+                and_(
+                    Meeting.scheduled_at <= dispatch_window,
+                    Meeting.scheduled_at >= now - timedelta(minutes=5),
+                    or_(Meeting.video_link.is_(None), Meeting.video_link == ""),
+                    Meeting.attendee_bot_id.is_(None),
+                    Meeting.status == MeetingStatus.SCHEDULED,
+                )
+            )
+            result = await db.execute(stmt)
+            linkless = result.scalars().all()
+            for meeting in linkless:
+                link = f"/meetings/{meeting.id}"
+                # De-dup: skip if we already raised this exact alert.
+                existing = await db.execute(
+                    select(Notification.id).where(
+                        and_(
+                            Notification.link == link,
+                            Notification.title == "Meeting bot not dispatched",
+                        )
+                    ).limit(1)
+                )
+                if existing.scalars().first():
+                    continue
+                await self._notify_bot_dispatch_issue(
+                    meeting,
+                    "no video link (in-person or link not yet provisioned)",
+                    db,
+                )
+        except Exception as e:
+            logger.error(f"Error checking meetings missing bot link: {e}")
+
     async def dispatch_attendee_bots(self):
         """
         Dispatch Attendee bots to upcoming meetings.
@@ -286,25 +420,33 @@ class ContinuousMonitor:
                 result = await db.execute(stmt)
                 meetings = result.scalars().all()
 
-                if not meetings:
-                    return
+                if meetings:
+                    logger.info(f"Dispatching Attendee bots for {len(meetings)} upcoming meetings")
 
-                logger.info(f"Dispatching Attendee bots for {len(meetings)} upcoming meetings")
+                    for meeting in meetings:
+                        try:
+                            bot_id = await attendee_service.dispatch_bot(
+                                meeting_url=meeting.video_link,
+                                meeting_id=str(meeting.id),
+                            )
+                            if bot_id:
+                                meeting.attendee_bot_id = bot_id
+                                await db.commit()
+                                logger.info(f"Dispatched Attendee bot {bot_id} for '{meeting.title}'")
+                            else:
+                                logger.warning(f"Failed to dispatch Attendee bot for '{meeting.title}'")
+                                await self._notify_bot_dispatch_issue(
+                                    meeting, "dispatch returned no bot id (Attendee API may be unreachable)", db
+                                )
+                        except Exception as e:
+                            logger.error(f"Error dispatching bot for '{meeting.title}': {e}")
+                            await self._notify_bot_dispatch_issue(
+                                meeting, f"dispatch error: {e}", db
+                            )
 
-                for meeting in meetings:
-                    try:
-                        bot_id = await attendee_service.dispatch_bot(
-                            meeting_url=meeting.video_link,
-                            meeting_id=str(meeting.id),
-                        )
-                        if bot_id:
-                            meeting.attendee_bot_id = bot_id
-                            await db.commit()
-                            logger.info(f"Dispatched Attendee bot {bot_id} for '{meeting.title}'")
-                        else:
-                            logger.warning(f"Failed to dispatch Attendee bot for '{meeting.title}'")
-                    except Exception as e:
-                        logger.error(f"Error dispatching bot for '{meeting.title}': {e}")
+                # Surface meetings that should have had a bot but have no usable link
+                # (in-person / link not yet provisioned) — otherwise silently skipped.
+                await self._notify_meetings_missing_bot_link(db)
 
             except Exception as e:
                 logger.error(f"Error in dispatch_attendee_bots: {e}")
@@ -409,15 +551,33 @@ class ContinuousMonitor:
 
                             await db.commit()
 
-                            # Finalize and distribute
-                            try:
-                                logger.info(f"Finalizing and distributing minutes for '{meeting.title}'...")
-                                await attendee_service.finalize_and_distribute_minutes(meeting, db)
-                                await db.commit()
-                            except Exception as dist_e:
-                                logger.error(f"Failed to finalize/distribute minutes: {dist_e}")
-                                import traceback
-                                logger.error(traceback.format_exc())
+                            if settings.ATTENDEE_REQUIRE_MINUTES_REVIEW:
+                                # SAFE default: leave minutes in the human approval queue
+                                # via the existing review mechanism; do not auto-email.
+                                try:
+                                    if meeting.minutes:
+                                        await db.refresh(meeting.minutes)
+                                        from app.models.models import MinutesStatus
+                                        meeting.minutes.status = MinutesStatus.PENDING_APPROVAL
+                                        await db.commit()
+                                    logger.info(
+                                        f"Minutes for '{meeting.title}' left PENDING_APPROVAL for human review "
+                                        f"(ATTENDEE_REQUIRE_MINUTES_REVIEW=True)"
+                                    )
+                                except Exception as review_e:
+                                    logger.error(f"Failed to mark minutes pending review: {review_e}")
+                                    import traceback
+                                    logger.error(traceback.format_exc())
+                            else:
+                                # Finalize and distribute (legacy behavior)
+                                try:
+                                    logger.info(f"Finalizing and distributing minutes for '{meeting.title}'...")
+                                    await attendee_service.finalize_and_distribute_minutes(meeting, db)
+                                    await db.commit()
+                                except Exception as dist_e:
+                                    logger.error(f"Failed to finalize/distribute minutes: {dist_e}")
+                                    import traceback
+                                    logger.error(traceback.format_exc())
 
                             # Broadcast update
                             try:

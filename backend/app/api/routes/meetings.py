@@ -28,6 +28,7 @@ from app.api.deps import (
     require_facilitator,
     require_twg_access,
     has_twg_access,
+    validate_subgroup_in_twg,
     can_view_confidential_documents,
     filter_confidential_documents,
 )
@@ -101,6 +102,131 @@ async def resolve_owner_fuzzy(owner_name: str, meeting_id, db) -> Optional[uuid.
             best_match_id = user_id
 
     return best_match_id if best_score >= 0.6 else None
+
+
+# Single source of truth for the default due date applied to an extracted
+# action item whose due date is missing/unparseable. R1: reconciled to +14 days
+# across ALL minutes->action-item paths (AI generate-minutes, extract-actions,
+# manual-minutes auto-extract, and the free-text endpoint).
+ACTION_ITEM_DEFAULT_DUE_DAYS = 14
+
+
+def _parse_action_due_date(raw_due) -> datetime:
+    """Parse an extracted action item's due date, defaulting to
+    now + ACTION_ITEM_DEFAULT_DUE_DAYS when missing or unparseable.
+
+    Accepts either YYYY-MM-DD or full ISO 8601 (with optional trailing Z).
+    Always returns a naive UTC datetime so it stores consistently.
+    """
+    default = datetime.utcnow() + timedelta(days=ACTION_ITEM_DEFAULT_DUE_DAYS)
+    if not raw_due:
+        return default
+    raw = str(raw_due).strip()
+    if not raw:
+        return default
+    # Try date-only first, then full ISO.
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        pass
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        # Normalize to naive (drop tzinfo) for consistent storage.
+        return parsed.replace(tzinfo=None)
+    except (ValueError, TypeError):
+        return default
+
+
+async def create_action_items_from_extraction(
+    db,
+    extracted_items: List[dict],
+    twg_id,
+    meeting_id=None,
+):
+    """Shared internal service: turn a list of extracted action-item dicts
+    (each shaped {description, owner, due_date}) into ActionItem rows.
+
+    Behaviour (single rule, reused by every minutes->actions path):
+      - preserves the raw extracted owner name into ActionItem.raw_owner_name
+        on EVERY created item (matched or unmatched), so attribution is never lost;
+      - fuzzy-matches the owner against meeting participants (owner_id NULL when
+        no confident match, or when meeting_id is None);
+      - defaults due_date to +14 days when missing/unparseable (see
+        ACTION_ITEM_DEFAULT_DUE_DAYS);
+      - de-duplicates against existing action items for this meeting by
+        case-insensitive description, so re-running is safe (no duplicates).
+
+    Does NOT commit — the caller owns the transaction. Returns a dict with
+    created/skipped summaries.
+    """
+    # Dedup baseline: existing descriptions for this meeting (skip if free-text/no meeting).
+    existing_descriptions = set()
+    if meeting_id is not None:
+        try:
+            existing_result = await db.execute(
+                select(ActionItem).where(ActionItem.meeting_id == meeting_id)
+            )
+            existing_descriptions = {
+                a.description.strip().lower()
+                for a in existing_result.scalars().all()
+                if a.description
+            }
+        except Exception as e:  # pragma: no cover - defensive
+            logger.error(f"Dedup query failed: {e}")
+            existing_descriptions = set()
+
+    # Also dedup within this very batch (in case the model repeats itself).
+    seen_in_batch = set()
+
+    created_items = []
+    skipped_items = []
+    for item in extracted_items or []:
+        desc = (item.get("description") or "").strip()
+        if not desc:
+            continue
+        key = desc.lower()
+        if key in existing_descriptions or key in seen_in_batch:
+            skipped_items.append(desc[:60])
+            continue
+        seen_in_batch.add(key)
+
+        try:
+            due_date = _parse_action_due_date(item.get("due_date"))
+
+            raw_owner_name = (item.get("owner") or "").strip() or None
+            owner_id = None
+            if meeting_id is not None and raw_owner_name:
+                owner_id = await resolve_owner_fuzzy(raw_owner_name, meeting_id, db)
+
+            db_action = ActionItem(
+                twg_id=twg_id,
+                meeting_id=meeting_id,
+                description=desc,
+                owner_id=owner_id,
+                raw_owner_name=raw_owner_name,
+                due_date=due_date,
+                status=ActionItemStatus.PENDING,
+            )
+            db.add(db_action)
+            created_items.append({
+                "description": desc,
+                "owner": raw_owner_name or "Unassigned",
+                "due_date": due_date.isoformat() if due_date else None,
+                "created": True,
+            })
+        except Exception as e:
+            logger.error(f"Failed to create action item '{desc[:60]}': {e}")
+            created_items.append({
+                "description": desc,
+                "error": str(e),
+                "created": False,
+            })
+
+    return {
+        "created_items": created_items,
+        "skipped_items": skipped_items,
+        "created_count": len([i for i in created_items if i.get("created")]),
+    }
 
 
 def format_meeting_time_for_email(scheduled_at: datetime) -> tuple:
@@ -202,6 +328,9 @@ async def create_meeting(
         # Check if facilitator has access to this TWG
         if not has_twg_access(current_user, meeting_in.twg_id):
             raise HTTPException(status_code=403, detail="You do not have access to manage meetings for this TWG")
+
+        # If attributing to a sub-group, it must belong to this TWG (R4 health integrity).
+        await validate_subgroup_in_twg(db, meeting_in.subgroup_id, meeting_in.twg_id)
 
         # Ensure scheduled_at is naive UTC
         if meeting_in.scheduled_at and meeting_in.scheduled_at.tzinfo:
@@ -552,6 +681,10 @@ async def update_meeting(
         
     update_data = meeting_in.model_dump(exclude_unset=True)
 
+    # If (re)attributing to a sub-group, it must belong to this meeting's TWG.
+    if "subgroup_id" in update_data:
+        await validate_subgroup_in_twg(db, update_data["subgroup_id"], db_meeting.twg_id)
+
     # Normalize scheduled_at to naive UTC (same as create endpoint)
     if "scheduled_at" in update_data and update_data["scheduled_at"] is not None:
         dt = update_data["scheduled_at"]
@@ -683,14 +816,59 @@ async def upsert_minutes(
         minutes_data.pop('change_summary', None)  # Remove version-only field
         
         db_minutes = Minutes(
-            meeting_id=meeting_id, 
+            meeting_id=meeting_id,
             **minutes_data,
             current_version=1,
             last_edited_by=current_user.id,
             last_edited_at=datetime.utcnow()
         )
         db.add(db_minutes)
-    
+
+    # R1: opt-in auto-extraction of action items when manual minutes are saved.
+    # Default-OFF (flag defaults to False so existing behaviour is unchanged).
+    # Safe: reuses the shared service whose dedup prevents duplicating any
+    # action items already created for this meeting (e.g. by the AI path).
+    auto_extract = bool(getattr(settings, "MINUTES_AUTO_EXTRACT_ACTIONS", False))
+    if auto_extract and getattr(db_minutes, "content", None):
+        try:
+            # Re-fetch the meeting with the relationships we need eagerly loaded;
+            # the main query above intentionally stays lean to avoid changing its
+            # behaviour, and lazy-loading is unsafe under async SQLAlchemy.
+            ctx_result = await db.execute(
+                select(Meeting)
+                .options(
+                    selectinload(Meeting.twg),
+                    selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
+                )
+                .where(Meeting.id == meeting_id)
+            )
+            ctx_meeting = ctx_result.scalar_one_or_none() or db_meeting
+
+            participant_names = [
+                p.user.full_name for p in (ctx_meeting.participants or [])
+                if getattr(p, "user", None) and p.user.full_name
+            ]
+
+            pillar_name = "energy_infrastructure"
+            if getattr(ctx_meeting, "twg", None) and getattr(ctx_meeting.twg, "pillar", None):
+                pillar_name = ctx_meeting.twg.pillar.value
+
+            synthesizer = DocumentSynthesizer(llm_client=llm_service)
+            extracted_items = await synthesizer.extract_action_items(
+                db_minutes.content,
+                pillar_name,
+                participants=participant_names,
+            )
+            await create_action_items_from_extraction(
+                db,
+                extracted_items,
+                twg_id=db_meeting.twg_id,
+                meeting_id=meeting_id,
+            )
+        except Exception as ae:
+            # Never let auto-extract break the minutes save.
+            logger.warning(f"Auto-extract on manual minutes save failed: {ae}")
+
     await db.commit()
     await db.refresh(db_minutes)
     return db_minutes
@@ -840,33 +1018,15 @@ async def generate_minutes(
                 participants=participant_names
             )
 
-            action_count = 0
-            for action in actions_list:
-                desc = action.get("description")
-                if not desc: continue
-
-                # Parse Due Date
-                due_date = None
-                if action.get("due_date"):
-                    try:
-                        due_date = datetime.strptime(action["due_date"], "%Y-%m-%d").date()
-                    except:
-                        pass
-
-                # Fuzzy-match owner against participants
-                owner_name = action.get("owner", "").strip()
-                owner_id = await resolve_owner_fuzzy(owner_name, meeting_id, db)
-
-                new_action = ActionItem(
-                    meeting_id=meeting_id,
-                    twg_id=db_meeting.twg_id,
-                    description=desc,
-                    owner_id=owner_id,
-                    due_date=due_date,
-                    status=ActionItemStatus.PENDING
-                )
-                db.add(new_action)
-                action_count += 1
+            # Shared service: preserves raw owner name, +14d default due date,
+            # and dedups against existing action items for this meeting.
+            extract_result = await create_action_items_from_extraction(
+                db,
+                actions_list,
+                twg_id=db_meeting.twg_id,
+                meeting_id=meeting_id,
+            )
+            action_count = extract_result["created_count"]
 
             if action_count > 0:
                 print(f"✓ Automatically extracted {action_count} action items.")
@@ -3000,19 +3160,34 @@ async def get_meeting_action_items(
     )
     action_items = result.scalars().all()
     
-    return [
-        {
+    def _owner_display(item):
+        # Matched user wins; otherwise fall back to the raw extracted name so
+        # attribution is preserved in the UI even when fuzzy-match found no user.
+        if item.owner and item.owner.full_name:
+            return item.owner.full_name, item.owner.full_name[0]
+        raw = getattr(item, "raw_owner_name", None)
+        if raw:
+            return raw, raw[0].upper()
+        return "Unassigned", "U"
+
+    serialized = []
+    for item in action_items:
+        owner_name, owner_avatar = _owner_display(item)
+        serialized.append({
             "id": str(item.id),
             "description": item.description,
             "owner": {
-                "name": item.owner.full_name if item.owner else "Unassigned",
-                "avatar": item.owner.full_name[0] if item.owner and item.owner.full_name else "U"
+                "name": owner_name,
+                "avatar": owner_avatar,
             },
+            # R1: raw extracted name (None once a real user is matched/assigned),
+            # and whether the displayed owner is an unmatched raw name.
+            "rawOwnerName": getattr(item, "raw_owner_name", None),
+            "ownerMatched": bool(item.owner),
             "dueDate": item.due_date.strftime("%b %d, %Y") if item.due_date else None,
-            "status": item.status.value if item.status else "pending"
-        }
-        for item in action_items
-    ]
+            "status": item.status.value if item.status else "pending",
+        })
+    return serialized
 
 
 @router.post("/{meeting_id}/action-items", response_model=dict)
@@ -3115,73 +3290,25 @@ async def extract_action_items(
         logging.error(f"Action item extraction failed: {e}")
         return {"extracted_actions": [], "error": str(e), "message": "Failed to extract action items"}
 
-    # Auto-create ActionItem records
+    # Auto-create ActionItem records via the shared service (preserves raw owner
+    # name, +14d default due date, dedups against existing items for this meeting).
     logging.info(f"AI extracted {len(extracted_items)} raw action items for meeting {meeting_id}")
 
-    # Deduplication: Fetch existing actions first
-    try:
-        existing_result = await db.execute(select(ActionItem).where(ActionItem.meeting_id == meeting_id))
-        existing_actions = existing_result.scalars().all()
-        existing_descriptions = {a.description.strip().lower() for a in existing_actions}
-        logging.info(f"Found {len(existing_descriptions)} existing action items for dedup")
-    except Exception as e:
-        logging.error(f"Dedup query failed: {e}")
-        existing_descriptions = set()
-
-    created_items = []
-    skipped_items = []
-    for item in extracted_items:
-        desc = item.get("description", "").strip()
-        if not desc:
-            continue
-        if desc.lower() in existing_descriptions:
-            skipped_items.append(desc[:60])
-            continue
-
-        try:
-            # Parse due date or default to 2 weeks from now
-            due_date = None
-            if item.get("due_date"):
-                try:
-                    due_date = datetime.fromisoformat(str(item["due_date"]).replace("Z", "+00:00"))
-                except (ValueError, TypeError):
-                    due_date = datetime.utcnow() + timedelta(days=14)
-            else:
-                due_date = datetime.utcnow() + timedelta(days=14)
-
-            # Fuzzy-match owner against participants
-            owner_name = item.get("owner", "")
-            owner_id = await resolve_owner_fuzzy(owner_name, meeting_id, db)
-
-            db_action = ActionItem(
-                twg_id=db_meeting.twg_id,
-                meeting_id=meeting_id,
-                description=desc,
-                owner_id=owner_id,
-                due_date=due_date,
-                status=ActionItemStatus.PENDING
-            )
-            db.add(db_action)
-            created_items.append({
-                "description": desc,
-                "owner": owner_name or "Unassigned",
-                "due_date": due_date.isoformat() if due_date else None,
-                "created": True
-            })
-        except Exception as e:
-            logging.error(f"Failed to create action item '{desc[:60]}': {e}")
-            created_items.append({
-                "description": desc,
-                "error": str(e),
-                "created": False
-            })
+    extract_result = await create_action_items_from_extraction(
+        db,
+        extracted_items,
+        twg_id=db_meeting.twg_id,
+        meeting_id=meeting_id,
+    )
+    created_items = extract_result["created_items"]
+    skipped_items = extract_result["skipped_items"]
 
     if skipped_items:
         logging.info(f"Skipped {len(skipped_items)} duplicate action items: {skipped_items[:3]}")
-    
+
     await db.commit()
 
-    created_count = len([i for i in created_items if i.get('created')])
+    created_count = extract_result["created_count"]
     if created_count > 0:
         try:
             await create_notification(
@@ -3200,6 +3327,103 @@ async def extract_action_items(
         "created_items": created_items,
         "meeting_id": str(meeting_id),
         "message": f"Created {created_count} action items"
+    }
+
+
+@router.post("/extract-actions-freetext")
+async def extract_actions_freetext(
+    payload: dict,
+    current_user: User = Depends(require_facilitator),
+    db: AsyncSession = Depends(get_db),
+):
+    """R1 free-text path: extract action items from ad-hoc / pasted minutes that
+    are NOT tied to a scheduled meeting.
+
+    Body:
+      - text (str, required): raw minutes / notes text.
+      - twg_id (str, required): TWG the action items belong to.
+      - meeting_id (str, optional): link the items to an existing meeting and
+        enable owner fuzzy-matching against that meeting's participants.
+
+    Uses the same shared service as the meeting paths (raw owner name preserved,
+    +14d default due date, dedup) so behaviour is identical everywhere.
+    """
+    text = (payload.get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+
+    twg_id_raw = payload.get("twg_id")
+    if not twg_id_raw:
+        raise HTTPException(status_code=400, detail="twg_id is required")
+    try:
+        twg_id = uuid.UUID(str(twg_id_raw))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="twg_id is not a valid UUID")
+
+    # RBAC consistent with sibling endpoints: facilitator+ and TWG access.
+    if not has_twg_access(current_user, twg_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Validate the TWG exists and resolve its pillar for the extraction prompt.
+    twg_result = await db.execute(select(TWG).where(TWG.id == twg_id))
+    db_twg = twg_result.scalar_one_or_none()
+    if not db_twg:
+        raise HTTPException(status_code=404, detail="TWG not found")
+
+    pillar_name = "energy_infrastructure"
+    if getattr(db_twg, "pillar", None):
+        pillar_name = db_twg.pillar.value if hasattr(db_twg.pillar, "value") else str(db_twg.pillar)
+
+    # Optional meeting linkage (enables owner fuzzy-match + dedup against it).
+    meeting_id = None
+    participant_names = []
+    meeting_id_raw = payload.get("meeting_id")
+    if meeting_id_raw:
+        try:
+            meeting_id = uuid.UUID(str(meeting_id_raw))
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="meeting_id is not a valid UUID")
+        m_result = await db.execute(
+            select(Meeting)
+            .options(selectinload(Meeting.participants).selectinload(MeetingParticipant.user))
+            .where(Meeting.id == meeting_id)
+        )
+        db_meeting = m_result.scalar_one_or_none()
+        if not db_meeting:
+            raise HTTPException(status_code=404, detail="Meeting not found")
+        if db_meeting.twg_id != twg_id:
+            raise HTTPException(status_code=400, detail="meeting_id does not belong to twg_id")
+        participant_names = [
+            p.user.full_name for p in (db_meeting.participants or [])
+            if getattr(p, "user", None) and p.user.full_name
+        ]
+
+    synthesizer = DocumentSynthesizer(llm_client=llm_service)
+    try:
+        extracted_items = await synthesizer.extract_action_items(
+            text,
+            pillar_name,
+            participants=participant_names,
+        )
+    except Exception as e:
+        logging.error(f"Free-text action item extraction failed: {e}")
+        return {"extracted_actions": [], "error": str(e), "message": "Failed to extract action items"}
+
+    extract_result = await create_action_items_from_extraction(
+        db,
+        extracted_items,
+        twg_id=twg_id,
+        meeting_id=meeting_id,
+    )
+    await db.commit()
+
+    created_count = extract_result["created_count"]
+    return {
+        "extracted_actions": extracted_items,
+        "created_items": extract_result["created_items"],
+        "twg_id": str(twg_id),
+        "meeting_id": str(meeting_id) if meeting_id else None,
+        "message": f"Created {created_count} action items",
     }
 
 

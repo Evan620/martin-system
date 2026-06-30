@@ -9,6 +9,29 @@ interface SubGroup {
     member_count: number
     document_count: number
     status: string
+    // Additive R4 health fields (embedded in the list response)
+    health_status?: 'healthy' | 'at_risk' | 'stalled'
+    last_active_at?: string | null
+    days_since_active?: number | null
+}
+
+// Maps a computed health status to a badge label + Tailwind classes,
+// consistent with the existing status-pill styling in this component.
+const HEALTH_BADGE: Record<string, { label: string; cls: string }> = {
+    healthy: { label: 'Healthy', cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+    at_risk: { label: 'At risk', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+    stalled: { label: 'Stalled', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+}
+
+function lastActiveLabel(sg: SubGroup): string | null {
+    if (sg.days_since_active === 0) return 'Active today'
+    if (typeof sg.days_since_active === 'number') {
+        return `Active ${sg.days_since_active}d ago`
+    }
+    if (sg.last_active_at) {
+        return `Active ${new Date(sg.last_active_at).toLocaleDateString()}`
+    }
+    return 'No activity yet'
 }
 
 interface SubgroupsManagerProps {
@@ -144,12 +167,18 @@ export default function SubgroupsManager({ twgId, canEdit, onOpenSubgroup }: Sub
                                 <span className="font-mono-geist">{sg.member_count} member{sg.member_count !== 1 ? 's' : ''}</span>
                                 <span>·</span>
                                 <span className="font-mono-geist">{sg.document_count} doc{sg.document_count !== 1 ? 's' : ''}</span>
+                                {lastActiveLabel(sg) && (<><span>·</span><span className="font-mono-geist">{lastActiveLabel(sg)}</span></>)}
                             </div>
                             {sg.description && (
                                 <p className="mt-1 truncate max-w-md" style={{ fontSize: 11, color: 'var(--ink-500)' }}>{sg.description}</p>
                             )}
                         </div>
                         <div className="flex items-center gap-3 ml-4 shrink-0">
+                            {sg.health_status && HEALTH_BADGE[sg.health_status] && (
+                                <span title="Effectiveness signal: based on recent activity and action-item closure" className={`text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${HEALTH_BADGE[sg.health_status].cls}`}>
+                                    {HEALTH_BADGE[sg.health_status].label}
+                                </span>
+                            )}
                             <span
                                 className="text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
                                 style={sg.status === 'active'

@@ -60,14 +60,14 @@ export default function NotificationCenter() {
         }
     };
 
-    const getIconColor = (type: NotificationType) => {
+    const getIconColor = (type: NotificationType): { color: string; background: string } => {
         switch (type) {
-            case NotificationType.ALERT: return 'text-red-500 bg-red-50 dark:bg-red-900/20';
-            case NotificationType.WARNING: return 'text-amber-500 bg-amber-50 dark:bg-amber-900/20';
-            case NotificationType.SUCCESS: return 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20';
-            case NotificationType.DOCUMENT: return 'text-blue-500 bg-blue-50 dark:bg-blue-900/20';
-            case NotificationType.TASK: return 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/20';
-            default: return 'text-gray-500 bg-gray-50 dark:bg-gray-900/20';
+            case NotificationType.ALERT: return { color: 'var(--terra)', background: 'color-mix(in srgb, var(--terra) 12%, transparent)' };
+            case NotificationType.WARNING: return { color: 'var(--amber)', background: 'color-mix(in srgb, var(--amber) 12%, transparent)' };
+            case NotificationType.SUCCESS: return { color: 'var(--sage)', background: 'color-mix(in srgb, var(--sage) 12%, transparent)' };
+            case NotificationType.DOCUMENT: return { color: 'var(--accent)', background: 'var(--accent-soft)' };
+            case NotificationType.TASK: return { color: 'var(--navy)', background: 'color-mix(in srgb, var(--navy) 12%, transparent)' };
+            default: return { color: 'var(--ink-500)', background: 'var(--surface-2)' };
         }
     };
 
@@ -107,19 +107,21 @@ export default function NotificationCenter() {
         <>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-black text-[#0d121b] dark:text-white tracking-tight">Notification Center</h1>
-                    <p className="text-[#4c669a] dark:text-[#a0aec0] font-medium mt-1 text-sm sm:text-base">Stay updated on TWG progress, mentions, and system alerts.</p>
+                    <h1 className="text-2xl sm:text-3xl font-black tracking-tight" style={{ color: 'var(--ink-900)' }}>Notification Center</h1>
+                    <p className="font-medium mt-1 text-sm sm:text-base" style={{ color: 'var(--ink-500)' }}>Stay updated on TWG progress, mentions, and system alerts.</p>
                 </div>
                 <div className="flex gap-3">
                     <button
                         onClick={handleMarkAllAsRead}
-                        className="px-4 py-2 text-sm font-bold text-[#4c669a] hover:text-[#0d121b] dark:hover:text-white transition-colors"
+                        className="px-4 py-2 text-sm font-bold qp-transition"
+                        style={{ color: 'var(--ink-500)', background: 'transparent', border: 'none', cursor: 'pointer' }}
                     >
                         Mark all as read
                     </button>
                     <button
                         onClick={() => dispatch(fetchNotifications())}
-                        className="flex items-center gap-2 px-4 py-2 glass-card rounded-lg text-sm font-bold text-[#0d121b] dark:text-white hover:bg-white/90 dark:hover:bg-white/10 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold qp-transition"
+                        style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-900)', cursor: 'pointer' }}
                     >
                         <span className="material-symbols-outlined text-[18px]">refresh</span>
                         Refresh
@@ -129,32 +131,32 @@ export default function NotificationCenter() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8 h-auto lg:h-[calc(100vh-280px)]">
                 {/* Notification List Sidebar */}
-                <div className="lg:col-span-1 glass-card rounded-2xl overflow-hidden flex flex-col max-h-[50vh] lg:max-h-none">
-                    <div className="p-4 border-b border-white/50 dark:border-white/10 bg-white/30 dark:bg-white/5">
+                <div className="lg:col-span-1 rounded-2xl overflow-hidden flex flex-col max-h-[50vh] lg:max-h-none" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                    <div className="p-4" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                         <div className="flex items-center justify-between">
-                            <h3 className="font-bold text-[#0d121b] dark:text-white">Notifications</h3>
-                            <span className="bg-[#1152d4] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            <h3 className="font-bold" style={{ color: 'var(--ink-900)' }}>Notifications</h3>
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider" style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}>
                                 <span className="font-mono-geist">{notifications.filter(n => !n.is_read).length}</span> Unread
                             </span>
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto divide-y divide-[#e7ebf3] dark:divide-[#2d3748]">
+                    <div className="flex-1 overflow-y-auto" style={{ borderTop: 'none' }}>
                         {loading && notifications.length === 0 ? (
                             <div className="p-8 text-center">
-                                <div className="size-8 border-2 border-[#1152d4] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                                <p className="text-xs text-[#4c669a]">Syncing alerts...</p>
+                                <div className="size-8 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-3" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
+                                <p className="text-xs" style={{ color: 'var(--ink-500)' }}>Syncing alerts...</p>
                             </div>
                         ) : notifications.length === 0 ? (
                             <div className="p-8 text-center">
-                                <span className="material-symbols-outlined text-4xl text-gray-300 mb-2">notifications_off</span>
-                                <p className="text-sm text-[#4c669a]">All caught up!</p>
+                                <span className="material-symbols-outlined text-4xl mb-2" style={{ color: 'var(--ink-300)' }}>notifications_off</span>
+                                <p className="text-sm" style={{ color: 'var(--ink-500)' }}>All caught up!</p>
                             </div>
                         ) : (
                             <>
                                 {todayNotifications.length > 0 && (
-                                    <div className="bg-gray-50/30 dark:bg-[#2d3748]/10 py-2 px-4">
-                                        <span className="text-[10px] font-black text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-widest">Today</span>
+                                    <div className="py-2 px-4" style={{ background: 'var(--surface-2)' }}>
+                                        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--ink-500)' }}>Today</span>
                                     </div>
                                 )}
                                 {todayNotifications.map(n => (
@@ -164,25 +166,30 @@ export default function NotificationCenter() {
                                             setSelectedNotificationId(n.id);
                                             if (!n.is_read) handleMarkAsRead(n.id);
                                         }}
-                                        className={`p-4 flex gap-4 cursor-pointer transition-all hover:bg-gray-50 dark:hover:bg-[#2d3748]/50 relative group ${selectedNotification?.id === n.id ? 'bg-[#1152d4]/5 dark:bg-[#1152d4]/10 border-l-4 border-[#1152d4]' : ''}`}
+                                        className="p-4 flex gap-4 cursor-pointer transition-all relative group"
+                                        style={{
+                                            borderTop: '1px solid var(--border-soft)',
+                                            borderLeft: selectedNotification?.id === n.id ? '4px solid var(--accent)' : '4px solid transparent',
+                                            background: selectedNotification?.id === n.id ? 'var(--accent-soft)' : 'transparent',
+                                        }}
                                     >
-                                        <div className={`size-10 rounded-xl flex items-center justify-center shrink-0 ${getIconColor(n.type)}`}>
+                                        <div className="size-10 rounded-xl flex items-center justify-center shrink-0" style={getIconColor(n.type)}>
                                             <span className="material-symbols-outlined text-[20px]">{getIcon(n.type)}</span>
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center justify-between mb-0.5">
-                                                <h4 className={`text-sm truncate ${n.is_read ? 'text-[#4c669a] font-medium' : 'text-[#0d121b] dark:text-white font-bold'}`}>{n.title}</h4>
-                                                {!n.is_read && <div className="size-2 rounded-full bg-[#1152d4] shrink-0 ml-2"></div>}
+                                                <h4 className="text-sm truncate" style={{ color: n.is_read ? 'var(--ink-500)' : 'var(--ink-900)', fontWeight: n.is_read ? 500 : 700 }}>{n.title}</h4>
+                                                {!n.is_read && <div className="size-2 rounded-full shrink-0 ml-2" style={{ background: 'var(--accent)' }}></div>}
                                             </div>
-                                            <p className="text-xs text-[#4c669a] dark:text-[#a0aec0] truncate">{n.content}</p>
-                                            <span className="text-[10px] text-[#a0aec0] mt-1 block font-mono-geist">{formatTime(n.created_at)}</span>
+                                            <p className="text-xs truncate" style={{ color: 'var(--ink-500)' }}>{n.content}</p>
+                                            <span className="text-[10px] mt-1 block font-mono-geist" style={{ color: 'var(--ink-400)' }}>{formatTime(n.created_at)}</span>
                                         </div>
                                     </div>
                                 ))}
 
                                 {earlierNotifications.length > 0 && (
-                                    <div className="bg-gray-50/30 dark:bg-[#2d3748]/10 py-2 px-4">
-                                        <span className="text-[10px] font-black text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-widest">Earlier</span>
+                                    <div className="py-2 px-4" style={{ background: 'var(--surface-2)' }}>
+                                        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--ink-500)' }}>Earlier</span>
                                     </div>
                                 )}
                                 {earlierNotifications.map(n => (
@@ -192,18 +199,23 @@ export default function NotificationCenter() {
                                             setSelectedNotificationId(n.id);
                                             if (!n.is_read) handleMarkAsRead(n.id);
                                         }}
-                                        className={`p-4 flex gap-4 cursor-pointer transition-all hover:bg-gray-50 dark:hover:bg-[#2d3748]/50 relative group ${selectedNotification?.id === n.id ? 'bg-[#1152d4]/5 dark:bg-[#1152d4]/10 border-l-4 border-[#1152d4]' : ''}`}
+                                        className="p-4 flex gap-4 cursor-pointer transition-all relative group"
+                                        style={{
+                                            borderTop: '1px solid var(--border-soft)',
+                                            borderLeft: selectedNotification?.id === n.id ? '4px solid var(--accent)' : '4px solid transparent',
+                                            background: selectedNotification?.id === n.id ? 'var(--accent-soft)' : 'transparent',
+                                        }}
                                     >
-                                        <div className={`size-10 rounded-xl flex items-center justify-center shrink-0 ${getIconColor(n.type)}`}>
+                                        <div className="size-10 rounded-xl flex items-center justify-center shrink-0" style={getIconColor(n.type)}>
                                             <span className="material-symbols-outlined text-[20px]">{getIcon(n.type)}</span>
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center justify-between mb-0.5">
-                                                <h4 className={`text-sm truncate ${n.is_read ? 'text-[#4c669a] font-medium' : 'text-[#0d121b] dark:text-white font-bold'}`}>{n.title}</h4>
-                                                {!n.is_read && <div className="size-2 rounded-full bg-[#1152d4] shrink-0 ml-2"></div>}
+                                                <h4 className="text-sm truncate" style={{ color: n.is_read ? 'var(--ink-500)' : 'var(--ink-900)', fontWeight: n.is_read ? 500 : 700 }}>{n.title}</h4>
+                                                {!n.is_read && <div className="size-2 rounded-full shrink-0 ml-2" style={{ background: 'var(--accent)' }}></div>}
                                             </div>
-                                            <p className="text-xs text-[#4c669a] dark:text-[#a0aec0] truncate">{n.content}</p>
-                                            <span className="text-[10px] text-[#a0aec0] mt-1 block font-mono-geist">{formatTime(n.created_at)}</span>
+                                            <p className="text-xs truncate" style={{ color: 'var(--ink-500)' }}>{n.content}</p>
+                                            <span className="text-[10px] mt-1 block font-mono-geist" style={{ color: 'var(--ink-400)' }}>{formatTime(n.created_at)}</span>
                                         </div>
                                     </div>
                                 ))}
@@ -213,24 +225,25 @@ export default function NotificationCenter() {
                 </div>
 
                 {/* Notification Detail View */}
-                <div className="lg:col-span-2 glass-card rounded-2xl flex flex-col overflow-hidden">
+                <div className="lg:col-span-2 rounded-2xl flex flex-col overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                     {selectedNotification ? (
                         <div className="flex flex-col h-full">
                             <div className="p-8 flex-1">
                                 <div className="flex items-start justify-between mb-10">
                                     <div className="flex items-center gap-4">
-                                        <div className={`size-16 rounded-2xl flex items-center justify-center ${getIconColor(selectedNotification.type)} shadow-lg shadow-blue-500/10`}>
+                                        <div className="size-16 rounded-2xl flex items-center justify-center" style={getIconColor(selectedNotification.type)}>
                                             <span className="material-symbols-outlined text-[32px]">{getIcon(selectedNotification.type)}</span>
                                         </div>
                                         <div>
-                                            <span className="text-[10px] font-black text-[#1152d4] uppercase tracking-[0.2em]">{selectedNotification.type}</span>
-                                            <h2 className="text-2xl font-black text-[#0d121b] dark:text-white mt-1">{selectedNotification.title}</h2>
+                                            <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: 'var(--accent)' }}>{selectedNotification.type}</span>
+                                            <h2 className="text-2xl font-black mt-1" style={{ color: 'var(--ink-900)' }}>{selectedNotification.title}</h2>
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => handleDelete(selectedNotification.id)}
-                                            className="p-2 text-[#4c669a] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                            className="p-2 rounded-lg transition-all qp-transition"
+                                            style={{ color: 'var(--ink-500)', background: 'transparent', border: 'none', cursor: 'pointer' }}
                                             title="Delete notification"
                                         >
                                             <span className="material-symbols-outlined">delete</span>
@@ -239,19 +252,19 @@ export default function NotificationCenter() {
                                 </div>
 
                                 <div className="prose dark:prose-invert max-w-none">
-                                    <p className="text-lg text-[#4c669a] dark:text-[#a0aec0] leading-relaxed font-medium">
+                                    <p className="text-lg leading-relaxed font-medium" style={{ color: 'var(--ink-700)' }}>
                                         {selectedNotification.content}
                                     </p>
                                 </div>
 
-                                <div className="mt-12 glass-card rounded-2xl p-6 flex items-center justify-between group">
+                                <div className="mt-12 rounded-2xl p-6 flex items-center justify-between group" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                                     <div className="flex items-center gap-4">
-                                        <div className="size-12 rounded-xl bg-white/60 dark:bg-white/10 flex items-center justify-center text-[#1152d4]">
+                                        <div className="size-12 rounded-xl flex items-center justify-center" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
                                             <span className="material-symbols-outlined">link</span>
                                         </div>
                                         <div>
-                                            <p className="text-xs font-black text-[#4c669a] dark:text-[#a0aec0] uppercase tracking-wider">Related Action</p>
-                                            <p className="text-sm font-bold text-[#0d121b] dark:text-white">View linked resource</p>
+                                            <p className="text-xs font-black uppercase tracking-wider" style={{ color: 'var(--ink-500)' }}>Related Action</p>
+                                            <p className="text-sm font-bold" style={{ color: 'var(--ink-900)' }}>View linked resource</p>
                                         </div>
                                     </div>
                                     {selectedNotification.link && selectedNotification.link.startsWith('http') ? (
@@ -259,14 +272,16 @@ export default function NotificationCenter() {
                                             href={selectedNotification.link}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="px-6 py-2.5 bg-[#1152d4] hover:bg-[#0d3ea8] text-white text-sm font-bold rounded-xl transition-all shadow-md active:scale-95"
+                                            className="px-6 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-95"
+                                            style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
                                         >
                                             Go to Detail
                                         </a>
                                     ) : (
                                         <Link
                                             to={selectedNotification.link || '#'}
-                                            className="px-6 py-2.5 bg-[#1152d4] hover:bg-[#0d3ea8] text-white text-sm font-bold rounded-xl transition-all shadow-md active:scale-95"
+                                            className="px-6 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-95"
+                                            style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
                                         >
                                             Go to Detail
                                         </Link>
@@ -274,12 +289,12 @@ export default function NotificationCenter() {
                                 </div>
                             </div>
 
-                            <div className="p-8 border-t border-white/50 dark:border-white/10 bg-white/30 dark:bg-white/5 flex items-center justify-between">
-                                <div className="flex items-center gap-2 text-[#a0aec0]">
+                            <div className="p-8 flex items-center justify-between" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                                <div className="flex items-center gap-2" style={{ color: 'var(--ink-400)' }}>
                                     <span className="material-symbols-outlined text-[18px]">calendar_today</span>
                                     <span className="text-sm font-medium font-mono-geist">{formatTime(selectedNotification.created_at)}</span>
                                 </div>
-                                <div className="flex items-center gap-2 text-[#a0aec0]">
+                                <div className="flex items-center gap-2" style={{ color: 'var(--ink-400)' }}>
                                     <span className="material-symbols-outlined text-[18px]">history</span>
                                     <span className="text-sm font-medium font-mono-geist">{new Date(selectedNotification.created_at).toLocaleTimeString()}</span>
                                 </div>
@@ -287,11 +302,11 @@ export default function NotificationCenter() {
                         </div>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                            <div className="size-24 rounded-full bg-white/40 dark:bg-white/5 flex items-center justify-center text-gray-200 dark:text-[#4a5568] mb-6">
+                            <div className="size-24 rounded-full flex items-center justify-center mb-6" style={{ background: 'var(--surface-2)', color: 'var(--ink-300)' }}>
                                 <span className="material-symbols-outlined text-[48px]">mark_email_read</span>
                             </div>
-                            <h3 className="text-xl font-black text-[#0d121b] dark:text-white">Select an alert to view details</h3>
-                            <p className="text-[#4c669a] dark:text-[#a0aec0] mt-2 max-w-sm">
+                            <h3 className="text-xl font-black" style={{ color: 'var(--ink-900)' }}>Select an alert to view details</h3>
+                            <p className="mt-2 max-w-sm" style={{ color: 'var(--ink-500)' }}>
                                 Track system events, TWG updates, and AI agent reports in high fidelity.
                             </p>
                         </div>

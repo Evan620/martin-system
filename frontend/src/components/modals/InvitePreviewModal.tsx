@@ -47,24 +47,25 @@ export default function InvitePreviewModal({
     if (!isOpen) return null
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+            <div className="w-full max-w-3xl max-h-[90vh] flex flex-col" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
+                        <div className="w-10 h-10 flex items-center justify-center" style={{ background: 'var(--accent-soft)', borderRadius: 'var(--radius-ctl)' }}>
                             <span className="text-xl">📧</span>
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Review Invitation</h2>
-                            <p className="text-sm text-slate-500">HITL Gate: Approve before sending</p>
+                            <h2 className="text-lg font-bold" style={{ color: 'var(--ink-900)' }}>Review Invitation</h2>
+                            <p className="text-sm" style={{ color: 'var(--ink-500)' }}>HITL Gate: Approve before sending</p>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors clickable-scale"
+                        className="p-2 qp-transition rounded-lg clickable-scale"
+                        style={{ color: 'var(--ink-500)' }}
                     >
-                        <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
@@ -74,50 +75,52 @@ export default function InvitePreviewModal({
                 <div className="flex-1 overflow-y-auto p-6">
                     {loading ? (
                         <div className="flex justify-center py-20">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+                            <div className="animate-spin rounded-full h-8 w-8" style={{ borderBottom: '2px solid var(--accent)' }}></div>
                         </div>
                     ) : error ? (
                         <div className="text-center py-10">
-                            <div className="text-red-500 text-4xl mb-3">⚠️</div>
-                            <p className="text-red-600 dark:text-red-400">{error}</p>
+                            <div className="text-4xl mb-3" style={{ color: 'var(--terra)' }}>⚠️</div>
+                            <p style={{ color: 'var(--terra)' }}>{error}</p>
                         </div>
                     ) : preview ? (
                         <div className="space-y-6">
                             {/* Recipients */}
                             <div>
-                                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Recipients ({preview.participants.length})</h3>
+                                <h3 className="text-sm font-bold mb-2" style={{ color: 'var(--ink-700)' }}>Recipients ({preview.participants.length})</h3>
                                 <div className="flex flex-wrap gap-2">
                                     {preview.participants.map((email, idx) => (
                                         <span
                                             key={idx}
-                                            className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-sm text-slate-600 dark:text-slate-400"
+                                            className="px-3 py-1 rounded-full text-sm"
+                                            style={{ background: 'var(--surface-2)', color: 'var(--ink-600)' }}
                                         >
                                             {email}
                                         </span>
                                     ))}
                                     {preview.participants.length === 0 && (
-                                        <span className="text-slate-400 italic">No participants added</span>
+                                        <span className="italic" style={{ color: 'var(--ink-400)' }}>No participants added</span>
                                     )}
                                 </div>
                             </div>
 
                             {/* Subject */}
                             <div>
-                                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Subject</h3>
-                                <p className="text-slate-600 dark:text-slate-400">{preview.subject}</p>
+                                <h3 className="text-sm font-bold mb-2" style={{ color: 'var(--ink-700)' }}>Subject</h3>
+                                <p style={{ color: 'var(--ink-600)' }}>{preview.subject}</p>
                             </div>
 
                             {/* Email Preview */}
                             <div>
-                                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Email Preview</h3>
+                                <h3 className="text-sm font-bold mb-2" style={{ color: 'var(--ink-700)' }}>Email Preview</h3>
                                 <div
-                                    className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-800 max-h-80 overflow-y-auto"
+                                    className="p-4 max-h-80 overflow-y-auto"
+                                    style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)', background: 'var(--surface)' }}
                                     dangerouslySetInnerHTML={{ __html: preview.html_content }}
                                 />
                             </div>
 
                             {/* Calendar Note */}
-                            <div className="flex items-center gap-2 text-sm text-slate-500">
+                            <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--ink-500)' }}>
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                 </svg>
@@ -128,18 +131,20 @@ export default function InvitePreviewModal({
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-3">
+                <div className="px-6 py-4 flex items-center justify-end gap-3" style={{ borderTop: '1px solid var(--border)' }}>
                     <button
                         onClick={onClose}
                         disabled={isApproving}
-                        className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50 clickable-scale"
+                        className="px-4 py-2 text-sm font-medium qp-transition rounded-lg disabled:opacity-50 clickable-scale"
+                        style={{ color: 'var(--ink-700)' }}
                     >
                         Cancel
                     </button>
                     <button
                         onClick={onApprove}
                         disabled={isApproving || loading || !!error || !preview?.participants.length}
-                        className="px-6 py-2 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed clickable-scale"
+                        className="px-6 py-2 text-sm font-bold qp-transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed clickable-scale"
+                        style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
                     >
                         {isApproving ? (
                             <>

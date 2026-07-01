@@ -969,16 +969,17 @@ export default function MeetingDetail() {
 
                 {/* Reject Minutes Modal */}
                 {showRejectModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
-                            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+                        <div className="w-full max-w-md mx-4 p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
+                            <h3 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: 'var(--ink-900)' }}>
                                 <span className="text-2xl">❌</span> Reject Minutes
                             </h3>
-                            <p className="text-sm text-slate-500 mb-4">
+                            <p className="text-sm mb-4" style={{ color: 'var(--ink-500)' }}>
                                 Please provide a reason for rejection. The facilitator will be notified and the minutes will be sent back for revision.
                             </p>
                             <textarea
-                                className="w-full h-32 p-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 outline-none resize-none"
+                                className="w-full h-32 p-4 outline-none resize-none"
+                                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-900)', borderRadius: 'var(--radius-ctl)' }}
                                 placeholder="Reason for rejection..."
                                 value={rejectReason}
                                 onChange={(e) => setRejectReason(e.target.value)}
@@ -996,7 +997,8 @@ export default function MeetingDetail() {
                                 <button
                                     onClick={handleRejectMinutes}
                                     disabled={!rejectReason.trim() || isRejectingMinutes}
-                                    className="btn-primary bg-red-600 hover:bg-red-700 border-red-600 disabled:opacity-50 clickable-scale"
+                                    className="disabled:opacity-50 clickable-scale"
+                                    style={{ padding: '8px 16px', background: 'var(--terra)', color: '#fff', borderRadius: 'var(--radius-ctl)', border: '1px solid var(--terra)', fontWeight: 500, cursor: 'pointer' }}
                                 >
                                     {isRejectingMinutes ? '⏳ Rejecting...' : 'Confirm Rejection'}
                                 </button>
@@ -1223,7 +1225,7 @@ export default function MeetingDetail() {
                     <div style={{ padding: '32px', maxWidth: 1180, margin: '0 auto' }}>
                             {loading ? (
                                 <div className="flex justify-center py-20">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+                                    <div className="animate-spin rounded-full h-8 w-8" style={{ borderBottom: '2px solid var(--accent)' }}></div>
                                 </div>
                             ) : (
                                 <>
@@ -1280,21 +1282,21 @@ export default function MeetingDetail() {
                                             ) : (
                                                 <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: 28 }}>
                                                     {agendaContent ? (
-                                                        <div className="prose prose-slate dark:prose-invert max-w-none">
+                                                        <div className="prose max-w-none">
                                                             <ReactMarkdown
                                                                 remarkPlugins={[remarkGfm]}
                                                                 components={{
-                                                                    h1: ({ node, ...props }) => <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-4" {...props} />,
-                                                                    h2: ({ node, ...props }) => <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 mt-6 mb-3" {...props} />,
-                                                                    h3: ({ node, ...props }) => <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-2" {...props} />,
+                                                                    h1: ({ node, ...props }) => <h1 className="text-2xl font-bold mb-4" style={{ color: 'var(--ink-900)' }} {...props} />,
+                                                                    h2: ({ node, ...props }) => <h2 className="text-xl font-bold mt-6 mb-3" style={{ color: 'var(--ink-800)' }} {...props} />,
+                                                                    h3: ({ node, ...props }) => <h3 className="text-lg font-semibold mt-4 mb-2" style={{ color: 'var(--ink-700)' }} {...props} />,
                                                                     ul: ({ node, ...props }) => <ul className="list-disc pl-6 mb-4 space-y-1" {...props} />,
                                                                     ol: ({ node, ...props }) => <ol className="list-decimal pl-6 mb-4 space-y-1" {...props} />,
-                                                                    li: ({ node, ...props }) => <li className="text-slate-600 dark:text-slate-400" {...props} />,
-                                                                    p: ({ node, ...props }) => <p className="mb-3 text-slate-600 dark:text-slate-400" {...props} />,
-                                                                    strong: ({ node, ...props }) => <strong className="font-bold text-slate-800 dark:text-slate-200" {...props} />,
-                                                                    table: ({ node, ...props }) => <table className="min-w-full border-collapse border border-slate-200 dark:border-slate-700 my-4" {...props} />,
-                                                                    th: ({ node, ...props }) => <th className="border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-4 py-2 text-left font-bold" {...props} />,
-                                                                    td: ({ node, ...props }) => <td className="border border-slate-200 dark:border-slate-700 px-4 py-2" {...props} />,
+                                                                    li: ({ node, ...props }) => <li style={{ color: 'var(--ink-600)' }} {...props} />,
+                                                                    p: ({ node, ...props }) => <p className="mb-3" style={{ color: 'var(--ink-600)' }} {...props} />,
+                                                                    strong: ({ node, ...props }) => <strong className="font-bold" style={{ color: 'var(--ink-800)' }} {...props} />,
+                                                                    table: ({ node, ...props }) => <table className="min-w-full border-collapse my-4" style={{ border: '1px solid var(--border)' }} {...props} />,
+                                                                    th: ({ node, ...props }) => <th className="px-4 py-2 text-left font-bold" style={{ border: '1px solid var(--border)', background: 'var(--surface-2)' }} {...props} />,
+                                                                    td: ({ node, ...props }) => <td className="px-4 py-2" style={{ border: '1px solid var(--border)' }} {...props} />,
                                                                 }}
                                                             >
                                                                 {agendaContent}
@@ -1472,13 +1474,14 @@ export default function MeetingDetail() {
                                                                                 </button>
                                                                                 <button
                                                                                     onClick={() => setShowRejectModal(true)}
-                                                                                    className="btn-secondary text-sm flex items-center gap-1 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
+                                                                                    className="btn-secondary text-sm flex items-center gap-1"
+                                                                                    style={{ border: '1px solid var(--terra)', color: 'var(--terra)', background: 'transparent' }}
                                                                                 >
                                                                                     ❌ Reject
                                                                                 </button>
                                                                             </>
                                                                         ) : (
-                                                                            <span className="text-sm text-slate-500 italic bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
+                                                                            <span className="text-sm italic px-3 py-1.5 rounded-lg flex items-center gap-2" style={{ color: 'var(--ink-500)', background: 'var(--surface-2)' }}>
                                                                                 <span>📩</span> Approval Notification Sent to Secretariat
                                                                             </span>
                                                                         )}
@@ -1488,10 +1491,11 @@ export default function MeetingDetail() {
                                                                 {minutesContent && (
                                                                     <button
                                                                         onClick={handleDownloadPdf}
-                                                                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                                                                        className="p-2 rounded-lg transition-colors"
+                                                                        style={{ color: 'var(--ink-500)' }}
                                                                         title="Download as PDF"
                                                                     >
-                                                                        <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                                                         </svg>
                                                                     </button>
@@ -1500,10 +1504,11 @@ export default function MeetingDetail() {
                                                                 {minutesContent && (
                                                                     <button
                                                                         onClick={() => setShowVersionHistory(true)}
-                                                                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                                                                        className="p-2 rounded-lg transition-colors"
+                                                                        style={{ color: 'var(--accent)' }}
                                                                         title="Version History"
                                                                     >
-                                                                        <svg className="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                                         </svg>
                                                                     </button>
@@ -1514,16 +1519,17 @@ export default function MeetingDetail() {
                                                                         <button
                                                                             onClick={() => setShowTranslateMenu(!showTranslateMenu)}
                                                                             disabled={isTranslating}
-                                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
+                                                                            className="p-2 rounded-lg transition-colors disabled:opacity-50"
+                                                                            style={{ color: 'var(--accent)' }}
                                                                             title="Translate Minutes"
                                                                         >
                                                                             {isTranslating ? (
-                                                                                <svg className="w-5 h-5 text-teal-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
                                                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                                                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                                                                 </svg>
                                                                             ) : (
-                                                                                <svg className="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                <svg className="w-5 h-5" style={{ color: 'var(--accent)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
                                                                                 </svg>
                                                                             )}
@@ -1531,7 +1537,7 @@ export default function MeetingDetail() {
                                                                         {showTranslateMenu && (
                                                                             <>
                                                                                 <div className="fixed inset-0 z-10" onClick={() => setShowTranslateMenu(false)} />
-                                                                                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-20 py-1 min-w-[160px]">
+                                                                                <div className="absolute right-0 top-full mt-1 rounded-lg shadow-lg z-20 py-1 min-w-[160px]" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                                                                                     {[
                                                                                         { code: 'fr', label: 'Français (French)' },
                                                                                         { code: 'pt', label: 'Português (Portuguese)' },
@@ -1540,7 +1546,8 @@ export default function MeetingDetail() {
                                                                                         <button
                                                                                             key={lang.code}
                                                                                             onClick={() => handleTranslate(lang.code)}
-                                                                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 ${translationLanguage === lang.code ? 'text-teal-600 font-medium' : 'text-slate-700 dark:text-slate-300'}`}
+                                                                                            className="w-full text-left px-4 py-2 text-sm"
+                                                                            style={{ color: translationLanguage === lang.code ? 'var(--accent)' : 'var(--ink-700)', fontWeight: translationLanguage === lang.code ? 500 : 400 }}
                                                                                         >
                                                                                             {lang.label}
                                                                                         </button>
@@ -1554,13 +1561,14 @@ export default function MeetingDetail() {
                                                         </div>
                                                         {/* Translation banner */}
                                                         {translatedContent && (
-                                                            <div className="flex items-center justify-between bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg px-4 py-2 mb-4">
-                                                                <span className="text-sm text-teal-700 dark:text-teal-300 font-medium">
+                                                            <div className="flex items-center justify-between rounded-lg px-4 py-2 mb-4" style={{ background: 'var(--accent-soft)', border: '1px solid color-mix(in srgb, var(--accent) 30%, var(--border))' }}>
+                                                                <span className="text-sm font-medium" style={{ color: 'var(--accent)' }}>
                                                                     Viewing translation ({translationLanguage === 'fr' ? 'French' : translationLanguage === 'pt' ? 'Portuguese' : 'English'})
                                                                 </span>
                                                                 <button
                                                                     onClick={handleClearTranslation}
-                                                                    className="text-sm text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-200 font-medium underline"
+                                                                    className="text-sm font-medium underline"
+                                                                    style={{ color: 'var(--accent)' }}
                                                                 >
                                                                     Back to Original
                                                                 </button>
@@ -1568,30 +1576,30 @@ export default function MeetingDetail() {
                                                         )}
                                                         {/* Translating indicator */}
                                                         {isTranslating && (
-                                                            <div className="flex items-center gap-2 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg px-4 py-2 mb-4">
-                                                                <svg className="w-4 h-4 text-teal-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                            <div className="flex items-center gap-2 rounded-lg px-4 py-2 mb-4" style={{ background: 'var(--accent-soft)', border: '1px solid color-mix(in srgb, var(--accent) 30%, var(--border))' }}>
+                                                                <svg className="w-4 h-4 animate-spin" style={{ color: 'var(--accent)' }} fill="none" viewBox="0 0 24 24">
                                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                                                 </svg>
-                                                                <span className="text-sm text-teal-700 dark:text-teal-300">Translating minutes...</span>
+                                                                <span className="text-sm" style={{ color: 'var(--accent)' }}>Translating minutes...</span>
                                                             </div>
                                                         )}
                                                         <Card className="p-8">
-                                                            <div className="prose prose-slate dark:prose-invert max-w-none">
+                                                            <div className="prose max-w-none">
                                                                 <ReactMarkdown
                                                                     remarkPlugins={[remarkGfm]}
                                                                     components={{
-                                                                        h1: ({ node, ...props }) => <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-4" {...props} />,
-                                                                        h2: ({ node, ...props }) => <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 mt-6 mb-3" {...props} />,
-                                                                        h3: ({ node, ...props }) => <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-2" {...props} />,
+                                                                        h1: ({ node, ...props }) => <h1 className="text-2xl font-bold mb-4" style={{ color: 'var(--ink-900)' }} {...props} />,
+                                                                        h2: ({ node, ...props }) => <h2 className="text-xl font-bold mt-6 mb-3" style={{ color: 'var(--ink-800)' }} {...props} />,
+                                                                        h3: ({ node, ...props }) => <h3 className="text-lg font-semibold mt-4 mb-2" style={{ color: 'var(--ink-700)' }} {...props} />,
                                                                         ul: ({ node, ...props }) => <ul className="list-disc pl-6 mb-4 space-y-1" {...props} />,
                                                                         ol: ({ node, ...props }) => <ol className="list-decimal pl-6 mb-4 space-y-1" {...props} />,
-                                                                        li: ({ node, ...props }) => <li className="text-slate-600 dark:text-slate-400" {...props} />,
-                                                                        p: ({ node, ...props }) => <p className="mb-3 text-slate-600 dark:text-slate-400" {...props} />,
-                                                                        strong: ({ node, ...props }) => <strong className="font-bold text-slate-800 dark:text-slate-200" {...props} />,
-                                                                        table: ({ node, ...props }) => <table className="min-w-full border-collapse border border-slate-200 dark:border-slate-700 my-4" {...props} />,
-                                                                        th: ({ node, ...props }) => <th className="border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-4 py-2 text-left font-bold" {...props} />,
-                                                                        td: ({ node, ...props }) => <td className="border border-slate-200 dark:border-slate-700 px-4 py-2" {...props} />,
+                                                                        li: ({ node, ...props }) => <li style={{ color: 'var(--ink-600)' }} {...props} />,
+                                                                        p: ({ node, ...props }) => <p className="mb-3" style={{ color: 'var(--ink-600)' }} {...props} />,
+                                                                        strong: ({ node, ...props }) => <strong className="font-bold" style={{ color: 'var(--ink-800)' }} {...props} />,
+                                                                        table: ({ node, ...props }) => <table className="min-w-full border-collapse my-4" style={{ border: '1px solid var(--border)' }} {...props} />,
+                                                                        th: ({ node, ...props }) => <th className="px-4 py-2 text-left font-bold" style={{ border: '1px solid var(--border)', background: 'var(--surface-2)' }} {...props} />,
+                                                                        td: ({ node, ...props }) => <td className="px-4 py-2" style={{ border: '1px solid var(--border)' }} {...props} />,
                                                                     }}
                                                                 >
                                                                     {translatedContent || minutesContent}
@@ -1659,13 +1667,13 @@ export default function MeetingDetail() {
 
                                                         {/* Add Action Form */}
                                                         {isAddingAction && (
-                                                            <Card className="p-4 mb-4 bg-teal-50 dark:bg-teal-900/10 border-teal-200 dark:border-teal-800">
-                                                                <h4 className="font-bold text-sm mb-3 text-teal-900 dark:text-teal-100">Create New Action Item</h4>
+                                                            <Card className="p-4 mb-4" style={{ background: 'var(--accent-soft)', borderColor: 'color-mix(in srgb, var(--accent) 30%, var(--border))' }}>
+                                                                <h4 className="font-bold text-sm mb-3" style={{ color: 'var(--accent)' }}>Create New Action Item</h4>
                                                                 <div className="space-y-3">
                                                                     <div>
-                                                                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Description *</label>
+                                                                        <label className="block text-xs font-bold mb-1" style={{ color: "var(--ink-700)" }}>Description *</label>
                                                                         <textarea
-                                                                            className="w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm"
+                                                                            className="w-full px-3 py-2 rounded-md text-sm" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                                                             placeholder="What needs to be done?"
                                                                             rows={2}
                                                                             value={newActionDescription}
@@ -1674,20 +1682,20 @@ export default function MeetingDetail() {
                                                                     </div>
                                                                     <div className="grid grid-cols-2 gap-3">
                                                                         <div>
-                                                                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Owner (Optional)</label>
+                                                                            <label className="block text-xs font-bold mb-1" style={{ color: "var(--ink-700)" }}>Owner (Optional)</label>
                                                                             <input
                                                                                 type="text"
-                                                                                className="w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm"
+                                                                                className="w-full px-3 py-2 rounded-md text-sm" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                                                                 placeholder="User ID"
                                                                                 value={newActionOwner}
                                                                                 onChange={e => setNewActionOwner(e.target.value)}
                                                                             />
                                                                         </div>
                                                                         <div>
-                                                                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Due Date (Optional)</label>
+                                                                            <label className="block text-xs font-bold mb-1" style={{ color: "var(--ink-700)" }}>Due Date (Optional)</label>
                                                                             <input
                                                                                 type="date"
-                                                                                className="w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm"
+                                                                                className="w-full px-3 py-2 rounded-md text-sm" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                                                                 value={newActionDueDate}
                                                                                 onChange={e => setNewActionDueDate(e.target.value)}
                                                                             />
@@ -1725,13 +1733,13 @@ export default function MeetingDetail() {
                                                                     onClick={() => handleActionClick(item)}
                                                                 >
                                                                     <div className="flex items-center gap-4">
-                                                                        <input type="checkbox" className="w-5 h-5 rounded border-slate-300" />
+                                                                        <input type="checkbox" className="w-5 h-5 rounded" style={{ accentColor: "var(--accent)", borderColor: "var(--border)" }} />
                                                                         <div className="flex-1">
                                                                             <div className="font-bold text-xs leading-snug text-[var(--ink-900)]">{item.description}</div>
                                                                         </div>
                                                                         <div className="flex items-center gap-3">
                                                                             <div className="flex items-center gap-2">
-                                                                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center text-white text-xs font-bold">
+                                                                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: "var(--accent)", color: "var(--accent-ink)" }}>
                                                                                     {item.owner?.avatar || 'U'}
                                                                                 </div>
                                                                                 <span className="text-xs text-[var(--ink-500)]">{item.owner?.name || 'Unassigned'}</span>
@@ -1846,15 +1854,15 @@ export default function MeetingDetail() {
                                             </div>
 
                                             {isAddingMember && (
-                                                <Card className="p-4 bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-800">
-                                                    <h4 className="font-bold text-sm text-green-900 dark:text-green-100 mb-3">Add TWG Members</h4>
+                                                <Card className="p-4" style={{ background: "var(--accent-soft)", borderColor: "color-mix(in srgb, var(--accent) 30%, var(--border))" }}>
+                                                    <h4 className="font-bold text-sm mb-3" style={{ color: "var(--accent)" }}>Add TWG Members</h4>
                                                     {twgMembers.length === 0 ? (
-                                                        <p className="text-sm text-slate-500">All TWG members are already participants.</p>
+                                                        <p className="text-sm" style={{ color: "var(--ink-500)" }}>All TWG members are already participants.</p>
                                                     ) : (
                                                         <>
                                                             <div className="space-y-2 max-h-60 overflow-y-auto mb-3">
                                                                 {twgMembers.map((m: any) => (
-                                                                    <label key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/20 cursor-pointer">
+                                                                    <label key={m.id} className="flex items-center gap-3 p-2 rounded-lg cursor-pointer qp-transition" style={{ background: "transparent" }} onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-2)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                                                                         <input
                                                                             type="checkbox"
                                                                             checked={selectedMembers.includes(m.id)}
@@ -1865,14 +1873,14 @@ export default function MeetingDetail() {
                                                                                     setSelectedMembers(prev => prev.filter(id => id !== m.id))
                                                                                 }
                                                                             }}
-                                                                            className="rounded border-slate-300"
+                                                                            className="rounded" style={{ accentColor: "var(--accent)", borderColor: "var(--border)" }}
                                                                         />
-                                                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-teal-600 flex items-center justify-center text-white text-xs font-bold">
+                                                                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: "var(--accent)", color: "var(--accent-ink)" }}>
                                                                             {(m.full_name || m.email || '?')[0].toUpperCase()}
                                                                         </div>
                                                                         <div>
-                                                                            <div className="text-sm font-medium text-slate-900 dark:text-white">{m.full_name || 'Member'}</div>
-                                                                            <div className="text-xs text-slate-500">{m.email}</div>
+                                                                            <div className="text-sm font-medium" style={{ color: "var(--ink-900)" }}>{m.full_name || 'Member'}</div>
+                                                                            <div className="text-xs" style={{ color: "var(--ink-500)" }}>{m.email}</div>
                                                                         </div>
                                                                     </label>
                                                                 ))}
@@ -1883,15 +1891,15 @@ export default function MeetingDetail() {
                                                                         type="checkbox"
                                                                         checked={applyToSeries}
                                                                         onChange={e => setApplyToSeries(e.target.checked)}
-                                                                        className="rounded border-slate-300"
+                                                                        className="rounded" style={{ accentColor: "var(--accent)", borderColor: "var(--border)" }}
                                                                     />
-                                                                    <span className="text-xs text-slate-600 dark:text-slate-400">Add to all future meetings in this series</span>
+                                                                    <span className="text-xs" style={{ color: "var(--ink-600)" }}>Add to all future meetings in this series</span>
                                                                 </label>
                                                             )}
                                                             <div className="flex justify-end gap-2">
                                                                 <button
                                                                     onClick={() => setIsAddingMember(false)}
-                                                                    className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                                                                    className="px-3 py-1.5 text-sm" style={{ color: "var(--ink-600)" }}
                                                                 >
                                                                     Cancel
                                                                 </button>
@@ -1909,9 +1917,9 @@ export default function MeetingDetail() {
                                             )}
 
                                             {isAddingGuest && (
-                                                <Card className="p-4 bg-teal-50 dark:bg-teal-900/10 border-teal-100 dark:border-teal-800">
+                                                <Card className="p-4" style={{ background: "var(--accent-soft)", borderColor: "color-mix(in srgb, var(--accent) 30%, var(--border))" }}>
                                                     <div className="flex items-center justify-between mb-3">
-                                                        <h4 className="font-bold text-sm text-teal-900 dark:text-teal-100">
+                                                        <h4 className="font-bold text-sm" style={{ color: "var(--accent)" }}>
                                                             {isBulkMode ? 'Add Multiple Guests' : 'Add External Guest'}
                                                         </h4>
                                                         <div className="flex gap-2">
@@ -1922,7 +1930,7 @@ export default function MeetingDetail() {
                                                                     setGuestEmail('')
                                                                     setBulkGuestsText('')
                                                                 }}
-                                                                className="text-xs px-2 py-1 rounded bg-teal-100 dark:bg-teal-800 text-teal-700 dark:text-teal-200 hover:bg-teal-200 dark:hover:bg-teal-700 transition-colors clickable-scale"
+                                                                className="text-xs px-2 py-1 rounded transition-colors clickable-scale" style={{ background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}
                                                             >
                                                                 {isBulkMode ? 'Single Guest' : 'Bulk Add'}
                                                             </button>
@@ -1935,9 +1943,9 @@ export default function MeetingDetail() {
                                                                 type="checkbox"
                                                                 checked={applyToSeries}
                                                                 onChange={e => setApplyToSeries(e.target.checked)}
-                                                                className="rounded border-slate-300"
+                                                                className="rounded" style={{ accentColor: "var(--accent)", borderColor: "var(--border)" }}
                                                             />
-                                                            <span className="text-xs text-slate-600 dark:text-slate-400">Add to all future meetings in this series</span>
+                                                            <span className="text-xs" style={{ color: "var(--ink-600)" }}>Add to all future meetings in this series</span>
                                                         </label>
                                                     )}
 
@@ -1946,12 +1954,12 @@ export default function MeetingDetail() {
                                                         <div className="space-y-3">
                                                             <textarea
                                                                 placeholder={`Paste guest list (one per line or comma-separated)&#10;Supported formats:&#10;• email@example.com&#10;• Name <email@example.com>&#10;• Name, email@example.com`}
-                                                                className="w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm min-h-[120px] font-mono"
+                                                                className="w-full px-3 py-2 rounded-md text-sm min-h-[120px] font-mono" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                                                 value={bulkGuestsText}
                                                                 onChange={e => setBulkGuestsText(e.target.value)}
                                                             />
                                                             <div className="flex items-center justify-between">
-                                                                <span className="text-xs text-slate-500">
+                                                                <span className="text-xs" style={{ color: "var(--ink-500)" }}>
                                                                     {parseBulkGuests(bulkGuestsText).length} guest(s) detected
                                                                 </span>
                                                                 <div className="flex gap-2">
@@ -1961,7 +1969,7 @@ export default function MeetingDetail() {
                                                                             setIsBulkMode(false)
                                                                             setBulkGuestsText('')
                                                                         }}
-                                                                        className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                                                                        className="px-3 py-1.5 text-sm" style={{ color: "var(--ink-600)" }}
                                                                     >
                                                                         Cancel
                                                                     </button>
@@ -1985,14 +1993,14 @@ export default function MeetingDetail() {
                                                             <input
                                                                 type="text"
                                                                 placeholder="Name (Optional)"
-                                                                className="flex-1 px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm"
+                                                                className="flex-1 px-3 py-2 rounded-md text-sm" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                                                 value={guestName}
                                                                 onChange={e => setGuestName(e.target.value)}
                                                             />
                                                             <input
                                                                 type="email"
                                                                 placeholder="Email Address"
-                                                                className="flex-1 px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 text-sm"
+                                                                className="flex-1 px-3 py-2 rounded-md text-sm" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                                                 value={guestEmail}
                                                                 onChange={e => setGuestEmail(e.target.value)}
                                                             />
@@ -2322,7 +2330,7 @@ export default function MeetingDetail() {
                                                     Predecessors (Required Before)
                                                 </h3>
                                                 {!meeting?.predecessors?.length ? (
-                                                    <div className="p-6 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-center text-slate-400 text-sm">
+                                                    <div className="p-6 border-2 border-dashed rounded-xl text-center text-sm" style={{ borderColor: "var(--border)", color: "var(--ink-400)" }}>
                                                         <span className="block mb-1">No prerequisites defined.</span>
                                                         <span className="text-xs opacity-70">Dependencies are automatically detected from TWG Weekly Packets.</span>
                                                     </div>
@@ -2331,16 +2339,16 @@ export default function MeetingDetail() {
                                                         {meeting?.predecessors?.map((dep: any) => (
                                                             <Card
                                                                 key={dep.id}
-                                                                className="p-4 hover:border-teal-400 transition-all cursor-pointer group"
+                                                                className="p-4 transition-all cursor-pointer group" style={{ borderColor: "var(--border)" }}
                                                                 onClick={() => navigate(`/meetings/${dep.source_meeting_id}`)}
                                                             >
                                                                 <div className="flex items-center justify-between">
                                                                     <div className="flex items-center gap-4">
-                                                                        <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600">
+                                                                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
                                                                             <span className="material-symbols-outlined">event_available</span>
                                                                         </div>
                                                                         <div>
-                                                                            <div className="font-bold text-slate-900 dark:text-white group-hover:text-teal-600 transition-colors">
+                                                                            <div className="font-bold transition-colors" style={{ color: "var(--ink-900)" }}>
                                                                                 {dep.source_meeting_title}
                                                                             </div>
                                                                             <div className="text-xs text-[var(--ink-500)]">
@@ -2353,7 +2361,7 @@ export default function MeetingDetail() {
                                                                             </div>
                                                                         </div>
                                                                     </div>
-                                                                    <span className="material-symbols-outlined text-slate-300 group-hover:text-teal-400 transition-colors">arrow_forward</span>
+                                                                    <span className="material-symbols-outlined transition-colors" style={{ color: "var(--ink-300)" }}>arrow_forward</span>
                                                                 </div>
                                                             </Card>
                                                         ))}
@@ -2364,11 +2372,11 @@ export default function MeetingDetail() {
                                             {/* Successors */}
                                             <div className="space-y-4">
                                                 <h3 className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-500)] flex items-center gap-2">
-                                                    <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                                                    <span className="w-2 h-2 rounded-full" style={{ background: "var(--navy)" }}></span>
                                                     Successors (Depends on this)
                                                 </h3>
                                                 {!meeting?.successors?.length ? (
-                                                    <div className="p-6 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-center text-slate-400 text-sm">
+                                                    <div className="p-6 border-2 border-dashed rounded-xl text-center text-sm" style={{ borderColor: "var(--border)", color: "var(--ink-400)" }}>
                                                         <span className="block mb-1">No successors detected.</span>
                                                         <span className="text-xs opacity-70">Future dependencies are automatically identified from weekly packets.</span>
                                                     </div>
@@ -2377,25 +2385,25 @@ export default function MeetingDetail() {
                                                         {meeting?.successors?.map((dep: any) => (
                                                             <Card
                                                                 key={dep.id}
-                                                                className="p-4 hover:border-purple-400 transition-all cursor-pointer group"
+                                                                className="p-4 transition-all cursor-pointer group" style={{ borderColor: "var(--border)" }}
                                                                 onClick={() => navigate(`/meetings/${dep.target_meeting_id}`)}
                                                             >
                                                                 <div className="flex items-center justify-between">
                                                                     <div className="flex items-center gap-4">
-                                                                        <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-purple-600">
+                                                                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "color-mix(in srgb, var(--navy) 12%, transparent)", color: "var(--navy)" }}>
                                                                             <span className="material-symbols-outlined">forward_to_inbox</span>
                                                                         </div>
                                                                         <div>
-                                                                            <div className="font-bold text-slate-900 dark:text-white group-hover:text-purple-600 transition-colors">
+                                                                            <div className="font-bold transition-colors" style={{ color: "var(--ink-900)" }}>
                                                                                 {dep.target_meeting_title}
                                                                             </div>
                                                                             <div className="text-xs text-[var(--ink-500)]">
-                                                                                Type: <span className="font-mono-geist text-purple-600 font-bold">{dep.dependency_type}</span>
+                                                                                Type: <span className="font-mono-geist font-bold" style={{ color: "var(--navy)" }}>{dep.dependency_type}</span>
                                                                                 {dep.lag_minutes > 0 && <> • Lag: <span className="font-mono-geist">{dep.lag_minutes}m</span></>}
                                                                             </div>
                                                                         </div>
                                                                     </div>
-                                                                    <span className="material-symbols-outlined text-slate-300 group-hover:text-purple-400 transition-colors">arrow_forward</span>
+                                                                    <span className="material-symbols-outlined transition-colors" style={{ color: "var(--ink-300)" }}>arrow_forward</span>
                                                                 </div>
                                                             </Card>
                                                         ))}
@@ -2413,43 +2421,43 @@ export default function MeetingDetail() {
             {/* Edit Meeting Modal */}
             {
                 isEditingMeeting && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-                            <div className="p-6 border-b border-slate-200 dark:border-slate-800">
-                                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Edit Meeting</h2>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}>
+                        <div className="rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                            <div className="p-6" style={{ borderBottom: "1px solid var(--border)" }}>
+                                <h2 className="text-2xl font-bold" style={{ color: "var(--ink-900)" }}>Edit Meeting</h2>
                             </div>
                             <div className="p-6 space-y-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Meeting Title *</label>
+                                    <label className="block text-sm font-bold mb-2" style={{ color: "var(--ink-700)" }}>Meeting Title *</label>
                                     <input
                                         type="text"
-                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
+                                        className="w-full px-4 py-2 rounded-lg outline-none" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                         value={editTitle}
                                         onChange={e => setEditTitle(e.target.value)}
                                         placeholder="Enter meeting title"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Date & Time *</label>
+                                    <label className="block text-sm font-bold mb-2" style={{ color: "var(--ink-700)" }}>Date & Time *</label>
                                     <input
                                         type="datetime-local"
-                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
+                                        className="w-full px-4 py-2 rounded-lg outline-none" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                         value={editDate}
                                         onChange={e => setEditDate(e.target.value)}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Location</label>
+                                    <label className="block text-sm font-bold mb-2" style={{ color: "var(--ink-700)" }}>Location</label>
                                     <input
                                         type="text"
-                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
+                                        className="w-full px-4 py-2 rounded-lg outline-none" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                         value={editLocation}
                                         onChange={e => setEditLocation(e.target.value)}
                                         placeholder="Meeting location or video link"
                                     />
                                 </div>
                             </div>
-                            <div className="p-6 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+                            <div className="p-6 flex justify-end gap-3" style={{ borderTop: "1px solid var(--border)" }}>
                                 <button
                                     onClick={() => setIsEditingMeeting(false)}
                                     className="btn-secondary"
@@ -2470,11 +2478,11 @@ export default function MeetingDetail() {
             }
             {/* Manage Series Modal */}
             {showManageSeriesModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}>
+                    <div className="rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                        <div className="p-6 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border)" }}>
                             <div>
-                                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Manage Recurring Series</h2>
+                                <h2 className="text-2xl font-bold" style={{ color: "var(--ink-900)" }}>Manage Recurring Series</h2>
                                 {seriesData && (
                                     <Badge
                                         variant={seriesData.status === 'active' ? 'success' : seriesData.status === 'paused' ? 'warning' : 'neutral'}
@@ -2484,7 +2492,7 @@ export default function MeetingDetail() {
                                     </Badge>
                                 )}
                             </div>
-                            <button onClick={() => setShowManageSeriesModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                            <button onClick={() => setShowManageSeriesModal(false)} style={{ color: "var(--ink-400)" }}>
                                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
@@ -2493,67 +2501,67 @@ export default function MeetingDetail() {
 
                         {seriesLoading ? (
                             <div className="p-12 text-center">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto"></div>
-                                <p className="mt-3 text-sm text-slate-500">Loading series details...</p>
+                                <div className="animate-spin rounded-full h-8 w-8 mx-auto" style={{ borderBottom: "2px solid var(--accent)" }}></div>
+                                <p className="mt-3 text-sm" style={{ color: "var(--ink-500)" }}>Loading series details...</p>
                             </div>
                         ) : seriesData && !seriesEditMode ? (
                             /* View Mode */
                             <div className="p-4 sm:p-6 space-y-6">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Title</span>
-                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.title_template}</p>
+                                    <div className="p-3 rounded-lg" style={{ background: "var(--surface-2)" }}>
+                                        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--ink-500)" }}>Title</span>
+                                        <p className="text-sm font-medium mt-1" style={{ color: "var(--ink-900)" }}>{seriesData.title_template}</p>
                                     </div>
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Frequency</span>
-                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1 capitalize">
+                                    <div className="p-3 rounded-lg" style={{ background: "var(--surface-2)" }}>
+                                        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--ink-500)" }}>Frequency</span>
+                                        <p className="text-sm font-medium mt-1 capitalize" style={{ color: "var(--ink-900)" }}>
                                             {seriesData.frequency}{seriesData.interval_weeks > 1 ? ` (every ${seriesData.interval_weeks} weeks)` : ''}
                                         </p>
                                     </div>
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Time</span>
-                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.start_time}</p>
+                                    <div className="p-3 rounded-lg" style={{ background: "var(--surface-2)" }}>
+                                        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--ink-500)" }}>Time</span>
+                                        <p className="text-sm font-medium mt-1" style={{ color: "var(--ink-900)" }}>{seriesData.start_time}</p>
                                     </div>
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Duration</span>
-                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.duration_minutes} min</p>
+                                    <div className="p-3 rounded-lg" style={{ background: "var(--surface-2)" }}>
+                                        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--ink-500)" }}>Duration</span>
+                                        <p className="text-sm font-medium mt-1" style={{ color: "var(--ink-900)" }}>{seriesData.duration_minutes} min</p>
                                     </div>
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Day</span>
-                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">
+                                    <div className="p-3 rounded-lg" style={{ background: "var(--surface-2)" }}>
+                                        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--ink-500)" }}>Day</span>
+                                        <p className="text-sm font-medium mt-1" style={{ color: "var(--ink-900)" }}>
                                             {seriesData.day_of_week !== null && seriesData.day_of_week !== undefined
                                                 ? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][seriesData.day_of_week]
                                                 : 'N/A'}
                                         </p>
                                     </div>
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">End Type</span>
-                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1 capitalize">
+                                    <div className="p-3 rounded-lg" style={{ background: "var(--surface-2)" }}>
+                                        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--ink-500)" }}>End Type</span>
+                                        <p className="text-sm font-medium mt-1 capitalize" style={{ color: "var(--ink-900)" }}>
                                             {seriesData.end_type === 'never' ? 'Never' :
                                                 seriesData.end_type === 'after_date' ? `Until ${new Date(seriesData.end_date).toLocaleDateString()}` :
                                                     `After ${seriesData.max_occurrences} occurrences`}
                                         </p>
                                     </div>
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Instances Created</span>
-                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.occurrences_created}</p>
+                                    <div className="p-3 rounded-lg" style={{ background: "var(--surface-2)" }}>
+                                        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--ink-500)" }}>Instances Created</span>
+                                        <p className="text-sm font-medium mt-1" style={{ color: "var(--ink-900)" }}>{seriesData.occurrences_created}</p>
                                     </div>
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Location</span>
-                                        <p className="text-sm font-medium text-slate-900 dark:text-white mt-1">{seriesData.location || 'Not set'}</p>
+                                    <div className="p-3 rounded-lg" style={{ background: "var(--surface-2)" }}>
+                                        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--ink-500)" }}>Location</span>
+                                        <p className="text-sm font-medium mt-1" style={{ color: "var(--ink-900)" }}>{seriesData.location || 'Not set'}</p>
                                     </div>
                                 </div>
 
                                 {/* Upcoming Instances */}
                                 {seriesData.upcoming_instances?.length > 0 && (
                                     <div>
-                                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Upcoming Instances</h3>
+                                        <h3 className="text-sm font-bold mb-2" style={{ color: "var(--ink-700)" }}>Upcoming Instances</h3>
                                         <div className="space-y-2 max-h-48 overflow-y-auto">
                                             {seriesData.upcoming_instances.map((inst: any) => (
-                                                <div key={inst.id} className="flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm">
+                                                <div key={inst.id} className="flex items-center justify-between px-3 py-2 rounded-lg text-sm" style={{ background: "var(--surface-2)" }}>
                                                     <div>
-                                                        <span className="font-medium text-slate-900 dark:text-white">{inst.title}</span>
-                                                        <span className="text-slate-500 ml-2">
+                                                        <span className="font-medium" style={{ color: "var(--ink-900)" }}>{inst.title}</span>
+                                                        <span className="ml-2" style={{ color: "var(--ink-500)" }}>
                                                             {new Date(inst.scheduled_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
                                                             {' '}
                                                             {new Date(inst.scheduled_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
@@ -2570,48 +2578,48 @@ export default function MeetingDetail() {
                             /* Edit Mode */
                             <div className="p-4 sm:p-6 space-y-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Series Title</label>
+                                    <label className="block text-sm font-bold mb-2" style={{ color: "var(--ink-700)" }}>Series Title</label>
                                     <input
                                         type="text"
-                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
+                                        className="w-full px-4 py-2 rounded-lg outline-none" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                         value={seriesTitle}
                                         onChange={e => setSeriesTitle(e.target.value)}
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Start Time</label>
+                                        <label className="block text-sm font-bold mb-2" style={{ color: "var(--ink-700)" }}>Start Time</label>
                                         <input
                                             type="time"
-                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
+                                            className="w-full px-4 py-2 rounded-lg outline-none" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                             value={seriesTime}
                                             onChange={e => setSeriesTime(e.target.value)}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Duration (min)</label>
+                                        <label className="block text-sm font-bold mb-2" style={{ color: "var(--ink-700)" }}>Duration (min)</label>
                                         <input
                                             type="number"
                                             min={15}
                                             step={15}
-                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
+                                            className="w-full px-4 py-2 rounded-lg outline-none" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                             value={seriesDuration}
                                             onChange={e => setSeriesDuration(Number(e.target.value))}
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Location</label>
+                                    <label className="block text-sm font-bold mb-2" style={{ color: "var(--ink-700)" }}>Location</label>
                                     <input
                                         type="text"
-                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none"
+                                        className="w-full px-4 py-2 rounded-lg outline-none" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                         value={seriesLocation}
                                         onChange={e => setSeriesLocation(e.target.value)}
                                         placeholder="Meeting location or video link"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Update Scope</label>
+                                    <label className="block text-sm font-bold mb-2" style={{ color: "var(--ink-700)" }}>Update Scope</label>
                                     <div className="flex gap-4">
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input
@@ -2619,9 +2627,9 @@ export default function MeetingDetail() {
                                                 name="seriesScope"
                                                 checked={seriesUpdateScope === 'future'}
                                                 onChange={() => setSeriesUpdateScope('future')}
-                                                className="text-teal-600"
+                                                style={{ accentColor: "var(--accent)" }}
                                             />
-                                            <span className="text-sm text-slate-700 dark:text-slate-300">Future instances only</span>
+                                            <span className="text-sm" style={{ color: "var(--ink-700)" }}>Future instances only</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input
@@ -2629,9 +2637,9 @@ export default function MeetingDetail() {
                                                 name="seriesScope"
                                                 checked={seriesUpdateScope === 'all'}
                                                 onChange={() => setSeriesUpdateScope('all')}
-                                                className="text-teal-600"
+                                                style={{ accentColor: "var(--accent)" }}
                                             />
-                                            <span className="text-sm text-slate-700 dark:text-slate-300">All instances</span>
+                                            <span className="text-sm" style={{ color: "var(--ink-700)" }}>All instances</span>
                                         </label>
                                     </div>
                                 </div>
@@ -2640,13 +2648,13 @@ export default function MeetingDetail() {
 
                         {/* Footer */}
                         {seriesData && !seriesLoading && (
-                            <div className="p-4 sm:p-6 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                            <div className="p-4 sm:p-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3" style={{ borderTop: "1px solid var(--border)" }}>
                                 <div className="flex flex-wrap gap-2">
                                     {seriesData.status !== 'cancelled' && (
                                         <button
                                             onClick={() => setShowCancelSeriesConfirm(true)}
                                             disabled={seriesActionLoading}
-                                            className="px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                            className="px-3 py-2 text-sm font-medium rounded-lg transition-colors" style={{ color: "var(--terra)" }}
                                         >
                                             Cancel Series
                                         </button>
@@ -2655,7 +2663,7 @@ export default function MeetingDetail() {
                                         <button
                                             onClick={handleTogglePauseSeries}
                                             disabled={seriesActionLoading}
-                                            className="px-3 py-2 text-sm font-medium text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
+                                            className="px-3 py-2 text-sm font-medium rounded-lg transition-colors" style={{ color: "var(--amber)" }}
                                         >
                                             {seriesActionLoading ? 'Processing...' : seriesData.status === 'paused' ? 'Resume Series' : 'Pause Series'}
                                         </button>
@@ -2673,14 +2681,14 @@ export default function MeetingDetail() {
                                             <button
                                                 onClick={handleUpdateSeries}
                                                 disabled={seriesActionLoading || !seriesTitle}
-                                                className="btn-primary bg-teal-600 hover:bg-teal-700 clickable-scale"
+                                                className="btn-primary clickable-scale"
                                             >
                                                 {seriesActionLoading ? 'Saving...' : 'Save Changes'}
                                             </button>
                                         ) : (
                                             <button
                                                 onClick={() => setSeriesEditMode(true)}
-                                                className="btn-primary bg-teal-600 hover:bg-teal-700 clickable-scale"
+                                                className="btn-primary clickable-scale"
                                             >
                                                 Edit Series
                                             </button>
@@ -2710,10 +2718,10 @@ export default function MeetingDetail() {
             {
                 selectedAction && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelectedAction(null)}>
-                        <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+                        <div className="rounded-lg shadow-xl max-w-md w-full p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }} onClick={e => e.stopPropagation()}>
                             <div className="flex justify-between items-start mb-4">
-                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Action Item Details</h3>
-                                <button onClick={() => setSelectedAction(null)} className="text-slate-400 hover:text-slate-500">
+                                <h3 className="text-lg font-bold" style={{ color: "var(--ink-900)" }}>Action Item Details</h3>
+                                <button onClick={() => setSelectedAction(null)} style={{ color: "var(--ink-400)" }}>
                                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                     </svg>
@@ -2723,9 +2731,9 @@ export default function MeetingDetail() {
                             {isEditingSelected ? (
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Description</label>
+                                        <label className="block text-xs font-bold mb-1" style={{ color: "var(--ink-700)" }}>Description</label>
                                         <textarea
-                                            className="w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm"
+                                            className="w-full px-3 py-2 rounded-md text-sm" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                             rows={3}
                                             value={selectedDescription}
                                             onChange={e => setSelectedDescription(e.target.value)}
@@ -2733,19 +2741,19 @@ export default function MeetingDetail() {
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Owner</label>
+                                            <label className="block text-xs font-bold mb-1" style={{ color: "var(--ink-700)" }}>Owner</label>
                                             <input
                                                 type="text"
-                                                className="w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm"
+                                                className="w-full px-3 py-2 rounded-md text-sm" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                                 value={selectedOwner}
                                                 onChange={e => setSelectedOwner(e.target.value)}
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Due Date</label>
+                                            <label className="block text-xs font-bold mb-1" style={{ color: "var(--ink-700)" }}>Due Date</label>
                                             <input
                                                 type="date"
-                                                className="w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm"
+                                                className="w-full px-3 py-2 rounded-md text-sm" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--ink-900)" }}
                                                 value={selectedDueDate}
                                                 onChange={e => setSelectedDueDate(e.target.value)}
                                             />
@@ -2758,26 +2766,26 @@ export default function MeetingDetail() {
                                 </div>
                             ) : (
                                 <div className="space-y-4">
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-md border border-slate-100 dark:border-slate-700">
-                                        <p className="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{selectedAction.description}</p>
+                                    <div className="p-3 rounded-md" style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+                                        <p className="text-sm whitespace-pre-wrap" style={{ color: "var(--ink-800)" }}>{selectedAction.description}</p>
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <div>
-                                            <span className="text-slate-500 block text-xs uppercase tracking-wider font-bold mb-1">Owner</span>
+                                            <span className="block text-xs uppercase tracking-wider font-bold mb-1" style={{ color: "var(--ink-500)" }}>Owner</span>
                                             <div className="flex items-center gap-2">
-                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${selectedAction.owner ? 'bg-teal-500' : 'bg-slate-400'}`}>
+                                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ color: "var(--accent-ink)", background: selectedAction.owner ? "var(--accent)" : "var(--ink-400)" }}>
                                                     {selectedAction.owner?.avatar || (typeof selectedAction.owner === 'string' && selectedAction.owner ? selectedAction.owner.charAt(0).toUpperCase() : '?')}
                                                 </div>
-                                                <span className="font-medium text-slate-700 dark:text-slate-300">{selectedAction.owner?.name || selectedAction.owner || 'Unassigned'}</span>
+                                                <span className="font-medium" style={{ color: "var(--ink-700)" }}>{selectedAction.owner?.name || selectedAction.owner || 'Unassigned'}</span>
                                             </div>
                                         </div>
                                         <div>
-                                            <span className="text-slate-500 block text-xs uppercase tracking-wider font-bold mb-1">Due Date</span>
-                                            <span className="font-medium text-slate-700 dark:text-slate-300">{selectedAction.due_date ? new Date(selectedAction.due_date).toLocaleDateString() : 'None'}</span>
+                                            <span className="block text-xs uppercase tracking-wider font-bold mb-1" style={{ color: "var(--ink-500)" }}>Due Date</span>
+                                            <span className="font-medium" style={{ color: "var(--ink-700)" }}>{selectedAction.due_date ? new Date(selectedAction.due_date).toLocaleDateString() : 'None'}</span>
                                         </div>
                                     </div>
-                                    <div className="flex justify-between items-center pt-4 border-t border-slate-200 dark:border-slate-700 mt-4">
-                                        <button onClick={handleDeleteAction} className="text-red-600 hover:text-red-700 text-sm font-medium flex items-center gap-1">
+                                    <div className="flex justify-between items-center pt-4 mt-4" style={{ borderTop: "1px solid var(--border)" }}>
+                                        <button onClick={handleDeleteAction} className="text-sm font-medium flex items-center gap-1" style={{ color: "var(--terra)" }}>
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                             </svg>

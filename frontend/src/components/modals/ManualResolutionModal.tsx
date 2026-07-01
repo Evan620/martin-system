@@ -57,20 +57,20 @@ const ManualResolutionModal: React.FC<ManualResolutionModalProps> = ({ isOpen, c
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+            <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'color-mix(in srgb, var(--ink-900) 55%, transparent)' }} onClick={onClose} />
 
-            <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+            <div className="relative w-full max-w-lg overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
                 {/* Header */}
-                <div className="bg-red-50 dark:bg-red-900/20 px-6 py-4 border-b border-red-100 dark:border-red-900/30 flex justify-between items-center">
+                <div className="px-6 py-4 flex justify-between items-center" style={{ background: 'color-mix(in srgb, var(--terra) 8%, var(--surface))', borderBottom: '1px solid color-mix(in srgb, var(--terra) 20%, var(--border))' }}>
                     <div>
-                        <h2 className="text-lg font-display font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
+                        <h2 className="text-lg font-display font-bold flex items-center gap-2" style={{ color: 'var(--terra)' }}>
                             <span className="material-symbols-outlined">gavel</span>
                             Manual Intervention Required
                         </h2>
-                        <p className="text-xs text-red-600/70 dark:text-red-400/70">Override AI Escalation for Conflict: {conflict.description}</p>
+                        <p className="text-xs" style={{ color: 'color-mix(in srgb, var(--terra) 75%, var(--ink-500))' }}>Override AI Escalation for Conflict: {conflict.description}</p>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 clickable-scale">
+                    <button onClick={onClose} className="clickable-scale qp-transition" style={{ color: 'var(--ink-400)' }}>
                         <span className="material-symbols-outlined">close</span>
                     </button>
                 </div>
@@ -79,19 +79,21 @@ const ManualResolutionModal: React.FC<ManualResolutionModalProps> = ({ isOpen, c
                 <div className="p-6 space-y-6">
                     {/* 1. Select Meeting to Act Upon */}
                     <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">1. Select Target Meeting</label>
+                        <label className="qp-eyebrow mb-2 block">1. Select Target Meeting</label>
                         <div className="grid grid-cols-2 gap-3">
                             {meetingMap.map((m) => (
                                 <div
                                     key={m.id}
                                     onClick={() => setSelectedMeetingId(m.id)}
-                                    className={`p-3 rounded-xl border-2 cursor-pointer transition-all clickable-scale ${selectedMeetingId === m.id
-                                            ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
-                                            : 'border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                                        }`}
+                                    className="p-3 cursor-pointer transition-all clickable-scale"
+                                    style={{
+                                        borderRadius: 'var(--radius-ctl)',
+                                        border: `2px solid ${selectedMeetingId === m.id ? 'var(--accent)' : 'var(--border)'}`,
+                                        background: selectedMeetingId === m.id ? 'var(--accent-soft)' : 'var(--surface)',
+                                    }}
                                 >
-                                    <div className="font-bold text-sm text-slate-900 dark:text-white">{m.label}</div>
-                                    <div className="text-xs text-slate-500 truncate">{m.name}</div>
+                                    <div className="font-bold text-sm" style={{ color: 'var(--ink-900)' }}>{m.label}</div>
+                                    <div className="text-xs truncate" style={{ color: 'var(--ink-500)' }}>{m.name}</div>
                                 </div>
                             ))}
                         </div>
@@ -99,23 +101,29 @@ const ManualResolutionModal: React.FC<ManualResolutionModalProps> = ({ isOpen, c
 
                     {/* 2. Select Action */}
                     <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">2. Choose Action</label>
+                        <label className="qp-eyebrow mb-2 block">2. Choose Action</label>
                         <div className="flex gap-4">
                             <button
                                 onClick={() => setAction('reschedule')}
-                                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-all clickable-scale ${action === 'reschedule'
-                                        ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900'
-                                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400'
-                                    }`}
+                                className="flex-1 py-2 text-sm font-bold transition-all clickable-scale"
+                                style={{
+                                    borderRadius: 'var(--radius-ctl)',
+                                    border: `1px solid ${action === 'reschedule' ? 'var(--ink-900)' : 'var(--border)'}`,
+                                    background: action === 'reschedule' ? 'var(--ink-900)' : 'var(--surface)',
+                                    color: action === 'reschedule' ? 'var(--surface)' : 'var(--ink-600)',
+                                }}
                             >
                                 Reschedule
                             </button>
                             <button
                                 onClick={() => setAction('cancel')}
-                                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-all clickable-scale ${action === 'cancel'
-                                        ? 'bg-red-600 text-white border-red-600'
-                                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400'
-                                    }`}
+                                className="flex-1 py-2 text-sm font-bold transition-all clickable-scale"
+                                style={{
+                                    borderRadius: 'var(--radius-ctl)',
+                                    border: `1px solid ${action === 'cancel' ? 'var(--terra)' : 'var(--border)'}`,
+                                    background: action === 'cancel' ? 'var(--terra)' : 'var(--surface)',
+                                    color: action === 'cancel' ? 'var(--accent-ink)' : 'var(--ink-600)',
+                                }}
                             >
                                 Cancel Meeting
                             </button>
@@ -125,41 +133,49 @@ const ManualResolutionModal: React.FC<ManualResolutionModalProps> = ({ isOpen, c
                     {/* 3. Action Details */}
                     {action === 'reschedule' && (
                         <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">3. New Time</label>
+                            <label className="qp-eyebrow mb-2 block">3. New Time</label>
                             <input
                                 type="datetime-local"
                                 value={newTime}
                                 onChange={(e) => setNewTime(e.target.value)}
-                                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                                className="w-full px-4 py-2 text-sm outline-none focus:ring-2"
+                                style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink-900)' }}
                             />
                         </div>
                     )}
 
                     <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Reason (Log)</label>
+                        <label className="qp-eyebrow mb-2 block">Reason (Log)</label>
                         <textarea
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                             placeholder="Reason for decision..."
-                            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm h-20 resize-none outline-none focus:ring-2 focus:ring-teal-500"
+                            className="w-full px-4 py-2 text-sm h-20 resize-none outline-none focus:ring-2"
+                            style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink-900)' }}
                         />
                     </div>
                 </div>
 
                 {/* Footer */}
-                <div className="bg-slate-50 dark:bg-slate-800/50 px-6 py-4 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
+                <div className="px-6 py-4 flex justify-end gap-3" style={{ background: 'var(--surface-2)', borderTop: '1px solid var(--border)' }}>
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors clickable-scale"
+                        className="px-4 py-2 text-sm font-bold qp-transition clickable-scale"
+                        style={{ color: 'var(--ink-500)' }}
                     >
                         Close
                     </button>
                     <button
                         onClick={handleSubmit}
                         disabled={loading || !selectedMeetingId || (action === 'reschedule' && !newTime)}
-                        className={`px-6 py-2 rounded-xl text-sm font-bold text-white shadow-lg transition-all active:scale-95 ${loading ? 'opacity-50 cursor-not-allowed' :
-                                action === 'cancel' ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' : 'bg-teal-600 hover:bg-teal-700 shadow-teal-500/20'
-                            }`}
+                        className="px-6 py-2 text-sm font-bold transition-all active:scale-95"
+                        style={{
+                            borderRadius: 'var(--radius-ctl)',
+                            color: 'var(--accent-ink)',
+                            background: action === 'cancel' ? 'var(--terra)' : 'var(--accent)',
+                            opacity: loading ? 0.5 : 1,
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                        }}
                     >
                         {loading ? 'Processing...' : 'Confirm Resolution'}
                     </button>

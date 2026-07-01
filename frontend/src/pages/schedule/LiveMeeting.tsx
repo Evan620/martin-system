@@ -139,18 +139,18 @@ export default function LiveMeeting() {
 
 
     return (
-        <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900">
+        <div className="h-full flex flex-col" style={{ background: 'var(--bg)' }}>
             {/* Header */}
-            <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+            <div className="px-4 sm:px-8 py-4 sm:py-6" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
                 <div className="flex items-center justify-between">
                     <div>
-                        <button onClick={() => navigate(`/meetings/${meetingId}`)} className="text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-2 flex items-center gap-1">
+                        <button onClick={() => navigate(`/meetings/${meetingId}`)} className="text-sm mb-2 flex items-center gap-1 qp-transition" style={{ color: 'var(--ink-500)' }}>
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                             </svg>
                             Back to Meeting Details
                         </button>
-                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+                        <h1 className="text-2xl font-bold flex items-center gap-3" style={{ color: 'var(--ink-900)' }}>
                             {meeting?.title || 'Loading...'}
                             <Badge variant={status === 'connected' ? 'success' : 'neutral'} className={status === 'connected' ? 'animate-pulse' : ''}>
                                 {status === 'connected' ? '🟢 Vexa Sync Active' : 'OFFLINE'}
@@ -159,7 +159,7 @@ export default function LiveMeeting() {
                     </div>
 
                     <div className="flex gap-3">
-                        <Badge variant="neutral" className="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-slate-100 text-slate-500 border border-slate-200">
+                        <Badge variant="neutral" className="px-4 py-2 text-xs font-bold uppercase tracking-widest" style={{ background: 'var(--surface-2)', color: 'var(--ink-500)', border: '1px solid var(--border)' }}>
                             Automated Notetaker Active
                         </Badge>
                     </div>
@@ -173,28 +173,28 @@ export default function LiveMeeting() {
                     <div className="max-w-3xl mx-auto">
 
                         {error && (
-                            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg">
+                            <div className="p-4 mb-6" style={{ background: 'color-mix(in srgb, var(--terra) 10%, transparent)', borderLeft: '4px solid var(--terra)', borderRadius: '0 var(--radius-ctl) var(--radius-ctl) 0' }}>
                                 <div className="flex">
                                     <div className="flex-shrink-0">
-                                        <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                                        <svg className="h-5 w-5" style={{ color: 'var(--terra)' }} viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                                         </svg>
                                     </div>
                                     <div className="ml-3">
-                                        <p className="text-sm text-red-700">{error}</p>
+                                        <p className="text-sm" style={{ color: 'var(--terra)' }}>{error}</p>
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        <Card className="min-h-[500px] p-8 shadow-sm border border-slate-200 dark:border-slate-800">
-                            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-6 border-b pb-2">Live Transcript</h2>
+                        <Card className="min-h-[500px] p-8">
+                            <h2 className="text-lg font-semibold mb-6 pb-2" style={{ color: 'var(--ink-800)', borderBottom: '1px solid var(--border)' }}>Live Transcript</h2>
 
                             <div className="space-y-4 font-mono text-sm leading-relaxed">
                                 {transcript ? (
-                                    <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{transcript}</p>
+                                    <p className="whitespace-pre-wrap" style={{ color: 'var(--ink-700)' }}>{transcript}</p>
                                 ) : (
-                                    <p className="text-slate-400 italic">Waiting for speech...</p>
+                                    <p className="italic" style={{ color: 'var(--ink-400)' }}>Waiting for speech...</p>
                                 )}
 
                                 <div ref={transcriptEndRef} />
@@ -204,47 +204,47 @@ export default function LiveMeeting() {
                 </div>
 
                 {/* Right Sidebar - Agenda Monitor */}
-                <div className="w-96 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 overflow-y-auto hidden xl:block transition-all">
+                <div className="w-96 p-6 overflow-y-auto hidden xl:block qp-transition" style={{ borderLeft: '1px solid var(--border)', background: 'var(--surface)' }}>
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Agenda Monitor</h2>
+                        <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color: 'var(--ink-500)' }}>Agenda Monitor</h2>
                         <Badge variant="neutral" className="text-xs">AI Agent Active</Badge>
                     </div>
 
                     {!agendaAnalysis ? (
                         <div className="text-center py-10 opacity-50">
-                            <div className="animate-spin w-8 h-8 border-2 border-slate-300 border-t-teal-600 rounded-full mx-auto mb-3"></div>
-                            <p className="text-xs text-slate-500 italic">Listening for insights...</p>
+                            <div className="animate-spin w-8 h-8 rounded-full mx-auto mb-3" style={{ border: '2px solid var(--border)', borderTopColor: 'var(--accent)' }}></div>
+                            <p className="text-xs italic" style={{ color: 'var(--ink-500)' }}>Listening for insights...</p>
                         </div>
                     ) : (
                         <div className="space-y-6">
                             {/* Current Focus */}
                             <div className="relative">
-                                <div className="absolute -left-3 top-[-10px] bg-teal-100 text-teal-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                <div className="absolute -left-3 top-[-10px] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
                                     Martin Insight
                                 </div>
-                                <div className="p-4 pt-6 rounded-xl bg-gradient-to-br from-teal-50 to-teal-50 border border-teal-100 shadow-sm relative overflow-hidden">
+                                <div className="p-4 pt-6 relative overflow-hidden" style={{ background: 'var(--accent-soft)', border: '1px solid color-mix(in srgb, var(--accent) 30%, var(--border))', borderRadius: 'var(--radius-ctl)' }}>
                                     <div className="absolute top-0 right-0 p-2 opacity-10">
-                                        <svg className="w-16 h-16 text-teal-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6l5.25 3.15-.75 1.23-6.5-3.9V7z" /></svg>
+                                        <svg className="w-16 h-16" style={{ color: 'var(--accent)' }} fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6l5.25 3.15-.75 1.23-6.5-3.9V7z" /></svg>
                                     </div>
                                     <div className="flex items-start gap-3 relative z-10">
-                                        <div className="mt-1.5 w-2.5 h-2.5 rounded-full bg-teal-600 animate-ping" />
-                                        <div className="w-2.5 h-2.5 rounded-full bg-teal-600 absolute left-0 top-1.5" />
+                                        <div className="mt-1.5 w-2.5 h-2.5 rounded-full animate-ping" style={{ background: 'var(--accent)' }} />
+                                        <div className="w-2.5 h-2.5 rounded-full absolute left-0 top-1.5" style={{ background: 'var(--accent)' }} />
                                         <div>
-                                            <h3 className="font-bold text-slate-800 text-sm leading-tight">
+                                            <h3 className="font-bold text-sm leading-tight" style={{ color: 'var(--ink-800)' }}>
                                                 {agendaAnalysis.source === 'live_conflict_detector' ? '🚨 Policy Alert' : (agendaAnalysis.source === 'live_command' ? '🤖 Martin Answer' : (agendaAnalysis.source === 'agenda_monitor' ? '📋 Agenda Sync' : 'System Analysis'))}
                                             </h3>
 
                                             {agendaAnalysis.current_focus && (
-                                                <div className="mt-2 text-[10px] font-bold text-teal-600 bg-teal-100/50 px-2 py-0.5 rounded inline-block">
+                                                <div className="mt-2 text-[10px] font-bold px-2 py-0.5 rounded inline-block" style={{ color: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 12%, transparent)' }}>
                                                     Current Focus: {agendaAnalysis.current_focus}
                                                 </div>
                                             )}
 
-                                            <p className="text-slate-600 text-xs mt-2 leading-relaxed">
+                                            <p className="text-xs mt-2 leading-relaxed" style={{ color: 'var(--ink-600)' }}>
                                                 {agendaAnalysis.content || "Monitoring meeting flow..."}
                                             </p>
                                             {agendaAnalysis.original_question && (
-                                                <p className="text-[10px] text-slate-400 mt-2 italic">Re: "{agendaAnalysis.original_question}"</p>
+                                                <p className="text-[10px] mt-2 italic" style={{ color: 'var(--ink-400)' }}>Re: "{agendaAnalysis.original_question}"</p>
                                             )}
                                         </div>
                                     </div>
@@ -254,14 +254,14 @@ export default function LiveMeeting() {
                             {/* Decisions */}
                             {agendaAnalysis.decisions && agendaAnalysis.decisions.length > 0 && (
                                 <div>
-                                    <h3 className="text-xs font-bold uppercase text-slate-400 mb-3 flex items-center gap-2">
+                                    <h3 className="text-xs font-bold uppercase mb-3 flex items-center gap-2" style={{ color: 'var(--ink-400)' }}>
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                         Captured Decisions
                                     </h3>
                                     <ul className="space-y-2">
                                         {agendaAnalysis.decisions.map((d: string, i: number) => (
-                                            <li key={i} className="text-sm bg-green-50 text-green-900 border border-green-100 p-3 rounded-md flex gap-2">
-                                                <span className="text-green-500 font-bold">✓</span>
+                                            <li key={i} className="text-sm p-3 flex gap-2" style={{ background: 'color-mix(in srgb, var(--sage) 10%, transparent)', color: 'var(--ink-800)', border: '1px solid color-mix(in srgb, var(--sage) 25%, transparent)', borderRadius: 'var(--radius-ctl)' }}>
+                                                <span className="font-bold" style={{ color: 'var(--sage)' }}>✓</span>
                                                 {d}
                                             </li>
                                         ))}
@@ -272,10 +272,10 @@ export default function LiveMeeting() {
                             {/* Progress Tracker (Example if we had full items list, but we rely on agent output for now) */}
                             {agendaAnalysis.completed_items_indices && agendaAnalysis.completed_items_indices.length > 0 && (
                                 <div>
-                                    <h3 className="text-xs font-bold uppercase text-slate-400 mb-3">Completed Items</h3>
+                                    <h3 className="text-xs font-bold uppercase mb-3" style={{ color: 'var(--ink-400)' }}>Completed Items</h3>
                                     <div className="flex flex-wrap gap-2">
                                         {agendaAnalysis.completed_items_indices.map((idx: number) => (
-                                            <span key={idx} className="bg-slate-100 text-slate-500 px-2 py-1 rounded text-xs line-through">
+                                            <span key={idx} className="px-2 py-1 rounded text-xs line-through" style={{ background: 'var(--surface-2)', color: 'var(--ink-500)' }}>
                                                 Item {idx + 1}
                                             </span>
                                         ))}
@@ -286,8 +286,8 @@ export default function LiveMeeting() {
                     )}
 
                     {/* Martin Command Center */}
-                    <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
-                        <h3 className="text-xs font-bold uppercase text-slate-400 mb-4 flex items-center gap-2">
+                    <div className="mt-8 pt-6" style={{ borderTop: '1px solid var(--border)' }}>
+                        <h3 className="text-xs font-bold uppercase mb-4 flex items-center gap-2" style={{ color: 'var(--ink-400)' }}>
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
                             Martin Command Center
                         </h3>
@@ -295,7 +295,8 @@ export default function LiveMeeting() {
                         <div className="space-y-3">
                             <div className="relative">
                                 <textarea
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-none h-24 dark:text-white"
+                                    className="w-full p-3 text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-none h-24"
+                                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)', color: 'var(--ink-800)' }}
                                     placeholder="Ask Martin a question..."
                                     value={commandInput}
                                     onChange={(e) => setCommandInput(e.target.value)}
@@ -307,9 +308,9 @@ export default function LiveMeeting() {
                                     }}
                                 />
                                 {isThinking && (
-                                    <div className="absolute inset-0 bg-white/70 dark:bg-slate-900/70 flex items-center justify-center rounded-lg">
-                                        <div className="flex items-center gap-2 text-teal-600 font-medium text-xs">
-                                            <div className="animate-spin w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full" />
+                                    <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--surface) 70%, transparent)', borderRadius: 'var(--radius-ctl)' }}>
+                                        <div className="flex items-center gap-2 font-medium text-xs" style={{ color: 'var(--accent)' }}>
+                                            <div className="animate-spin w-4 h-4 rounded-full" style={{ border: '2px solid var(--accent)', borderTopColor: 'transparent' }} />
                                             Martin is thinking...
                                         </div>
                                     </div>
@@ -320,21 +321,23 @@ export default function LiveMeeting() {
                                 <button
                                     onClick={() => sendManualCommand()}
                                     disabled={!commandInput.trim() || isThinking}
-                                    className="flex-1 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold py-2.5 rounded-lg transition-colors shadow-sm clickable-scale"
+                                    className="flex-1 disabled:opacity-50 text-xs font-bold py-2.5 qp-transition clickable-scale"
+                                    style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
                                 >
                                     Ask Martin
                                 </button>
                                 <button
                                     onClick={requestQuickInsight}
                                     disabled={isThinking}
-                                    className="px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm clickable-scale"
+                                    className="px-4 text-xs font-bold py-2.5 qp-transition clickable-scale"
+                                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-600)', borderRadius: 'var(--radius-ctl)' }}
                                     title="Request an immediate AI scan of the last few minutes"
                                 >
                                     Force Sync
                                 </button>
                             </div>
 
-                            <p className="text-[10px] text-slate-400 text-center italic">
+                            <p className="text-[10px] text-center italic" style={{ color: 'var(--ink-400)' }}>
                                 Use "@martin" in speech or type above to interact.
                             </p>
                         </div>

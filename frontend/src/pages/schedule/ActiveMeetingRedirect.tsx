@@ -26,13 +26,14 @@ export default function ActiveMeetingRedirect() {
     if (error) {
         return (
             <div className="h-full flex items-center justify-center">
-                <div className="text-center p-8 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 max-w-md">
-                    <span className="material-symbols-outlined text-4xl text-slate-300 mb-4 block">event_busy</span>
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Monitor Offline</h2>
-                    <p className="text-slate-500 text-sm mb-6">{error}</p>
+                <div className="text-center p-8 max-w-md" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
+                    <span className="material-symbols-outlined text-4xl mb-4 block" style={{ color: 'var(--ink-300)' }}>event_busy</span>
+                    <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--ink-900)' }}>Monitor Offline</h2>
+                    <p className="text-sm mb-6" style={{ color: 'var(--ink-500)' }}>{error}</p>
                     <button
                         onClick={() => navigate('/schedule')}
-                        className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors clickable-scale"
+                        className="px-4 py-2 text-sm font-medium qp-transition clickable-scale"
+                        style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
                     >
                         View Schedule
                     </button>
@@ -43,8 +44,8 @@ export default function ActiveMeetingRedirect() {
 
     return (
         <div className="h-full flex flex-col items-center justify-center">
-            <div className="size-12 rounded-full border-4 border-teal-600 border-t-transparent animate-spin mb-4"></div>
-            <p className="text-slate-500 font-medium">Entering Live Monitor...</p>
+            <div className="size-12 rounded-full border-4 border-t-transparent animate-spin mb-4" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
+            <p className="font-medium" style={{ color: 'var(--ink-500)' }}>Entering Live Monitor...</p>
         </div>
     );
 }

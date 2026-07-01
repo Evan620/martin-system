@@ -120,13 +120,13 @@ const CoreWorkspace = () => {
         return 'article';
     };
 
-    const getFileColor = (mimeType: string) => {
-        if (mimeType.includes('spreadsheet')) return 'bg-green-50 hover:bg-green-100 border-green-200 text-green-700';
-        if (mimeType.includes('document')) return 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700';
-        if (mimeType.includes('presentation')) return 'bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-700';
-        if (mimeType.includes('pdf')) return 'bg-red-50 hover:bg-red-100 border-red-200 text-red-700';
-        if (mimeType.includes('image')) return 'bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700';
-        return 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-700';
+    const getFileColor = (mimeType: string): { bg: string; border: string; color: string } => {
+        if (mimeType.includes('spreadsheet')) return { bg: 'color-mix(in srgb, var(--sage) 8%, var(--surface))', border: 'color-mix(in srgb, var(--sage) 30%, var(--border))', color: 'var(--sage)' };
+        if (mimeType.includes('document')) return { bg: 'color-mix(in srgb, var(--navy) 8%, var(--surface))', border: 'color-mix(in srgb, var(--navy) 30%, var(--border))', color: 'var(--navy)' };
+        if (mimeType.includes('presentation')) return { bg: 'color-mix(in srgb, var(--amber) 8%, var(--surface))', border: 'color-mix(in srgb, var(--amber) 30%, var(--border))', color: 'var(--amber)' };
+        if (mimeType.includes('pdf')) return { bg: 'color-mix(in srgb, var(--terra) 8%, var(--surface))', border: 'color-mix(in srgb, var(--terra) 30%, var(--border))', color: 'var(--terra)' };
+        if (mimeType.includes('image')) return { bg: 'color-mix(in srgb, var(--gold) 8%, var(--surface))', border: 'color-mix(in srgb, var(--gold) 30%, var(--border))', color: 'var(--gold)' };
+        return { bg: 'var(--surface-2)', border: 'var(--border)', color: 'var(--ink-600)' };
     };
 
     const formatFileSize = (bytes?: number) => {
@@ -151,8 +151,8 @@ const CoreWorkspace = () => {
         : files;
 
     return (
-        <div className="rounded-2xl border border-[#e7ebf3] dark:border-[#2d3748] bg-white dark:bg-[#1a202c] overflow-hidden">
-            <div className="px-6 py-4 border-b border-[#e7ebf3] dark:border-[#2d3748] flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/30">
+        <div className="overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
+            <div className="px-6 py-4 flex justify-between items-center" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                 <div>
                     <h3 className="font-display flex items-center gap-2" style={{ fontWeight: 800, letterSpacing: '-0.02em', fontSize: 16, color: 'var(--ink-900)' }}>
                         <span className="material-symbols-outlined" style={{ color: 'var(--accent)' }}>cloud_circle</span>
@@ -167,7 +167,8 @@ const CoreWorkspace = () => {
                         <select
                             value={selectedTwgFilter}
                             onChange={e => setSelectedTwgFilter(e.target.value)}
-                            className="text-xs font-bold border border-[#cfd7e7] dark:border-[#4a5568] rounded-lg px-3 py-2 bg-white dark:bg-[#2d3748] text-[#4c669a] dark:text-[#a0aec0] focus:ring-teal-500 focus:border-teal-500"
+                            className="text-xs font-bold px-3 py-2 outline-none"
+                            style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)', background: 'var(--surface)', color: 'var(--ink-600)' }}
                         >
                             <option value="">All TWGs</option>
                             {filterableTwgs.map((t: any) => (
@@ -178,8 +179,10 @@ const CoreWorkspace = () => {
                     {canUpload && (
                         <button
                             onClick={() => setShowUpload(!showUpload)}
-                            className={`clickable-scale p-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${showUpload ? 'bg-red-50 text-red-600' : 'text-white'}`}
-                            style={showUpload ? undefined : { background: 'var(--accent)' }}
+                            className="clickable-scale p-2 text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all"
+                            style={showUpload
+                                ? { borderRadius: 'var(--radius-ctl)', background: 'color-mix(in srgb, var(--terra) 12%, transparent)', color: 'var(--terra)' }
+                                : { borderRadius: 'var(--radius-ctl)', background: 'var(--accent)', color: 'var(--accent-ink)' }}
                         >
                             <span className="material-symbols-outlined text-[18px]">{showUpload ? 'close' : 'add'}</span>
                             {showUpload ? 'Close' : 'Add Document'}
@@ -187,20 +190,27 @@ const CoreWorkspace = () => {
                     )}
                     <button
                         onClick={() => setViewMode('grid')}
-                        className={`clickable-scale p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-[#4a5568] shadow-sm text-teal-600' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
+                        className="clickable-scale p-2 transition-all"
+                        style={viewMode === 'grid'
+                            ? { borderRadius: 'var(--radius-ctl)', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--accent)' }
+                            : { borderRadius: 'var(--radius-ctl)', color: 'var(--ink-400)' }}
                     >
                         <span className="material-symbols-outlined text-[20px]">grid_view</span>
                     </button>
                     <button
                         onClick={() => setViewMode('list')}
-                        className={`clickable-scale p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white dark:bg-[#4a5568] shadow-sm text-teal-600' : 'text-[#8a9dbd] hover:text-[#4c669a]'}`}
+                        className="clickable-scale p-2 transition-all"
+                        style={viewMode === 'list'
+                            ? { borderRadius: 'var(--radius-ctl)', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--accent)' }
+                            : { borderRadius: 'var(--radius-ctl)', color: 'var(--ink-400)' }}
                     >
                         <span className="material-symbols-outlined text-[20px]">view_list</span>
                     </button>
                     <button
                         onClick={loadFiles}
                         disabled={loading}
-                        className="clickable-scale p-2 rounded-lg bg-gray-100 dark:bg-[#2d3748] text-[#8a9dbd] hover:text-teal-600 transition-all disabled:opacity-50"
+                        className="clickable-scale p-2 transition-all disabled:opacity-50"
+                        style={{ borderRadius: 'var(--radius-ctl)', background: 'var(--surface-2)', color: 'var(--ink-500)' }}
                     >
                         <span className={`material-symbols-outlined text-[20px] ${loading ? 'animate-spin' : ''}`}>sync</span>
                     </button>
@@ -209,14 +219,14 @@ const CoreWorkspace = () => {
 
             {/* Admin Upload Section - Conditional */}
             {showUpload && canUpload && (
-                <div className="p-6 border-b border-[#e7ebf3] dark:border-[#2d3748] bg-teal-50/20 dark:bg-teal-900/10 animate-in slide-in-from-top-2">
+                <div className="p-6 animate-in slide-in-from-top-2" style={{ borderBottom: '1px solid var(--border)', background: 'var(--accent-soft)' }}>
                     <SharedDocumentsManager onUploadSuccess={handleUploadSuccess} />
                 </div>
             )}
 
             <div className="p-6">
                 {error && (
-                    <div className="p-4 rounded-xl bg-red-50 text-red-600 text-sm font-bold mb-4 flex items-center gap-2">
+                    <div className="p-4 text-sm font-bold mb-4 flex items-center gap-2" style={{ borderRadius: 'var(--radius-ctl)', background: 'color-mix(in srgb, var(--terra) 12%, transparent)', color: 'var(--terra)' }}>
                         <span className="material-symbols-outlined">error</span>
                         {error}
                     </div>
@@ -224,14 +234,14 @@ const CoreWorkspace = () => {
 
                 {loading && filteredFiles.length === 0 ? (
                     <div className="flex justify-center py-12">
-                        <span className="material-symbols-outlined text-4xl text-teal-600 animate-spin">progress_activity</span>
+                        <span className="material-symbols-outlined text-4xl animate-spin" style={{ color: 'var(--accent)' }}>progress_activity</span>
                     </div>
                 ) : filteredFiles.length === 0 ? (
-                    <div className="text-center py-12 border-2 border-dashed border-[#cfd7e7] rounded-xl bg-gray-50/50">
-                        <span className="material-symbols-outlined text-4xl text-[#8a9dbd] mb-2">folder_off</span>
+                    <div className="text-center py-12 border-2 border-dashed" style={{ borderColor: 'var(--border)', borderRadius: 'var(--radius-ctl)', background: 'var(--surface-2)' }}>
+                        <span className="material-symbols-outlined text-4xl mb-2" style={{ color: 'var(--ink-400)' }}>folder_off</span>
                         <p className="font-bold text-xs tracking-tight" style={{ color: 'var(--ink-500)' }}>No core documents found.</p>
                         {canUpload && !showUpload && (
-                            <button onClick={() => setShowUpload(true)} className="mt-4 text-xs font-bold text-teal-600 hover:underline uppercase">
+                            <button onClick={() => setShowUpload(true)} className="mt-4 text-xs font-bold hover:underline uppercase" style={{ color: 'var(--accent)' }}>
                                 Upload First Document
                             </button>
                         )}
@@ -243,7 +253,8 @@ const CoreWorkspace = () => {
                                 {filteredFiles.map((file) => (
                                     <div
                                         key={file.id}
-                                        className={`group relative flex flex-col p-4 rounded-xl border transition-all duration-200 ${getFileColor(file.mimeType)}`}
+                                        className="group relative flex flex-col p-4 transition-all duration-200"
+                                        style={{ borderRadius: 'var(--radius-ctl)', border: `1px solid ${getFileColor(file.mimeType).border}`, background: getFileColor(file.mimeType).bg, color: getFileColor(file.mimeType).color }}
                                     >
                                         <a
                                             href={file.webViewLink}
@@ -263,7 +274,7 @@ const CoreWorkspace = () => {
                                                 {new Date(file.modifiedTime).toLocaleDateString()}
                                             </div>
                                             {file.size && (
-                                                <div className="font-mono-geist text-[10px] text-gray-600 mt-1">
+                                                <div className="font-mono-geist text-[10px] mt-1" style={{ color: 'var(--ink-500)' }}>
                                                     {formatFileSize(file.size)}
                                                 </div>
                                             )}
@@ -300,13 +311,14 @@ const CoreWorkspace = () => {
                                             <button
                                                 onClick={(e) => handleDelete(file.id, file.name, e)}
                                                 disabled={deletingId === file.id}
-                                                className="clickable-scale absolute top-2 right-2 p-1.5 bg-white dark:bg-[#2d3748] rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 shadow-sm"
+                                                className="clickable-scale absolute top-2 right-2 p-1.5 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
+                                                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)' }}
                                                 title="Delete file"
                                             >
                                                 {deletingId === file.id ? (
-                                                    <span className="material-symbols-outlined text-[16px] text-red-600 animate-spin">progress_activity</span>
+                                                    <span className="material-symbols-outlined text-[16px] animate-spin" style={{ color: 'var(--terra)' }}>progress_activity</span>
                                                 ) : (
-                                                    <span className="material-symbols-outlined text-[16px] text-red-600">delete</span>
+                                                    <span className="material-symbols-outlined text-[16px]" style={{ color: 'var(--terra)' }}>delete</span>
                                                 )}
                                             </button>
                                         )}
@@ -318,7 +330,8 @@ const CoreWorkspace = () => {
                                 {filteredFiles.map((file) => (
                                     <div
                                         key={file.id}
-                                        className="flex items-center p-3 rounded-xl border border-[#e7ebf3] hover:border-teal-600 bg-white hover:shadow-md transition-all group"
+                                        className="flex items-center p-3 transition-all group"
+                                        style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', background: 'var(--surface)' }}
                                     >
                                         <a
                                             href={file.webViewLink}
@@ -326,11 +339,11 @@ const CoreWorkspace = () => {
                                             rel="noreferrer"
                                             className="flex items-center flex-1 min-w-0"
                                         >
-                                            <div className={`size-10 rounded-lg flex items-center justify-center mr-4 ${getFileColor(file.mimeType).replace('hover:shadow-lg hover:-translate-y-1', '')}`}>
+                                            <div className="size-10 rounded-lg flex items-center justify-center mr-4" style={{ background: getFileColor(file.mimeType).bg, border: `1px solid ${getFileColor(file.mimeType).border}`, color: getFileColor(file.mimeType).color }}>
                                                 <span className="material-symbols-outlined text-[20px]">{getIcon(file.mimeType)}</span>
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-xs font-bold text-[#0d121b] group-hover:text-teal-600 transition-colors truncate tracking-tight">{file.name}</p>
+                                                <p className="text-xs font-bold transition-colors truncate tracking-tight" style={{ color: 'var(--ink-900)' }}>{file.name}</p>
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <p className="font-mono-geist text-[9px] font-semibold uppercase tracking-wider" style={{ color: 'var(--ink-400)' }}>
                                                         Modified {new Date(file.modifiedTime).toLocaleDateString()}
@@ -364,19 +377,20 @@ const CoreWorkspace = () => {
                                                     )}
                                                 </div>
                                             </div>
-                                            <span className="material-symbols-outlined text-[#8a9dbd] group-hover:text-teal-600 opacity-0 group-hover:opacity-100 transition-all ml-4">open_in_new</span>
+                                            <span className="material-symbols-outlined opacity-0 group-hover:opacity-100 transition-all ml-4" style={{ color: 'var(--accent)' }}>open_in_new</span>
                                         </a>
                                         {isAdmin && (
                                             <button
                                                 onClick={(e) => handleDelete(file.id, file.name, e)}
                                                 disabled={deletingId === file.id}
-                                                className="clickable-scale ml-2 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all disabled:opacity-50"
+                                                className="clickable-scale ml-2 p-2 transition-all disabled:opacity-50"
+                                                style={{ borderRadius: 'var(--radius-ctl)' }}
                                                 title="Delete file"
                                             >
                                                 {deletingId === file.id ? (
-                                                    <span className="material-symbols-outlined text-red-600 animate-spin">progress_activity</span>
+                                                    <span className="material-symbols-outlined animate-spin" style={{ color: 'var(--terra)' }}>progress_activity</span>
                                                 ) : (
-                                                    <span className="material-symbols-outlined text-red-600">delete</span>
+                                                    <span className="material-symbols-outlined" style={{ color: 'var(--terra)' }}>delete</span>
                                                 )}
                                             </button>
                                         )}

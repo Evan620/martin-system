@@ -22,7 +22,8 @@ export default function FloatingChatbot() {
                 onClick={handleClick}
                 onMouseEnter={() => setIsOpen(true)}
                 onMouseLeave={() => setIsOpen(false)}
-                className="fixed bottom-8 right-8 w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white rounded-full shadow-2xl shadow-blue-900/50 flex items-center justify-center transition-all duration-300 hover:scale-110 z-50 group"
+                className="fixed bottom-8 right-8 w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 z-50 group"
+                style={{ background: 'var(--accent)', color: 'var(--accent-ink)', boxShadow: '0 12px 32px color-mix(in srgb, var(--accent) 40%, transparent)' }}
                 aria-label="Open Secretariat Martin"
             >
                 <svg
@@ -35,31 +36,32 @@ export default function FloatingChatbot() {
                 </svg>
 
                 {/* Pulse animation */}
-                <span className="absolute inset-0 rounded-full bg-blue-400 animate-ping opacity-20"></span>
+                <span className="absolute inset-0 rounded-full animate-ping opacity-20" style={{ background: 'var(--accent)' }}></span>
 
                 {/* Notification badge */}
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-lg">
+                <span className="absolute -top-1 -right-1 w-5 h-5 text-[10px] font-black rounded-full flex items-center justify-center shadow-lg" style={{ background: 'var(--terra)', color: 'var(--accent-ink)' }}>
                     3
                 </span>
             </button>
 
             {/* Tooltip */}
             <div
-                className={`fixed bottom-8 right-28 bg-slate-900 dark:bg-slate-800 text-white px-4 py-2 rounded-xl shadow-2xl transition-all duration-300 z-50 ${isOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'
+                className={`fixed bottom-8 right-28 px-4 py-2 shadow-2xl transition-all duration-300 z-50 ${isOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'
                     }`}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)', color: 'var(--ink-900)' }}
             >
                 <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-4 h-4" style={{ color: 'var(--accent)' }} fill="currentColor" viewBox="0 0 20 20">
                         <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
                     </svg>
                     <div>
-                        <p className="text-sm font-bold">Secretariat Martin</p>
-                        <p className="text-[10px] text-slate-400">AI-powered support</p>
+                        <p className="text-sm font-bold" style={{ color: 'var(--ink-900)' }}>Secretariat Martin</p>
+                        <p className="text-[10px]" style={{ color: 'var(--ink-500)' }}>AI-powered support</p>
                     </div>
                 </div>
                 {/* Arrow */}
                 <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full">
-                    <div className="w-0 h-0 border-t-8 border-t-transparent border-b-8 border-b-transparent border-l-8 border-l-slate-900 dark:border-l-slate-800"></div>
+                    <div className="w-0 h-0 border-t-8 border-t-transparent border-b-8 border-b-transparent border-l-8" style={{ borderLeftColor: 'var(--surface)' }}></div>
                 </div>
             </div>
         </>

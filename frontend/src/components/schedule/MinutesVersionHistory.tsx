@@ -80,19 +80,20 @@ export default function MinutesVersionHistory({ meetingId, isOpen, onClose, onRe
     if (!isOpen) return null
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+            <div className="max-w-6xl w-full max-h-[90vh] flex flex-col" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between p-6" style={{ borderBottom: '1px solid var(--border)' }}>
                     <div>
-                        <h2 className="text-2xl font-display font-bold text-slate-900 dark:text-white">Version History</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">View and restore previous versions of minutes</p>
+                        <h2 className="text-2xl font-display font-bold" style={{ color: 'var(--ink-900)' }}>Version History</h2>
+                        <p className="text-sm mt-1" style={{ color: 'var(--ink-500)' }}>View and restore previous versions of minutes</p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                        className="p-2 rounded-lg qp-transition"
+                        style={{ borderRadius: 'var(--radius-ctl)' }}
                     >
-                        <svg className="w-6 h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-6 h-6" style={{ color: 'var(--ink-500)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
@@ -101,36 +102,36 @@ export default function MinutesVersionHistory({ meetingId, isOpen, onClose, onRe
                 {/* Content */}
                 <div className="flex-1 overflow-hidden flex">
                     {/* Version List */}
-                    <div className="w-80 border-r border-slate-200 dark:border-slate-700 overflow-y-auto">
+                    <div className="w-80 overflow-y-auto" style={{ borderRight: '1px solid var(--border)' }}>
                         {loading ? (
-                            <div className="p-8 text-center text-slate-500">Loading versions...</div>
+                            <div className="p-8 text-center" style={{ color: 'var(--ink-500)' }}>Loading versions...</div>
                         ) : versions.length === 0 ? (
-                            <div className="p-8 text-center text-slate-500">No version history yet</div>
+                            <div className="p-8 text-center" style={{ color: 'var(--ink-500)' }}>No version history yet</div>
                         ) : (
                             <div className="p-4 space-y-2">
                                 {versions.map((version) => (
                                     <button
                                         key={version.id}
                                         onClick={() => setSelectedVersion(version)}
-                                        className={`w-full text-left p-4 rounded-xl transition-all ${selectedVersion?.id === version.id
-                                                ? 'bg-teal-50 dark:bg-teal-900/20 border-2 border-teal-500'
-                                                : 'bg-slate-50 dark:bg-slate-800 border-2 border-transparent hover:border-slate-300 dark:hover:border-slate-600'
-                                            }`}
+                                        className="w-full text-left p-4 qp-transition"
+                                        style={selectedVersion?.id === version.id
+                                            ? { background: 'var(--accent-soft)', border: '1px solid var(--accent)', borderRadius: 'var(--radius-ctl)' }
+                                            : { background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)' }}
                                     >
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className="font-bold text-sm text-teal-600 dark:text-teal-400">
+                                            <span className="font-bold text-sm" style={{ color: 'var(--accent)' }}>
                                                 Version {version.version_number}
                                             </span>
-                                            <span className="text-xs text-slate-500">
+                                            <span className="text-xs" style={{ color: 'var(--ink-500)' }}>
                                                 {formatDate(version.created_at)}
                                             </span>
                                         </div>
                                         {version.change_summary && (
-                                            <p className="text-xs text-slate-600 dark:text-slate-400 mb-2 line-clamp-2">
+                                            <p className="text-xs mb-2 line-clamp-2" style={{ color: 'var(--ink-600)' }}>
                                                 {version.change_summary}
                                             </p>
                                         )}
-                                        <div className="text-xs text-slate-500">
+                                        <div className="text-xs" style={{ color: 'var(--ink-500)' }}>
                                             by {version.author?.full_name || 'Unknown'}
                                         </div>
                                     </button>
@@ -145,14 +146,14 @@ export default function MinutesVersionHistory({ meetingId, isOpen, onClose, onRe
                             <div>
                                 <div className="flex items-center justify-between mb-6">
                                     <div>
-                                        <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                                        <h3 className="text-xl font-bold" style={{ color: 'var(--ink-900)' }}>
                                             Version {selectedVersion.version_number}
                                         </h3>
-                                        <p className="text-sm text-slate-500 mt-1">
+                                        <p className="text-sm mt-1" style={{ color: 'var(--ink-500)' }}>
                                             {formatDate(selectedVersion.created_at)} • {selectedVersion.author?.full_name}
                                         </p>
                                         {selectedVersion.change_summary && (
-                                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 italic">
+                                            <p className="text-sm mt-2 italic" style={{ color: 'var(--ink-600)' }}>
                                                 "{selectedVersion.change_summary}"
                                             </p>
                                         )}
@@ -160,7 +161,8 @@ export default function MinutesVersionHistory({ meetingId, isOpen, onClose, onRe
                                     <button
                                         onClick={() => handleRestore(selectedVersion)}
                                         disabled={restoring}
-                                        className="px-4 py-2 bg-teal-600 hover:bg-teal-500 disabled:bg-slate-400 text-white rounded-lg font-bold transition-all flex items-center gap-2 clickable-scale"
+                                        className="px-4 py-2 rounded-lg font-bold qp-transition flex items-center gap-2 clickable-scale disabled:opacity-50 disabled:cursor-not-allowed"
+                                        style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
                                     >
                                         {restoring ? (
                                             <>
@@ -190,7 +192,7 @@ export default function MinutesVersionHistory({ meetingId, isOpen, onClose, onRe
                                 </Card>
                             </div>
                         ) : (
-                            <div className="h-full flex items-center justify-center text-slate-400">
+                            <div className="h-full flex items-center justify-center" style={{ color: 'var(--ink-400)' }}>
                                 <div className="text-center">
                                     <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

@@ -22,23 +22,35 @@ export function CommandAutocomplete({
   if (suggestions.length === 0) return null;
 
   return (
-    <div className="absolute bottom-full left-0 mb-2 w-72 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden transform transition-all">
+    <div
+      className="absolute bottom-full left-0 mb-2 w-72 z-50 overflow-hidden transform transition-all"
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-card)',
+        boxShadow: '0 10px 30px -12px rgba(0,0,0,0.28)'
+      }}
+    >
       <div className="max-h-64 overflow-y-auto py-1">
         {suggestions.map((suggestion, index) => (
           <button
             key={suggestion.command}
             onClick={() => onSelect(suggestion)}
             onMouseEnter={() => onHover(index)}
-            className={`clickable-scale w-full text-left px-3 py-2.5 transition-colors flex items-center gap-3 ${index === selectedIndex
-                ? 'bg-teal-50 dark:bg-teal-900/40'
-                : 'hover:bg-gray-50 dark:hover:bg-slate-800'
-              }`}
+            className="clickable-scale qp-transition w-full text-left px-3 py-2.5 flex items-center gap-3"
+            style={{
+              background: index === selectedIndex ? 'var(--accent-soft)' : 'transparent'
+            }}
           >
             {/* Icon */}
-            <div className={`size-8 rounded-md flex items-center justify-center flex-shrink-0 ${index === selectedIndex
-                ? 'bg-teal-100 dark:bg-teal-800 text-teal-600 dark:text-teal-200'
-                : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400'
-              }`}>
+            <div
+              className="size-8 flex items-center justify-center flex-shrink-0"
+              style={{
+                borderRadius: 'var(--radius-ctl)',
+                background: index === selectedIndex ? 'var(--accent)' : 'var(--surface-2)',
+                color: index === selectedIndex ? 'var(--accent-ink)' : 'var(--ink-500)'
+              }}
+            >
               <span className="material-symbols-outlined text-[18px]">
                 {getCategoryIcon(suggestion.category || 'general')}
               </span>
@@ -46,16 +58,16 @@ export function CommandAutocomplete({
 
             {/* Info */}
             <div className="min-w-0 flex-1">
-              <div className={`text-sm font-medium font-mono ${index === selectedIndex
-                  ? 'text-teal-700 dark:text-teal-100'
-                  : 'text-gray-900 dark:text-gray-100'
-                }`}>
+              <div
+                className="text-sm font-medium font-mono"
+                style={{ color: index === selectedIndex ? 'var(--accent)' : 'var(--ink-900)' }}
+              >
                 {suggestion.command}
               </div>
-              <div className={`text-xs truncate ${index === selectedIndex
-                  ? 'text-teal-600/80 dark:text-teal-300/80'
-                  : 'text-gray-500 dark:text-gray-400'
-                }`}>
+              <div
+                className="text-xs truncate"
+                style={{ color: index === selectedIndex ? 'var(--accent)' : 'var(--ink-500)' }}
+              >
                 {suggestion.description}
               </div>
             </div>

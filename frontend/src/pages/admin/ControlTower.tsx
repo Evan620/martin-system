@@ -16,12 +16,12 @@ export default function ControlTower() {
         <div className="space-y-6">
             {/* Page Header */}
             <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-2xl text-red-500">radar</span>
+                <div className="w-12 h-12 flex items-center justify-center" style={{ borderRadius: 'var(--radius-ctl)', background: 'color-mix(in srgb, var(--terra) 12%, transparent)' }}>
+                    <span className="material-symbols-outlined text-2xl" style={{ color: 'var(--terra)' }}>radar</span>
                 </div>
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white">Control Tower</h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Synthesis & Conflict Resolution Center</p>
+                    <h1 className="text-2xl font-display font-bold" style={{ color: 'var(--ink-900)' }}>Control Tower</h1>
+                    <p className="text-sm" style={{ color: 'var(--ink-500)' }}>Synthesis & Conflict Resolution Center</p>
                 </div>
             </div>
 

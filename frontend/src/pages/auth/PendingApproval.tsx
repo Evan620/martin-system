@@ -3,24 +3,24 @@ import { Card, Button } from '../../components/ui'
 
 export default function PendingApproval() {
     return (
-        <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6">
+        <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'var(--bg)' }}>
             <div className="w-full max-w-md animate-blur-slide">
-                <Card className="border-slate-800 bg-slate-900/50 p-8 text-center space-y-6">
-                    <div className="w-20 h-20 bg-teal-600/10 rounded-full flex items-center justify-center mx-auto">
-                        <svg className="w-10 h-10 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <Card className="p-8 text-center space-y-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
+                    <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto" style={{ background: 'var(--accent-soft)' }}>
+                        <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--accent)' }}>
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
 
                     <div className="space-y-2">
-                        <h1 className="text-2xl font-bold text-white">Application Pending</h1>
-                        <p className="text-slate-400">
+                        <h1 className="text-2xl font-bold" style={{ color: 'var(--ink-900)' }}>Application Pending</h1>
+                        <p style={{ color: 'var(--ink-600)' }}>
                             Your account has been successfully created and is currently awaiting administrator approval.
                         </p>
                     </div>
 
-                    <div className="bg-slate-800/50 p-4 rounded-lg text-sm text-slate-300 text-left">
-                        <p className="font-semibold mb-1 text-white">What happens next?</p>
+                    <div className="p-4 text-sm text-left" style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-ctl)', color: 'var(--ink-700)' }}>
+                        <p className="font-semibold mb-1" style={{ color: 'var(--ink-900)' }}>What happens next?</p>
                         <ul className="list-disc list-inside space-y-1">
                             <li>An administrator will review your request.</li>
                             <li>They will assign your organizational role.</li>
@@ -37,7 +37,7 @@ export default function PendingApproval() {
                     </div>
                 </Card>
 
-                <p className="mt-8 text-center text-xs text-slate-600">
+                <p className="mt-8 text-center text-xs" style={{ color: 'var(--ink-400)' }}>
                     WAIIS © 2026. Authorized Personnel Only.
                 </p>
             </div>

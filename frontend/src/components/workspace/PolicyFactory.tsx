@@ -56,10 +56,10 @@ export default function PolicyFactory() {
 
     const getColumnColor = (type: string) => {
         switch (type) {
-            case 'zero_draft': return 'border-t-blue-500';
-            case 'rap_mode': return 'border-t-purple-500';
-            case 'declaration_txt': return 'border-t-emerald-500';
-            default: return 'border-t-slate-500';
+            case 'zero_draft': return 'var(--accent)';
+            case 'rap_mode': return 'var(--navy)';
+            case 'declaration_txt': return 'var(--sage)';
+            default: return 'var(--ink-500)';
         }
     };
 
@@ -68,10 +68,13 @@ export default function PolicyFactory() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-display font-bold text-slate-900 dark:text-white">Policy & Content Factory</h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Manufacture, Refine, and Finalize Technical Outputs</p>
+                    <h2 className="text-2xl font-display font-bold" style={{ color: 'var(--ink-900)' }}>Policy & Content Factory</h2>
+                    <p className="text-sm" style={{ color: 'var(--ink-500)' }}>Manufacture, Refine, and Finalize Technical Outputs</p>
                 </div>
-                <button className="clickable-scale px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-teal-900/20 transition-all flex items-center gap-2">
+                <button
+                    className="clickable-scale px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2"
+                    style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
+                >
                     <span className="material-symbols-outlined text-[20px]">add</span>
                     New Zero Draft
                 </button>
@@ -80,11 +83,18 @@ export default function PolicyFactory() {
             {/* Factory Floor (Kanban) */}
             <div className="grid grid-cols-3 gap-6 h-full overflow-hidden">
                 {['zero_draft', 'rap_mode', 'declaration_txt'].map((type) => (
-                    <div key={type} className="flex flex-col h-full bg-slate-50 dark:bg-slate-800/20 rounded-2xl border border-slate-100 dark:border-slate-700/50 overflow-hidden">
+                    <div
+                        key={type}
+                        className="flex flex-col h-full overflow-hidden"
+                        style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}
+                    >
                         {/* Column Header */}
-                        <div className={`p-4 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 border-t-4 ${getColumnColor(type)}`}>
+                        <div
+                            className="p-4"
+                            style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', borderTop: `4px solid ${getColumnColor(type)}` }}
+                        >
                             <div className="flex justify-between items-center">
-                                <h3 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-xs">{getColumnTitle(type)}</h3>
+                                <h3 className="qp-eyebrow" style={{ fontSize: '11px' }}>{getColumnTitle(type)}</h3>
                                 <Badge variant="neutral" size="sm" className="font-black">
                                     {drafts.filter(d => d.type === type).length}
                                 </Badge>
@@ -96,30 +106,36 @@ export default function PolicyFactory() {
                             {drafts.filter(d => d.type === type).map((draft) => (
                                 <Card
                                     key={draft.id}
-                                    className="clickable-scale p-4 cursor-pointer hover:border-teal-500/50 hover:shadow-md transition-all group"
+                                    className="clickable-scale p-4 cursor-pointer hover:shadow-md transition-all group"
                                     onClick={() => setActiveDraft(draft)}
                                 >
                                     <div className="flex justify-between items-start mb-2">
                                         <Badge variant={draft.type === 'zero_draft' ? 'info' : draft.type === 'rap_mode' ? 'warning' : 'success'} size="sm" className="bg-opacity-10">
                                             {draft.status}
                                         </Badge>
-                                        <span className="text-[10px] text-slate-400 font-bold">{draft.lastUpdated}</span>
+                                        <span className="text-[10px] font-bold" style={{ color: 'var(--ink-400)' }}>{draft.lastUpdated}</span>
                                     </div>
-                                    <h4 className="font-bold text-sm text-slate-900 dark:text-white mb-2 leading-tight group-hover:text-teal-500 transition-colors">
+                                    <h4
+                                        className="font-bold text-sm mb-2 leading-tight transition-colors group-hover:[color:var(--accent)]"
+                                        style={{ color: 'var(--ink-900)' }}
+                                    >
                                         {draft.title}
                                     </h4>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">
+                                    <p className="text-xs line-clamp-2 mb-3" style={{ color: 'var(--ink-500)' }}>
                                         {draft.content_preview}
                                     </p>
-                                    <div className="flex items-center gap-2 border-t border-slate-50 dark:border-slate-800 pt-3">
-                                        <Avatar size="xs" fallback="AI" className="bg-slate-100 dark:bg-slate-700 text-slate-500" />
-                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{draft.author}</span>
+                                    <div className="flex items-center gap-2 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                                        <Avatar size="xs" fallback="AI" style={{ background: 'var(--surface-2)', color: 'var(--ink-500)' }} />
+                                        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-500)' }}>{draft.author}</span>
                                     </div>
                                 </Card>
                             ))}
                             {/* Empty State placeholder */}
                             {drafts.filter(d => d.type === type).length === 0 && (
-                                <div className="h-32 flex flex-col items-center justify-center text-slate-400 opacity-50 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                                <div
+                                    className="h-32 flex flex-col items-center justify-center opacity-70 border-2 border-dashed rounded-xl"
+                                    style={{ color: 'var(--ink-400)', borderColor: 'var(--border)', borderRadius: 'var(--radius-ctl)' }}
+                                >
                                     <span className="material-symbols-outlined text-3xl mb-1">post_add</span>
                                     <span className="text-xs font-bold uppercase">No Items</span>
                                 </div>
@@ -131,30 +147,43 @@ export default function PolicyFactory() {
 
             {/* Editor Modal (Mock) */}
             {activeDraft && (
-                <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-6">
-                    <div className="bg-white dark:bg-[#1a202c] w-full max-w-6xl h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <div className="fixed inset-0 z-[100] backdrop-blur-sm flex items-center justify-center p-6" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                    <div
+                        className="w-full max-w-6xl h-[80vh] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}
+                    >
                         {/* Modal Header */}
-                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-[#1a202c]">
+                        <div
+                            className="px-6 py-4 flex justify-between items-center"
+                            style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
+                        >
                             <div className="flex items-center gap-4">
-                                <div className="p-2 bg-teal-50 dark:bg-teal-900/20 rounded-lg text-teal-600">
+                                <div className="p-2 rounded-lg" style={{ background: 'var(--accent-soft)', color: 'var(--accent)', borderRadius: 'var(--radius-ctl)' }}>
                                     <span className="material-symbols-outlined">edit_document</span>
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">{activeDraft.title}</h3>
-                                    <p className="text-xs text-slate-500">Editing in {activeDraft.type === 'zero_draft' ? 'Zero Draft' : activeDraft.type === 'rap_mode' ? 'Rapporteur' : 'Declaration'} Mode</p>
+                                    <h3 className="font-bold text-lg" style={{ color: 'var(--ink-900)' }}>{activeDraft.title}</h3>
+                                    <p className="text-xs" style={{ color: 'var(--ink-500)' }}>Editing in {activeDraft.type === 'zero_draft' ? 'Zero Draft' : activeDraft.type === 'rap_mode' ? 'Rapporteur' : 'Declaration'} Mode</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
-                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Auto-saved 2m ago</span>
-                                <button className="clickable-scale px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--ink-400)' }}>Auto-saved 2m ago</span>
+                                <button
+                                    className="clickable-scale px-4 py-2 rounded-lg font-bold text-xs transition-colors"
+                                    style={{ background: 'var(--surface-2)', color: 'var(--ink-700)', borderRadius: 'var(--radius-ctl)' }}
+                                >
                                     Share
                                 </button>
-                                <button className="clickable-scale px-4 py-2 bg-teal-600 text-white rounded-lg font-bold text-xs hover:bg-teal-500 transition-colors">
+                                <button
+                                    className="clickable-scale px-4 py-2 rounded-lg font-bold text-xs transition-colors"
+                                    style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
+                                >
                                     Save & Close
                                 </button>
                                 <button
                                     onClick={() => setActiveDraft(null)}
-                                    className="clickable-scale p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                                    className="clickable-scale p-2 transition-colors hover:[color:var(--ink-700)]"
+                                    style={{ color: 'var(--ink-400)' }}
                                 >
                                     <span className="material-symbols-outlined">close</span>
                                 </button>
@@ -164,34 +193,35 @@ export default function PolicyFactory() {
                         {/* Modal Body: Split View */}
                         <div className="flex-1 flex overflow-hidden">
                             {/* Left: AI Context / Chat */}
-                            <div className="w-1/3 bg-slate-50 dark:bg-[#0d121b] border-r border-slate-100 dark:border-slate-700 flex flex-col">
-                                <div className="p-4 border-b border-slate-100 dark:border-slate-800">
-                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <div className="w-1/3 flex flex-col" style={{ background: 'var(--surface-2)', borderRight: '1px solid var(--border)' }}>
+                                <div className="p-4" style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <h4 className="qp-eyebrow flex items-center gap-2" style={{ fontSize: '11px' }}>
                                         <span className="material-symbols-outlined text-[16px]">smart_toy</span>
                                         Context & Research
                                     </h4>
                                 </div>
                                 <div className="flex-1 p-4 overflow-y-auto">
-                                    <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700 mb-3">
-                                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                                    <div className="p-3 rounded-lg mb-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)' }}>
+                                        <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-600)' }}>
                                             Based on the transcript from "Session 4", here is the suggested paragraph for the Energy Clause.
                                         </p>
                                     </div>
                                     {/* Mock Chat Input */}
                                 </div>
-                                <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#1a202c]">
+                                <div className="p-4" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
                                     <input
                                         type="text"
                                         placeholder="Ask AI to refine text..."
-                                        className="w-full text-xs bg-slate-50 dark:bg-slate-800 border-none rounded-lg p-3 focus:ring-1 focus:ring-teal-500"
+                                        className="w-full text-xs border-none rounded-lg p-3 focus:ring-1"
+                                        style={{ background: 'var(--surface-2)', color: 'var(--ink-800)', borderRadius: 'var(--radius-ctl)' }}
                                     />
                                 </div>
                             </div>
 
                             {/* Right: Document Editor */}
-                            <div className="flex-1 bg-white dark:bg-[#1a202c] overflow-y-auto p-12">
-                                <div className="max-w-3xl mx-auto space-y-6 text-slate-800 dark:text-slate-200 font-serif leading-loose">
-                                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-8">{activeDraft.title}</h1>
+                            <div className="flex-1 overflow-y-auto p-12" style={{ background: 'var(--surface)' }}>
+                                <div className="max-w-3xl mx-auto space-y-6 font-serif leading-loose" style={{ color: 'var(--ink-800)' }}>
+                                    <h1 className="text-3xl font-bold mb-8" style={{ color: 'var(--ink-900)' }}>{activeDraft.title}</h1>
                                     <p>
                                         {activeDraft.content_preview}
                                     </p>

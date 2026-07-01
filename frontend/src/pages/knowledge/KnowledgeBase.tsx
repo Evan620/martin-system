@@ -149,10 +149,10 @@ export default function KnowledgeBase() {
         <div className="max-w-6xl mx-auto space-y-8 py-4">
             {/* Search Header */}
             <div className="text-center space-y-6">
-                <h1 className="text-4xl font-display font-bold text-slate-900 dark:text-white transition-colors">Global Knowledge Base</h1>
+                <h1 className="text-4xl font-display font-bold qp-transition" style={{ color: 'var(--ink-900)' }}>Global Knowledge Base</h1>
                 <form onSubmit={runSearch} className="max-w-2xl mx-auto relative group">
-                    <div className="relative flex items-center bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border rounded-2xl p-1 transition-all">
-                        <div className="pl-4 pr-2 text-slate-400">
+                    <div className="relative flex items-center p-1 qp-transition" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
+                        <div className="pl-4 pr-2" style={{ color: 'var(--ink-400)' }}>
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                         </div>
                         <input
@@ -160,10 +160,11 @@ export default function KnowledgeBase() {
                             value={queryInput}
                             onChange={(e) => setQueryInput(e.target.value)}
                             placeholder="Search documents by name, working group, or owner..."
-                            className="flex-1 bg-transparent border-0 py-3 text-lg focus:ring-0 text-slate-900 dark:text-white placeholder:text-slate-400"
+                            className="flex-1 bg-transparent border-0 py-3 text-lg focus:ring-0"
+                            style={{ color: 'var(--ink-900)' }}
                         />
                         <div className="flex items-center gap-2 pr-2">
-                            <button type="submit" className="clickable-scale bg-teal-600 hover:bg-teal-500 text-white font-bold py-2.5 px-6 rounded-xl transition-all flex items-center gap-2">
+                            <button type="submit" className="clickable-scale font-bold py-2.5 px-6 transition-all flex items-center gap-2" style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}>
                                 Search
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
                             </button>
@@ -176,7 +177,10 @@ export default function KnowledgeBase() {
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`clickable-scale px-4 py-1.5 rounded-full text-sm font-bold transition-all ${tab === activeTab ? 'bg-teal-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                            className="clickable-scale px-4 py-1.5 rounded-full text-sm font-bold transition-all"
+                            style={tab === activeTab
+                                ? { background: 'var(--accent)', color: 'var(--accent-ink)' }
+                                : { background: 'var(--surface-2)', color: 'var(--ink-500)' }}
                         >
                             {tab}
                         </button>
@@ -187,22 +191,23 @@ export default function KnowledgeBase() {
             <div className="flex flex-col lg:flex-row gap-8">
                 {/* Filters Sidebar */}
                 <aside className="hidden lg:block w-56 space-y-8 flex-shrink-0">
-                    <div className="bg-white dark:bg-dark-card border border-slate-200 dark:border-dark-border rounded-2xl p-5 space-y-6 transition-colors shadow-sm">
+                    <div className="p-5 space-y-6 qp-transition" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
                         <div className="flex items-center justify-between">
-                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <h3 className="text-xs font-bold uppercase tracking-widest flex items-center gap-2" style={{ color: 'var(--ink-500)' }}>
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
                                 Filters
                             </h3>
-                            <button onClick={resetFilters} className="text-[10px] text-teal-600 font-bold hover:underline">Reset</button>
+                            <button onClick={resetFilters} className="text-[10px] font-bold hover:underline" style={{ color: 'var(--accent)' }}>Reset</button>
                         </div>
 
                         <div className="space-y-4">
                             <div className="space-y-3">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase">Date Range</label>
+                                <label className="text-[10px] font-bold uppercase" style={{ color: 'var(--ink-500)' }}>Date Range</label>
                                 <select
                                     value={dateRangeIdx}
                                     onChange={(e) => setDateRangeIdx(Number(e.target.value))}
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border-0 rounded-lg py-2 px-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 transition-colors"
+                                    className="w-full border-0 py-2 px-3 text-sm font-medium focus:ring-2 qp-transition"
+                                    style={{ background: 'var(--surface-2)', color: 'var(--ink-900)', borderRadius: 'var(--radius-ctl)' }}
                                 >
                                     {DATE_RANGES.map((r, i) => <option key={r.label} value={i}>{r.label}</option>)}
                                 </select>
@@ -210,17 +215,17 @@ export default function KnowledgeBase() {
 
                             {twgOptions.length > 0 && (
                                 <div className="space-y-3">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Working Group</label>
+                                    <label className="text-[10px] font-bold uppercase" style={{ color: 'var(--ink-500)' }}>Working Group</label>
                                     <div className="space-y-2">
                                         {twgOptions.map(twg => {
                                             const checked = selectedTwgIds.includes(twg.id)
                                             return (
                                                 <label key={twg.id} className="flex items-center gap-3 cursor-pointer group">
                                                     <input type="checkbox" className="sr-only" checked={checked} onChange={() => toggleTwg(twg.id)} />
-                                                    <div className={`w-4 h-4 rounded border transition-colors flex items-center justify-center ${checked ? 'bg-teal-600 border-teal-600' : 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-dark-border'}`}>
-                                                        {checked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                                    <div className="w-4 h-4 rounded border transition-colors flex items-center justify-center" style={checked ? { background: 'var(--accent)', borderColor: 'var(--accent)' } : { background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                                                        {checked && <svg className="w-3 h-3" style={{ color: 'var(--accent-ink)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                                                     </div>
-                                                    <span className={`text-xs font-medium transition-colors ${checked ? 'text-slate-900 dark:text-white' : 'text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300'}`}>{twg.name}</span>
+                                                    <span className="text-xs font-medium transition-colors" style={{ color: checked ? 'var(--ink-900)' : 'var(--ink-500)' }}>{twg.name}</span>
                                                 </label>
                                             )
                                         })}
@@ -234,19 +239,19 @@ export default function KnowledgeBase() {
                 {/* Results Area */}
                 <div className="flex-1 space-y-8">
                     {/* Summary Card */}
-                    <Card className="p-0 overflow-hidden bg-gradient-to-br from-teal-600/10 to-transparent border-teal-500/20 shadow-none">
+                    <Card className="p-0 overflow-hidden shadow-none" style={{ background: 'var(--accent-soft)', border: '1px solid color-mix(in srgb, var(--accent) 30%, var(--border))' }}>
                         <div className="p-6 flex items-start gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center text-white shrink-0">
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}>
                                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                             </div>
                             <div className="space-y-2">
-                                <h3 className="font-bold text-slate-900 dark:text-white tracking-wide">Knowledge Base</h3>
-                                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                                <h3 className="font-bold tracking-wide" style={{ color: 'var(--ink-900)' }}>Knowledge Base</h3>
+                                <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-700)' }}>
                                     {loading
                                         ? 'Loading your accessible documents...'
                                         : query
-                                            ? <>Showing <span className="text-teal-600 font-bold">{filteredDocs.length}</span> {filteredDocs.length === 1 ? 'document' : 'documents'} matching <span className="text-teal-600 font-bold">"{query}"</span>{searchingFragments ? ' — running semantic search...' : fragments.length > 0 ? <> and <span className="font-bold">{fragments.length}</span> AI knowledge fragments.</> : '.'}</>
-                                            : <>You have access to <span className="text-teal-600 font-bold">{documents.length}</span> {documents.length === 1 ? 'document' : 'documents'} across the WAIIS working groups. Search above or filter to narrow your results.</>}
+                                            ? <>Showing <span className="font-bold" style={{ color: 'var(--accent)' }}>{filteredDocs.length}</span> {filteredDocs.length === 1 ? 'document' : 'documents'} matching <span className="font-bold" style={{ color: 'var(--accent)' }}>"{query}"</span>{searchingFragments ? ' — running semantic search...' : fragments.length > 0 ? <> and <span className="font-bold">{fragments.length}</span> AI knowledge fragments.</> : '.'}</>
+                                            : <>You have access to <span className="font-bold" style={{ color: 'var(--accent)' }}>{documents.length}</span> {documents.length === 1 ? 'document' : 'documents'} across the WAIIS working groups. Search above or filter to narrow your results.</>}
                                 </p>
                             </div>
                         </div>
@@ -255,18 +260,18 @@ export default function KnowledgeBase() {
                     {/* AI Knowledge Fragments (semantic search results) */}
                     {query && (searchingFragments || fragments.length > 0) && (
                         <div className="space-y-4">
-                            <h2 className="text-lg font-bold text-slate-900 dark:text-white">AI Knowledge Fragments</h2>
+                            <h2 className="text-lg font-bold" style={{ color: 'var(--ink-900)' }}>AI Knowledge Fragments</h2>
                             {searchingFragments ? (
-                                <Card className="p-6 text-sm text-slate-500">Searching document contents...</Card>
+                                <Card className="p-6 text-sm" style={{ color: 'var(--ink-500)' }}>Searching document contents...</Card>
                             ) : (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     {fragments.map((f, i) => (
                                         <Card key={i} className="p-4 space-y-2">
                                             <div className="flex items-center justify-between gap-2">
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase truncate">{f.metadata.file_name}</span>
-                                                <span className="text-[10px] font-bold text-green-500 whitespace-nowrap">{(f.score * 100).toFixed(0)}% match</span>
+                                                <span className="text-[10px] font-bold uppercase truncate" style={{ color: 'var(--ink-500)' }}>{f.metadata.file_name}</span>
+                                                <span className="text-[10px] font-bold whitespace-nowrap" style={{ color: 'var(--sage)' }}>{(f.score * 100).toFixed(0)}% match</span>
                                             </div>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 italic leading-relaxed line-clamp-3">"{f.metadata.text}"</p>
+                                            <p className="text-xs italic leading-relaxed line-clamp-3" style={{ color: 'var(--ink-500)' }}>"{f.metadata.text}"</p>
                                         </Card>
                                     ))}
                                 </div>
@@ -277,43 +282,50 @@ export default function KnowledgeBase() {
                     {/* Documents */}
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-lg font-bold text-slate-900 dark:text-white">{query ? 'Matching Documents' : 'Recent Documents'}</h2>
+                            <h2 className="text-lg font-bold" style={{ color: 'var(--ink-900)' }}>{query ? 'Matching Documents' : 'Recent Documents'}</h2>
                         </div>
 
                         {loading ? (
-                            <Card className="p-12 text-center text-sm text-slate-400">Loading documents...</Card>
+                            <Card className="p-12 text-center text-sm" style={{ color: 'var(--ink-400)' }}>Loading documents...</Card>
                         ) : error ? (
-                            <Card className="p-12 text-center text-sm text-red-500">{error}</Card>
+                            <Card className="p-12 text-center text-sm" style={{ color: 'var(--terra)' }}>{error}</Card>
                         ) : topDocuments.length === 0 ? (
                             <Card className="p-12 text-center space-y-2">
-                                <svg className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                <p className="text-sm font-bold text-slate-600 dark:text-slate-300">{documents.length === 0 ? 'No documents yet' : 'No documents match your filters'}</p>
-                                <p className="text-xs text-slate-400">{documents.length === 0 ? 'Documents uploaded to working group libraries will appear here.' : 'Try clearing filters or adjusting your search.'}</p>
+                                <svg className="w-10 h-10 mx-auto" style={{ color: 'var(--ink-300)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                <p className="text-sm font-bold" style={{ color: 'var(--ink-700)' }}>{documents.length === 0 ? 'No documents yet' : 'No documents match your filters'}</p>
+                                <p className="text-xs" style={{ color: 'var(--ink-400)' }}>{documents.length === 0 ? 'Documents uploaded to working group libraries will appear here.' : 'Try clearing filters or adjusting your search.'}</p>
                             </Card>
                         ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {topDocuments.map((doc) => {
                                     const type = fileType(doc.file_name)
                                     return (
-                                        <Card key={doc.id} onClick={() => handleDownload(doc.id)} className="clickable-scale group hover:ring-2 hover:ring-teal-500/50 transition-all cursor-pointer">
+                                        <Card key={doc.id} onClick={() => handleDownload(doc.id)} className="clickable-scale group transition-all cursor-pointer">
                                             <div className="space-y-4">
                                                 <div className="flex justify-between items-start">
-                                                    <div className={`p-2 rounded-lg ${type === 'pdf' ? 'bg-red-50 text-red-600 dark:bg-red-900/20' : type === 'doc' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20' : 'bg-orange-50 text-orange-600 dark:bg-orange-900/20'} transition-colors`}>
+                                                    <div className="p-2 rounded-lg transition-colors" style={type === 'pdf'
+                                                        ? { background: 'color-mix(in srgb, var(--terra) 12%, transparent)', color: 'var(--terra)' }
+                                                        : type === 'doc'
+                                                            ? { background: 'color-mix(in srgb, var(--navy) 12%, transparent)', color: 'var(--navy)' }
+                                                            : { background: 'color-mix(in srgb, var(--amber) 12%, transparent)', color: 'var(--amber)' }}>
                                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                                     </div>
-                                                    <Badge className={`text-[8px] font-black tracking-widest ${doc.is_confidential ? 'bg-orange-900/40 text-orange-400 border-orange-500/30' : 'bg-green-900/40 text-green-400 border-green-500/30'}`}>
+                                                    <Badge className="text-[8px] font-black tracking-widest" style={doc.is_confidential
+                                                        ? { background: 'color-mix(in srgb, var(--amber) 14%, transparent)', color: 'var(--amber)', borderColor: 'color-mix(in srgb, var(--amber) 30%, transparent)' }
+                                                        : { background: 'color-mix(in srgb, var(--sage) 14%, transparent)', color: 'var(--sage)', borderColor: 'color-mix(in srgb, var(--sage) 30%, transparent)' }}>
                                                         {doc.is_confidential ? 'CONFIDENTIAL' : 'PUBLIC'}
                                                     </Badge>
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-bold text-sm text-slate-900 dark:text-white transition-colors leading-snug group-hover:text-teal-600 line-clamp-2">{doc.file_name}</h4>
-                                                    <p className="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-tighter">{(doc.twg?.name || 'Global Secretariat')} • {new Date(doc.created_at).toLocaleDateString()}</p>
+                                                    <h4 className="font-bold text-sm transition-colors leading-snug group-hover:opacity-80 line-clamp-2" style={{ color: 'var(--ink-900)' }}>{doc.file_name}</h4>
+                                                    <p className="text-[10px] font-bold uppercase mt-1 tracking-tighter" style={{ color: 'var(--ink-400)' }}>{(doc.twg?.name || 'Global Secretariat')} • {new Date(doc.created_at).toLocaleDateString()}</p>
                                                 </div>
                                                 <div className="flex items-center justify-between pt-2">
                                                     <Avatar size="xs" fallback={initials(doc.uploaded_by?.full_name)} />
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleDownload(doc.id) }}
-                                                        className="clickable-scale p-1.5 text-slate-400 hover:text-teal-500 transition-colors"
+                                                        className="clickable-scale p-1.5 transition-colors"
+                                                        style={{ color: 'var(--ink-400)' }}
                                                         title="Download"
                                                     >
                                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>

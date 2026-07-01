@@ -177,22 +177,23 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <Card className="w-full max-w-lg bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xl max-h-[90vh] overflow-y-auto">
-                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center sticky top-0 bg-white dark:bg-slate-900 z-10">
-                    <h2 className="text-xl font-display font-bold text-slate-900 dark:text-white">Schedule New Session</h2>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+            <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
+                <div className="p-6 flex justify-between items-center sticky top-0 z-10" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+                    <h2 className="text-xl font-display font-bold" style={{ color: 'var(--ink-900)' }}>Schedule New Session</h2>
+                    <button onClick={onClose} className="qp-transition" style={{ color: 'var(--ink-400)' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--ink-600)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-400)')}>
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Session Title</label>
+                        <label className="qp-eyebrow block mb-1">Session Title</label>
                         <input
                             required
                             type="text"
-                            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-teal-500 outline-none text-sm dark:text-white"
+                            className="w-full px-4 py-2 focus:ring-2 outline-none text-sm"
+                            style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--ink-900)' }}
                             placeholder="e.g. Policy Framework Review"
                             value={formData.title}
                             onChange={e => setFormData({ ...formData, title: e.target.value })}
@@ -202,10 +203,11 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                     {/* Show TWG selector only for admins when no twgId provided */}
                     {!twgId && isAdmin && (
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Technical Working Group</label>
+                            <label className="qp-eyebrow block mb-1">Technical Working Group</label>
                             <select
                                 required
-                                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-teal-500 outline-none text-sm dark:text-white"
+                                className="w-full px-4 py-2 focus:ring-2 outline-none text-sm"
+                            style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--ink-900)' }}
                                 value={selectedTwgId}
                                 onChange={e => setSelectedTwgId(e.target.value)}
                             >
@@ -219,21 +221,22 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Date</label>
+                            <label className="qp-eyebrow block mb-1">Date</label>
                             <input
                                 required
                                 type="date"
                                 readOnly={!!prefilledDate}
-                                className={`w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-teal-500 outline-none text-sm dark:text-white ${prefilledDate
-                                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-not-allowed opacity-75'
-                                    : 'bg-slate-50 dark:bg-slate-800'
+                                className={`w-full px-4 py-2 focus:ring-2 outline-none text-sm ${prefilledDate
+                                    ? 'cursor-not-allowed opacity-75'
+                                    : ''
                                     }`}
+                                style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', background: prefilledDate ? 'var(--ink-100)' : 'var(--surface-2)', color: prefilledDate ? 'var(--ink-500)' : 'var(--ink-900)' }}
                                 value={formData.date}
                                 onChange={e => setFormData({ ...formData, date: e.target.value })}
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Time</label>
+                            <label className="qp-eyebrow block mb-1">Time</label>
                             <div
                                 onClick={(e) => {
                                     const input = e.currentTarget.querySelector('input');
@@ -244,7 +247,8 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                                 <input
                                     required
                                     type="time"
-                                    className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-teal-500 outline-none text-sm dark:text-white cursor-pointer"
+                                    className="w-full px-4 py-2 focus:ring-2 outline-none text-sm cursor-pointer"
+                                    style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--ink-900)' }}
                                     value={formData.time}
                                     onChange={e => setFormData({ ...formData, time: e.target.value })}
                                 />
@@ -254,9 +258,10 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Duration</label>
+                            <label className="qp-eyebrow block mb-1">Duration</label>
                             <select
-                                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-teal-500 outline-none text-sm dark:text-white"
+                                className="w-full px-4 py-2 focus:ring-2 outline-none text-sm"
+                            style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--ink-900)' }}
                                 value={formData.duration}
                                 onChange={e => setFormData({ ...formData, duration: e.target.value })}
                             >
@@ -267,9 +272,10 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Meeting Type</label>
+                            <label className="qp-eyebrow block mb-1">Meeting Type</label>
                             <select
-                                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-teal-500 outline-none text-sm dark:text-white"
+                                className="w-full px-4 py-2 focus:ring-2 outline-none text-sm"
+                            style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--ink-900)' }}
                                 value={formData.type}
                                 onChange={e => setFormData({
                                     ...formData,
@@ -285,12 +291,13 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
 
                     {formData.type === 'in_person' && (
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Location / Venue</label>
+                            <label className="qp-eyebrow block mb-1">Location / Venue</label>
                             <input
                                 required
                                 type="text"
                                 placeholder="e.g. Conference Room A, ECOWAS HQ"
-                                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-teal-500 outline-none text-sm dark:text-white"
+                                className="w-full px-4 py-2 focus:ring-2 outline-none text-sm"
+                            style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--ink-900)' }}
                                 value={formData.location}
                                 onChange={e => setFormData({ ...formData, location: e.target.value })}
                             />
@@ -298,26 +305,28 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                     )}
 
                     {/* Recurring Meeting Section */}
-                    <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+                    <div className="pt-4 mt-4" style={{ borderTop: '1px solid var(--border)' }}>
                         <label className="flex items-center gap-3 cursor-pointer">
                             <input
                                 type="checkbox"
                                 checked={recurrence.isRecurring}
                                 onChange={e => setRecurrence({ ...recurrence, isRecurring: e.target.checked })}
-                                className="w-5 h-5 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                                className="w-5 h-5 rounded"
+                                style={{ accentColor: 'var(--accent)' }}
                             />
-                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            <span className="text-sm font-medium" style={{ color: 'var(--ink-700)' }}>
                                 Make this a recurring meeting
                             </span>
                         </label>
 
                         {recurrence.isRecurring && (
-                            <div className="mt-4 space-y-4 pl-8 border-l-2 border-teal-200 dark:border-teal-800">
+                            <div className="mt-4 space-y-4 pl-8" style={{ borderLeft: '2px solid var(--accent-soft)' }}>
                                 {/* Frequency */}
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Repeat</label>
+                                    <label className="qp-eyebrow block mb-1">Repeat</label>
                                     <select
-                                        className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-teal-500 outline-none text-sm dark:text-white"
+                                        className="w-full px-4 py-2 focus:ring-2 outline-none text-sm"
+                            style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--ink-900)' }}
                                         value={recurrence.frequency}
                                         onChange={e => setRecurrence({ ...recurrence, frequency: e.target.value as RecurrenceFrequency })}
                                     >
@@ -329,7 +338,7 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
 
                                 {/* End Condition */}
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">End Condition</label>
+                                    <label className="qp-eyebrow block mb-2">End Condition</label>
                                     <div className="space-y-2">
                                         <label className="flex items-center gap-2">
                                             <input
@@ -338,9 +347,10 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                                                 value="never"
                                                 checked={recurrence.endType === 'never'}
                                                 onChange={() => setRecurrence({ ...recurrence, endType: 'never' })}
-                                                className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                                                className="w-4 h-4"
+                                                style={{ accentColor: 'var(--accent)' }}
                                             />
-                                            <span className="text-sm text-slate-700 dark:text-slate-300">Never (keep generating)</span>
+                                            <span className="text-sm" style={{ color: 'var(--ink-700)' }}>Never (keep generating)</span>
                                         </label>
                                         <label className="flex items-center gap-2">
                                             <input
@@ -349,9 +359,10 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                                                 value="after_date"
                                                 checked={recurrence.endType === 'after_date'}
                                                 onChange={() => setRecurrence({ ...recurrence, endType: 'after_date' })}
-                                                className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                                                className="w-4 h-4"
+                                                style={{ accentColor: 'var(--accent)' }}
                                             />
-                                            <span className="text-sm text-slate-700 dark:text-slate-300">On a specific date</span>
+                                            <span className="text-sm" style={{ color: 'var(--ink-700)' }}>On a specific date</span>
                                         </label>
                                         <label className="flex items-center gap-2">
                                             <input
@@ -360,9 +371,10 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                                                 value="after_occurrences"
                                                 checked={recurrence.endType === 'after_occurrences'}
                                                 onChange={() => setRecurrence({ ...recurrence, endType: 'after_occurrences' })}
-                                                className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                                                className="w-4 h-4"
+                                                style={{ accentColor: 'var(--accent)' }}
                                             />
-                                            <span className="text-sm text-slate-700 dark:text-slate-300">After a number of meetings</span>
+                                            <span className="text-sm" style={{ color: 'var(--ink-700)' }}>After a number of meetings</span>
                                         </label>
                                     </div>
                                 </div>
@@ -370,12 +382,13 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                                 {/* Conditional End Date */}
                                 {recurrence.endType === 'after_date' && (
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">End Date</label>
+                                        <label className="qp-eyebrow block mb-1">End Date</label>
                                         <input
                                             type="date"
                                             required
                                             min={formData.date}
-                                            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-teal-500 outline-none text-sm dark:text-white"
+                                            className="w-full px-4 py-2 focus:ring-2 outline-none text-sm"
+                            style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--ink-900)' }}
                                             value={recurrence.endDate}
                                             onChange={e => setRecurrence({ ...recurrence, endDate: e.target.value })}
                                         />
@@ -385,21 +398,22 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                                 {/* Conditional Max Occurrences */}
                                 {recurrence.endType === 'after_occurrences' && (
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Number of Meetings</label>
+                                        <label className="qp-eyebrow block mb-1">Number of Meetings</label>
                                         <input
                                             type="number"
                                             min="1"
                                             max="100"
                                             required
-                                            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-teal-500 outline-none text-sm dark:text-white"
+                                            className="w-full px-4 py-2 focus:ring-2 outline-none text-sm"
+                            style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--ink-900)' }}
                                             value={recurrence.maxOccurrences}
                                             onChange={e => setRecurrence({ ...recurrence, maxOccurrences: parseInt(e.target.value) || 10 })}
                                         />
-                                        <p className="text-xs text-slate-500 mt-1">Will generate {recurrence.maxOccurrences} meeting instances</p>
+                                        <p className="text-xs mt-1" style={{ color: 'var(--ink-500)' }}>Will generate {recurrence.maxOccurrences} meeting instances</p>
                                     </div>
                                 )}
 
-                                <p className="text-xs text-slate-500 italic">
+                                <p className="text-xs italic" style={{ color: 'var(--ink-500)' }}>
                                     Meetings will be automatically generated 30 days in advance.
                                 </p>
                             </div>
@@ -410,14 +424,18 @@ export default function CreateMeetingModal({ isOpen, onClose, twgId, onSuccess, 
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors clickable-scale"
+                            className="flex-1 py-2.5 font-bold qp-transition clickable-scale"
+                            style={{ borderRadius: 'var(--radius-ctl)', border: '1px solid var(--border)', color: 'var(--ink-600)', background: 'transparent' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={loading}
-                            className="flex-1 py-2.5 rounded-xl bg-teal-600 text-white font-bold hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 clickable-scale"
+                            className="flex-1 py-2.5 font-bold qp-transition disabled:opacity-50 flex items-center justify-center gap-2 clickable-scale"
+                            style={{ borderRadius: 'var(--radius-ctl)', background: 'var(--accent)', color: 'var(--accent-ink)' }}
                         >
                             {loading
                                 ? 'Scheduling...'

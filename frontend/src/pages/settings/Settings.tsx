@@ -105,7 +105,7 @@ export default function Settings() {
     if (loading) {
         return (
             <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--accent)' }}></div>
             </div>
         )
     }
@@ -113,33 +113,35 @@ export default function Settings() {
     // --- RENDER FACILITATOR VIEW ---
     if (user?.role === UserRole.FACILITATOR) {
         if (!user.twgs || user.twgs.length === 0) {
-            return <div className="p-8 text-center text-gray-500">You are not assigned to any TWG.</div>
+            return <div className="p-8 text-center" style={{ color: 'var(--ink-500)' }}>You are not assigned to any TWG.</div>
         }
         return (
             <>
                 <div className="flex items-center justify-between mb-8">
                     <div>
-                        <h1 className="font-bold text-[#0d121b] dark:text-white text-3xl">TWG Configuration</h1>
-                        <p className="text-sm text-[#4c669a] mt-1">Manage preferences for {user.twgs[0].name}</p>
+                        <h1 className="font-bold text-3xl" style={{ color: 'var(--ink-900)' }}>TWG Configuration</h1>
+                        <p className="text-sm mt-1" style={{ color: 'var(--ink-500)' }}>Manage preferences for {user.twgs[0].name}</p>
                     </div>
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="clickable-scale px-4 py-2 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-bold rounded-lg hover:bg-teal-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+                        className="clickable-scale px-4 py-2 text-sm font-bold flex items-center gap-2 disabled:opacity-50 qp-transition"
+                        style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
                     >
                         {saving ? 'Saving...' : 'Save Changes'}
                     </button>
                 </div>
 
-                <div className="bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-xl p-6 shadow-sm">
-                    <h3 className="font-bold text-[#0d121b] dark:text-white mb-4">Meeting Preferences</h3>
+                <div className="p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
+                    <h3 className="font-bold mb-4" style={{ color: 'var(--ink-900)' }}>Meeting Preferences</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Default Meeting Cadence</label>
+                            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--ink-700)' }}>Default Meeting Cadence</label>
                             <select
                                 value={twgFormState.meeting_cadence}
                                 onChange={(e) => handleTwgChange('meeting_cadence', e.target.value)}
-                                className="w-full bg-[#f6f6f8] dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg px-3 py-2 text-sm text-[#0d121b] dark:text-white"
+                                className="w-full px-3 py-2 text-sm"
+                                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)', color: 'var(--ink-900)' }}
                             >
                                 <option value="weekly">Weekly</option>
                                 <option value="biweekly">Bi-Weekly</option>
@@ -158,23 +160,25 @@ export default function Settings() {
         <>
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="font-bold text-[#0d121b] dark:text-white text-3xl">System Integrations & Configuration</h1>
-                    <p className="text-sm text-[#4c669a] mt-1">Manage external connections, security protocols, and AI parameters.</p>
+                    <h1 className="font-bold text-3xl" style={{ color: 'var(--ink-900)' }}>System Integrations & Configuration</h1>
+                    <p className="text-sm mt-1" style={{ color: 'var(--ink-500)' }}>Manage external connections, security protocols, and AI parameters.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => loadSettings()}
-                        className="px-4 py-2 text-sm font-medium text-[#4c669a] hover:text-[#0d121b] dark:text-[#a0aec0] dark:hover:text-white transition-colors"
+                        className="px-4 py-2 text-sm font-medium qp-transition"
+                        style={{ color: 'var(--ink-500)' }}
                     >
                         Discard Changes
                     </button>
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="clickable-scale px-4 py-2 bg-[var(--accent)] text-[var(--accent-ink)] text-sm font-bold rounded-lg hover:bg-teal-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+                        className="clickable-scale px-4 py-2 text-sm font-bold flex items-center gap-2 disabled:opacity-50 qp-transition"
+                        style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
                     >
                         {saving ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent" style={{ borderColor: 'var(--accent-ink)', borderTopColor: 'transparent' }}></div>
                         ) : (
                             <span className="material-symbols-outlined text-[18px]">save</span>
                         )}
@@ -187,19 +191,20 @@ export default function Settings() {
                 {/* AI Configuration Section */}
                 <section>
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-base font-bold text-[#0d121b] dark:text-white flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[var(--accent)]">smart_toy</span>
+                        <h3 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--ink-900)' }}>
+                            <span className="material-symbols-outlined" style={{ color: 'var(--accent)' }}>smart_toy</span>
                             AI Model Configuration
                         </h3>
                     </div>
-                    <div className="bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-xl p-6 shadow-sm">
+                    <div className="p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">LLM Provider</label>
+                                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--ink-700)' }}>LLM Provider</label>
                                 <select
                                     value={formState.llm_provider}
                                     onChange={(e) => handleChange('llm_provider', e.target.value)}
-                                    className="w-full bg-[#f6f6f8] dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg px-3 py-2 text-sm text-[#0d121b] dark:text-white focus:ring-[var(--accent)] focus:border-[var(--accent)]"
+                                    className="w-full px-3 py-2 text-sm"
+                                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)', color: 'var(--ink-900)' }}
                                 >
                                     <option value="openai">OpenAI</option>
                                     <option value="github">GitHub Models (Azure)</option>
@@ -207,15 +212,16 @@ export default function Settings() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Model Name</label>
+                                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--ink-700)' }}>Model Name</label>
                                 <input
                                     type="text"
                                     value={formState.llm_model}
                                     onChange={(e) => handleChange('llm_model', e.target.value)}
-                                    className="w-full bg-[#f6f6f8] dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#4a5568] rounded-lg px-3 py-2 text-sm text-[#0d121b] dark:text-white focus:ring-[var(--accent)] focus:border-[var(--accent)]"
+                                    className="w-full px-3 py-2 text-sm"
+                                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)', color: 'var(--ink-900)' }}
                                     placeholder="e.g. gpt-4o-mini"
                                 />
-                                <p className="text-xs text-gray-500 mt-1">Specify the model ID to use for agents.</p>
+                                <p className="text-xs mt-1" style={{ color: 'var(--ink-500)' }}>Specify the model ID to use for agents.</p>
                             </div>
                         </div>
                     </div>
@@ -224,26 +230,26 @@ export default function Settings() {
                 {/* External Integrations Section */}
                 <section>
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-base font-bold text-[#0d121b] dark:text-white flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[var(--accent)]">hub</span>
+                        <h3 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--ink-900)' }}>
+                            <span className="material-symbols-outlined" style={{ color: 'var(--accent)' }}>hub</span>
                             External Integrations
                         </h3>
                         {settings?.enable_google_calendar && (
-                            <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-2 py-1 rounded font-bold uppercase">System Operational</span>
+                            <span className="text-xs px-2 py-1 rounded font-bold uppercase" style={{ background: 'color-mix(in srgb, var(--sage) 12%, transparent)', color: 'var(--sage)' }}>System Operational</span>
                         )}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Google Calendar */}
-                        <div className="bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-xl p-6 shadow-sm flex flex-col justify-between h-full">
+                        <div className="p-6 flex flex-col justify-between h-full" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
                             <div>
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="size-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-orange-600">calendar_month</span>
+                                        <div className="size-10 flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--amber) 14%, transparent)', borderRadius: 'var(--radius-ctl)' }}>
+                                            <span className="material-symbols-outlined" style={{ color: 'var(--amber)' }}>calendar_month</span>
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-[#0d121b] dark:text-white">Calendar Services</h4>
-                                            <p className="text-xs text-[#4c669a]">Google Workspace</p>
+                                            <h4 className="font-bold" style={{ color: 'var(--ink-900)' }}>Calendar Services</h4>
+                                            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>Google Workspace</p>
                                         </div>
                                     </div>
                                     <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
@@ -252,26 +258,28 @@ export default function Settings() {
                                             checked={formState.enable_google_calendar}
                                             onChange={(e) => handleChange('enable_google_calendar', e.target.checked)}
                                             id="toggle-gcal"
-                                            className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer checked:right-0 checked:border-green-400 right-5"
+                                            className="toggle-checkbox absolute block w-5 h-5 rounded-full border-4 appearance-none cursor-pointer checked:right-0 right-5"
+                                            style={{ background: 'var(--surface)', borderColor: 'var(--ink-300)' }}
                                         />
-                                        <label htmlFor="toggle-gcal" className="toggle-label block overflow-hidden h-5 rounded-full bg-green-400 cursor-pointer"></label>
+                                        <label htmlFor="toggle-gcal" className="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer" style={{ background: 'var(--ink-300)' }}></label>
                                     </div>
                                 </div>
-                                <p className="text-sm text-[#4c669a] mb-4">Allows agents to check availability and schedule meetings directly on user calendars.</p>
+                                <p className="text-sm mb-4" style={{ color: 'var(--ink-500)' }}>Allows agents to check availability and schedule meetings directly on user calendars.</p>
                             </div>
-                            <div className="pt-4 border-t border-[#e7ebf3] dark:border-[#2d3748]">
+                            <div className="pt-4" style={{ borderTop: '1px solid var(--border)' }}>
                                 {settings?.has_google_creds ? (
-                                    <span className="text-xs font-medium text-green-600 dark:text-green-400 flex items-center gap-1 mb-2">
+                                    <span className="text-xs font-medium flex items-center gap-1 mb-2" style={{ color: 'var(--sage)' }}>
                                         <span className="material-symbols-outlined text-[14px]">check_circle</span> Credentials Configured
                                     </span>
                                 ) : (
-                                    <span className="text-xs font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1 mb-2">
+                                    <span className="text-xs font-medium flex items-center gap-1 mb-2" style={{ color: 'var(--amber)' }}>
                                         <span className="material-symbols-outlined text-[14px]">warning</span> No Credentials
                                     </span>
                                 )}
-                                <label className="text-xs font-bold text-[#4c669a] uppercase mb-1 block">Update Service Account JSON</label>
+                                <label className="text-xs font-bold uppercase mb-1 block" style={{ color: 'var(--ink-500)', letterSpacing: '0.14em' }}>Update Service Account JSON</label>
                                 <textarea
-                                    className="w-full bg-[#f6f6f8] dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#4a5568] rounded px-3 py-1.5 text-sm text-[#0d121b] dark:text-white h-20"
+                                    className="w-full px-3 py-1.5 text-sm h-20"
+                                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)', color: 'var(--ink-900)' }}
                                     value={formState.google_credentials_json}
                                     onChange={(e) => handleChange('google_credentials_json', e.target.value)}
                                     placeholder="Paste full JSON content here to update..."
@@ -280,16 +288,16 @@ export default function Settings() {
                         </div>
 
                         {/* Conferencing API */}
-                        <div className="bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-xl p-6 shadow-sm flex flex-col justify-between h-full">
+                        <div className="p-6 flex flex-col justify-between h-full" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
                             <div>
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="size-10 rounded-lg bg-teal-100 flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-teal-600">video_camera_front</span>
+                                        <div className="size-10 flex items-center justify-center" style={{ background: 'var(--accent-soft)', borderRadius: 'var(--radius-ctl)' }}>
+                                            <span className="material-symbols-outlined" style={{ color: 'var(--accent)' }}>video_camera_front</span>
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-[#0d121b] dark:text-white">Conferencing API</h4>
-                                            <p className="text-xs text-[#4c669a]">Zoom</p>
+                                            <h4 className="font-bold" style={{ color: 'var(--ink-900)' }}>Conferencing API</h4>
+                                            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>Zoom</p>
                                         </div>
                                     </div>
                                     <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
@@ -298,17 +306,19 @@ export default function Settings() {
                                             checked={formState.enable_zoom}
                                             onChange={(e) => handleChange('enable_zoom', e.target.checked)}
                                             id="toggle-zoom"
-                                            className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer checked:right-0 checked:border-green-400 right-5"
+                                            className="toggle-checkbox absolute block w-5 h-5 rounded-full border-4 appearance-none cursor-pointer checked:right-0 right-5"
+                                            style={{ background: 'var(--surface)', borderColor: 'var(--ink-300)' }}
                                         />
-                                        <label htmlFor="toggle-zoom" className="toggle-label block overflow-hidden h-5 rounded-full bg-green-400 cursor-pointer"></label>
+                                        <label htmlFor="toggle-zoom" className="toggle-label block overflow-hidden h-5 rounded-full cursor-pointer" style={{ background: 'var(--ink-300)' }}></label>
                                     </div>
                                 </div>
-                                <p className="text-sm text-[#4c669a] mb-4">Enable automatic generation of meeting links via Zoom API.</p>
+                                <p className="text-sm mb-4" style={{ color: 'var(--ink-500)' }}>Enable automatic generation of meeting links via Zoom API.</p>
                             </div>
-                            <div className="pt-4 border-t border-[#e7ebf3] dark:border-[#2d3748]">
-                                <label className="text-xs font-bold text-[#4c669a] uppercase mb-1 block">JWT Token / OAuth Credentials</label>
+                            <div className="pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+                                <label className="text-xs font-bold uppercase mb-1 block" style={{ color: 'var(--ink-500)', letterSpacing: '0.14em' }}>JWT Token / OAuth Credentials</label>
                                 <input
-                                    className="w-full bg-[#f6f6f8] dark:bg-[#0d121b] border border-[#e7ebf3] dark:border-[#4a5568] rounded px-3 py-1.5 text-sm text-[#0d121b] dark:text-white"
+                                    className="w-full px-3 py-1.5 text-sm"
+                                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)', color: 'var(--ink-900)' }}
                                     type="password"
                                     placeholder="Update credentials..."
                                     value={formState.zoom_credentials_json}
@@ -320,7 +330,7 @@ export default function Settings() {
                 </section>
 
                 <div className="text-center pt-8 pb-4">
-                    <p className="text-xs text-[#9ca3af] dark:text-gray-500">
+                    <p className="text-xs" style={{ color: 'var(--ink-400)' }}>
                         Changes to Security settings may require system restart. <br />
                         WAIIS TWG Support System v2.5.0
                     </p>

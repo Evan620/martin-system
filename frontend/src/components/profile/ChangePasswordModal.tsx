@@ -70,32 +70,45 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
                 onClick={onClose}
             />
 
-            <div className="relative bg-white dark:bg-[#1a202c] border border-[#e7ebf3] dark:border-[#2d3748] rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
-                <div className="px-6 py-5 border-b border-[#e7ebf3] dark:border-[#2d3748] flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-[#0d121b] dark:text-white">Change Password</h2>
+            <div
+                className="relative max-w-md w-full overflow-hidden"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}
+            >
+                <div
+                    className="px-6 py-5 flex items-center justify-between"
+                    style={{ borderBottom: '1px solid var(--border)' }}
+                >
+                    <h2 className="text-xl font-bold" style={{ color: 'var(--ink-900)' }}>Change Password</h2>
                     <button
                         onClick={onClose}
-                        className="clickable-scale p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                        className="clickable-scale p-1 rounded-lg transition-colors"
+                        style={{ color: 'var(--ink-500)' }}
                     >
-                        <span className="material-symbols-outlined text-[#4c669a]">close</span>
+                        <span className="material-symbols-outlined">close</span>
                     </button>
                 </div>
 
                 <div className="p-6">
                     {success ? (
                         <div className="flex flex-col items-center py-6 text-center">
-                            <div className="size-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-4">
+                            <div
+                                className="size-16 rounded-full flex items-center justify-center mb-4"
+                                style={{ background: 'var(--accent-soft)', color: 'var(--sage)' }}
+                            >
                                 <span className="material-symbols-outlined text-[32px]">check_circle</span>
                             </div>
-                            <h3 className="text-lg font-bold text-[#0d121b] dark:text-white">Password Changed!</h3>
-                            <p className="text-sm text-[#4c669a] dark:text-[#a0aec0] mt-1">
+                            <h3 className="text-lg font-bold" style={{ color: 'var(--ink-900)' }}>Password Changed!</h3>
+                            <p className="text-sm mt-1" style={{ color: 'var(--ink-500)' }}>
                                 Your password has been updated successfully. Closing...
                             </p>
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit} className="space-y-4">
                             {error && (
-                                <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm">
+                                <div
+                                    className="p-3 rounded-lg text-sm"
+                                    style={{ background: 'var(--surface-2)', border: '1px solid color-mix(in srgb, var(--terra) 30%, var(--border))', color: 'var(--terra)' }}
+                                >
                                     {error}
                                 </div>
                             )}
@@ -131,14 +144,16 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
                                 <button
                                     type="button"
                                     onClick={onClose}
-                                    className="clickable-scale flex-1 px-4 py-2 border border-[#e7ebf3] dark:border-[#4a5568] text-sm font-bold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                    className="clickable-scale flex-1 px-4 py-2 text-sm font-bold rounded-lg transition-colors"
+                                    style={{ border: '1px solid var(--border)', color: 'var(--ink-700)', background: 'transparent' }}
                                 >
                                     Cancel
                                 </button>
                                 <Button
                                     type="submit"
                                     isLoading={isLoading}
-                                    className="clickable-scale flex-1 py-2 bg-[var(--accent)] text-white text-sm font-bold rounded-lg hover:bg-teal-700 shadow-sm"
+                                    className="clickable-scale flex-1 py-2 text-sm font-bold rounded-lg"
+                                    style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
                                 >
                                     Update Password
                                 </Button>

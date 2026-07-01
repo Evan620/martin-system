@@ -169,17 +169,17 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
     };
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-dark-card relative">
+        <div className="flex flex-col h-full relative qp-transition" style={{ background: 'var(--surface)' }}>
             {/* Header */}
-            <div className="p-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between transition-colors">
+            <div className="p-4 flex items-center justify-between qp-transition" style={{ borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white shadow-lg shadow-teal-900/20">
+                    <div className="w-8 h-8 flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}>
                         <span className="material-symbols-outlined text-[20px]">smart_toy</span>
                     </div>
                     <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">Martin Copilot</h3>
-                        <p className="text-[10px] text-green-500 font-bold uppercase flex items-center gap-1 transition-colors">
-                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                        <h3 className="font-bold text-sm" style={{ color: 'var(--ink-900)' }}>Martin Copilot</h3>
+                        <p className="text-[10px] font-bold uppercase flex items-center gap-1 qp-transition" style={{ color: 'var(--sage)' }}>
+                            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--sage)' }}></span>
                             Online • {twgName ? `${twgName} Martin` : (user?.role === UserRole.ADMIN ? 'Secretariat Mode' : 'General Context')}
                         </p>
                     </div>
@@ -187,7 +187,8 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                 {onToggleExpand && (
                     <button
                         onClick={onToggleExpand}
-                        className="clickable-scale p-1.5 text-slate-400 hover:text-teal-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                        className="clickable-scale p-1.5 transition-all"
+                        style={{ color: 'var(--ink-400)', borderRadius: 'var(--radius-ctl)' }}
                         title={isExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
                     >
                         <span className="material-symbols-outlined text-[20px]">
@@ -205,25 +206,26 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                 {messages.map((msg, idx) => (
                     <div key={msg.message_id || idx} className={`flex gap-3 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
                         {msg.sender !== 'user' && (
-                            <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 transition-colors">
+                            <div className="w-6 h-6 flex items-center justify-center flex-shrink-0 qp-transition" style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-ctl)' }}>
                                 {msg.sender === 'system' ? (
-                                    <span className="material-symbols-outlined text-[14px] text-red-500">warning</span>
+                                    <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--terra)' }}>warning</span>
                                 ) : (
-                                    <span className="material-symbols-outlined text-[14px] text-teal-600">smart_toy</span>
+                                    <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--accent)' }}>smart_toy</span>
                                 )}
                             </div>
                         )}
 
 
-                        <div className={`
-                            p-3 rounded-2xl max-w-[95%] text-xs leading-relaxed transition-colors shadow-sm
-                            ${msg.sender === 'user'
-                                ? 'bg-teal-600 text-white rounded-tr-none'
-                                : msg.sender === 'system'
-                                    ? 'bg-red-50 text-red-600 border border-red-100'
-                                    : 'bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 rounded-tl-none border border-slate-100 dark:border-slate-700'
+                        <div
+                            className={`p-3 max-w-[95%] text-xs leading-relaxed qp-transition ${msg.sender === 'user' ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl rounded-tl-none'}`}
+                            style={
+                                msg.sender === 'user'
+                                    ? { background: 'var(--accent)', color: 'var(--accent-ink)' }
+                                    : msg.sender === 'system'
+                                        ? { background: 'color-mix(in srgb, var(--terra) 10%, transparent)', color: 'var(--terra)', border: '1px solid color-mix(in srgb, var(--terra) 25%, transparent)' }
+                                        : { background: 'var(--surface-2)', color: 'var(--ink-700)', border: '1px solid var(--border)' }
                             }
-                        `}>
+                        >
                             <div className="prose prose-xs dark:prose-invert max-w-none">
                                 <ReactMarkdown
                                     remarkPlugins={[remarkGfm]}
@@ -232,19 +234,19 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                                         ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
                                         ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
                                         li: ({ children }) => <li className="pl-1">{children}</li>,
-                                        strong: ({ children }) => <strong className="font-bold text-slate-900 dark:text-white">{children}</strong>,
+                                        strong: ({ children }) => <strong className="font-bold" style={{ color: 'var(--ink-900)' }}>{children}</strong>,
                                         em: ({ children }) => <em className="italic">{children}</em>,
-                                        a: ({ href, children }) => <a href={href} className="text-teal-500 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                                        a: ({ href, children }) => <a href={href} className="hover:underline" style={{ color: 'var(--accent)' }} target="_blank" rel="noopener noreferrer">{children}</a>,
                                         code: ({ className, children }) => {
                                             const isBlock = className?.includes('language-');
                                             if (isBlock) {
                                                 return (
-                                                    <pre className="bg-slate-900 text-slate-50 rounded-lg p-3 my-2 overflow-x-auto text-xs">
+                                                    <pre className="p-3 my-2 overflow-x-auto text-xs" style={{ background: 'var(--ink-900)', color: 'var(--surface)', borderRadius: 'var(--radius-ctl)' }}>
                                                         <code className="font-mono">{children}</code>
                                                     </pre>
                                                 );
                                             }
-                                            return <code className="bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded text-xs font-mono">{children}</code>;
+                                            return <code className="px-1 py-0.5 rounded text-xs font-mono" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>{children}</code>;
                                         },
                                         pre: ({ children }) => <>{children}</>,
                                     }}
@@ -255,7 +257,7 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
 
                             {/* Render Tool Execution Metadata */}
                             {msg.metadata?.parsed?.type === 'command_result' && (
-                                <div className="mt-2 pt-2 border-t border-black/10 dark:border-white/10 text-[10px] opacity-70 font-mono flex items-center gap-1">
+                                <div className="mt-2 pt-2 text-[10px] opacity-70 font-mono flex items-center gap-1" style={{ borderTop: '1px solid color-mix(in srgb, currentColor 20%, transparent)' }}>
                                     <span className="material-symbols-outlined text-[10px]">terminal</span>
                                     Executed: {msg.metadata.parsed.command}
                                 </div>
@@ -267,10 +269,11 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                                     {msg.actions.map(action => (
                                         <button
                                             key={action.action_id}
-                                            className={`clickable-scale px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-colors ${action.style === 'primary'
-                                                ? 'bg-teal-600 text-white hover:bg-teal-700'
-                                                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
-                                                }`}
+                                            className="clickable-scale px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-colors"
+                                            style={action.style === 'primary'
+                                                ? { background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }
+                                                : { background: 'var(--surface-2)', color: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)' }
+                                            }
                                             onClick={() => {
                                                 if (action.action_type === ActionType.BUTTON) {
                                                     setInput(action.value || action.label);
@@ -301,28 +304,28 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
             </div>
 
             {/* Input Area */}
-            <div className="p-3 border-t border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/20 relative">
+            <div className="p-3 relative qp-transition" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                 {/* Mentions Popup */}
                 {showMentions && filteredTwgs.length > 0 && (
-                    <div className="absolute bottom-full left-4 mb-2 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                        <div className="px-3 py-2 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700">
-                            <p className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Mention TWG Agent</p>
+                    <div className="absolute bottom-full left-4 mb-2 w-64 overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-200" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', boxShadow: '0 8px 24px color-mix(in srgb, var(--ink-900) 12%, transparent)' }}>
+                        <div className="px-3 py-2" style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+                            <p className="text-[10px] font-bold uppercase" style={{ color: 'var(--ink-500)' }}>Mention TWG Agent</p>
                         </div>
                         <ul className="max-h-48 overflow-y-auto py-1">
                             {filteredTwgs.map((twg, idx) => (
                                 <li
                                     key={twg.id}
-                                    className={`px-3 py-2 text-xs cursor-pointer flex items-center gap-2 ${idx === mentionIndex
-                                        ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400'
-                                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                                        }`}
+                                    className="px-3 py-2 text-xs cursor-pointer flex items-center gap-2"
+                                    style={idx === mentionIndex
+                                        ? { background: 'var(--accent-soft)', color: 'var(--accent)' }
+                                        : { color: 'var(--ink-700)' }
+                                    }
                                     onMouseDown={(e) => {
                                         e.preventDefault(); // Prevent blur
                                         insertMention(twg);
                                     }}
                                 >
-                                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${idx === mentionIndex ? 'bg-teal-500' : 'bg-slate-300 dark:bg-slate-600'
-                                        }`} />
+                                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: idx === mentionIndex ? 'var(--accent)' : 'var(--ink-300)' }} />
                                     <div className="flex-1 truncate">
                                         <span className="font-medium">{twg.name}</span>
                                         {twg.pillar && <span className="ml-1 text-[10px] opacity-60">({twg.pillar})</span>}
@@ -341,7 +344,8 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                         onChange={handleInputChange}
                         onKeyDown={handleKeyDown}
                         placeholder={showMentions ? "Type to search TWGs..." : "Ask Copilot to analyze, draft, or schedule (@ to mention TWG)..."}
-                        className="w-full bg-white dark:bg-slate-800 rounded-xl py-3 pl-4 pr-12 text-xs font-medium text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-teal-500 transition-all shadow-sm outline-none"
+                        className="w-full py-3 pl-4 pr-12 text-xs font-medium transition-all outline-none"
+                        style={{ background: 'var(--surface)', color: 'var(--ink-900)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)' }}
                         disabled={isStreaming}
                         autoFocus
                         autoComplete="off"
@@ -349,7 +353,8 @@ export default function CopilotChat({ twgId: propTwgId, twgName, isExpanded, onT
                     <button
                         onClick={handleSendMessage}
                         disabled={!input.trim() || isStreaming}
-                        className="clickable-scale absolute right-2 top-2 p-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:hover:bg-teal-600 transition-colors shadow-md shadow-teal-900/20"
+                        className="clickable-scale absolute right-2 top-2 p-1.5 disabled:opacity-50 transition-colors"
+                        style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
                     >
                         <span className="material-symbols-outlined text-[16px] block">send</span>
                     </button>

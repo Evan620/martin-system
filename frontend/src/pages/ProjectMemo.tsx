@@ -180,40 +180,40 @@ Use formal business language, clear headings, bullet points. No emojis.`,
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Breadcrumbs */}
-      <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-        <button onClick={() => navigate('/dashboard')} className="hover:text-primary transition-colors">
+      <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--ink-500)' }}>
+        <button onClick={() => navigate('/dashboard')} className="qp-transition hover:opacity-70">
           Home
         </button>
         <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-        <button onClick={() => navigate('/deal-pipeline')} className="hover:text-primary transition-colors">
+        <button onClick={() => navigate('/deal-pipeline')} className="qp-transition hover:opacity-70">
           Deal Pipeline
         </button>
         <span className="material-symbols-outlined text-[16px]">chevron_right</span>
         <button
           onClick={() => navigate(`/deal-pipeline/${encodeURIComponent(projectData?.id || decodeURIComponent(projectId || ''))}`)}
-          className="hover:text-primary transition-colors"
+          className="qp-transition hover:opacity-70"
         >
           {projectData?.name || 'Project'}
         </button>
         <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-        <span className="text-slate-900 dark:text-white font-medium">Investment Memo</span>
+        <span className="font-medium" style={{ color: 'var(--ink-900)' }}>Investment Memo</span>
       </div>
 
       {/* Page Header */}
       <div className="flex flex-wrap justify-between items-start gap-3">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">
+            <h1 className="text-3xl md:text-4xl font-black leading-tight tracking-tight" style={{ color: 'var(--ink-900)' }}>
               Investment Memo
             </h1>
             {isGenerating && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded-full text-sm font-medium">
-                <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
+                <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
                 <span>AI Generating...</span>
               </div>
             )}
           </div>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">
+          <p className="text-sm" style={{ color: 'var(--ink-500)' }}>
             AI-Generated Investment Analysis for {projectData?.name || 'this project'}
           </p>
         </div>
@@ -221,7 +221,8 @@ Use formal business language, clear headings, bullet points. No emojis.`,
           <button
             onClick={copyToClipboard}
             disabled={!memoContent || isGenerating}
-            className="clickable-scale flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="clickable-scale qp-transition flex items-center gap-2 px-4 py-2 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-700)', borderRadius: 'var(--radius-ctl)' }}
           >
             <span className="material-symbols-outlined text-[18px]">content_copy</span>
             Copy
@@ -229,7 +230,8 @@ Use formal business language, clear headings, bullet points. No emojis.`,
           <button
             onClick={exportMemo}
             disabled={!memoContent || isGenerating}
-            className="clickable-scale flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="clickable-scale qp-transition flex items-center gap-2 px-4 py-2 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-700)', borderRadius: 'var(--radius-ctl)' }}
           >
             <span className="material-symbols-outlined text-[18px]">download</span>
             Export
@@ -237,7 +239,8 @@ Use formal business language, clear headings, bullet points. No emojis.`,
           <button
             onClick={() => generateMemo()}
             disabled={isGenerating}
-            className="clickable-scale flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="clickable-scale qp-transition flex items-center gap-2 px-4 py-2 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
           >
             <span className="material-symbols-outlined text-[18px]">refresh</span>
             Regenerate
@@ -246,13 +249,13 @@ Use formal business language, clear headings, bullet points. No emojis.`,
       </div>
 
       {/* AI Info Banner */}
-      <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-800/50 rounded-xl p-4 flex items-start gap-4">
-        <div className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm shrink-0 text-teal-600 dark:text-teal-400">
+      <div className="glass-martin p-4 flex items-start gap-4">
+        <div className="p-2 shrink-0" style={{ background: 'var(--surface)', color: 'var(--accent)', borderRadius: 'var(--radius-ctl)' }}>
           <span className="material-symbols-outlined">auto_awesome</span>
         </div>
         <div className="flex-1">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white">AI-Powered Analysis</h3>
-          <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+          <h3 className="text-sm font-bold" style={{ color: 'var(--ink-900)' }}>AI-Powered Analysis</h3>
+          <p className="text-sm mt-1" style={{ color: 'var(--ink-600)' }}>
             This investment memo has been generated by our AI Supervisor Agent using advanced analysis of project
             data, market conditions, and regional development priorities.
           </p>
@@ -261,33 +264,33 @@ Use formal business language, clear headings, bullet points. No emojis.`,
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3">
-          <span className="material-symbols-outlined text-red-600 dark:text-red-400">error</span>
+        <div className="p-4 flex items-start gap-3" style={{ background: 'color-mix(in srgb, var(--terra) 8%, var(--surface))', border: '1px solid color-mix(in srgb, var(--terra) 30%, var(--border))', borderRadius: 'var(--radius-card)' }}>
+          <span className="material-symbols-outlined" style={{ color: 'var(--terra)' }}>error</span>
           <div>
-            <h4 className="text-sm font-bold text-red-900 dark:text-red-200">Error Generating Memo</h4>
-            <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
+            <h4 className="text-sm font-bold" style={{ color: 'var(--terra)' }}>Error Generating Memo</h4>
+            <p className="text-sm mt-1" style={{ color: 'var(--ink-700)' }}>{error}</p>
           </div>
         </div>
       )}
 
       {/* Memo Content */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+      <div className="glass-card">
         <div className="p-6 md:p-8">
           {isGenerating && !memoContent && (
             <div className="flex flex-col items-center justify-center py-16">
-              <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-              <p className="text-slate-600 dark:text-slate-400 font-medium">
+              <div className="w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mb-4" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}></div>
+              <p className="font-medium" style={{ color: 'var(--ink-600)' }}>
                 Generating investment memo with AI...
               </p>
-              <p className="text-sm text-slate-500 dark:text-slate-500 mt-2">
+              <p className="text-sm mt-2" style={{ color: 'var(--ink-500)' }}>
                 This may take 30-60 seconds
               </p>
             </div>
           )}
 
           {memoContent && (
-            <div className="prose prose-slate dark:prose-invert max-w-none">
-              <div className="whitespace-pre-wrap text-slate-800 dark:text-slate-200 leading-relaxed">
+            <div className="prose max-w-none">
+              <div className="whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--ink-800)' }}>
                 {memoContent}
               </div>
             </div>
@@ -295,18 +298,19 @@ Use formal business language, clear headings, bullet points. No emojis.`,
 
           {!isGenerating && !memoContent && !error && hasGenerated && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <span className="material-symbols-outlined text-6xl text-amber-400 dark:text-amber-500 mb-4">
+              <span className="material-symbols-outlined text-6xl mb-4" style={{ color: 'var(--amber)' }}>
                 error_outline
               </span>
-              <p className="text-slate-700 dark:text-slate-300 font-medium">
+              <p className="font-medium" style={{ color: 'var(--ink-700)' }}>
                 The memo generator returned no content
               </p>
-              <p className="text-sm text-slate-500 dark:text-slate-500 mt-2 max-w-md">
+              <p className="text-sm mt-2 max-w-md" style={{ color: 'var(--ink-500)' }}>
                 The AI completed without producing a memo. This is usually a temporary issue &mdash; try regenerating.
               </p>
               <button
                 onClick={() => generateMemo()}
-                className="clickable-scale mt-4 flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-teal-700 transition-colors"
+                className="clickable-scale qp-transition mt-4 flex items-center gap-2 px-4 py-2 text-sm font-bold"
+                style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
               >
                 <span className="material-symbols-outlined text-[18px]">refresh</span>
                 Regenerate
@@ -316,13 +320,14 @@ Use formal business language, clear headings, bullet points. No emojis.`,
 
           {!isGenerating && !memoContent && !error && !hasGenerated && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600 mb-4">
+              <span className="material-symbols-outlined text-6xl mb-4" style={{ color: 'var(--ink-300)' }}>
                 description
               </span>
-              <p className="text-slate-600 dark:text-slate-400 font-medium">No memo generated yet</p>
+              <p className="font-medium" style={{ color: 'var(--ink-600)' }}>No memo generated yet</p>
               <button
                 onClick={() => generateMemo()}
-                className="clickable-scale mt-4 flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md hover:bg-teal-700 transition-colors"
+                className="clickable-scale qp-transition mt-4 flex items-center gap-2 px-4 py-2 text-sm font-bold"
+                style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
               >
                 <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
                 Generate Memo

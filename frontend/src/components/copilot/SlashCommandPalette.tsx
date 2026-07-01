@@ -98,31 +98,47 @@ export default function SlashCommandPalette({
         if (!listRef.current) return;
         const items = listRef.current.querySelectorAll('li');
         items.forEach((item, i) => {
-            item.classList.toggle('bg-teal-50', i === index);
-            item.classList.toggle('dark:bg-teal-900/30', i === index);
-            item.classList.toggle('text-teal-700', i === index);
-            item.classList.toggle('dark:text-teal-300', i === index);
-            item.classList.toggle('text-slate-700', i !== index);
-            item.classList.toggle('dark:text-slate-300', i !== index);
+            const el = item as HTMLElement;
+            el.style.background = i === index ? 'var(--accent-soft)' : 'transparent';
+            el.style.color = i === index ? 'var(--accent)' : 'var(--ink-700)';
         });
     };
 
     if (!visible || filtered.length === 0) return null;
 
     return (
-        <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
-            <div className="px-3 py-2 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700">
-                <p className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Commands</p>
+        <div
+            className="absolute bottom-full left-0 right-0 mb-2 overflow-hidden z-50"
+            style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-card)',
+            }}
+        >
+            <div
+                className="px-3 py-2"
+                style={{
+                    background: 'var(--surface-2)',
+                    borderBottom: '1px solid var(--border)',
+                }}
+            >
+                <p
+                    className="text-[10px] font-semibold uppercase"
+                    style={{ letterSpacing: '0.14em', color: 'var(--ink-500)' }}
+                >
+                    Commands
+                </p>
             </div>
             <ul ref={listRef} className="py-1 max-h-52 overflow-y-auto">
                 {filtered.map((cmd, idx) => (
                     <li
                         key={cmd.command}
-                        className={`px-3 py-2 text-xs cursor-pointer flex items-center gap-3 transition-colors
-                            ${idx === 0
-                                ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300'
-                                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                            }`}
+                        className="px-3 py-2 text-xs cursor-pointer flex items-center gap-3 qp-transition"
+                        style={
+                            idx === 0
+                                ? { background: 'var(--accent-soft)', color: 'var(--accent)' }
+                                : { background: 'transparent', color: 'var(--ink-700)' }
+                        }
                         onMouseDown={e => {
                             e.preventDefault();
                             onSelect(cmd.template);
@@ -132,10 +148,13 @@ export default function SlashCommandPalette({
                             highlightItem(idx);
                         }}
                     >
-                        <span className="font-mono font-bold text-teal-600 dark:text-teal-400 w-20 flex-shrink-0 text-[11px]">
+                        <span
+                            className="font-mono font-bold w-20 flex-shrink-0 text-[11px]"
+                            style={{ color: 'var(--accent)' }}
+                        >
                             {cmd.command}
                         </span>
-                        <span className="flex-1 truncate text-slate-500 dark:text-slate-400">{cmd.description}</span>
+                        <span className="flex-1 truncate" style={{ color: 'var(--ink-500)' }}>{cmd.description}</span>
                     </li>
                 ))}
             </ul>

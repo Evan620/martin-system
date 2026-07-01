@@ -167,9 +167,9 @@ export default function Register() {
     }
 
     return (
-        <div className="flex h-screen bg-[#020617] text-white">
+        <div className="flex h-screen" style={{ background: 'var(--bg)', color: 'var(--ink-700)' }}>
             {/* Left side - Visuals */}
-            <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-teal-950 via-slate-900 to-slate-950">
+            <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden" style={{ background: 'var(--accent-soft)' }}>
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-teal-500/20 via-transparent to-transparent"></div>
 
                 {/* Abstract visualization */}
@@ -190,30 +190,30 @@ export default function Register() {
 
                 <div className="relative z-10 flex flex-col justify-end p-16 space-y-6">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}>
                             <span className="font-bold text-lg">W</span>
                         </div>
-                        <span className="text-xl font-display font-semibold">WAIIS TWG</span>
+                        <span className="text-xl font-display font-semibold" style={{ color: 'var(--ink-900)' }}>WAIIS TWG</span>
                     </div>
-                    <h1 className="text-5xl font-display font-bold leading-tight">
+                    <h1 className="text-5xl font-display font-bold leading-tight" style={{ color: 'var(--ink-900)' }}>
                         Join the Future of Regional Collaboration
                     </h1>
-                    <p className="text-teal-200 text-lg max-w-lg">
+                    <p className="text-lg max-w-lg" style={{ color: 'var(--ink-600)' }}>
                         Create your account to access cutting-edge AI-powered tools for strategic planning and data analysis.
                     </p>
                     <div className="flex gap-2">
-                        <div className="w-2 h-2 bg-slate-700 rounded-full"></div>
-                        <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
-                        <div className="w-2 h-2 bg-slate-700 rounded-full"></div>
+                        <div className="w-2 h-2 rounded-full" style={{ background: 'var(--ink-300)' }}></div>
+                        <div className="w-2 h-2 rounded-full" style={{ background: 'var(--accent)' }}></div>
+                        <div className="w-2 h-2 rounded-full" style={{ background: 'var(--ink-300)' }}></div>
                     </div>
                 </div>
             </div>
 
             {/* Right side - Form */}
-            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-[#020617] overflow-y-auto">
+            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 overflow-y-auto" style={{ background: 'var(--bg)' }}>
                 <div className="w-full max-w-md space-y-8 py-8 animate-blur-slide">
                     <div className="flex justify-end">
-                        <div className="flex items-center gap-2 px-3 py-1 bg-slate-800/50 border border-slate-700 rounded-full text-xs text-slate-400">
+                        <div className="qp-eyebrow flex items-center gap-2 px-3 py-1 rounded-full" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                             </svg>
@@ -222,14 +222,14 @@ export default function Register() {
                     </div>
 
                     <div className="space-y-2">
-                        <h2 className="text-3xl font-display font-bold">Create Account</h2>
-                        <p className="text-slate-400">Register to access the TWG workspace and collaboration tools.</p>
+                        <h2 className="text-3xl font-display font-bold" style={{ color: 'var(--ink-900)' }}>Create Account</h2>
+                        <p style={{ color: 'var(--ink-500)' }}>Register to access the TWG workspace and collaboration tools.</p>
                     </div>
 
                     <form onSubmit={handleRegister} className="space-y-5">
                         {errors.general && (
-                            <div className="p-4 bg-red-900/20 border border-red-500/50 rounded-lg">
-                                <p className="text-red-400 text-sm">{errors.general}</p>
+                            <div className="p-4 rounded-lg" style={{ background: 'color-mix(in srgb, var(--terra) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--terra) 40%, transparent)' }}>
+                                <p className="text-sm" style={{ color: 'var(--terra)' }}>{errors.general}</p>
                             </div>
                         )}
                         <div className="space-y-4">
@@ -240,9 +240,9 @@ export default function Register() {
                                 value={formData.name}
                                 onChange={(e) => handleChange('name', e.target.value)}
                                 required
-                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-teal-500"
+                                style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink-900)' }}
                             />
-                            {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
+                            {errors.name && <p className="text-xs mt-1" style={{ color: 'var(--terra)' }}>{errors.name}</p>}
 
                             <Input
                                 label="Official Email"
@@ -251,9 +251,9 @@ export default function Register() {
                                 value={formData.email}
                                 onChange={(e) => handleChange('email', e.target.value)}
                                 required
-                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-teal-500"
+                                style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink-900)' }}
                             />
-                            {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
+                            {errors.email && <p className="text-xs mt-1" style={{ color: 'var(--terra)' }}>{errors.email}</p>}
 
                             <Input
                                 label="Organization"
@@ -262,9 +262,9 @@ export default function Register() {
                                 value={formData.organization}
                                 onChange={(e) => handleChange('organization', e.target.value)}
                                 required
-                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-teal-500"
+                                style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink-900)' }}
                             />
-                            {errors.organization && <p className="text-red-400 text-xs mt-1">{errors.organization}</p>}
+                            {errors.organization && <p className="text-xs mt-1" style={{ color: 'var(--terra)' }}>{errors.organization}</p>}
 
 
                             <Input
@@ -274,9 +274,9 @@ export default function Register() {
                                 value={formData.password}
                                 onChange={(e) => handleChange('password', e.target.value)}
                                 required
-                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-teal-500"
+                                style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink-900)' }}
                             />
-                            {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
+                            {errors.password && <p className="text-xs mt-1" style={{ color: 'var(--terra)' }}>{errors.password}</p>}
 
                             <Input
                                 label="Confirm Password"
@@ -285,15 +285,16 @@ export default function Register() {
                                 value={formData.confirmPassword}
                                 onChange={(e) => handleChange('confirmPassword', e.target.value)}
                                 required
-                                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:ring-teal-500"
+                                style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink-900)' }}
                             />
-                            {errors.confirmPassword && <p className="text-red-400 text-xs mt-1">{errors.confirmPassword}</p>}
+                            {errors.confirmPassword && <p className="text-xs mt-1" style={{ color: 'var(--terra)' }}>{errors.confirmPassword}</p>}
                         </div>
 
                         <Button
                             type="submit"
                             isLoading={isLoading}
-                            className="clickable-scale w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg shadow-lg shadow-teal-900/20 flex items-center justify-center gap-2"
+                            className="clickable-scale w-full py-3 font-semibold rounded-lg flex items-center justify-center gap-2"
+                            style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
                         >
                             Create Account
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -302,28 +303,28 @@ export default function Register() {
                         </Button>
 
                         <div className="relative flex items-center gap-4">
-                            <div className="flex-1 h-px bg-slate-800"></div>
-                            <span className="text-xs text-slate-500 font-medium">OR</span>
-                            <div className="flex-1 h-px bg-slate-800"></div>
+                            <div className="flex-1 h-px" style={{ background: 'var(--border)' }}></div>
+                            <span className="text-xs font-medium" style={{ color: 'var(--ink-500)' }}>OR</span>
+                            <div className="flex-1 h-px" style={{ background: 'var(--border)' }}></div>
                         </div>
 
                         <div id="googleSync" className="w-full flex justify-center"></div>
                     </form>
 
                     <div className="text-center">
-                        <p className="text-sm text-slate-400">
+                        <p className="text-sm" style={{ color: 'var(--ink-500)' }}>
                             Already have an account?{' '}
-                            <Link to="/login" className="text-teal-400 hover:text-teal-300 font-medium">
+                            <Link to="/login" className="font-medium" style={{ color: 'var(--accent)' }}>
                                 Log In
                             </Link>
                         </p>
                     </div>
 
-                    <div className="pt-6 border-t border-slate-800 text-center">
-                        <p className="text-xs text-slate-500">
+                    <div className="pt-6 text-center" style={{ borderTop: '1px solid var(--border)' }}>
+                        <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
                             WAIIS © 2024. Authorized Personnel Only.
                         </p>
-                        <p className="text-xs text-slate-600 mt-1">
+                        <p className="text-xs mt-1" style={{ color: 'var(--ink-400)' }}>
                             By creating an account, you agree to our Terms of Service and Privacy Policy.
                         </p>
                     </div>

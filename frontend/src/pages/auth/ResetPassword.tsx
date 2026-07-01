@@ -59,22 +59,23 @@ export default function ResetPassword() {
 
     if (!token) {
         return (
-            <div className="flex h-screen bg-slate-50 text-slate-900 items-center justify-center p-8">
+            <div className="flex h-screen items-center justify-center p-8" style={{ background: 'var(--bg)', color: 'var(--ink-900)' }}>
                 <div className="w-full max-w-md space-y-8 text-center animate-blur-slide">
                     <div className="flex justify-center">
-                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-                            <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--terra) 12%, transparent)' }}>
+                            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--terra)' }}>
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                             </svg>
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <h2 className="text-3xl font-display font-bold text-slate-900">Invalid Reset Link</h2>
-                        <p className="text-slate-500">This password reset link is invalid or has expired.</p>
+                        <h2 className="text-3xl font-display font-bold" style={{ color: 'var(--ink-900)' }}>Invalid Reset Link</h2>
+                        <p style={{ color: 'var(--ink-500)' }}>This password reset link is invalid or has expired.</p>
                     </div>
                     <Link
                         to="/forgot-password"
-                        className="clickable-scale inline-block px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg"
+                        className="clickable-scale inline-block px-6 py-3 font-semibold"
+                        style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
                     >
                         Request New Link
                     </Link>
@@ -85,21 +86,21 @@ export default function ResetPassword() {
 
     if (isSuccess) {
         return (
-            <div className="flex h-screen bg-slate-50 text-slate-900 items-center justify-center p-8">
+            <div className="flex h-screen items-center justify-center p-8" style={{ background: 'var(--bg)', color: 'var(--ink-900)' }}>
                 <div className="w-full max-w-md space-y-8 text-center animate-blur-slide">
                     <div className="flex justify-center">
-                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                            <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--sage) 12%, transparent)' }}>
+                            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--sage)' }}>
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <h2 className="text-3xl font-display font-bold text-slate-900">Password Reset Successful!</h2>
-                        <p className="text-slate-500">Your password has been updated. Redirecting to login...</p>
+                        <h2 className="text-3xl font-display font-bold" style={{ color: 'var(--ink-900)' }}>Password Reset Successful!</h2>
+                        <p style={{ color: 'var(--ink-500)' }}>Your password has been updated. Redirecting to login...</p>
                     </div>
                     <div className="flex justify-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--accent)' }}></div>
                     </div>
                 </div>
             </div>
@@ -107,9 +108,9 @@ export default function ResetPassword() {
     }
 
     return (
-        <div className="flex h-screen bg-slate-50 text-slate-900">
+        <div className="flex h-screen" style={{ background: 'var(--bg)', color: 'var(--ink-900)' }}>
             {/* Left side - Visuals */}
-            <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-primary">
+            <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden" style={{ background: 'var(--accent)' }}>
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent"></div>
 
                 {/* Abstract visualization */}
@@ -136,17 +137,17 @@ export default function ResetPassword() {
                     <h1 className="text-5xl font-display font-bold leading-tight">
                         Create a New Password
                     </h1>
-                    <p className="text-teal-100 text-lg max-w-lg">
+                    <p className="text-lg max-w-lg" style={{ color: 'color-mix(in srgb, var(--accent-ink) 85%, transparent)' }}>
                         Choose a strong password to secure your account. Make sure it's at least 8 characters long.
                     </p>
                 </div>
             </div>
 
             {/* Right side - Form */}
-            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white">
+            <div className="w-full lg:w-1/2 flex items-center justify-center p-8" style={{ background: 'var(--surface)' }}>
                 <div className="w-full max-w-md space-y-8 animate-blur-slide">
                     <div className="flex justify-end">
-                        <div className="flex items-center gap-2 px-3 py-1 bg-slate-50 border border-slate-200 rounded-full text-xs text-slate-500 font-medium">
+                        <div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--ink-500)' }}>
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                             </svg>
@@ -155,8 +156,8 @@ export default function ResetPassword() {
                     </div>
 
                     <div className="space-y-2">
-                        <h2 className="text-3xl font-display font-bold text-slate-900">Reset Password</h2>
-                        <p className="text-slate-500">Enter your new password below.</p>
+                        <h2 className="text-3xl font-display font-bold" style={{ color: 'var(--ink-900)' }}>Reset Password</h2>
+                        <p style={{ color: 'var(--ink-500)' }}>Enter your new password below.</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
@@ -172,9 +173,10 @@ export default function ResetPassword() {
                                         if (errors.password) setErrors(prev => ({ ...prev, password: '' }))
                                     }}
                                     required
-                                    className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:ring-primary focus:border-primary"
+                                    className="placeholder:text-[var(--ink-400)] focus:ring-[var(--accent)] focus:border-[var(--accent)]"
+                                    style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink-900)' }}
                                 />
-                                {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
+                                {errors.password && <p className="text-xs mt-1" style={{ color: 'var(--terra)' }}>{errors.password}</p>}
                             </div>
 
                             <div>
@@ -188,20 +190,21 @@ export default function ResetPassword() {
                                         if (errors.confirmPassword) setErrors(prev => ({ ...prev, confirmPassword: '' }))
                                     }}
                                     required
-                                    className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:ring-primary focus:border-primary"
+                                    className="placeholder:text-[var(--ink-400)] focus:ring-[var(--accent)] focus:border-[var(--accent)]"
+                                    style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink-900)' }}
                                 />
-                                {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
+                                {errors.confirmPassword && <p className="text-xs mt-1" style={{ color: 'var(--terra)' }}>{errors.confirmPassword}</p>}
                             </div>
                         </div>
 
                         {errors.general && (
-                            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded text-sm">
+                            <div className="px-4 py-3 text-sm" style={{ background: 'color-mix(in srgb, var(--terra) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--terra) 30%, var(--border))', color: 'var(--terra)', borderRadius: 'var(--radius-ctl)' }}>
                                 {errors.general}
                             </div>
                         )}
 
-                        <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 text-xs text-slate-500 space-y-1">
-                            <p className="font-medium text-slate-700">Password requirements:</p>
+                        <div className="p-4 text-xs space-y-1" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--ink-500)', borderRadius: 'var(--radius-ctl)' }}>
+                            <p className="font-medium" style={{ color: 'var(--ink-700)' }}>Password requirements:</p>
                             <ul className="list-disc list-inside space-y-1">
                                 <li>At least 8 characters long</li>
                                 <li>Mix of uppercase and lowercase letters (recommended)</li>
@@ -212,7 +215,8 @@ export default function ResetPassword() {
                         <Button
                             type="submit"
                             isLoading={isLoading}
-                            className="clickable-scale w-full py-3 bg-primary hover:bg-teal-800 text-white font-semibold rounded-lg shadow-lg shadow-teal-200 flex items-center justify-center gap-2"
+                            className="clickable-scale w-full py-3 font-semibold flex items-center justify-center gap-2"
+                            style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}
                         >
                             Reset Password
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -224,7 +228,8 @@ export default function ResetPassword() {
                     <div className="text-center">
                         <Link
                             to="/login"
-                            className="inline-flex items-center gap-2 text-slate-500 hover:text-teal-600 transition-colors"
+                            className="inline-flex items-center gap-2 hover:text-[var(--accent)] transition-colors"
+                            style={{ color: 'var(--ink-500)' }}
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -233,8 +238,8 @@ export default function ResetPassword() {
                         </Link>
                     </div>
 
-                    <div className="pt-8 border-t border-slate-100 text-center">
-                        <p className="text-xs text-slate-400">
+                    <div className="pt-8 text-center" style={{ borderTop: '1px solid var(--border)' }}>
+                        <p className="text-xs" style={{ color: 'var(--ink-400)' }}>
                             WAIIS © 2026. Authorized Personnel Only.
                         </p>
                     </div>

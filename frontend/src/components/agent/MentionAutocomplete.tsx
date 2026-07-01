@@ -29,7 +29,14 @@ export function MentionAutocomplete({
   if (suggestions.length === 0) return null;
 
   return (
-    <div className="absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden transform transition-all">
+    <div
+      className="absolute bottom-full left-0 mb-2 w-64 z-50 overflow-hidden transform transition-all"
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-card)',
+      }}
+    >
 
       <div className="max-h-48 overflow-y-auto py-1">
         {suggestions.map((suggestion, index) => (
@@ -37,16 +44,20 @@ export function MentionAutocomplete({
             key={suggestion.mention}
             onClick={() => onSelect(suggestion)}
             onMouseEnter={() => onHover(index)}
-            className={`clickable-scale w-full text-left px-3 py-2 transition-colors flex items-center gap-3 ${index === selectedIndex
-              ? 'bg-teal-50 dark:bg-teal-900/40'
-              : 'hover:bg-gray-50 dark:hover:bg-slate-800'
-              }`}
+            className="clickable-scale qp-transition w-full text-left px-3 py-2 flex items-center gap-3"
+            style={{
+              background: index === selectedIndex ? 'var(--accent-soft)' : 'transparent',
+            }}
           >
             {/* Agent Icon */}
-            <div className={`size-6 rounded-md flex items-center justify-center flex-shrink-0 ${index === selectedIndex
-              ? 'bg-teal-100 dark:bg-teal-800 text-teal-600 dark:text-teal-200'
-              : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400'
-              }`}>
+            <div
+              className="size-6 rounded-md flex items-center justify-center flex-shrink-0"
+              style={
+                index === selectedIndex
+                  ? { background: 'var(--accent)', color: 'var(--accent-ink)' }
+                  : { background: 'var(--surface-2)', color: 'var(--ink-500)' }
+              }
+            >
               <span className="material-symbols-outlined text-[16px]">
                 {suggestion.icon}
               </span>
@@ -54,10 +65,10 @@ export function MentionAutocomplete({
 
             {/* Agent Info */}
             <div className="min-w-0">
-              <div className={`text-xs font-medium truncate ${index === selectedIndex
-                ? 'text-teal-700 dark:text-teal-100'
-                : 'text-gray-700 dark:text-gray-200'
-                }`}>
+              <div
+                className="text-xs font-medium truncate"
+                style={{ color: index === selectedIndex ? 'var(--accent)' : 'var(--ink-700)' }}
+              >
                 {suggestion.mention}
               </div>
             </div>

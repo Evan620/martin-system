@@ -42,37 +42,41 @@ export default function DocumentApprovalModal({ approvalRequest, onResolve }: Do
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-[#1e293b] w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-200 dark:border-slate-700">
+        <div className="fixed inset-0 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200" style={{ background: 'color-mix(in srgb, var(--ink-900) 45%, transparent)' }}>
+            <div className="w-full max-w-4xl flex flex-col max-h-[90vh] overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
 
                 {/* Header */}
-                <div className="p-6 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between">
+                <div className="p-6 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                     <div>
                         <div className="flex items-center gap-2 mb-1">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
+                            <span className="px-2 py-0.5" style={{ borderRadius: 'var(--radius-ctl)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, background: 'var(--accent-soft)', color: 'var(--accent)' }}>
                                 {draft.document_type || 'Document'} Approval
                             </span>
-                            <span className="material-symbols-outlined text-sm text-slate-400">lock</span>
+                            <span className="material-symbols-outlined text-sm" style={{ color: 'var(--ink-400)' }}>lock</span>
                         </div>
-                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Review Draft Document</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">{message}</p>
+                        <h2 className="text-xl font-bold" style={{ color: 'var(--ink-900)' }}>Review Draft Document</h2>
+                        <p className="text-sm" style={{ color: 'var(--ink-500)' }}>{message}</p>
                     </div>
                     <div className="flex gap-2">
                         <button
                             onClick={() => setViewMode('edit')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors clickable-scale ${viewMode === 'edit'
-                                ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
-                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                }`}
+                            className="px-3 py-1.5 text-xs font-medium transition-colors clickable-scale"
+                            style={{
+                                borderRadius: 'var(--radius-ctl)',
+                                background: viewMode === 'edit' ? 'var(--accent-soft)' : 'transparent',
+                                color: viewMode === 'edit' ? 'var(--accent)' : 'var(--ink-600)',
+                            }}
                         >
                             Edit
                         </button>
                         <button
                             onClick={() => setViewMode('preview')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors clickable-scale ${viewMode === 'preview'
-                                ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
-                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                }`}
+                            className="px-3 py-1.5 text-xs font-medium transition-colors clickable-scale"
+                            style={{
+                                borderRadius: 'var(--radius-ctl)',
+                                background: viewMode === 'preview' ? 'var(--accent-soft)' : 'transparent',
+                                color: viewMode === 'preview' ? 'var(--accent)' : 'var(--ink-600)',
+                            }}
                         >
                             Preview
                         </button>
@@ -80,27 +84,29 @@ export default function DocumentApprovalModal({ approvalRequest, onResolve }: Do
                 </div>
 
                 {/* Content Area */}
-                <div className="flex-1 overflow-y-auto p-6 bg-slate-50 dark:bg-[#0f172a]">
+                <div className="flex-1 overflow-y-auto p-6" style={{ background: 'var(--bg)' }}>
                     <div className="space-y-4">
 
                         {/* Title Field (Always Editable) */}
                         <div>
-                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Document Title</label>
+                            <label className="block text-xs mb-1" style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--ink-500)' }}>Document Title</label>
                             <input
                                 type="text"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
-                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none"
+                                className="w-full px-4 py-2 text-sm font-medium focus:ring-2 outline-none"
+                                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)', color: 'var(--ink-900)' }}
                             />
                         </div>
 
                         {/* Main Editor/Preview */}
-                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm min-h-[400px]">
+                        <div className="min-h-[400px]" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
                             {viewMode === 'edit' ? (
                                 <textarea
                                     value={content}
                                     onChange={(e) => setContent(e.target.value)}
-                                    className="w-full h-full min-h-[400px] p-6 bg-transparent outline-none resize-none font-mono text-sm leading-relaxed text-slate-700 dark:text-slate-300"
+                                    className="w-full h-full min-h-[400px] p-6 bg-transparent outline-none resize-none font-mono text-sm leading-relaxed"
+                                    style={{ color: 'var(--ink-700)' }}
                                     placeholder="# Start typing..."
                                 />
                             ) : (
@@ -113,8 +119,8 @@ export default function DocumentApprovalModal({ approvalRequest, onResolve }: Do
                 </div>
 
                 {/* Footer Actions */}
-                <div className="p-6 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                <div className="p-6 flex items-center justify-between" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
+                    <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--ink-500)' }}>
                         <span className="material-symbols-outlined text-sm">info</span>
                         <span>Approving will save this to the Document Registry.</span>
                     </div>
@@ -122,7 +128,8 @@ export default function DocumentApprovalModal({ approvalRequest, onResolve }: Do
                         <button
                             onClick={handleDecline}
                             disabled={isSubmitting}
-                            className="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors clickable-scale"
+                            className="px-4 py-2 text-sm font-medium transition-colors clickable-scale"
+                            style={{ borderRadius: 'var(--radius-ctl)', color: 'var(--ink-600)', background: 'transparent' }}
                         >
                             Decline & Stop
                         </button>
@@ -130,9 +137,10 @@ export default function DocumentApprovalModal({ approvalRequest, onResolve }: Do
                             onClick={handleApprove}
                             disabled={isSubmitting}
                             className={`
-                                relative overflow-hidden px-6 py-2 rounded-xl text-sm font-bold text-white shadow-lg shadow-teal-500/30 transition-all
-                                ${isSubmitting ? 'bg-teal-400 cursor-not-allowed' : 'bg-gradient-to-r from-teal-600 to-teal-700 hover:scale-105 active:scale-95'}
+                                relative overflow-hidden px-6 py-2 text-sm font-bold transition-all
+                                ${isSubmitting ? 'cursor-not-allowed' : 'hover:scale-105 active:scale-95'}
                             `}
+                            style={{ borderRadius: 'var(--radius-ctl)', background: 'var(--accent)', color: 'var(--accent-ink)', opacity: isSubmitting ? 0.6 : 1 }}
                         >
                             {isSubmitting ? (
                                 <span className="flex items-center gap-2">

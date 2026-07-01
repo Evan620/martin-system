@@ -153,53 +153,63 @@ const EditProject: React.FC = () => {
         }
     };
 
-    if (isLoading) return <div className="p-8 text-center">Loading project...</div>;
+    if (isLoading) return <div className="p-8 text-center" style={{ color: 'var(--ink-500)' }}>Loading project...</div>;
+
+    const inputStyle: React.CSSProperties = {
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-ctl)',
+        color: 'var(--ink-900)',
+    };
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
-            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                <button onClick={() => navigate('/deal-pipeline')} className="hover:text-primary">Deal Pipeline</button>
+            <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--ink-500)' }}>
+                <button onClick={() => navigate('/deal-pipeline')} className="qp-transition" style={{ color: 'var(--ink-500)' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-500)')}>Deal Pipeline</button>
                 <span>&gt;</span>
-                <button onClick={() => navigate(`/deal-pipeline/${projectId}`)} className="hover:text-primary">{formData.name || 'Project'}</button>
+                <button onClick={() => navigate(`/deal-pipeline/${projectId}`)} className="qp-transition" style={{ color: 'var(--ink-500)' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-500)')}>{formData.name || 'Project'}</button>
                 <span>&gt;</span>
-                <span className="text-slate-900 font-medium">Edit</span>
+                <span className="font-medium" style={{ color: 'var(--ink-900)' }}>Edit</span>
             </div>
 
             <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Edit Project</h2>
-                <button onClick={() => navigate(`/deal-pipeline/${projectId}`)} className="clickable-scale text-sm px-4 py-2 border rounded-lg hover:bg-slate-50">Cancel</button>
+                <h2 className="text-2xl font-bold" style={{ color: 'var(--ink-900)' }}>Edit Project</h2>
+                <button onClick={() => navigate(`/deal-pipeline/${projectId}`)} className="clickable-scale qp-transition text-sm px-4 py-2" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)', color: 'var(--ink-700)' }}>Cancel</button>
             </div>
 
-            {error && <div className="bg-red-50 text-red-700 p-4 rounded-lg">{error}</div>}
+            {error && <div className="p-4" style={{ background: 'color-mix(in srgb, var(--terra) 12%, transparent)', color: 'var(--terra)', borderRadius: 'var(--radius-ctl)' }}>{error}</div>}
 
-            <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-800 border rounded-xl p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="p-6 space-y-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
                 <div>
-                    <label className="block text-sm font-medium mb-2">Project Name</label>
+                    <label className="block text-sm font-medium mb-2" style={{ color: 'var(--ink-700)' }}>Project Name</label>
                     <input
                         value={formData.name}
                         onChange={e => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full px-4 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
+                        className="w-full px-4 py-2"
+                        style={inputStyle}
                         required
                     />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium mb-2">Pillar</label>
+                        <label className="block text-sm font-medium mb-2" style={{ color: 'var(--ink-700)' }}>Pillar</label>
                         <select
                             value={formData.pillar}
                             onChange={e => setFormData({ ...formData, pillar: e.target.value })}
-                            className="w-full px-4 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
+                            className="w-full px-4 py-2"
+                            style={inputStyle}
                         >
                             {pillars.map(p => <option key={p.value} value={p.value}>{p.value}</option>)}
                         </select>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium mb-2">Lead Country</label>
+                        <label className="block text-sm font-medium mb-2" style={{ color: 'var(--ink-700)' }}>Lead Country</label>
                         <select
                             value={formData.leadCountry}
                             onChange={e => setFormData({ ...formData, leadCountry: e.target.value })}
-                            className="w-full px-4 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
+                            className="w-full px-4 py-2"
+                            style={inputStyle}
                         >
                             {ecowasCountries.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
@@ -207,38 +217,41 @@ const EditProject: React.FC = () => {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium mb-2">Lead Company</label>
+                    <label className="block text-sm font-medium mb-2" style={{ color: 'var(--ink-700)' }}>Lead Company</label>
                     <input
                         value={formData.leadCompany}
                         onChange={e => setFormData({ ...formData, leadCompany: e.target.value })}
-                        className="w-full px-4 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
+                        className="w-full px-4 py-2"
+                        style={inputStyle}
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium mb-2">Investment Amount</label>
+                    <label className="block text-sm font-medium mb-2" style={{ color: 'var(--ink-700)' }}>Investment Amount</label>
                     <input
                         value={formData.investment}
                         onChange={e => setFormData({ ...formData, investment: e.target.value })}
-                        className="w-full px-4 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
+                        className="w-full px-4 py-2"
+                        style={inputStyle}
                         placeholder="e.g. 1.2B"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium mb-2">Description</label>
+                    <label className="block text-sm font-medium mb-2" style={{ color: 'var(--ink-700)' }}>Description</label>
                     <textarea
                         value={formData.description}
                         onChange={e => setFormData({ ...formData, description: e.target.value })}
-                        className="w-full px-4 py-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600"
+                        className="w-full px-4 py-2"
+                        style={inputStyle}
                         rows={4}
                     />
                 </div>
 
                 {/* Site location — R8 */}
                 <div>
-                    <label className="block text-sm font-medium mb-2">
-                        Site location <span className="text-xs text-slate-500 font-normal">(used for satellite analysis)</span>
+                    <label className="block text-sm font-medium mb-2" style={{ color: 'var(--ink-700)' }}>
+                        Site location <span className="text-xs font-normal" style={{ color: 'var(--ink-500)' }}>(used for satellite analysis)</span>
                     </label>
                     <SiteLocationPicker
                         value={{
@@ -257,7 +270,7 @@ const EditProject: React.FC = () => {
 
                 {/* Value Chain Stages */}
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                    <label className="block text-sm font-medium mb-2" style={{ color: 'var(--ink-700)' }}>
                         Value Chain Stage
                     </label>
                     <div className="flex gap-2 flex-wrap">
@@ -273,43 +286,40 @@ const EditProject: React.FC = () => {
                                             ? prev.value_chain_stages.filter(s => s !== code)
                                             : [...prev.value_chain_stages, code],
                                     }))}
-                                    className={`clickable-scale px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                                        selected
-                                            ? 'bg-teal-600 text-white border-teal-600'
-                                            : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600'
-                                    }`}
+                                    className="clickable-scale qp-transition px-3 py-1.5 rounded-full text-xs font-medium"
+                                    style={selected
+                                        ? { background: 'var(--accent)', color: 'var(--accent-ink)', border: '1px solid var(--accent)' }
+                                        : { background: 'var(--surface)', color: 'var(--ink-600)', border: '1px solid var(--border)' }}
                                 >
                                     {label}
                                 </button>
                             );
                         })}
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Select all stages this project operates in. At least one is required.</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--ink-500)' }}>Select all stages this project operates in. At least one is required.</p>
                 </div>
 
                 {/* Gender-intentional design toggle */}
                 <div className="flex flex-col gap-1.5">
-                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    <label className="block text-xs font-medium" style={{ color: 'var(--ink-700)' }}>
                         Gender-Intentional Design
                     </label>
                     <div className="flex gap-3">
                         <button
                             type="button"
                             onClick={() => setFormData(prev => ({ ...prev, gender_intentional: true }))}
-                            className={`clickable-scale px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                                formData.gender_intentional === true
-                                    ? 'bg-green-600 text-white border-green-600'
-                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-green-400'
-                            }`}
+                            className="clickable-scale qp-transition px-3 py-1.5 rounded-lg text-xs font-medium"
+                            style={formData.gender_intentional === true
+                                ? { background: 'var(--sage)', color: 'var(--accent-ink)', border: '1px solid var(--sage)' }
+                                : { background: 'var(--surface)', color: 'var(--ink-600)', border: '1px solid var(--border)' }}
                         >Yes</button>
                         <button
                             type="button"
                             onClick={() => setFormData(prev => ({ ...prev, gender_intentional: false }))}
-                            className={`clickable-scale px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                                formData.gender_intentional === false
-                                    ? 'bg-slate-600 text-white border-slate-600'
-                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-slate-400'
-                            }`}
+                            className="clickable-scale qp-transition px-3 py-1.5 rounded-lg text-xs font-medium"
+                            style={formData.gender_intentional === false
+                                ? { background: 'var(--ink-600)', color: 'var(--surface)', border: '1px solid var(--ink-600)' }
+                                : { background: 'var(--surface)', color: 'var(--ink-600)', border: '1px solid var(--border)' }}
                         >No</button>
                     </div>
                     {formData.gender_intentional === true && (
@@ -318,34 +328,33 @@ const EditProject: React.FC = () => {
                             placeholder="Describe how this project is intentionally designed to benefit women (ownership, leadership, beneficiaries)..."
                             value={formData.gender_justification ?? ''}
                             onChange={e => setFormData(prev => ({ ...prev, gender_justification: e.target.value }))}
-                            className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                            className="w-full rounded-lg px-3 py-2 text-xs focus:outline-none resize-none"
+                            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-900)' }}
                         />
                     )}
                 </div>
 
                 {/* Youth-focused toggle */}
                 <div className="flex flex-col gap-1.5">
-                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    <label className="block text-xs font-medium" style={{ color: 'var(--ink-700)' }}>
                         Youth Employment Focus
                     </label>
                     <div className="flex gap-3">
                         <button
                             type="button"
                             onClick={() => setFormData(prev => ({ ...prev, youth_focused: true }))}
-                            className={`clickable-scale px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                                formData.youth_focused === true
-                                    ? 'bg-teal-600 text-white border-teal-600'
-                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-teal-400'
-                            }`}
+                            className="clickable-scale qp-transition px-3 py-1.5 rounded-lg text-xs font-medium"
+                            style={formData.youth_focused === true
+                                ? { background: 'var(--accent)', color: 'var(--accent-ink)', border: '1px solid var(--accent)' }
+                                : { background: 'var(--surface)', color: 'var(--ink-600)', border: '1px solid var(--border)' }}
                         >Yes</button>
                         <button
                             type="button"
                             onClick={() => setFormData(prev => ({ ...prev, youth_focused: false }))}
-                            className={`clickable-scale px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                                formData.youth_focused === false
-                                    ? 'bg-slate-600 text-white border-slate-600'
-                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-teal-400'
-                            }`}
+                            className="clickable-scale qp-transition px-3 py-1.5 rounded-lg text-xs font-medium"
+                            style={formData.youth_focused === false
+                                ? { background: 'var(--ink-600)', color: 'var(--surface)', border: '1px solid var(--ink-600)' }
+                                : { background: 'var(--surface)', color: 'var(--ink-600)', border: '1px solid var(--border)' }}
                         >No</button>
                     </div>
                     {formData.youth_focused === true && (
@@ -354,14 +363,15 @@ const EditProject: React.FC = () => {
                             placeholder="Describe the youth employment focus (target age group, jobs created for under-35s, youth ownership)..."
                             value={formData.youth_justification ?? ''}
                             onChange={e => setFormData(prev => ({ ...prev, youth_justification: e.target.value }))}
-                            className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                            className="w-full rounded-lg px-3 py-2 text-xs focus:outline-none resize-none"
+                            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-900)' }}
                         />
                     )}
                 </div>
 
-                <div className="pt-4 border-t flex justify-end gap-3">
-                    <button type="button" onClick={() => navigate(`/deal-pipeline/${projectId}`)} className="clickable-scale px-4 py-2 border rounded-lg hover:bg-slate-50">Cancel</button>
-                    <button type="submit" disabled={isSubmitting} className="clickable-scale px-6 py-2 bg-primary text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+                <div className="pt-4 flex justify-end gap-3" style={{ borderTop: '1px solid var(--border)' }}>
+                    <button type="button" onClick={() => navigate(`/deal-pipeline/${projectId}`)} className="clickable-scale qp-transition px-4 py-2" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-ctl)', color: 'var(--ink-700)' }}>Cancel</button>
+                    <button type="submit" disabled={isSubmitting} className="clickable-scale qp-transition px-6 py-2 disabled:opacity-50" style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderRadius: 'var(--radius-ctl)' }}>
                         {isSubmitting ? 'Saving...' : 'Save Changes'}
                     </button>
                 </div>

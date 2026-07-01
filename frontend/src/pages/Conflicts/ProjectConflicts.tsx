@@ -113,40 +113,41 @@ const ProjectConflicts: React.FC = () => {
             <ComingSoonOverlay />
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <span className="material-symbols-outlined text-amber-500">warning</span>
+                <div className="qp-eyebrow" style={{ marginBottom: 6 }}>Conflict Detection</div>
+                <h1 className="font-display flex items-center gap-2" style={{ fontSize: 22, color: 'var(--ink-900)', margin: 0, lineHeight: 1.1 }}>
+                    <span className="material-symbols-outlined" style={{ color: 'var(--amber)' }}>warning</span>
                     Project Conflict Dashboard
                 </h1>
-                <p className="text-slate-500 dark:text-slate-400">Detecting dependencies and duplicates across TWGs</p>
+                <p style={{ color: 'var(--ink-500)', marginTop: 6 }}>Detecting dependencies and duplicates across TWGs</p>
             </div>
 
             <div className="space-y-4">
-                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">Dependency Conflicts</h2>
+                <h2 className="font-display" style={{ fontSize: 17, color: 'var(--ink-800)', margin: 0 }}>Dependency Conflicts</h2>
                 {dependencies.length === 0 ? (
-                    <div className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-4 rounded-lg flex items-center gap-2">
+                    <div className="p-4 flex items-center gap-2" style={{ background: 'color-mix(in srgb, var(--sage) 10%, transparent)', color: 'var(--sage)', borderRadius: 'var(--radius-ctl)' }}>
                         <span className="material-symbols-outlined">check_circle</span>
                         No dependency conflicts detected
                     </div>
                 ) : (
                     <div className="grid gap-4">
                         {dependencies.map(conflict => (
-                            <Card key={conflict.id} className="relative border-l-4 border-l-amber-500">
+                            <Card key={conflict.id} className="relative" style={{ borderLeft: '4px solid var(--amber)' }}>
                                 <div className="flex justify-between items-start mb-2">
                                     <div className="flex items-center gap-2">
                                         <Badge variant={mapSeverityToVariant(conflict.severity)} className="uppercase text-xs font-bold">
                                             {conflict.severity}
                                         </Badge>
-                                        <h3 className="font-bold text-slate-900 dark:text-white">{conflict.description}</h3>
+                                        <h3 className="font-bold" style={{ color: 'var(--ink-900)' }}>{conflict.description}</h3>
                                     </div>
                                     <Button size="sm" onClick={() => handleResolveClick(conflict)}>Resolve</Button>
                                 </div>
 
-                                <div className="space-y-2 mt-3 text-sm text-slate-600 dark:text-slate-300">
-                                    <p><strong className="text-slate-900 dark:text-slate-100">Impact:</strong> {conflict.metadata_json?.estimated_delay_days} days delay estimated.</p>
-                                    <p><strong className="text-slate-900 dark:text-slate-100">Reason:</strong> {conflict.metadata_json?.reason}</p>
+                                <div className="space-y-2 mt-3 text-sm" style={{ color: 'var(--ink-700)' }}>
+                                    <p><strong style={{ color: 'var(--ink-900)' }}>Impact:</strong> {conflict.metadata_json?.estimated_delay_days} days delay estimated.</p>
+                                    <p><strong style={{ color: 'var(--ink-900)' }}>Reason:</strong> {conflict.metadata_json?.reason}</p>
                                     <div className="flex items-center gap-2 mt-2">
                                         <Badge variant="info">Dependent: {conflict.conflicting_positions.dependent}</Badge>
-                                        <span className="material-symbols-outlined text-slate-400">arrow_right_alt</span>
+                                        <span className="material-symbols-outlined" style={{ color: 'var(--ink-400)' }}>arrow_right_alt</span>
                                         <Badge variant="neutral">Prerequisite: {conflict.conflicting_positions.prerequisite}</Badge>
                                     </div>
                                 </div>
@@ -156,38 +157,38 @@ const ProjectConflicts: React.FC = () => {
                 )}
             </div>
 
-            <div className="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-700">
-                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">Potential Duplicates</h2>
+            <div className="space-y-4 pt-6" style={{ borderTop: '1px solid var(--border)' }}>
+                <h2 className="font-display" style={{ fontSize: 17, color: 'var(--ink-800)', margin: 0 }}>Potential Duplicates</h2>
                 {duplicates.length === 0 ? (
-                    <div className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-4 rounded-lg flex items-center gap-2">
+                    <div className="p-4 flex items-center gap-2" style={{ background: 'color-mix(in srgb, var(--sage) 10%, transparent)', color: 'var(--sage)', borderRadius: 'var(--radius-ctl)' }}>
                         <span className="material-symbols-outlined">check_circle</span>
                         No duplicate projects detected
                     </div>
                 ) : (
                     <div className="grid gap-4">
                         {duplicates.map(conflict => (
-                            <Card key={conflict.id} className="relative border-l-4 border-l-red-500">
+                            <Card key={conflict.id} className="relative" style={{ borderLeft: '4px solid var(--terra)' }}>
                                 <div className="flex justify-between items-start mb-2">
                                     <div className="flex items-center gap-2">
                                         <Badge variant={mapSeverityToVariant(conflict.severity)} className="uppercase text-xs font-bold">
                                             {conflict.severity}
                                         </Badge>
-                                        <h3 className="font-bold text-slate-900 dark:text-white">{conflict.description}</h3>
+                                        <h3 className="font-bold" style={{ color: 'var(--ink-900)' }}>{conflict.description}</h3>
                                     </div>
                                     <Button size="sm" onClick={() => handleResolveClick(conflict)}>Resolve</Button>
                                 </div>
 
                                 <div className="space-y-2 mt-3">
-                                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                                    <p className="text-sm" style={{ color: 'var(--ink-700)' }}>
                                         <strong>Similarity Score:</strong> {(conflict.metadata_json?.similarity_score * 100).toFixed(1)}%
                                     </p>
                                     <div className="grid md:grid-cols-2 gap-4">
-                                        <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm">
-                                            <strong className="block mb-1 text-slate-700 dark:text-slate-300">Project A</strong>
+                                        <div className="p-3 text-sm" style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-ctl)', color: 'var(--ink-700)' }}>
+                                            <strong className="block mb-1" style={{ color: 'var(--ink-800)' }}>Project A</strong>
                                             {conflict.conflicting_positions.project_a}
                                         </div>
-                                        <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm">
-                                            <strong className="block mb-1 text-slate-700 dark:text-slate-300">Project B</strong>
+                                        <div className="p-3 text-sm" style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-ctl)', color: 'var(--ink-700)' }}>
+                                            <strong className="block mb-1" style={{ color: 'var(--ink-800)' }}>Project B</strong>
                                             {conflict.conflicting_positions.project_b}
                                         </div>
                                     </div>
@@ -200,20 +201,20 @@ const ProjectConflicts: React.FC = () => {
 
             {/* Modal */}
             {isModalVisible && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Resolve Conflict</h3>
-                            <button onClick={() => setIsModalVisible(false)} className="text-slate-400 hover:text-slate-600">
+                <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                    <div className="max-w-lg w-full max-h-[90vh] overflow-y-auto" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
+                        <div className="p-6 flex justify-between items-center" style={{ borderBottom: '1px solid var(--border)' }}>
+                            <h3 className="text-lg font-bold" style={{ color: 'var(--ink-900)' }}>Resolve Conflict</h3>
+                            <button onClick={() => setIsModalVisible(false)} style={{ color: 'var(--ink-400)' }}>
                                 <span className="material-symbols-outlined">close</span>
                             </button>
                         </div>
 
                         <form onSubmit={handleResolutionSubmit} className="p-6 space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Action</label>
+                                <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--ink-700)' }}>Action</label>
                                 <select
-                                    className="input-field w-full rounded-lg border-slate-300 dark:bg-slate-800 dark:border-slate-600"
+                                    className="input-field w-full"
                                     value={resolutionAction}
                                     onChange={(e) => setResolutionAction(e.target.value)}
                                 >
@@ -259,9 +260,9 @@ const ProjectConflicts: React.FC = () => {
                                         required
                                     />
                                     <div className="w-full">
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Reason</label>
+                                        <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--ink-700)' }}>Reason</label>
                                         <textarea
-                                            className="input-field w-full rounded-lg border-slate-300 dark:bg-slate-800 dark:border-slate-600 min-h-[80px]"
+                                            className="input-field w-full min-h-[80px]"
                                             value={formData.reason || ''}
                                             onChange={(e) => handleInputChange('reason', e.target.value)}
                                         />
@@ -269,7 +270,7 @@ const ProjectConflicts: React.FC = () => {
                                 </>
                             )}
 
-                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700 mt-4">
+                            <div className="flex justify-end gap-3 pt-4 mt-4" style={{ borderTop: '1px solid var(--border)' }}>
                                 <Button type="button" variant="ghost" onClick={() => setIsModalVisible(false)}>Cancel</Button>
                                 <Button type="submit" isLoading={isLoading}>Submit Resolution</Button>
                             </div>

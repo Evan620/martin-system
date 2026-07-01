@@ -15,6 +15,7 @@ export default function TeamManagement() {
     const [searchTerm, setSearchTerm] = useState('')
     const [activeTab, setActiveTab] = useState<'users' | 'governance'>('users')
     const [hoveredRow, setHoveredRow] = useState<string | null>(null)
+    const [currentPage, setCurrentPage] = useState(1)
 
     // Governance State
     const [twgs, setTwgs] = useState<any[]>([])
@@ -478,6 +479,12 @@ export default function TeamManagement() {
         user.email.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
+    // Pagination — show at most 20 members per page
+    const PAGE_SIZE = 20
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE))
+    const safePage = Math.min(currentPage, totalPages)
+    const pagedUsers = filteredUsers.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
     // Compute role counts
     const activeUsers = users.filter(u => u.is_active)
     const secretariatLeads = activeUsers.filter(u => u.role === UserRole.SECRETARIAT_LEAD || u.role === UserRole.ADMIN).length
@@ -598,7 +605,7 @@ export default function TeamManagement() {
                                 type="text"
                                 placeholder="Search by name or email..."
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1) }}
                                 style={{ ...inputStyle, paddingLeft: 34, maxWidth: 400 }}
                             />
                         </div>
@@ -615,13 +622,13 @@ export default function TeamManagement() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredUsers.map((user, idx) => (
+                                {pagedUsers.map((user, idx) => (
                                     <tr
                                         key={user.id}
                                         onMouseEnter={() => setHoveredRow(user.id)}
                                         onMouseLeave={() => setHoveredRow(null)}
                                         style={{
-                                            borderBottom: idx < filteredUsers.length - 1 ? '1px solid var(--border)' : 'none',
+                                            borderBottom: idx < pagedUsers.length - 1 ? '1px solid var(--border)' : 'none',
                                             background: hoveredRow === user.id ? 'var(--ink-50)' : 'transparent'
                                         }}
                                     >
@@ -720,6 +727,19 @@ export default function TeamManagement() {
                             </tbody>
                         </table>
                     </div>
+
+                    {filteredUsers.length > PAGE_SIZE && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderTop: '1px solid var(--border)', background: 'var(--ink-50)' }}>
+                            <span style={{ fontSize: 11, color: 'var(--ink-500)' }}>
+                                Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredUsers.length)} of {filteredUsers.length}
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '4px 12px', fontSize: 12, cursor: safePage === 1 ? 'default' : 'pointer', fontFamily: 'inherit', opacity: safePage === 1 ? 0.4 : 1 }}>Previous</button>
+                                <span style={{ fontSize: 12, color: 'var(--ink-600)' }}>Page {safePage} of {totalPages}</span>
+                                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-600)', padding: '4px 12px', fontSize: 12, cursor: safePage === totalPages ? 'default' : 'pointer', fontFamily: 'inherit', opacity: safePage === totalPages ? 0.4 : 1 }}>Next</button>
+                            </div>
+                        </div>
+                    )}
 
                     {filteredUsers.length === 0 && (
                         <div style={{ padding: '48px 16px', textAlign: 'center', color: 'var(--ink-400)' }}>

@@ -38,7 +38,12 @@ class Settings(BaseSettings):
         default=False,
         description="When True, blocks all outbound email and calendar writes (no real invites/emails sent)"
     )
-    
+
+    AUTO_PUBLISH_MINUTES: bool = Field(
+        default=True,
+        description="When True, AI-generated minutes are auto-approved and published (PDF + email + KB index) on generation, removing the manual approval gate. Set False to require explicit Secretariat approval."
+    )
+
     # Database
     DATABASE_URL: str = Field(
         default="sqlite+aiosqlite:///./ecowas_db.sqlite",

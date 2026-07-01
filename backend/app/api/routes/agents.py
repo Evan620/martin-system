@@ -166,8 +166,8 @@ def has_twg_access(user: User, twg_id: uuid.UUID) -> bool:
     """
     from app.models.models import UserRole
     
-    # Admins have access to all TWGs
-    if user.role == UserRole.ADMIN:
+    # Admins and the Secretariat have cross-TWG access
+    if user.role in (UserRole.ADMIN, UserRole.SECRETARIAT_LEAD):
         return True
     
     # Check if user is a member or facilitator of this TWG
@@ -288,8 +288,8 @@ async def chat_with_martin(
 
     try:
         # ROLE-BASED ROUTING
-        if current_user.role == UserRole.ADMIN:
-            # Admins always get Supervisor access with full permissions
+        if current_user.role in (UserRole.ADMIN, UserRole.SECRETARIAT_LEAD):
+            # Admins + Secretariat get full cross-TWG Supervisor access
             supervisor = get_supervisor()
             twg_context = str(chat_in.twg_id) if chat_in.twg_id else None
             # Call supervisor (now returns dict or str)
@@ -644,7 +644,7 @@ async def stream_chat_get(
 
             # RBAC — mirror the POST /chat logic
             force_agent_id = None
-            if current_user.role == UserRole.ADMIN:
+            if current_user.role in (UserRole.ADMIN, UserRole.SECRETARIAT_LEAD):
                 twg_context = twg_id
             elif current_user.role in [UserRole.TWG_FACILITATOR, UserRole.TWG_MEMBER]:
                 if not twg_id:

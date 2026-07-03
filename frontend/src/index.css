@@ -309,8 +309,14 @@
   0%   { opacity: 0; transform: translateY(16px); filter: blur(12px); }
   100% { opacity: 1; transform: translateY(0);    filter: blur(0); }
 }
+/* fill-mode `backwards` (not `both`): play the entrance, but do NOT retain the
+   final transform. `both` held `transform: translateY(0)` forever, which made
+   any element carrying this class a containing block for position:fixed
+   descendants — so modals (which are NOT portaled to <body>) centered inside
+   the tall page wrapper instead of the viewport. `backwards` reverts to
+   transform:none after the animation, so fixed modals resolve against the viewport. */
 .animate-blur-slide {
-  animation: qp-blur-slide-in var(--dur-page, 0.5s) var(--ease-quiet, cubic-bezier(0.16,1,0.3,1)) both;
+  animation: qp-blur-slide-in var(--dur-page, 0.5s) var(--ease-quiet, cubic-bezier(0.16,1,0.3,1)) backwards;
 }
 .stagger-1 { animation-delay: 60ms; }
 .stagger-2 { animation-delay: 120ms; }

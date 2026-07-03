@@ -395,7 +395,12 @@ export default function ModernLayout({ children }: ModernLayoutProps) {
                         className="flex-1 overflow-y-auto min-w-0 px-4 sm:px-6 lg:px-12 pt-4 sm:pt-6 lg:pt-10 pb-24 lg:pb-12 main-mobile-padding"
                         style={{ background: 'var(--bg)' }}
                     >
-                        <div key={location.pathname} className="max-w-[1180px] mx-auto w-full animate-blur-slide">
+                        {/* Page-transition entrance is OPACITY-ONLY (animate-fade-in), never
+                            transform/filter: those establish a containing block for position:fixed,
+                            which would trap modals (not portaled to <body>) inside this tall page
+                            box instead of the viewport. Do not switch this to a transform/blur
+                            animation without portaling the modals first. */}
+                        <div key={location.pathname} className="max-w-[1180px] mx-auto w-full animate-fade-in">
                             {children || <Outlet />}
                         </div>
                     </main>

@@ -39,7 +39,19 @@ class CalendarService:
             impersonate_email = settings.GOOGLE_IMPERSONATE_EMAIL or os.environ.get("GOOGLE_IMPERSONATE_EMAIL")
             if impersonate_email:
                 try:
-                    _sa_creds, _sa_project = google.auth.default(scopes=self.SCOPES)
+                    import json as _json
+                    _sa_raw = (os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON") or "").strip()
+                    if _sa_raw.startswith("{"):
+                        # Raw SA JSON in the env var — load directly. Works in ANY process
+                        # (backend OR celery worker) without depending on setup_google_credentials
+                        # having written google_credentials.json / set GOOGLE_APPLICATION_CREDENTIALS.
+                        _sa_creds = service_account.Credentials.from_service_account_info(
+                            _json.loads(_sa_raw), scopes=self.SCOPES)
+                    elif _sa_raw:
+                        _sa_creds = service_account.Credentials.from_service_account_file(
+                            _sa_raw, scopes=self.SCOPES)
+                    else:
+                        _sa_creds, _ = google.auth.default(scopes=self.SCOPES)
                     if hasattr(_sa_creds, 'with_subject'):
                         _sa_creds = _sa_creds.with_subject(impersonate_email)
                     self.creds = _sa_creds

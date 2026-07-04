@@ -203,3 +203,110 @@ def send_recurring_meeting_reminders_task(self):
     except Exception as e:
         logger.error(f"Failed to send recurring meeting reminders: {e}")
         raise self.retry(exc=e)
+
+
+# ── WAIIS TWG weekly invite dispatch ─────────────────────────────────────────
+@shared_task(
+    name="app.tasks.recurring_tasks.dispatch_weekly_invites",
+    bind=True,
+    max_retries=1,
+)
+def dispatch_weekly_invites(self):
+    """
+    Weekly (Monday): for SCHEDULED meetings starting within the next 7 days that
+    have NO participants yet, add the meeting's TWG members as participants +
+    Google Calendar attendees and send the invite AS the configured organizer
+    (GOOGLE_IMPERSONATE_EMAIL, e.g. joseph.nganga@africacen.org) via the DWD
+    service account. Idempotent: a meeting that already has participants is skipped,
+    so re-runs never double-invite.
+
+    GATED by settings.INVITE_DISPATCH_ENABLED (default False) — nothing sends until
+    Secretariat/Joseph approves turning invites on.
+    """
+    from app.core.config import settings
+    if not getattr(settings, "INVITE_DISPATCH_ENABLED", False):
+        logger.info("[invite-dispatch] INVITE_DISPATCH_ENABLED=False - skipping (gated)")
+        return {"status": "skipped_gated"}
+
+    import asyncio, os, json, uuid as _uuid
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+    from sqlalchemy import func
+    from app.models.models import Meeting, MeetingParticipant, MeetingStatus, User, twg_members
+
+    WINDOW_DAYS = 7
+    SCOPES = ["https://www.googleapis.com/auth/calendar"]
+
+    def _calendar():
+        raw = (os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON") or "").strip()
+        subject = getattr(settings, "GOOGLE_IMPERSONATE_EMAIL", None) or os.environ.get("GOOGLE_IMPERSONATE_EMAIL")
+        creds = service_account.Credentials.from_service_account_info(
+            json.loads(raw), scopes=SCOPES).with_subject(subject)
+        return build("calendar", "v3", credentials=creds, cache_discovery=False)
+
+    async def _dispatch():
+        now = datetime.utcnow()
+        horizon = now + timedelta(days=WINDOW_DAYS)
+        sent = skipped = errs = 0
+        async with get_db_session_context() as db:
+            res = await db.execute(
+                select(Meeting).where(
+                    Meeting.status == MeetingStatus.SCHEDULED,
+                    Meeting.scheduled_at >= now,
+                    Meeting.scheduled_at <= horizon,
+                    Meeting.video_link.isnot(None),
+                )
+            )
+            meetings = res.scalars().all()
+            if not meetings:
+                logger.info("[invite-dispatch] no meetings in the next %s days", WINDOW_DAYS)
+                return {"sent": 0, "skipped": 0, "errors": 0}
+            svc = _calendar()
+            for m in meetings:
+                cnt = (await db.execute(
+                    select(func.count()).select_from(MeetingParticipant)
+                    .where(MeetingParticipant.meeting_id == m.id))).scalar() or 0
+                if cnt > 0:
+                    skipped += 1
+                    continue
+                members = (await db.execute(
+                    select(User).join(twg_members, twg_members.c.user_id == User.id)
+                    .where(twg_members.c.twg_id == m.twg_id))).scalars().all()
+                members = [u for u in members if u.email]
+                if not members:
+                    skipped += 1
+                    continue
+                try:
+                    d0 = m.scheduled_at.strftime("%Y-%m-%dT00:00:00Z")
+                    d1 = (m.scheduled_at + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00Z")
+                    evs = svc.events().list(calendarId="primary", timeMin=d0, timeMax=d1,
+                                            singleEvents=True, maxResults=250).execute().get("items", [])
+                    ev = next((e for e in evs if (e.get("hangoutLink") or "") == m.video_link
+                               or f"ID: {m.id}" in (e.get("description") or "")), None)
+                    if not ev:
+                        errs += 1
+                        logger.warning("[invite-dispatch] no calendar event found for meeting %s", m.id)
+                        continue
+                    svc.events().patch(
+                        calendarId="primary", eventId=ev["id"],
+                        body={"attendees": [{"email": u.email} for u in members]},
+                        sendUpdates="all", conferenceDataVersion=1).execute()
+                    for u in members:
+                        db.add(MeetingParticipant(id=_uuid.uuid4(), meeting_id=m.id,
+                                                  user_id=u.id, email=u.email,
+                                                  name=getattr(u, "full_name", None)))
+                    await db.commit()
+                    sent += 1
+                    logger.info("[invite-dispatch] invited %s to %s (%s)", len(members), m.title, m.id)
+                except Exception as e:
+                    errs += 1
+                    await db.rollback()
+                    logger.error("[invite-dispatch] failed for meeting %s: %s", m.id, e)
+        logger.info("[invite-dispatch] done: sent=%s skipped=%s errors=%s", sent, skipped, errs)
+        return {"sent": sent, "skipped": skipped, "errors": errs}
+
+    try:
+        return asyncio.run(_dispatch())
+    except Exception as e:
+        logger.error("[invite-dispatch] task failed: %s", e)
+        raise

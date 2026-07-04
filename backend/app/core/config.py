@@ -265,6 +265,7 @@ class Settings(BaseSettings):
     # is still written to the DB. Keep this off during testing so no real outreach
     # happens via the agent path.
     MEETING_AUTO_INVITES_ENABLED: bool = Field(default=False, description="If False, suppress Google Meet creation + invite emails from agent tools")
+    INVITE_DISPATCH_ENABLED: bool = Field(default=False, description="If True, the weekly Monday invite-dispatch worker adds TWG members as attendees + sends calendar invites (as GOOGLE_IMPERSONATE_EMAIL). Default False = fully gated.")
     
     # Resend (recommended for production)
     RESEND_API_KEY: Optional[str] = Field(default=None, description="Resend API key for email delivery")

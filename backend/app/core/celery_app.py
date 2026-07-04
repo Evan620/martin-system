@@ -107,6 +107,12 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=8, minute=0),  # Run at 8 AM daily
     },
 
+    # ── WAIIS TWG weekly invite dispatch (gated by INVITE_DISPATCH_ENABLED) ──
+    "dispatch-weekly-invites-monday": {
+        "task": "app.tasks.recurring_tasks.dispatch_weekly_invites",
+        "schedule": crontab(day_of_week=1, hour=6, minute=0),  # Monday 06:00 UTC (09:00 EAT)
+    },
+
     # ── Governance scans — DISABLED (re-enable when needed) ──────────
     # These consume LLM tokens on every run. Not needed for meeting lifecycle.
     #

@@ -230,20 +230,11 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to add supervisor refresh job: {e}")
 
-    # Add RSVP Sync Job (for Development/Standalone mode without Celery)
-    from app.services.tasks import sync_rsvps
-    try:
-        scheduler_service.scheduler.add_job(
-            sync_rsvps,
-            'interval',
-            minutes=1, # Run frequently for debugging
-            id='sync_rsvps_job',
-            replace_existing=True
-        )
-        logger.info("RSVP sync job added to scheduler (every 1 min).")
-    except Exception as e:
-        logger.error(f"Failed to add RSVP sync job: {e}")
-
+    # RSVP sync now runs in ContinuousMonitor.sync_meeting_rsvps (every 10 min).
+    # The old app.services.tasks.sync_rsvps job was removed: it matched events by
+    # a privateExtendedProperty the TWG events don't carry and spammed
+    # unauthorized_client errors (~1/min). The ContinuousMonitor version matches
+    # by hangoutLink/description ID and reads as Joseph via the DWD SA.
 
     logger.info("--- END STARTUP DIAGNOSTICS ---")
 

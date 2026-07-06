@@ -11,6 +11,7 @@ Uses APScheduler for periodic execution.
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_MISSED
 from datetime import datetime, timedelta, timezone
 UTC = timezone.utc
@@ -30,7 +31,7 @@ from app.core.config import settings
 from app.core.database import get_db_session_context
 from app.models.models import (
     Meeting, Conflict, TWG, ConflictStatus, Notification, NotificationType, Document, User, MeetingParticipant, VipProfile,
-    ConflictType, ConflictSeverity, MeetingStatus
+    ConflictType, ConflictSeverity, MeetingStatus, RsvpStatus
 )
 from app.services.conflict_detector import ConflictDetector
 from app.services.attendee_service import attendee_service
@@ -145,6 +146,32 @@ class ContinuousMonitor:
             misfire_grace_time=300  # tolerate up to 5 min delay
         )
 
+        # 11. Weekly invite dispatch (Mon 06:00 EAT). Celery beat is NOT deployed
+        # in this environment, so the weekly dispatch lives here, in-process. The
+        # task is gated (INVITE_DISPATCH_ENABLED), advisory-locked (safe across the
+        # multiple web instances that run this monitor), and idempotent (skips
+        # meetings that already have participants). misfire_grace_time covers a
+        # restart across the 06:00 mark.
+        self.scheduler.add_job(
+            self.dispatch_weekly_invites,
+            trigger=CronTrigger(day_of_week="mon", hour=6, minute=0, timezone="Africa/Nairobi"),
+            id="weekly_invite_dispatch",
+            replace_existing=True,
+            misfire_grace_time=3600
+        )
+
+        # 12. RSVP sync (every 10 min). Pulls attendee responses from Google
+        # Calendar into rsvp_status so the platform reflects accepts/declines.
+        # (The Celery sync_rsvps task never runs — no beat — and matched events
+        # by an extended property the TWG events don't carry.)
+        self.scheduler.add_job(
+            self.sync_meeting_rsvps,
+            trigger=IntervalTrigger(minutes=10),
+            id="rsvp_sync",
+            replace_existing=True,
+            misfire_grace_time=300
+        )
+
         self.scheduler.start()
         self.is_running = True
         logger.info("Continuous Monitor started.")
@@ -169,6 +196,100 @@ class ContinuousMonitor:
         else:
             # Job was missed (scheduler was busy)
             logger.warning(f"Background job '{job_id}' MISSED its scheduled run")
+
+    async def dispatch_weekly_invites(self):
+        """Weekly (Mon 06:00 EAT) TWG invite dispatch. Delegates to the shared,
+        advisory-locked core so it is safe to run in every web instance."""
+        from app.tasks.recurring_tasks import run_weekly_invite_dispatch
+        result = await run_weekly_invite_dispatch()
+        logger.info(f"[invite-dispatch] weekly run result: {result}")
+        return result
+
+    async def sync_meeting_rsvps(self):
+        """
+        Pull attendee RSVP responses from Google Calendar into rsvp_status.
+
+        The platform previously never reflected RSVPs: the only sync (tasks.py
+        sync_rsvps) is a Celery task and Celery beat is not deployed, and it
+        matched events by privateExtendedProperty — which the directly-created
+        TWG events don't carry. This in-process job matches events the robust way
+        (hangoutLink == video_link, or "ID: <meeting_id>" in the description) and
+        reads the response as the organizer (Joseph) via the DWD service account,
+        so it works for every meeting the platform manages.
+        """
+        import os, json
+        raw = (os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON") or "").strip()
+        subject = getattr(settings, "GOOGLE_IMPERSONATE_EMAIL", None) or os.environ.get("GOOGLE_IMPERSONATE_EMAIL")
+        if not raw or not subject:
+            return  # DWD not configured in this environment — nothing to sync
+
+        gmap = {
+            "accepted": RsvpStatus.ACCEPTED,
+            "declined": RsvpStatus.DECLINED,
+            "tentative": RsvpStatus.TENTATIVE,
+            "needsAction": RsvpStatus.PENDING,
+        }
+
+        def _fetch_rsvps(scheduled_at, meeting_id, video_link):
+            """Blocking Google call — run inside _gcal_executor. Returns
+            {email_lower: responseStatus} or None on hard failure."""
+            from google.oauth2 import service_account
+            from googleapiclient.discovery import build
+            creds = service_account.Credentials.from_service_account_info(
+                json.loads(raw), scopes=["https://www.googleapis.com/auth/calendar"]
+            ).with_subject(subject)
+            svc = build("calendar", "v3", credentials=creds, cache_discovery=False)
+            d0 = scheduled_at.strftime("%Y-%m-%dT00:00:00Z")
+            d1 = (scheduled_at + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00Z")
+            evs = svc.events().list(calendarId="primary", timeMin=d0, timeMax=d1,
+                                    singleEvents=True, maxResults=250).execute().get("items", [])
+            ev = next((e for e in evs if (e.get("hangoutLink") or "") == video_link
+                       or f"ID: {meeting_id}" in (e.get("description") or "")), None)
+            if not ev:
+                return {}
+            return {a["email"].lower(): a.get("responseStatus")
+                    for a in ev.get("attendees", []) if a.get("email")}
+
+        now = datetime.utcnow()
+        lo = now - timedelta(days=2)      # keep syncing briefly past-due for late RSVPs
+        hi = now + timedelta(days=21)
+        loop = asyncio.get_running_loop()
+        updated = 0
+        async with get_db_session_context() as db:
+            res = await db.execute(
+                select(Meeting).where(
+                    Meeting.status == MeetingStatus.SCHEDULED,
+                    Meeting.scheduled_at >= lo,
+                    Meeting.scheduled_at <= hi,
+                    Meeting.video_link.isnot(None),
+                ).options(selectinload(Meeting.participants))
+            )
+            meetings = [m for m in res.scalars().all() if m.participants]
+            if not meetings:
+                return
+            for m in meetings:
+                try:
+                    rsvps = await loop.run_in_executor(
+                        _gcal_executor,
+                        lambda sa=m.scheduled_at, mid=m.id, vl=m.video_link: _fetch_rsvps(sa, mid, vl)
+                    )
+                    if not rsvps:
+                        continue
+                    changed = False
+                    for p in m.participants:
+                        if p.email and p.email.lower() in rsvps:
+                            ns = gmap.get(rsvps[p.email.lower()], RsvpStatus.PENDING)
+                            if p.rsvp_status != ns:
+                                p.rsvp_status = ns
+                                changed = True
+                    if changed:
+                        await db.commit()
+                        updated += 1
+                except Exception as e:
+                    await db.rollback()
+                    logger.error(f"[rsvp-sync] failed for meeting {m.id}: {e}")
+        if updated:
+            logger.info(f"[rsvp-sync] updated RSVPs for {updated} meeting(s)")
 
     async def sync_pending_calendar_events(self):
         """

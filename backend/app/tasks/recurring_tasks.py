@@ -206,32 +206,41 @@ def send_recurring_meeting_reminders_task(self):
 
 
 # ── WAIIS TWG weekly invite dispatch ─────────────────────────────────────────
-@shared_task(
-    name="app.tasks.recurring_tasks.dispatch_weekly_invites",
-    bind=True,
-    max_retries=1,
-)
-def dispatch_weekly_invites(self):
-    """
-    Weekly (Monday): for SCHEDULED meetings starting within the next 7 days that
-    have NO participants yet, add the meeting's TWG members as participants +
-    Google Calendar attendees and send the invite AS the configured organizer
-    (GOOGLE_IMPERSONATE_EMAIL, e.g. joseph.nganga@africacen.org) via the DWD
-    service account. Idempotent: a meeting that already has participants is skipped,
-    so re-runs never double-invite.
+# Postgres advisory-lock key for the weekly invite dispatch. ContinuousMonitor
+# runs inside every web instance (and the mis-provisioned "celery-worker" service
+# currently runs a second copy of the web app), so without a cross-process lock
+# two instances firing the Monday cron at the same second would double-invite.
+# pg_try_advisory_lock is session-scoped and survives the per-meeting commits.
+_INVITE_DISPATCH_LOCK_KEY = 728041
 
-    GATED by settings.INVITE_DISPATCH_ENABLED (default False) — nothing sends until
-    Secretariat/Joseph approves turning invites on.
+
+async def run_weekly_invite_dispatch():
+    """
+    Core weekly invite dispatch — importable (no Celery required) so the
+    in-process ContinuousMonitor can run it directly. Celery beat is not deployed
+    in this environment, so the scheduled home is ContinuousMonitor; this stays a
+    plain async function and the Celery task below is a thin wrapper for manual /
+    future-worker invocation.
+
+    For SCHEDULED meetings starting within the next 7 days that have NO
+    participants yet, add the meeting's TWG members as participants + Google
+    Calendar attendees and send the invite AS the configured organizer
+    (GOOGLE_IMPERSONATE_EMAIL, e.g. joseph.nganga@africacen.org) via the DWD
+    service account.
+
+    Idempotent + race-safe: gated by settings.INVITE_DISPATCH_ENABLED, guarded by
+    a Postgres advisory lock (only one execution proceeds), and a meeting that
+    already has participants is skipped — re-runs never double-invite.
     """
     from app.core.config import settings
     if not getattr(settings, "INVITE_DISPATCH_ENABLED", False):
         logger.info("[invite-dispatch] INVITE_DISPATCH_ENABLED=False - skipping (gated)")
         return {"status": "skipped_gated"}
 
-    import asyncio, os, json, uuid as _uuid
+    import os, json, uuid as _uuid
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
-    from sqlalchemy import func
+    from sqlalchemy import func, text
     from app.models.models import Meeting, MeetingParticipant, MeetingStatus, User, twg_members
 
     WINDOW_DAYS = 7
@@ -244,11 +253,18 @@ def dispatch_weekly_invites(self):
             json.loads(raw), scopes=SCOPES).with_subject(subject)
         return build("calendar", "v3", credentials=creds, cache_discovery=False)
 
-    async def _dispatch():
-        now = datetime.utcnow()
-        horizon = now + timedelta(days=WINDOW_DAYS)
-        sent = skipped = errs = 0
-        async with get_db_session_context() as db:
+    now = datetime.utcnow()
+    horizon = now + timedelta(days=WINDOW_DAYS)
+    sent = skipped = errs = 0
+    async with get_db_session_context() as db:
+        # Cross-process guard: bail out if another instance is already dispatching.
+        got_lock = (await db.execute(
+            text("SELECT pg_try_advisory_lock(:k)"),
+            {"k": _INVITE_DISPATCH_LOCK_KEY})).scalar()
+        if not got_lock:
+            logger.info("[invite-dispatch] another instance holds the lock - skipping")
+            return {"status": "skipped_locked"}
+        try:
             res = await db.execute(
                 select(Meeting).where(
                     Meeting.status == MeetingStatus.SCHEDULED,
@@ -302,11 +318,24 @@ def dispatch_weekly_invites(self):
                     errs += 1
                     await db.rollback()
                     logger.error("[invite-dispatch] failed for meeting %s: %s", m.id, e)
-        logger.info("[invite-dispatch] done: sent=%s skipped=%s errors=%s", sent, skipped, errs)
-        return {"sent": sent, "skipped": skipped, "errors": errs}
+        finally:
+            await db.execute(
+                text("SELECT pg_advisory_unlock(:k)"),
+                {"k": _INVITE_DISPATCH_LOCK_KEY})
+    logger.info("[invite-dispatch] done: sent=%s skipped=%s errors=%s", sent, skipped, errs)
+    return {"sent": sent, "skipped": skipped, "errors": errs}
 
+
+@shared_task(
+    name="app.tasks.recurring_tasks.dispatch_weekly_invites",
+    bind=True,
+    max_retries=1,
+)
+def dispatch_weekly_invites(self):
+    """Thin Celery wrapper around run_weekly_invite_dispatch (see that function)."""
+    import asyncio
     try:
-        return asyncio.run(_dispatch())
+        return asyncio.run(run_weekly_invite_dispatch())
     except Exception as e:
         logger.error("[invite-dispatch] task failed: %s", e)
         raise

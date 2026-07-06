@@ -1,12 +1,16 @@
 """add public_summary JSON column to minutes
 
-Revision ID: r13_minutes_public_summary_20260706
+Revision ID: r13_public_summary_20260706
 Revises: r12_subgroup_links_20260630
 Create Date: 2026-07-06
 
 Chains off r12_subgroup_links_20260630 (the single current head) to keep the
 migration history linear — `alembic upgrade head` must resolve to one head or the
 production entrypoint (`alembic upgrade head && uvicorn ...`) crash-loops.
+
+NOTE: the revision id is kept <=32 chars because alembic_version.version_num is
+VARCHAR(32); a longer id fails the version UPDATE (StringDataRightTruncation) and
+rolls back the whole (transactional) migration.
 
 Adds the nullable `public_summary` JSON column to the `minutes` row. This holds
 the chair-approved, public-safe block (highlights / decisions_milestones /
@@ -18,7 +22,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "r13_minutes_public_summary_20260706"
+revision = "r13_public_summary_20260706"
 down_revision = "r12_subgroup_links_20260630"
 branch_labels = None
 depends_on = None

@@ -543,6 +543,9 @@ class Minutes(Base):
     meeting_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("meetings.id"), unique=True)
     content: Mapped[str] = mapped_column(Text) # Markdown or HTML
     key_decisions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Chair-approved public summary — the ONLY minutes data emitted to Campaign OS.
+    # Shape: {"highlights": [], "decisions_milestones": [], "institutions_public": [], "next_milestone": ""}
+    public_summary: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     status: Mapped[MinutesStatus] = mapped_column(Enum(MinutesStatus, values_callable=lambda x: [e.value for e in x]), default=MinutesStatus.DRAFT)
     rejection_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     rejected_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

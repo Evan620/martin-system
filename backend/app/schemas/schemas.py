@@ -446,6 +446,18 @@ class AgendaRead(AgendaBase):
 
 # --- Minutes Schemas ---
 
+class PublicSummary(SchemaBase):
+    """Chair-approved, public-safe summary block stored on the minutes row.
+
+    This is the ONLY minutes data emitted to Campaign OS — never raw content,
+    key_decisions, or transcript text. All fields are defaulted so partial
+    saves (a draft with only a couple of highlights) round-trip cleanly.
+    """
+    highlights: List[str] = Field(default_factory=list)
+    decisions_milestones: List[str] = Field(default_factory=list)
+    institutions_public: List[str] = Field(default_factory=list)
+    next_milestone: str = ""
+
 class MinutesBase(SchemaBase):
     content: str
     key_decisions: Optional[str] = None

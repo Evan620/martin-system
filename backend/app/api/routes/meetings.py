@@ -18,7 +18,7 @@ from app.models.models import Meeting, Agenda, Minutes, User, UserRole, MinutesS
 from app.schemas.schemas import (
     MeetingCreate, MeetingRead, MeetingUpdate, MeetingCancel, MeetingUpdateNotification,
     AgendaCreate, AgendaRead, MinutesCreate, MinutesRead, MinutesUpdate, MinutesRejectionRequest,
-    MinutesVersionRead, MinutesUpdateWithVersion,
+    MinutesVersionRead, MinutesUpdateWithVersion, PublicSummary,
     ActionItemCreate, ActionItemRead, MeetingParticipantCreate, MeetingParticipantRead,
     MeetingParticipantUpdate, MeetingDependencyRead, MyRsvpRequest,
     DependencyType as DependencyTypeSchema
@@ -47,6 +47,7 @@ def _hide_confidential_meeting_docs(meeting: "Meeting", current_user: "User") ->
         [doc for doc in meeting.documents if not doc.is_confidential],
     )
 from app.services.rsvp_service import apply_member_rsvp
+from app.services import twg_webhook_service
 from app.services.email_service import email_service
 from app.core.config import settings
 from sqlalchemy.orm import selectinload
@@ -63,6 +64,15 @@ from difflib import SequenceMatcher
 
 router = APIRouter(prefix="/meetings", tags=["Meetings"])
 logger = logging.getLogger(__name__)
+
+
+class MinutesUpdateWithSummary(MinutesUpdate):
+    """Minutes update body extended with the optional chair-approved
+    ``public_summary`` block. Persisted onto ``Minutes.public_summary`` and — on
+    approval — emitted to Campaign OS (WAIIS media engine). Optional so existing
+    callers are unaffected; the raw minutes content is never part of this block.
+    """
+    public_summary: Optional[PublicSummary] = None
 
 GROUP_ASSIGNEES = {
     "TBD", "N/A", "ALL MEMBERS", "UNASSIGNED", "ALL TWG MEMBERS",
@@ -738,7 +748,7 @@ async def update_meeting(
 @router.post("/{meeting_id}/minutes", response_model=MinutesRead)
 async def upsert_minutes(
     meeting_id: uuid.UUID,
-    minutes_in: MinutesUpdate, # Allow partial updates or full content
+    minutes_in: MinutesUpdateWithSummary, # Allow partial updates or full content (+ optional public_summary)
     current_user: User = Depends(require_facilitator),
     db: AsyncSession = Depends(get_db)
 ):
@@ -800,7 +810,11 @@ async def upsert_minutes(
         update_data = minutes_in.model_dump(exclude_unset=True)
         # Remove change_summary from minutes update (it's only for version)
         update_data.pop('change_summary', None)
-        
+        # Persist the chair-approved public summary as a full, normalized JSON
+        # block (all keys present) only when the client actually sent one.
+        if minutes_in.public_summary is not None:
+            update_data['public_summary'] = minutes_in.public_summary.model_dump()
+
         for key, value in update_data.items():
             setattr(db_minutes, key, value)
         
@@ -814,7 +828,9 @@ async def upsert_minutes(
         
         minutes_data = minutes_in.model_dump(exclude_unset=True)
         minutes_data.pop('change_summary', None)  # Remove version-only field
-        
+        if minutes_in.public_summary is not None:
+            minutes_data['public_summary'] = minutes_in.public_summary.model_dump()
+
         db_minutes = Minutes(
             meeting_id=meeting_id,
             **minutes_data,
@@ -2862,11 +2878,39 @@ async def approve_minutes(
         },
         ip_address=request.client.host if request.client else None
     )
-    
+
+    # 4. Emit PUBLIC-SAFE payload to Campaign OS (WAIIS media engine).
+    # This is a SIDE-EFFECT ONLY — it must NEVER fail or block approval. The
+    # service is off by default and gates internally; we additionally skip the
+    # call entirely when there is no chair-approved public_summary on the
+    # minutes (raw minutes content is never emitted). Any error is caught,
+    # logged and audited so approval still returns success.
+    try:
+        if db_meeting.minutes.public_summary:
+            emit_result = await twg_webhook_service.emit_minutes_published(
+                db_meeting,
+                db_meeting.minutes.public_summary,
+            )
+            logger.info(
+                f"[TWG webhook] emit result for meeting {meeting_id}: {emit_result}"
+            )
+            await audit_service.log_activity(
+                db,
+                user_id=current_user.id,
+                action="MEETING_MINUTES_WEBHOOK_EMITTED",
+                resource_type="meeting",
+                resource_id=meeting_id,
+                details={"emit_result": emit_result},
+                ip_address=request.client.host if request.client else None,
+            )
+            await db.commit()
+    except Exception as e:
+        logging.error(f"[TWG webhook] emit/audit failed — approval unaffected: {e}")
+
     return {
         "message": "Minutes approved and published",
         "status": db_meeting.minutes.status.value if hasattr(db_meeting.minutes.status, 'value') else str(db_meeting.minutes.status),
-        "workflows_triggered": ["pdf", "email", "audit", "kb_indexing"] 
+        "workflows_triggered": ["pdf", "email", "audit", "kb_indexing"]
     }
 
 

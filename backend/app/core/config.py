@@ -412,6 +412,23 @@ class Settings(BaseSettings):
         description="If True, saving/finalizing meeting minutes auto-extracts action items from the minutes text (deduped). Off by default to preserve existing manual-extract behavior."
     )
 
+    # TWG × Campaign OS webhook (WAIIS media engine) — emits a PUBLIC-SAFE
+    # summary to Campaign OS when minutes are approved/published. OFF by default:
+    # nothing fires until the endpoint + shared secret exist and this is enabled.
+    # The raw minutes/transcript NEVER cross the wire (see twg_webhook_service).
+    TWG_WEBHOOK_ENABLED: bool = Field(
+        default=False,
+        description="If True, emit a public-safe payload to Campaign OS when minutes are approved. Off by default."
+    )
+    CAMPAIGN_OS_INGEST_URL: str = Field(
+        default="",
+        description="Campaign OS ingest endpoint, e.g. https://campaign-os.example/api/ingest/twg-meeting"
+    )
+    CAMPAIGN_OS_WEBHOOK_SECRET: str = Field(
+        default="",
+        description="Shared secret for HMAC-SHA256 signing of the Campaign OS webhook payload"
+    )
+
     @property
     def attendee_missing_vars(self) -> List[str]:
         """Names of the ATTENDEE_* vars required for bot dispatch/webhooks that are unset.

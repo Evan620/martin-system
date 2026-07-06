@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { RootState } from '../../store'
-import { meetings, actionItems, twgs, recurringMeetings } from '../../services/api'
+import { meetings, actionItems, twgs, recurringMeetings, PublicSummary } from '../../services/api'
 import { UserRole } from '../../types/auth'
 import { Card, Badge } from '../../components/ui'
 import { toEventInputValue, eventInputToUTCISO, formatMeetingDate, formatMeetingTime } from '../../utils/dates'
@@ -16,6 +16,16 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 type TabType = 'agenda' | 'minutes' | 'participants' | 'documents' | 'schedule'
+
+const EMPTY_PUBLIC_SUMMARY: PublicSummary = {
+    highlights: [],
+    decisions_milestones: [],
+    institutions_public: [],
+    next_milestone: '',
+}
+
+// The three list-shaped fields of the public summary (next_milestone is a plain string).
+type PublicListField = 'highlights' | 'decisions_milestones' | 'institutions_public'
 
 export default function MeetingDetail() {
     const { id: meetingId } = useParams<{ id: string }>()
@@ -39,6 +49,11 @@ export default function MeetingDetail() {
     const [isSubmittingForApproval, setIsSubmittingForApproval] = useState(false)
     const [isApprovingMinutes, setIsApprovingMinutes] = useState(false)
     const [meetingActionItems, setMeetingActionItems] = useState<any[]>([])
+
+    // Public Summary State (chair-approved, public-safe block shared to WAIIS channels)
+    const [publicSummary, setPublicSummary] = useState<PublicSummary>(EMPTY_PUBLIC_SUMMARY)
+    const [isSavingPublicSummary, setIsSavingPublicSummary] = useState(false)
+    const [publicSummarySaved, setPublicSummarySaved] = useState(false)
 
     // Participant State
     const [guestName, setGuestName] = useState('')
@@ -171,6 +186,13 @@ export default function MeetingDetail() {
                 const minutesRes = await meetings.getMinutes(meetingId)
                 setMinutesContent(minutesRes.data.content || '')
                 setMinutesStatus(minutesRes.data.status || 'DRAFT')
+                const ps = minutesRes.data.public_summary
+                setPublicSummary(ps ? {
+                    highlights: ps.highlights || [],
+                    decisions_milestones: ps.decisions_milestones || [],
+                    institutions_public: ps.institutions_public || [],
+                    next_milestone: ps.next_milestone || '',
+                } : EMPTY_PUBLIC_SUMMARY)
                 if (minutesRes.data.content) {
                     setIsTranscriptExpanded(false)
                 }
@@ -178,6 +200,7 @@ export default function MeetingDetail() {
                 console.log("No minutes yet")
                 setMinutesContent('')
                 setMinutesStatus('DRAFT')
+                setPublicSummary(EMPTY_PUBLIC_SUMMARY)
             }
 
             // Load action items
@@ -216,7 +239,94 @@ export default function MeetingDetail() {
         }
     }
 
+    // --- Public summary editing helpers ---
+    const updatePublicListItem = (field: PublicListField, idx: number, value: string) =>
+        setPublicSummary(prev => ({ ...prev, [field]: prev[field].map((item, i) => (i === idx ? value : item)) }))
 
+    const addPublicListItem = (field: PublicListField) =>
+        setPublicSummary(prev => ({ ...prev, [field]: [...prev[field], ''] }))
+
+    const removePublicListItem = (field: PublicListField, idx: number) =>
+        setPublicSummary(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== idx) }))
+
+    // Trim/drop-empty before persisting so blank rows never reach Campaign OS.
+    const buildCleanedPublicSummary = (): PublicSummary => ({
+        highlights: publicSummary.highlights.map(s => s.trim()).filter(Boolean),
+        decisions_milestones: publicSummary.decisions_milestones.map(s => s.trim()).filter(Boolean),
+        institutions_public: publicSummary.institutions_public.map(s => s.trim()).filter(Boolean),
+        next_milestone: publicSummary.next_milestone.trim(),
+    })
+
+    const handleSavePublicSummary = async () => {
+        if (!meetingId || isSavingPublicSummary) return
+        setIsSavingPublicSummary(true)
+        try {
+            const cleaned = buildCleanedPublicSummary()
+            await meetings.updateMinutes(meetingId, { content: minutesContent, public_summary: cleaned })
+            setPublicSummary(cleaned)
+            setPublicSummarySaved(true)
+            setTimeout(() => setPublicSummarySaved(false), 2500)
+        } catch (error) {
+            console.error("Failed to save public summary", error)
+            alert("Failed to save public summary")
+        } finally {
+            setIsSavingPublicSummary(false)
+        }
+    }
+
+    const renderPublicList = (
+        field: PublicListField,
+        label: string,
+        hint: string,
+        placeholder: string,
+    ) => (
+        <div style={{ marginBottom: 22 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--ink-700)', marginBottom: 10, letterSpacing: '0.01em' }}>
+                {label}{' '}
+                <span style={{ fontWeight: 400, color: 'var(--ink-500)', fontStyle: 'italic' }}>· {hint}</span>
+            </label>
+            {publicSummary[field].length === 0 && (
+                <p style={{ fontSize: 11.5, color: 'var(--ink-500)', fontStyle: 'italic', margin: '0 0 10px' }}>None added yet.</p>
+            )}
+            {publicSummary[field].map((item, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <input
+                        value={item}
+                        onChange={(e) => updatePublicListItem(field, idx, e.target.value)}
+                        placeholder={placeholder}
+                        style={{
+                            flex: 1, padding: '9px 12px', background: 'var(--ink-50)',
+                            border: '1px solid var(--border)', color: 'var(--ink-900)',
+                            fontFamily: 'inherit', fontSize: 13, outline: 'none', boxSizing: 'border-box',
+                        }}
+                    />
+                    <button
+                        onClick={() => removePublicListItem(field, idx)}
+                        title="Remove"
+                        style={{
+                            flexShrink: 0, width: 34, background: 'transparent',
+                            border: '1px solid var(--border)', color: 'var(--ink-500)',
+                            fontSize: 18, lineHeight: 1, cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                    >
+                        ×
+                    </button>
+                </div>
+            ))}
+            <button
+                onClick={() => addPublicListItem(field)}
+                style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: 'transparent', border: '1px dashed var(--border)',
+                    color: 'var(--ink-700)', padding: '6px 12px', fontSize: 11.5, fontWeight: 500,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                }}
+            >
+                <span className="material-symbols-outlined" style={{ fontSize: 15 }}>add</span>
+                Add {label.toLowerCase()}
+            </button>
+        </div>
+    )
 
     const handleGenerateSummary = async () => {
         if (!meetingId || isGeneratingMinutes) return
@@ -246,9 +356,9 @@ export default function MeetingDetail() {
     const handleSubmitForApproval = async () => {
         if (!meetingId || isSubmittingForApproval) return
 
-        // First save the minutes content
+        // First save the minutes content (+ the chair-approved public summary)
         try {
-            await meetings.updateMinutes(meetingId, { content: minutesContent })
+            await meetings.updateMinutes(meetingId, { content: minutesContent, public_summary: buildCleanedPublicSummary() })
         } catch (error) {
             console.error("Failed to save minutes before submission", error)
             alert("Failed to save minutes")
@@ -1607,6 +1717,77 @@ export default function MeetingDetail() {
                                                             </div>
                                                         </Card>
                                                     </div>
+
+                                                    {/* Public Summary — chair-approved, public-safe block shared to WAIIS channels */}
+                                                    {isFacilitator && (
+                                                        <div style={{
+                                                            background: 'var(--surface)',
+                                                            border: '1px solid var(--border)',
+                                                            padding: 24,
+                                                            fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
+                                                        }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                                                <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-500)', fontWeight: 600 }}>
+                                                                    Public summary
+                                                                </div>
+                                                                {publicSummarySaved && (
+                                                                    <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--sage)', fontWeight: 600 }}>
+                                                                        Saved
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p style={{ fontSize: 11.5, color: 'var(--ink-500)', lineHeight: 1.6, margin: '0 0 22px', fontStyle: 'italic' }}>
+                                                                This chair-approved public summary — not the raw minutes or transcript — is what gets shared to WAIIS channels (LinkedIn, X, Instagram) after the minutes are approved. Include only information cleared for public release.
+                                                            </p>
+
+                                                            {renderPublicList('highlights', 'Highlights', '3–5 chair-approved bullets', 'e.g. TWG agreed on a shared minerals data standard')}
+                                                            {renderPublicList('decisions_milestones', 'Decisions & milestones', 'only items cleared for public release', 'e.g. Draft framework approved for stakeholder review')}
+                                                            {renderPublicList('institutions_public', 'Public institutions', 'only orgs that consented to being named', 'e.g. ECOWAS Commission')}
+
+                                                            <div style={{ marginBottom: 22 }}>
+                                                                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--ink-700)', marginBottom: 10, letterSpacing: '0.01em' }}>
+                                                                    Next milestone{' '}
+                                                                    <span style={{ fontWeight: 400, color: 'var(--ink-500)', fontStyle: 'italic' }}>· the next public-facing step</span>
+                                                                </label>
+                                                                <input
+                                                                    value={publicSummary.next_milestone}
+                                                                    onChange={(e) => setPublicSummary(prev => ({ ...prev, next_milestone: e.target.value }))}
+                                                                    placeholder="e.g. Framework tabled at the November WAIIS summit"
+                                                                    style={{
+                                                                        width: '100%', padding: '9px 12px', background: 'var(--ink-50)',
+                                                                        border: '1px solid var(--border)', color: 'var(--ink-900)',
+                                                                        fontFamily: 'inherit', fontSize: 13, outline: 'none', boxSizing: 'border-box',
+                                                                    }}
+                                                                />
+                                                            </div>
+
+                                                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                                <button
+                                                                    onClick={handleSavePublicSummary}
+                                                                    disabled={isSavingPublicSummary}
+                                                                    style={{
+                                                                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                                                                        background: 'var(--accent)', border: '1px solid var(--accent)',
+                                                                        color: 'var(--accent-ink)', padding: '7px 16px', fontSize: 12, fontWeight: 500,
+                                                                        cursor: isSavingPublicSummary ? 'default' : 'pointer',
+                                                                        opacity: isSavingPublicSummary ? 0.55 : 1, fontFamily: 'inherit',
+                                                                    }}
+                                                                >
+                                                                    {isSavingPublicSummary ? (
+                                                                        <>
+                                                                            <span className="material-symbols-outlined animate-spin" style={{ fontSize: 16 }}>sync</span>
+                                                                            Saving…
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>save</span>
+                                                                            Save public summary
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                     {/* Action Items */}
                                                     <div>

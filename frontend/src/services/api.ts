@@ -94,6 +94,16 @@ api.interceptors.response.use(
 
 export default api;
 
+// Chair-approved, public-safe summary authored alongside the minutes.
+// This block — never the raw minutes/transcript — is what is shared to
+// WAIIS channels after the minutes are approved.
+export interface PublicSummary {
+    highlights: string[];              // 3-5 chair-approved bullets
+    decisions_milestones: string[];    // only items cleared for public release
+    institutions_public: string[];     // only orgs that consented to being named
+    next_milestone: string;
+}
+
 export const meetings = {
     getActive: () => api.get('/meetings/active'),
     list: (skip = 0, limit = 100) => api.get(`/meetings/?skip=${skip}&limit=${limit}`),
@@ -123,7 +133,7 @@ export const meetings = {
         api.delete(`/meetings/${meetingId}/participants/${participantId}${applyToSeries ? '?apply_to_series=true' : ''}`),
 
     getMinutes: (id: string) => api.get(`/meetings/${id}/minutes`),
-    updateMinutes: (id: string, data: { content: string, status?: string }) => api.post(`/meetings/${id}/minutes`, data),
+    updateMinutes: (id: string, data: { content: string, status?: string, public_summary?: PublicSummary }) => api.post(`/meetings/${id}/minutes`, data),
     generateMinutes: (id: string) => api.post(`/meetings/${id}/generate-minutes`),
     submitMinutesForApproval: (id: string) => api.post(`/meetings/${id}/minutes/submit-for-approval`),
     approveMinutes: (id: string) => api.post(`/meetings/${id}/minutes/approve`),

@@ -44,6 +44,9 @@ export default function MeetingDetail() {
 
     // Minutes State
     const [minutesContent, setMinutesContent] = useState('')
+    const [isEditingMinutes, setIsEditingMinutes] = useState(false)
+    const [isSavingMinutes, setIsSavingMinutes] = useState(false)
+    const [minutesBackup, setMinutesBackup] = useState('')
     const [minutesStatus, setMinutesStatus] = useState<string>('DRAFT')
     const [isGeneratingMinutes, setIsGeneratingMinutes] = useState(false)
     const [isSubmittingForApproval, setIsSubmittingForApproval] = useState(false)
@@ -271,6 +274,31 @@ export default function MeetingDetail() {
             alert("Failed to save public summary")
         } finally {
             setIsSavingPublicSummary(false)
+        }
+    }
+
+    // Inline editing of the generated minutes (no transcript re-run required).
+    const handleStartEditMinutes = () => {
+        setMinutesBackup(minutesContent)
+        setIsEditingMinutes(true)
+    }
+    const handleCancelEditMinutes = () => {
+        setMinutesContent(minutesBackup)
+        setIsEditingMinutes(false)
+    }
+    const handleSaveMinutes = async () => {
+        if (!meetingId || isSavingMinutes) return
+        setIsSavingMinutes(true)
+        try {
+            // Partial update: only content changes; public_summary/status are preserved,
+            // and the previous content is snapshotted to version history server-side.
+            await meetings.updateMinutes(meetingId, { content: minutesContent })
+            setIsEditingMinutes(false)
+        } catch (error) {
+            console.error("Failed to save minutes", error)
+            alert("Failed to save minutes. Please try again.")
+        } finally {
+            setIsSavingMinutes(false)
         }
     }
 
@@ -1577,6 +1605,33 @@ export default function MeetingDetail() {
                                                                 </span>
                                                             </div>
                                                             <div className="flex gap-2">
+                                                                {/* Inline edit of the generated minutes (facilitators, pre-approval) */}
+                                                                {!isEditingMinutes && isFacilitator && !['APPROVED', 'FINAL'].includes(minutesStatus) && minutesContent && (
+                                                                    <button
+                                                                        onClick={handleStartEditMinutes}
+                                                                        className="btn-secondary text-sm flex items-center gap-1"
+                                                                    >
+                                                                        ✏️ Edit
+                                                                    </button>
+                                                                )}
+                                                                {isEditingMinutes && (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={handleSaveMinutes}
+                                                                            disabled={isSavingMinutes}
+                                                                            className="btn-primary text-sm flex items-center gap-1 disabled:opacity-50"
+                                                                        >
+                                                                            {isSavingMinutes ? '⏳ Saving…' : '💾 Save'}
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={handleCancelEditMinutes}
+                                                                            disabled={isSavingMinutes}
+                                                                            className="btn-secondary text-sm disabled:opacity-50"
+                                                                        >
+                                                                            Cancel
+                                                                        </button>
+                                                                    </>
+                                                                )}
                                                                 {/* Show Submit for Approval if DRAFT or REVIEW */}
                                                                 {(minutesStatus === 'DRAFT' || minutesStatus === 'REVIEW') && minutesContent && (
                                                                     <button
@@ -1712,6 +1767,18 @@ export default function MeetingDetail() {
                                                             </div>
                                                         )}
                                                         <Card className="p-8">
+                                                            {isEditingMinutes ? (
+                                                                <div>
+                                                                    <div style={{ fontSize: 11, color: 'var(--ink-500)', marginBottom: 8 }}>
+                                                                        Editing minutes (Markdown). Click <strong>Save</strong> to update the record — no need to regenerate from the transcript.
+                                                                    </div>
+                                                                    <textarea
+                                                                        value={minutesContent}
+                                                                        onChange={e => setMinutesContent(e.target.value)}
+                                                                        style={{ width: '100%', minHeight: 520, padding: 14, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--ink-800)', outline: 'none', lineHeight: 1.6, resize: 'vertical', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13, boxSizing: 'border-box' }}
+                                                                    />
+                                                                </div>
+                                                            ) : (
                                                             <div className="prose max-w-none">
                                                                 <ReactMarkdown
                                                                     remarkPlugins={[remarkGfm]}
@@ -1732,6 +1799,7 @@ export default function MeetingDetail() {
                                                                     {translatedContent || minutesContent}
                                                                 </ReactMarkdown>
                                                             </div>
+                                                            )}
                                                         </Card>
                                                     </div>
 

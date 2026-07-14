@@ -2623,20 +2623,32 @@ async def submit_minutes_for_approval(
     print("DEBUG: Starting notification logic")
     try:
         from app.models.models import Notification, NotificationType
-        
-        # Notify ALL Admins and Secretariat Leads
-        result = await db.execute(select(User).where(User.role.in_([UserRole.ADMIN, UserRole.SECRETARIAT_LEAD])))
-        reviewers = result.scalars().all()
-        
-        # If no high-level reviewers, fallback to TWG Technical Lead
-        if not reviewers:
-            if db_meeting.twg and db_meeting.twg.technical_lead_id:
-                reviewer = await db.execute(select(User).where(User.id == db_meeting.twg.technical_lead_id))
-                user = reviewer.scalar_one_or_none()
-                if user:
-                    reviewers.append(user)
 
-        # Create notifications
+        # Route approval to the meeting's TWG designated approver(s) — its technical +
+        # political lead — so each TWG's facilitator gets only their own TWG's minutes,
+        # not a global blast to every admin. Fallbacks keep approval from dead-ending:
+        # Secretariat Leads, then Admins.
+        approver_ids = set()
+        if db_meeting.twg:
+            if db_meeting.twg.technical_lead_id:
+                approver_ids.add(db_meeting.twg.technical_lead_id)
+            if db_meeting.twg.political_lead_id:
+                approver_ids.add(db_meeting.twg.political_lead_id)
+
+        reviewers = []
+        if approver_ids:
+            res = await db.execute(select(User).where(User.id.in_(approver_ids), User.is_active.is_(True)))
+            reviewers = list(res.scalars().all())
+        if not reviewers:
+            res = await db.execute(select(User).where(User.role == UserRole.SECRETARIAT_LEAD, User.is_active.is_(True)))
+            reviewers = list(res.scalars().all())
+        if not reviewers:
+            res = await db.execute(select(User).where(User.role == UserRole.ADMIN, User.is_active.is_(True)))
+            reviewers = list(res.scalars().all())
+
+        twg_name = db_meeting.twg.name if db_meeting.twg else None
+
+        # Create in-app notifications
         if reviewers:
             for reviewer in reviewers:
                 notification = Notification(
@@ -2648,6 +2660,22 @@ async def submit_minutes_for_approval(
                 )
                 db.add(notification)
             await db.commit()
+
+        # Email the approver(s) with a direct link to review + approve
+        try:
+            from app.core.config import settings as _settings
+            approval_link = f"{_settings.FRONTEND_URL.rstrip('/')}/meetings/{meeting_id}"
+            emails = [r.email for r in reviewers if r.email]
+            if emails:
+                await email_service.send_minutes_approval_request(
+                    to_emails=emails,
+                    meeting_title=db_meeting.title,
+                    submitter_name=current_user.full_name,
+                    approval_link=approval_link,
+                    twg_name=twg_name,
+                )
+        except Exception as e:
+            logger.warning(f"Failed to send approval emails: {e}")
     except Exception as e:
         logger.error(f"Failed to send approval notifications: {e}")
         # Non-blocking, proceed

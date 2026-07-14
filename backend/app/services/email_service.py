@@ -285,6 +285,51 @@ class EmailService:
                 html_content=html_content
             )
 
+    async def send_minutes_approval_request(
+        self,
+        to_emails: List[str],
+        meeting_title: str,
+        submitter_name: str,
+        approval_link: str,
+        twg_name: Optional[str] = None,
+    ):
+        """
+        Notify a meeting's designated approver(s) that minutes are ready for approval.
+        Uses inline HTML (no template dependency).
+        """
+        scope = f" ({twg_name})" if twg_name else ""
+        subject = f"Approval needed: minutes for {meeting_title}"
+        html_content = (
+            '<div style="font-family:system-ui,-apple-system,sans-serif;font-size:15px;'
+            'color:#1f2320;line-height:1.55;max-width:560px">'
+            '<p>Hello,</p>'
+            f'<p><strong>{submitter_name}</strong> submitted the minutes for '
+            f'<strong>{meeting_title}</strong>{scope}, and they are ready for your review and approval.</p>'
+            f'<p style="margin:24px 0"><a href="{approval_link}" '
+            'style="background:#1b857b;color:#ffffff;padding:10px 18px;border-radius:6px;'
+            'text-decoration:none;font-weight:600;display:inline-block">Review &amp; approve minutes</a></p>'
+            f'<p style="color:#6b726b;font-size:13px">Or open this link: <a href="{approval_link}">{approval_link}</a></p>'
+            '<p style="color:#6b726b;font-size:13px">— ECOWAS Summit TWG platform</p>'
+            '</div>'
+        )
+
+        if not settings.EMAILS_ENABLED:
+            print(f"[EmailService] Emails disabled. Would send approval request to: {to_emails}")
+            return True
+
+        if self.use_resend:
+            return await self._send_via_resend(
+                to_emails=to_emails,
+                subject=subject,
+                html_content=html_content,
+            )
+        else:
+            return await self._send_via_smtp(
+                to_emails=to_emails,
+                subject=subject,
+                html_content=html_content,
+            )
+
     async def send_user_invite(
         self,
         to_email: str,

@@ -2655,7 +2655,7 @@ async def submit_minutes_for_approval(
                     user_id=reviewer.id,
                     type=NotificationType.TASK,
                     title="Minutes Approval Required",
-                    content=f"Minutes for '{db_meeting.title}' submitted by {current_user.full_name}. Please review and approve.",
+                    content=f"Minutes for '{db_meeting.title}' submitted by Martin. Please review and approve.",
                     link=f"/meetings/{meeting_id}"
                 )
                 db.add(notification)
@@ -2670,7 +2670,7 @@ async def submit_minutes_for_approval(
                 await email_service.send_minutes_approval_request(
                     to_emails=emails,
                     meeting_title=db_meeting.title,
-                    submitter_name=current_user.full_name,
+                    submitter_name="Martin",
                     approval_link=approval_link,
                     twg_name=twg_name,
                 )

@@ -132,8 +132,16 @@ Use formal business language, clear headings, bullet points. No emojis.`,
               try {
                 const data = JSON.parse(line.slice(6));
 
-                // Handle response event with the agent's message
-                if (data.type === 'response' && data.message?.content) {
+                // Stream tokens as they arrive (live typing effect)
+                if (data.type === 'token' && data.content) {
+                  setMemoContent(prev => prev + data.content);
+                }
+                // Authoritative full memo at the end — overwrites the streamed text
+                else if (data.type === 'final_response' && data.content) {
+                  setMemoContent(data.content);
+                }
+                // Legacy shape (kept for backward compatibility)
+                else if (data.type === 'response' && data.message?.content) {
                   setMemoContent(data.message.content);
                 }
                 // Handle error event

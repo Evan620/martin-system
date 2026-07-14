@@ -22,14 +22,13 @@ from loguru import logger
 from app.core.config import settings
 
 
-# Scopes needed for Drive file management.
-# Use full `drive` (not `drive.file`): prod authenticates via a service account with
-# domain-wide delegation, and `drive` is the scope authorized for that delegation
-# (see calendar_service / drive_service). `drive.file` is NOT in the delegated set and
-# also can't write into a pre-existing user-owned folder.
+# Scope for Drive file management. Use ONLY full `drive`: prod authenticates via a
+# service account with domain-wide delegation, and `drive` is the exact scope
+# authorized for that delegation. Requesting any additional scope not in the
+# delegated set (e.g. drive.readonly) makes Google reject the whole token request
+# with `unauthorized_client`. Full `drive` already covers read + write.
 DRIVE_SCOPES = [
     'https://www.googleapis.com/auth/drive',
-    'https://www.googleapis.com/auth/drive.readonly',
 ]
 
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { RootState } from '../../store'
-import { meetings, actionItems, twgs, recurringMeetings, PublicSummary } from '../../services/api'
+import api, { meetings, actionItems, twgs, recurringMeetings, PublicSummary } from '../../services/api'
 import { UserRole } from '../../types/auth'
 import { Card, Badge } from '../../components/ui'
 import { toEventInputValue, eventInputToUTCISO, formatMeetingDate, formatMeetingTime } from '../../utils/dates'
@@ -995,10 +995,27 @@ export default function MeetingDetail() {
         }
     }
 
-    const handleDownloadDocument = async (docId: string) => {
-        const { API_URL } = await import('../../services/api');
-        const downloadUrl = `${API_URL}/meetings/documents/${docId}/download`;
-        window.open(downloadUrl, '_blank');
+    const handleDownloadDocument = async (docId: string, fileName?: string) => {
+        // Route through the authenticated api client (Bearer token) rather than a raw
+        // window.open navigation — the download endpoint requires auth, and a bare
+        // navigation sends no Authorization header (→ {"detail":"Not authenticated"}).
+        try {
+            const response = await api.get(`/meetings/documents/${docId}/download`, { responseType: 'blob' });
+            const blob = new Blob([response.data], {
+                type: (response.data && (response.data as any).type) || 'application/octet-stream',
+            });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', fileName || 'document');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error: any) {
+            console.error('Failed to download document', error);
+            alert(error?.response?.data?.detail || 'Failed to download document');
+        }
     }
 
     const handleDeleteDocument = async (docId: string) => {
@@ -2332,7 +2349,7 @@ export default function MeetingDetail() {
                                                         return (
                                                             <div
                                                                 key={doc.id}
-                                                                onClick={() => handleDownloadDocument(doc.id)}
+                                                                onClick={() => handleDownloadDocument(doc.id, doc.file_name)}
                                                                 style={{
                                                                     display: 'flex', alignItems: 'center', gap: 14,
                                                                     padding: '14px 20px', cursor: 'pointer',
@@ -2362,7 +2379,7 @@ export default function MeetingDetail() {
                                                                     </div>
                                                                 </div>
                                                                 <button
-                                                                    onClick={(e) => { e.stopPropagation(); handleDownloadDocument(doc.id) }}
+                                                                    onClick={(e) => { e.stopPropagation(); handleDownloadDocument(doc.id, doc.file_name) }}
                                                                     title="Download"
                                                                     style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--ink-500)', padding: '5px 8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
                                                                 >

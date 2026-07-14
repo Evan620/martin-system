@@ -22,10 +22,14 @@ from loguru import logger
 from app.core.config import settings
 
 
-# Scopes needed for Drive file management
+# Scopes needed for Drive file management.
+# Use full `drive` (not `drive.file`): prod authenticates via a service account with
+# domain-wide delegation, and `drive` is the scope authorized for that delegation
+# (see calendar_service / drive_service). `drive.file` is NOT in the delegated set and
+# also can't write into a pre-existing user-owned folder.
 DRIVE_SCOPES = [
-    'https://www.googleapis.com/auth/drive.file',  # Create/manage files we create
-    'https://www.googleapis.com/auth/drive.readonly',  # Read files
+    'https://www.googleapis.com/auth/drive',
+    'https://www.googleapis.com/auth/drive.readonly',
 ]
 
 
@@ -71,7 +75,39 @@ class StorageService:
 
     def _get_drive_service(self):
         """Get authenticated Google Drive service."""
-        # Method 1: Try service account credentials from env
+        # Method 0: Service account + domain-wide delegation (how prod authenticates
+        # Google APIs — mirrors calendar_service.py). GOOGLE_SERVICE_ACCOUNT_JSON holds
+        # the SA key; GOOGLE_IMPERSONATE_EMAIL names the Workspace user to act as (e.g.
+        # joseph.nganga@africacen.org), so uploads land in that user's Drive — which owns
+        # the target folder and has storage quota. A bare service account has neither,
+        # which is why upload previously failed with "No valid Google Drive credentials".
+        import json
+        sa_raw = (os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON') or '').strip()
+        if sa_raw:
+            try:
+                if sa_raw.startswith('{'):
+                    sa_creds = service_account.Credentials.from_service_account_info(
+                        json.loads(sa_raw), scopes=DRIVE_SCOPES
+                    )
+                else:
+                    sa_creds = service_account.Credentials.from_service_account_file(
+                        sa_raw, scopes=DRIVE_SCOPES
+                    )
+                impersonate_email = (
+                    getattr(settings, 'GOOGLE_IMPERSONATE_EMAIL', None)
+                    or os.environ.get('GOOGLE_IMPERSONATE_EMAIL')
+                )
+                if impersonate_email and hasattr(sa_creds, 'with_subject'):
+                    sa_creds = sa_creds.with_subject(impersonate_email)
+                logger.info(
+                    "StorageService using service account"
+                    + (f" impersonating {impersonate_email}" if impersonate_email else "")
+                )
+                return build('drive', 'v3', credentials=sa_creds, cache_discovery=False)
+            except Exception as e:
+                logger.warning(f"Failed to use GOOGLE_SERVICE_ACCOUNT_JSON: {e}")
+
+        # Method 1: Try service account credentials from env (legacy var name)
         google_creds_json = os.environ.get('GOOGLE_CREDENTIALS_JSON')
         if google_creds_json:
             try:

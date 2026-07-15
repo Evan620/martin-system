@@ -83,6 +83,8 @@ const DealPipeline: React.FC = () => {
 
   const { user } = useAppSelector((state) => state.auth);
   const canEdit = user?.role && [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD, UserRole.FACILITATOR].includes(user.role);
+  // Any authenticated TWG user (including members) can submit a project — owners add their own.
+  const canSubmitProject = !!user?.role;
   const canAccessInvestorDB = user?.role && [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD].includes(user.role);
 
   useEffect(() => {
@@ -421,7 +423,7 @@ const DealPipeline: React.FC = () => {
                 Incubation Track
               </button>
             )}
-            {canEdit && (
+            {canSubmitProject && (
               <button onClick={() => navigate('/deal-pipeline/new')} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 background: 'var(--accent)', border: '1px solid var(--accent)',

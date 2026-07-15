@@ -394,19 +394,30 @@ async def remove_project_interest(
 async def ingest_project(
     data: ProjectIngest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_facilitator)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Ingest a new project proposal and calculate initial scores.
+
+    Any authenticated TWG user may submit a project — project owners can add
+    their own. Guardrail: a plain TWG member's submission always enters at the
+    earliest stage; members cannot set a status override to inject a project
+    into a later pipeline stage, and advancing through the pipeline remains
+    facilitator/secretariat/admin-only (see /advance).
     """
     service = ProjectPipelineService(db)
-    
+
+    payload = data.model_dump(exclude={"start_in_incubation"})
+    if current_user.role == UserRole.TWG_MEMBER:
+        # Ignore any stage override from a member; force the default earliest stage.
+        payload["status"] = None
+
     result = await service.ingest_project_proposal(
-        data=data.model_dump(exclude={"start_in_incubation"}),
+        data=payload,
         submitted_by_user_id=current_user.id,
         start_in_incubation=data.start_in_incubation,
     )
-    
+
     p = result["project"]
     return _project_to_read(p, current_user)
 

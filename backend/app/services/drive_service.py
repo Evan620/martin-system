@@ -83,8 +83,12 @@ class DriveService:
             _imp = os.environ.get('GOOGLE_IMPERSONATE_EMAIL')
             if _sa_raw.startswith('{') and _imp:
                 try:
+                    # Only the full `drive` scope is authorized for this SA's
+                    # domain-wide delegation; drive.readonly (in SCOPES) is NOT, and
+                    # requesting it makes the impersonated token request fail
+                    # (unauthorized_client). Full `drive` covers read + write.
                     _sa_creds = service_account.Credentials.from_service_account_info(
-                        _json.loads(_sa_raw), scopes=SCOPES)
+                        _json.loads(_sa_raw), scopes=['https://www.googleapis.com/auth/drive'])
                     if hasattr(_sa_creds, 'with_subject'):
                         _sa_creds = _sa_creds.with_subject(_imp)
                     self.creds = _sa_creds

@@ -169,16 +169,25 @@ Use formal business language, clear headings, bullet points. No emojis.`,
     }
   };
 
-  const exportMemo = () => {
-    const blob = new Blob([memoContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${(projectData?.name || 'Project').replace(/\s+/g, '_')}_Investment_Memo.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const exportMemo = async () => {
+    if (!memoContent) return;
+    const pid = projectData?.id || projectId;
+    try {
+      const api = (await import('../services/api')).default;
+      const res = await api.post(`/pipeline/${pid}/memo/pdf`, { content: memoContent }, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(projectData?.name || 'Project').replace(/\s+/g, '_')}_Investment_Memo.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Failed to export memo PDF', e);
+      alert('Failed to export memo as PDF. Please try again.');
+    }
   };
 
   const copyToClipboard = () => {

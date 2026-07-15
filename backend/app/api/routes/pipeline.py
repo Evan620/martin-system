@@ -1,7 +1,7 @@
 """
 Deal Pipeline API Routes
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, Path as PathParam, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, Path as PathParam, UploadFile, File, Form, Body
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from decimal import Decimal
@@ -582,6 +582,30 @@ async def update_dfi_match_status(
 
 
 # ---------------------------------------------------------------------------
+
+@router.post("/{project_id}/memo/pdf")
+async def export_memo_pdf(
+    project_id: uuid.UUID,
+    payload: dict = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Render a client-generated investment memo (markdown) as a branded PDF."""
+    content = (payload or {}).get("content") or ""
+    if not content.strip():
+        raise HTTPException(status_code=400, detail="No memo content provided")
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    name = project.name if project else "Project"
+    from app.services.pdf_service import pdf_service
+    pdf_bytes = pdf_service.generate_memo_pdf(content, "Investment Memo", name)
+    safe = "".join(c if (c.isalnum() or c in " -_") else "_" for c in name).strip().replace(" ", "_") or "Project"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe}_Investment_Memo.pdf"'},
+    )
+
 
 @router.get("/templates/financial-model")
 async def download_financial_model_template(

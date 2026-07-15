@@ -74,6 +74,26 @@ class DriveService:
             return True
             
         try:
+            # 0. Service account + domain-wide delegation — act as a real Workspace user
+            #    (with Drive quota) so we can write to My Drive folders. The bare service
+            #    account has no quota and can't write to user-owned folders, which caused
+            #    "insufficientParentPermissions" on shared-document uploads.
+            import json as _json
+            _sa_raw = (os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON') or '').strip()
+            _imp = os.environ.get('GOOGLE_IMPERSONATE_EMAIL')
+            if _sa_raw.startswith('{') and _imp:
+                try:
+                    _sa_creds = service_account.Credentials.from_service_account_info(
+                        _json.loads(_sa_raw), scopes=SCOPES)
+                    if hasattr(_sa_creds, 'with_subject'):
+                        _sa_creds = _sa_creds.with_subject(_imp)
+                    self.creds = _sa_creds
+                    self.service = build('drive', 'v3', credentials=self.creds, cache_discovery=False)
+                    logger.info(f"DriveService initialized via Service Account impersonating {_imp}.")
+                    return True
+                except Exception as _sa_err:
+                    logger.warning(f"DriveService SA/DWD init failed ({_sa_err}); falling back.")
+
             # 1. Try OAuth2 User Token (Highest Priority for Bypass)
             if os.path.exists('token.json'):
                 from google.oauth2.credentials import Credentials

@@ -146,11 +146,15 @@ export interface ProjectScoreDetail {
 export interface Investor {
     id: string;
     name: string;
-    sector_preferences: string[];
+    sector_preferences?: string[];
     ticket_size_min?: number;
     ticket_size_max?: number;
     geographic_focus?: string[];
     investment_instruments?: string[];
+    investor_type?: string;
+    contact_name?: string;
+    contact_email?: string;
+    total_commitments_usd?: number;
 }
 
 export interface InvestorMatch {

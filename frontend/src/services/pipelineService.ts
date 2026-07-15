@@ -3,6 +3,7 @@ import api from './api';
 import {
     Project, ProjectStatus, PipelineStats,
     ProjectIngestDTO, InvestorMatch, UpdateMatchStatusDTO,
+    Investor,
     Buyer, BuyerMatch, UpdateBuyerMatchStatusDTO,
     DFIMatch, DFIWindow, UpdateDFIMatchStatusDTO, FinancingMemo,
     IncubationChecklist,
@@ -130,6 +131,17 @@ export const pipelineService = {
 
     createBuyer: async (data: Omit<Buyer, 'id'>): Promise<Buyer> => {
         const response = await api.post('/pipeline/buyers/', data);
+        return response.data;
+    },
+
+    // Investor database
+    listInvestors: async (): Promise<Investor[]> => {
+        const response = await api.get('/pipeline/investors/');
+        return response.data;
+    },
+
+    createInvestor: async (data: Omit<Investor, 'id'>): Promise<Investor> => {
+        const response = await api.post('/pipeline/investors/', data);
         return response.data;
     },
 

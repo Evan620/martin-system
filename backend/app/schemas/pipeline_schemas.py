@@ -173,6 +173,26 @@ class InvestorRead(BaseModel):
     ticket_size_max: Optional[Decimal] = None
     geographic_focus: Optional[List[str]] = None
     investment_instruments: Optional[List[str]] = None
+    investor_type: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    total_commitments_usd: Optional[Decimal] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InvestorCreate(BaseModel):
+    """Schema for registering an investor in the Deal Pipeline."""
+    name: str
+    sector_preferences: Optional[List[str]] = None
+    ticket_size_min: Optional[Decimal] = None
+    ticket_size_max: Optional[Decimal] = None
+    geographic_focus: Optional[List[str]] = None
+    investment_instruments: Optional[List[str]] = None
+    investor_type: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    total_commitments_usd: Optional[Decimal] = None
 
 class InvestorMatchRead(BaseModel):
     """Schema for investor match details"""

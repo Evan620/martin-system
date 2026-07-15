@@ -26,7 +26,7 @@ from app.services.investor_matching_service import get_investor_matching_service
 from app.services.dfi_matching_service import get_dfi_matching_service
 from app.schemas.pipeline_schemas import (
     ProjectIngest, ProjectUpdate, ProjectPipelineRead, ProjectAdvanceStage,
-    InvestorMatchRead, PipelineStats, InvestorMatchUpdate, InvestorRead,
+    InvestorMatchRead, PipelineStats, InvestorMatchUpdate, InvestorRead, InvestorCreate,
     ProjectScoreDetailRead, ScoringCriteriaRead, ScoringCriteriaWeightUpdate,
     ReadinessGapRead, ReadinessGapItem,
     BuyerCreate, BuyerRead, BuyerMatchRead, BuyerMatchUpdate,
@@ -37,7 +37,7 @@ from app.schemas.pipeline_schemas import (
 )
 from app.models.models import Document, ImpactLogEntry, ProjectGeospatialData
 from app.core.constants import INCUBATION_CHECKLIST_ITEMS, canonical_code_for
-from app.models.models import ProjectScoreDetail, ScoringCriteria, Buyer, DFIWindow, ProjectDFIMatch, DFIMatchStatus
+from app.models.models import ProjectScoreDetail, ScoringCriteria, Buyer, DFIWindow, ProjectDFIMatch, DFIMatchStatus, Investor
 from app.services.geospatial_service import get_geospatial_service
 from app.services.coordinate_scout_service import get_coordinate_scout_service
 from app.services.lifecycle_service import LifecycleService
@@ -496,6 +496,44 @@ async def update_platform_settings(
 
 
 # ---------------------------------------------------------------------------
+# Investor CRUD — MUST be before /{project_id} to avoid UUID routing clash.
+# Mirrors the Buyer DB; feeds the investor matching engine (which had no way to
+# populate investors until now).
+# ---------------------------------------------------------------------------
+@router.get("/investors/", response_model=List[InvestorRead])
+async def list_investors(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Investor).order_by(Investor.name))
+    return [InvestorRead.model_validate(i) for i in result.scalars().all()]
+
+
+@router.post("/investors/", response_model=InvestorRead, status_code=201)
+async def create_investor(
+    payload: InvestorCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_facilitator),
+):
+    investor = Investor(
+        id=uuid.uuid4(),
+        name=payload.name,
+        sector_preferences=payload.sector_preferences,
+        ticket_size_min=payload.ticket_size_min,
+        ticket_size_max=payload.ticket_size_max,
+        geographic_focus=payload.geographic_focus,
+        investment_instruments=payload.investment_instruments,
+        investor_type=payload.investor_type,
+        contact_name=payload.contact_name,
+        contact_email=payload.contact_email,
+        total_commitments_usd=payload.total_commitments_usd or 0,
+    )
+    db.add(investor)
+    await db.commit()
+    await db.refresh(investor)
+    return InvestorRead.model_validate(investor)
+
+
 # Buyer CRUD + buyer-match PATCH — MUST be before /{project_id} to avoid UUID routing clash
 # ---------------------------------------------------------------------------
 from app.services.buyer_matching_service import get_buyer_matching_service

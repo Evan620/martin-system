@@ -8,6 +8,7 @@ import { UserRole } from '../types/auth';
 import DealRoomDashboard from './DealRoomDashboard';
 import InvestorDatabase from './InvestorDatabase';
 import BuyerDatabase from './BuyerDatabase';
+import DFIWindowDatabase from './DFIWindowDatabase';
 import { SECTORS, sectorCardSummary } from '../config/sectorConfig';
 
 // ─── status helpers ───────────────────────────────────────────
@@ -60,7 +61,7 @@ function LedgerStat({ label, value, sub, accent = false, last = false }: {
 
 const DealPipeline: React.FC = () => {
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<'pipeline' | 'deal_room' | 'investors' | 'buyers'>('pipeline');
+  const [viewMode, setViewMode] = useState<'pipeline' | 'deal_room' | 'investors' | 'buyers' | 'dfi'>('pipeline');
   const [activeTab, setActiveTab] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [showAIInsight, setShowAIInsight] = useState(true);
@@ -375,6 +376,7 @@ const DealPipeline: React.FC = () => {
                 { key: 'deal_room', label: 'Deal room' },
                 ...(canAccessInvestorDB ? [{ key: 'investors', label: 'Investors' }] : []),
                 { key: 'buyers', label: 'Buyers' },
+                ...(canAccessInvestorDB ? [{ key: 'dfi', label: 'DFI windows' }] : []),
               ] as const).map(({ key, label }, idx, arr) => (
                 <button key={key} onClick={() => setViewMode(key as any)} style={{
                   padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
@@ -438,6 +440,7 @@ const DealPipeline: React.FC = () => {
       {vm === 'deal_room' && <DealRoomDashboard />}
       {vm === 'investors' && canAccessInvestorDB && <InvestorDatabase />}
       {vm === 'buyers' && <BuyerDatabase />}
+      {vm === 'dfi' && canAccessInvestorDB && <DFIWindowDatabase />}
 
       {/* ── Pipeline body (default view) ─────────────────────── */}
       {vm === 'pipeline' && <>

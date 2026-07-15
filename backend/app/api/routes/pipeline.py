@@ -30,14 +30,14 @@ from app.schemas.pipeline_schemas import (
     ProjectScoreDetailRead, ScoringCriteriaRead, ScoringCriteriaWeightUpdate,
     ReadinessGapRead, ReadinessGapItem,
     BuyerCreate, BuyerRead, BuyerMatchRead, BuyerMatchUpdate,
-    DFIWindowRead, DFIMatchRead, DFIMatchStatusUpdate, FinancingMemoResponse,
+    DFIWindowRead, DFIWindowCreate, DFIWindowUpdate, DFIMatchRead, DFIMatchStatusUpdate, FinancingMemoResponse,
     IncubationChecklistRead, IncubationChecklistItem,
     ProjectGeospatialRead, ImpactLogEntryCreate, ImpactLogEntryRead, ImpactSummaryRead,
     ProjectMemberRead, ProjectMemberDetail, ScoreBreakdownItem, ProjectInterestState,
 )
 from app.models.models import Document, ImpactLogEntry, ProjectGeospatialData
 from app.core.constants import INCUBATION_CHECKLIST_ITEMS, canonical_code_for
-from app.models.models import ProjectScoreDetail, ScoringCriteria, Buyer, DFIWindow, ProjectDFIMatch, DFIMatchStatus, Investor
+from app.models.models import ProjectScoreDetail, ScoringCriteria, Buyer, DFIWindow, ProjectDFIMatch, DFIMatchStatus, DFIInstrumentType, Investor
 from app.services.geospatial_service import get_geospatial_service
 from app.services.coordinate_scout_service import get_coordinate_scout_service
 from app.services.lifecycle_service import LifecycleService
@@ -602,6 +602,66 @@ async def list_dfi_windows(
         select(DFIWindow).where(DFIWindow.is_active.is_(True)).order_by(DFIWindow.institution)
     )
     return result.scalars().all()
+
+
+def _parse_instrument(value: Optional[str]) -> DFIInstrumentType:
+    try:
+        return DFIInstrumentType((value or "BLENDED").upper())
+    except ValueError:
+        return DFIInstrumentType.BLENDED
+
+
+@router.post("/dfi-windows", response_model=DFIWindowRead, status_code=201)
+async def create_dfi_window(
+    payload: DFIWindowCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_facilitator),
+):
+    """Register a new DFI/climate-finance window in the catalogue."""
+    window = DFIWindow(
+        id=uuid.uuid4(),
+        name=payload.name,
+        institution=payload.institution,
+        instrument_type=_parse_instrument(payload.instrument_type),
+        sectors=payload.sectors,
+        geographies=payload.geographies,
+        min_size_usd=payload.min_size_usd,
+        max_size_usd=payload.max_size_usd,
+        eligible_stages=payload.eligible_stages,
+        gender_focus=payload.gender_focus,
+        climate_focus=payload.climate_focus,
+        description=payload.description,
+        url=payload.url,
+        is_active=True,
+    )
+    db.add(window)
+    await db.commit()
+    await db.refresh(window)
+    return window
+
+
+@router.patch("/dfi-windows/{window_id}", response_model=DFIWindowRead)
+async def update_dfi_window(
+    window_id: uuid.UUID,
+    payload: DFIWindowUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_facilitator),
+):
+    """Edit a DFI window, or retire it by setting is_active=false."""
+    result = await db.execute(select(DFIWindow).where(DFIWindow.id == window_id))
+    window = result.scalar_one_or_none()
+    if not window:
+        raise HTTPException(status_code=404, detail="DFI window not found")
+    data = payload.model_dump(exclude_unset=True)
+    if "instrument_type" in data and data["instrument_type"] is not None:
+        window.instrument_type = _parse_instrument(data.pop("instrument_type"))
+    else:
+        data.pop("instrument_type", None)
+    for field, value in data.items():
+        setattr(window, field, value)
+    await db.commit()
+    await db.refresh(window)
+    return window
 
 
 @router.patch("/dfi-matches/{match_id}", response_model=dict)

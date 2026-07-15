@@ -436,8 +436,42 @@ class DFIWindowRead(BaseModel):
     climate_focus: bool = False
     description: Optional[str] = None
     url: Optional[str] = None
+    is_active: bool = True
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DFIWindowCreate(BaseModel):
+    """Schema for registering a DFI funding window in the catalogue."""
+    name: str
+    institution: str
+    instrument_type: str = "BLENDED"  # GRANT | CONCESSIONAL_LOAN | EQUITY | BLENDED
+    sectors: Optional[List[str]] = None
+    geographies: Optional[List[str]] = None
+    min_size_usd: Optional[float] = None
+    max_size_usd: Optional[float] = None
+    eligible_stages: Optional[List[str]] = None
+    gender_focus: bool = False
+    climate_focus: bool = False
+    description: Optional[str] = None
+    url: Optional[str] = None
+
+
+class DFIWindowUpdate(BaseModel):
+    """Partial update for a DFI window (edit fields / retire via is_active)."""
+    name: Optional[str] = None
+    institution: Optional[str] = None
+    instrument_type: Optional[str] = None
+    sectors: Optional[List[str]] = None
+    geographies: Optional[List[str]] = None
+    min_size_usd: Optional[float] = None
+    max_size_usd: Optional[float] = None
+    eligible_stages: Optional[List[str]] = None
+    gender_focus: Optional[bool] = None
+    climate_focus: Optional[bool] = None
+    description: Optional[str] = None
+    url: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class DFIMatchRead(BaseModel):

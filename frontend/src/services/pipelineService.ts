@@ -171,6 +171,16 @@ export const pipelineService = {
         return response.data;
     },
 
+    createDFIWindow: async (data: Omit<DFIWindow, 'id'>): Promise<DFIWindow> => {
+        const response = await api.post('/pipeline/dfi-windows', data);
+        return response.data;
+    },
+
+    updateDFIWindow: async (id: string, data: Partial<Omit<DFIWindow, 'id'>>): Promise<DFIWindow> => {
+        const response = await api.patch(`/pipeline/dfi-windows/${id}`, data);
+        return response.data;
+    },
+
     // R8 — Geospatial site analysis
     analyseSite: async (projectId: string, force?: boolean): Promise<ProjectGeospatial> => {
         const url = force ? `/pipeline/${projectId}/analyse-site?force=true` : `/pipeline/${projectId}/analyse-site`;

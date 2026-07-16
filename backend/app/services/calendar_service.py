@@ -40,18 +40,20 @@ class CalendarService:
             if impersonate_email:
                 try:
                     import json as _json
+                    # This SA's domain-wide delegation only authorizes the `calendar` scope.
+                    # Requesting self.SCOPES (which includes drive.readonly etc.) makes the
+                    # impersonated token request fail with unauthorized_client — which broke
+                    # calendar-event creation for every new meeting. Scope down to calendar here.
+                    _dwd_scopes = ["https://www.googleapis.com/auth/calendar"]
                     _sa_raw = (os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON") or "").strip()
                     if _sa_raw.startswith("{"):
-                        # Raw SA JSON in the env var — load directly. Works in ANY process
-                        # (backend OR celery worker) without depending on setup_google_credentials
-                        # having written google_credentials.json / set GOOGLE_APPLICATION_CREDENTIALS.
                         _sa_creds = service_account.Credentials.from_service_account_info(
-                            _json.loads(_sa_raw), scopes=self.SCOPES)
+                            _json.loads(_sa_raw), scopes=_dwd_scopes)
                     elif _sa_raw:
                         _sa_creds = service_account.Credentials.from_service_account_file(
-                            _sa_raw, scopes=self.SCOPES)
+                            _sa_raw, scopes=_dwd_scopes)
                     else:
-                        _sa_creds, _ = google.auth.default(scopes=self.SCOPES)
+                        _sa_creds, _ = google.auth.default(scopes=_dwd_scopes)
                     if hasattr(_sa_creds, 'with_subject'):
                         _sa_creds = _sa_creds.with_subject(impersonate_email)
                     self.creds = _sa_creds

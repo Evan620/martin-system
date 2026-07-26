@@ -250,10 +250,11 @@ class ToolRegistry:
         self._register_whatsapp_tools()
         from app.core.config import settings
         if settings.CAPABILITY_REGISTRY_ENABLED:
-            from app.capabilities import load_reference_capabilities
+            from app.capabilities import load_all_capabilities, validate_registry
             from app.capabilities.emit_tool import register_capability_tools
 
-            load_reference_capabilities()
+            load_all_capabilities()
+            validate_registry()
             register_capability_tools(self)
         # Note: knowledge_tools are used for RAG in _process_query_node,
         # not as LLM-callable tools. They remain separate for now.

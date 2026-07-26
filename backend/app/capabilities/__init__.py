@@ -8,12 +8,19 @@ from app.capabilities.spec import (
     capability,
     get_capability,
 )
+from app.capabilities.loader import (
+    RegistryValidationError,
+    RegistryValidationIssue,
+    RegistryValidationReport,
+    load_all_capabilities,
+    validate_registry,
+)
 
 
 def load_reference_capabilities() -> None:
-    """Import the initial declarations once, triggering their decorators."""
+    """Backward-compatible wrapper for the central declaration loader."""
 
-    from app.capabilities import reference  # noqa: F401
+    load_all_capabilities()
 
 
 __all__ = [
@@ -21,7 +28,12 @@ __all__ = [
     "Capability",
     "CapabilityAccessDenied",
     "CapabilityContext",
+    "RegistryValidationError",
+    "RegistryValidationIssue",
+    "RegistryValidationReport",
     "capability",
     "get_capability",
+    "load_all_capabilities",
     "load_reference_capabilities",
+    "validate_registry",
 ]

@@ -47,9 +47,10 @@ def mount_capability_routes(router: APIRouter) -> None:
     if not settings.CAPABILITY_REGISTRY_ENABLED:
         return
 
-    from app.capabilities import load_reference_capabilities
+    from app.capabilities import load_all_capabilities, validate_registry
 
-    load_reference_capabilities()
+    load_all_capabilities()
+    validate_registry()
     mounted = {
         (method, route.path)
         for route in router.routes

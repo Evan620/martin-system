@@ -221,22 +221,62 @@ class CalendarService:
 
     def get_meeting_event(self, meeting_id: str) -> Optional[Dict[str, Any]]:
         """
-        Find an existing Google Calendar event by meeting_id extended property.
-        Returns the event dict if found, None otherwise.
+        Find an existing Google Calendar event for this meeting.
+
+        Fast path: match on the ``meeting_id`` private extended property.
+        Fallback: legacy events (created before we stamped that property) carry
+        the id only in their description text (e.g. "ID: <uuid>"). Without the
+        fallback the property lookup misses and callers create a DUPLICATE
+        event. When the fallback matches, we self-heal by stamping the property
+        (sendUpdates='none', so no attendee is ever emailed) so subsequent
+        lookups take the fast path. Returns the event dict, or None.
         """
         if not self._initialize_service() or not self._credentials_valid:
             return None
+        mid = str(meeting_id)
+        # Fast path: private extended property.
         try:
             events_result = self.service.events().list(
                 calendarId='primary',
-                privateExtendedProperty=f"meeting_id={meeting_id}",
+                privateExtendedProperty=f"meeting_id={mid}",
                 singleEvents=True
             ).execute()
             events = events_result.get('items', [])
-            return events[0] if events else None
+            if events:
+                return events[0]
         except Exception as e:
-            logger.debug(f"Error checking for existing event for meeting {meeting_id}: {e}")
-            return None
+            logger.debug(f"Error checking for existing event (property) for meeting {mid}: {e}")
+
+        # Fallback: full-text search (covers the description) for legacy events
+        # whose id lives only in the description text.
+        try:
+            res = self.service.events().list(
+                calendarId='primary',
+                q=mid,
+                singleEvents=True,
+                maxResults=10,
+            ).execute()
+            for ev in res.get('items', []):
+                if mid not in (ev.get('description') or ''):
+                    continue
+                priv = (ev.get('extendedProperties', {}) or {}).get('private', {}) or {}
+                if priv.get('meeting_id') != mid:
+                    try:
+                        priv['meeting_id'] = mid
+                        self.service.events().patch(
+                            calendarId='primary',
+                            eventId=ev['id'],
+                            body={'extendedProperties': {'private': priv}},
+                            sendUpdates='none',
+                        ).execute()
+                        ev.setdefault('extendedProperties', {}).setdefault('private', {})['meeting_id'] = mid
+                        logger.info(f"Self-healed meeting_id property on legacy event {ev['id']} for meeting {mid}")
+                    except Exception as e:
+                        logger.debug(f"Could not self-heal meeting_id on {ev.get('id')}: {e}")
+                return ev
+        except Exception as e:
+            logger.debug(f"Error in fallback lookup for meeting {mid}: {e}")
+        return None
 
     def get_meeting_rsvps(self, meeting_id: str) -> Dict[str, str]:
         """

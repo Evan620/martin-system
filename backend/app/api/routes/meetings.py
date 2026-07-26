@@ -47,7 +47,6 @@ def _hide_confidential_meeting_docs(meeting: "Meeting", current_user: "User") ->
         [doc for doc in meeting.documents if not doc.is_confidential],
     )
 from app.services.rsvp_service import apply_member_rsvp
-from app.services import twg_webhook_service
 from app.services.email_service import email_service
 from app.core.config import settings
 from sqlalchemy.orm import selectinload
@@ -59,6 +58,7 @@ from app.utils.security import verify_token
 from app.core.ws_manager import ws_manager
 from app.core.database import get_db, get_db_session_context
 from app.services.storage_service import get_storage_service
+from app.services import meeting_capability_service
 
 from difflib import SequenceMatcher
 
@@ -625,20 +625,11 @@ async def get_meeting_agenda(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # Verify meeting exists and access rights
-    result = await db.execute(select(Meeting).where(Meeting.id == meeting_id))
-    db_meeting = result.scalar_one_or_none()
-    if not db_meeting:
-        raise HTTPException(status_code=404, detail="Meeting not found")
-        
-    if not has_twg_access(current_user, db_meeting.twg_id):
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    result = await db.execute(select(Agenda).where(Agenda.meeting_id == meeting_id))
-    db_agenda = result.scalar_one_or_none()
-    if not db_agenda:
-        raise HTTPException(status_code=404, detail="Agenda not found")
-    return db_agenda
+    return await meeting_capability_service.get_meeting_agenda(
+        meeting_id,
+        current_user,
+        db,
+    )
 
 @router.get("/{meeting_id}/minutes")
 async def get_meeting_minutes(
@@ -2211,22 +2202,11 @@ async def get_meeting_agenda(
     db: AsyncSession = Depends(get_db)
 ):
     """Get the agenda for a specific meeting."""
-    result = await db.execute(select(Meeting).where(Meeting.id == meeting_id))
-    db_meeting = result.scalar_one_or_none()
-    
-    if not db_meeting:
-        raise HTTPException(status_code=404, detail="Meeting not found")
-        
-    if not has_twg_access(current_user, db_meeting.twg_id):
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    result = await db.execute(select(Agenda).where(Agenda.meeting_id == meeting_id))
-    agenda = result.scalar_one_or_none()
-    
-    if not agenda:
-        raise HTTPException(status_code=404, detail="Agenda not found")
-        
-    return agenda
+    return await meeting_capability_service.get_meeting_agenda(
+        meeting_id,
+        current_user,
+        db,
+    )
 
 
 @router.post("/{meeting_id}/agenda", response_model=AgendaRead)
@@ -2700,246 +2680,12 @@ async def approve_minutes(
     Approve minutes. Changes status from PENDING_APPROVAL to APPROVED.
     Triggers: PDF Generation, Email Distribution, KB Indexing, Audit Logging.
     """
-    # Get meeting and minutes
-    result = await db.execute(
-        select(Meeting)
-        .options(
-            selectinload(Meeting.minutes),
-            selectinload(Meeting.participants).selectinload(MeetingParticipant.user),
-            selectinload(Meeting.twg)
-        )
-        .where(Meeting.id == meeting_id)
-    )
-    db_meeting = result.scalar_one_or_none()
-    
-    if not db_meeting:
-        raise HTTPException(status_code=404, detail="Meeting not found")
-    
-    if not has_twg_access(current_user, db_meeting.twg_id):
-        raise HTTPException(status_code=403, detail="Access denied")
-        
-    # Enforce Secretariat Lead (or Admin) approval
-    if current_user.role not in [UserRole.SECRETARIAT_LEAD, UserRole.ADMIN]:
-        raise HTTPException(
-            status_code=403, 
-            detail="Only Secretariat Leads can approve minutes. Please submit for approval instead."
-        )
-    
-    if not db_meeting.minutes:
-        raise HTTPException(status_code=400, detail="No minutes to approve")
-    
-    # Handle both Enum and string status values (PostgreSQL vs SQLite difference)
-    current_status_val = db_meeting.minutes.status.value if hasattr(db_meeting.minutes.status, 'value') else str(db_meeting.minutes.status)
-    if current_status_val != MinutesStatus.PENDING_APPROVAL.value:
-        raise HTTPException(status_code=400, detail=f"Minutes must be PENDING_APPROVAL to approve. Current: {current_status_val}")
-    
-    # Approve
-    db_meeting.minutes.status = MinutesStatus.APPROVED
-    await db.commit()
-    await db.refresh(db_meeting.minutes)
-    
-    # --- Post-Approval Workflows ---
-    
-    # 1. Generate Official PDF
-    pdf_bytes = None
-    try:
-        from app.services.pdf_service import pdf_service
-        
-        pillar_display = db_meeting.twg.pillar.value.replace("_", " ").title() if db_meeting.twg else "General"
-        pdf_context = {
-            "pillar_name": pillar_display,
-            "meeting_title": db_meeting.title,
-            "meeting_date": db_meeting.scheduled_at.strftime('%Y-%m-%d') if db_meeting.scheduled_at else "TBD",
-            "meeting_time": db_meeting.scheduled_at.strftime('%H:%M') if db_meeting.scheduled_at else "",
-            "location": db_meeting.location or "Virtual",
-        }
-        pdf_bytes = pdf_service.generate_minutes_pdf(
-            minutes_markdown=db_meeting.minutes.content,
-            template_context=pdf_context
-        )
-    except Exception as e:
-        logging.error(f"PDF Gen Failure: {e}")
-        # Log warning but don't crash, the status is already updated
-
-    # 1b. Save PDF to cloud storage (primary) with local fallback, and create Document record
-    if pdf_bytes:
-        try:
-            pdf_filename = f"Minutes - {db_meeting.title}.pdf"
-
-            # Check if a minutes Document already exists for this meeting
-            existing = await db.execute(
-                select(Document).where(
-                    and_(Document.meeting_id == db_meeting.id, Document.document_type == "minutes")
-                )
-            )
-            if not existing.scalar_one_or_none():
-                file_path = None
-                metadata_extra = {}
-
-                # --- Cloud storage (primary) ---
-                try:
-                    storage = get_storage_service()
-                    twg_result = await db.execute(select(TWG).where(TWG.id == db_meeting.twg_id))
-                    twg = twg_result.scalar_one_or_none()
-                    target_folder_id = None
-                    if twg:
-                        target_folder_id = storage.get_or_create_twg_folder(twg.name)
-
-                    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                    safe_filename = f"{timestamp}_minutes_{db_meeting.id}.pdf"
-                    cloud_file_id, cloud_view_link, cloud_download_url = storage.upload_bytes(
-                        file_bytes=pdf_bytes,
-                        file_name=safe_filename,
-                        mime_type="application/pdf",
-                        folder_id=target_folder_id
-                    )
-                    if cloud_file_id:
-                        file_path = cloud_file_id
-                        metadata_extra = {
-                            "storage_mode": "cloud",
-                            "cloud_file_id": cloud_file_id,
-                            "cloud_view_link": cloud_view_link,
-                            "cloud_download_url": cloud_download_url,
-                        }
-                        logging.info(f"Uploaded minutes PDF to cloud storage: {cloud_file_id}")
-                except Exception as cloud_err:
-                    logging.warning(f"Cloud storage upload failed, falling back to local: {cloud_err}")
-
-                # --- Local fallback ---
-                if not file_path:
-                    import os
-                    upload_dir = os.path.join(settings.UPLOAD_DIR, "minutes")
-                    os.makedirs(upload_dir, exist_ok=True)
-                    local_path = os.path.join(upload_dir, f"minutes_{db_meeting.id}.pdf")
-                    with open(local_path, "wb") as f:
-                        f.write(pdf_bytes)
-                    file_path = local_path
-                    metadata_extra = {"storage_mode": "local"}
-                    logging.info(f"Saved minutes PDF to local disk: {local_path}")
-
-                minutes_doc = Document(
-                    twg_id=db_meeting.twg_id,
-                    meeting_id=db_meeting.id,
-                    file_name=pdf_filename,
-                    file_path=file_path,
-                    file_type="application/pdf",
-                    document_type="minutes",
-                    uploaded_by_id=current_user.id,
-                    metadata_json={
-                        "meeting_id": str(db_meeting.id),
-                        "meeting_title": db_meeting.title,
-                        "status": "approved",
-                        "file_size": len(pdf_bytes),
-                        **metadata_extra,
-                    }
-                )
-                db.add(minutes_doc)
-                await db.commit()
-
-        except Exception as e:
-            logging.error(f"Minutes Document creation failed: {e}")
-
-    # 2. Index to Knowledge Base (RAG)
-    try:
-        from app.core.knowledge_base import get_knowledge_base
-        kb = get_knowledge_base()
-        kb.add_document(
-            content=db_meeting.minutes.content,
-            metadata={
-                "source": "official_minutes",
-                "meeting_id": str(db_meeting.id),
-                "date": db_meeting.scheduled_at.isoformat() if db_meeting.scheduled_at else None,
-                "pillar": db_meeting.twg.pillar.value if db_meeting.twg else "unknown",
-                "status": "approved",
-                "file_name": f"Minutes - {db_meeting.title}"
-            },
-            namespace=f"twg-{db_meeting.twg_id}" if db_meeting.twg_id else "global"
-        )
-    except Exception as e:
-        logging.error(f"KB Indexing Failed: {e}")
-
-    # 3. Send Emails to Participants
-    recipients = set()
-    
-    for p in db_meeting.participants:
-        # 1. Registered User Email
-        if p.user and p.user.email:
-            recipients.add(p.user.email)
-        # 2. Guest Email (stored directly on participant record)
-        elif p.email:
-            recipients.add(p.email)
-            
-    recipient_list = list(recipients)
-    
-    if pdf_bytes and recipient_list:
-        try:
-             email_context = {
-                 "recipient_name": "Colleague", 
-                 "meeting_title": db_meeting.title,
-                 "date_str": db_meeting.scheduled_at.strftime('%Y-%m-%d') if db_meeting.scheduled_at else "TBD",
-                 "pillar_name": pillar_display,
-                 "dashboard_url": f"{settings.FRONTEND_URL}/meetings/{db_meeting.id}"
-             }
-             await email_service.send_minutes_published_email(
-                 to_emails=recipient_list,
-                 template_context=email_context,
-                 pdf_content=pdf_bytes,
-                 pdf_filename="minutes.pdf"
-             )
-        except Exception as e:
-            logging.error(f"Email Sending Failed: {e}")
-            # Non-blocking
-
-    # --- Audit Log ---
-    from app.services.audit_service import audit_service
-    
-    await audit_service.log_activity(
+    return await meeting_capability_service.approve_meeting_minutes(
+        meeting_id,
+        current_user,
         db,
-        user_id=current_user.id,
-        action="MEETING_MINUTES_APPROVED",
-        resource_type="meeting",
-        resource_id=meeting_id,
-        details={
-            "meeting_title": db_meeting.title,
-            "actions": "generated_pdf, sent_email, indexed_kb",
-            "recipients": recipient_list  # Explicitly log who got it
-        },
-        ip_address=request.client.host if request.client else None
+        client_ip=request.client.host if request.client else None,
     )
-
-    # 4. Emit PUBLIC-SAFE payload to Campaign OS (WAIIS media engine).
-    # This is a SIDE-EFFECT ONLY — it must NEVER fail or block approval. The
-    # service is off by default and gates internally; we additionally skip the
-    # call entirely when there is no chair-approved public_summary on the
-    # minutes (raw minutes content is never emitted). Any error is caught,
-    # logged and audited so approval still returns success.
-    try:
-        if db_meeting.minutes.public_summary:
-            emit_result = await twg_webhook_service.emit_minutes_published(
-                db_meeting,
-                db_meeting.minutes.public_summary,
-            )
-            logger.info(
-                f"[TWG webhook] emit result for meeting {meeting_id}: {emit_result}"
-            )
-            await audit_service.log_activity(
-                db,
-                user_id=current_user.id,
-                action="MEETING_MINUTES_WEBHOOK_EMITTED",
-                resource_type="meeting",
-                resource_id=meeting_id,
-                details={"emit_result": emit_result},
-                ip_address=request.client.host if request.client else None,
-            )
-            await db.commit()
-    except Exception as e:
-        logging.error(f"[TWG webhook] emit/audit failed — approval unaffected: {e}")
-
-    return {
-        "message": "Minutes approved and published",
-        "status": db_meeting.minutes.status.value if hasattr(db_meeting.minutes.status, 'value') else str(db_meeting.minutes.status),
-        "workflows_triggered": ["pdf", "email", "audit", "kb_indexing"]
-    }
 
 
 @router.get("/{meeting_id}/minutes/pdf")

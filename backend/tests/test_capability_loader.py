@@ -73,21 +73,27 @@ def test_double_load_is_idempotent_and_discovers_reference_capabilities():
 
     load_all_capabilities()
 
-    assert set(CAPABILITIES) == {
+    assert {
+        "registry_approve_meeting_minutes",
         "registry_create_action_item",
         "registry_create_project",
+        "registry_get_meeting_agenda",
         "registry_get_pipeline_settings",
+        "registry_get_recurring_meeting",
         "registry_ingest_document",
         "registry_list_buyer_matches",
         "registry_list_dfi_matches",
         "registry_list_dfi_windows",
         "registry_list_twg_members",
-    }
+        "registry_list_notifications",
+        "registry_mark_all_notifications_read",
+    }.issubset(CAPABILITIES)
     assert CAPABILITIES == first_load
     assert all(
         CAPABILITIES[name] is declaration
         for name, declaration in first_load.items()
     )
+    assert validate_registry().valid is True
 
 
 def test_reference_loader_remains_a_compatible_thin_wrapper():

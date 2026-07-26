@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 import logging
 import asyncio
 import pytz
+from fastapi import HTTPException
 from app.services.gcal_executor import gcal_executor as _gcal_executor
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,15 +39,92 @@ from app.models.models import (
 )
 from app.schemas.schemas import (
     RecurringMeetingCreate,
+    RecurringMeetingRead,
     RecurrenceRule,
     RecurrenceEnd,
     MeetingRead,
 )
+from app.api.deps import has_twg_access
 
 logger = logging.getLogger(__name__)
 
 # How many days ahead to generate instances
 GENERATION_HORIZON_DAYS = 30
+
+
+def meeting_to_read(meeting: Meeting) -> MeetingRead:
+    """Convert a meeting instance without triggering unloaded relationships."""
+
+    return MeetingRead(
+        id=meeting.id,
+        twg_id=meeting.twg_id,
+        title=meeting.title,
+        scheduled_at=meeting.scheduled_at,
+        duration_minutes=meeting.duration_minutes,
+        location=meeting.location,
+        status=meeting.status,
+        meeting_type=meeting.meeting_type,
+        transcript=meeting.transcript,
+        video_link=meeting.video_link,
+        recurring_meeting_id=meeting.recurring_meeting_id,
+        is_recurring_exception=meeting.is_recurring_exception,
+    )
+
+
+async def get_recurring_meeting_details(
+    db: AsyncSession,
+    recurring_meeting_id: uuid.UUID,
+    current_user: User,
+) -> RecurringMeetingRead:
+    """Return one accessible recurring series and its next ten instances."""
+
+    result = await db.execute(
+        select(RecurringMeeting)
+        .where(RecurringMeeting.id == recurring_meeting_id)
+        .options(
+            selectinload(RecurringMeeting.twg),
+            selectinload(RecurringMeeting.instances),
+        )
+    )
+    recurring = result.scalar_one_or_none()
+    if not recurring:
+        raise HTTPException(status_code=404, detail="Recurring meeting not found")
+
+    if not has_twg_access(current_user, recurring.twg_id):
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have access to this recurring meeting",
+        )
+
+    now = datetime.utcnow()
+    upcoming = [
+        meeting_to_read(meeting)
+        for meeting in recurring.instances
+        if meeting.scheduled_at > now and meeting.status != "CANCELLED"
+    ]
+
+    return RecurringMeetingRead(
+        id=recurring.id,
+        twg_id=recurring.twg_id,
+        title_template=recurring.title_template,
+        duration_minutes=recurring.duration_minutes,
+        location=recurring.location,
+        meeting_type=recurring.meeting_type,
+        frequency=recurring.frequency,
+        interval_weeks=recurring.interval_weeks,
+        day_of_week=recurring.day_of_week,
+        start_date=recurring.start_date,
+        start_time=recurring.start_time,
+        timezone=recurring.timezone,
+        end_type=recurring.end_type,
+        end_date=recurring.end_date,
+        max_occurrences=recurring.max_occurrences,
+        status=recurring.status,
+        occurrences_created=recurring.occurrences_created,
+        created_at=recurring.created_at,
+        created_by_id=recurring.created_by_id,
+        upcoming_instances=upcoming[:10],
+    )
 
 
 def _format_meeting_time_for_email(scheduled_at: datetime) -> tuple:

@@ -58,6 +58,74 @@ Enabled HTTP and tool startup paths call `validate_registry()` after loading. Th
 5. For writes, put all mutation inside the handler. The registry calls it only after confirmation.
 6. Add the declaration module under `app.capabilities.declarations`, enable the flag locally, and test tool, HTTP, confirmation, ownership, and expiry behavior before removing any legacy surface. The central loader discovers it automatically.
 
+## Ported capabilities (batch 1)
+
+13 declarations, all namespaced `registry_*` during migration so none can collide with the 47 live
+tools. **8 read, 5 write, 0 destructive.** Destructive endpoints are deliberately absent: they stay
+out of the agent's reach unless a declaration explicitly opts in.
+
+| capability | danger | domain |
+|---|---|---|
+| `registry_list_twg_members` | read | reference |
+| `registry_create_action_item` | write | reference |
+| `registry_ingest_document` | write | documents |
+| `registry_create_project` | write | pipeline |
+| `registry_list_buyer_matches` | read | pipeline |
+| `registry_list_dfi_matches` | read | pipeline |
+| `registry_list_dfi_windows` | read | pipeline |
+| `registry_get_pipeline_settings` | read | pipeline |
+| `registry_get_meeting_agenda` | read | meetings |
+| `registry_approve_meeting_minutes` | write | meetings |
+| `registry_get_recurring_meeting` | read | meetings |
+| `registry_list_notifications` | read | notifications |
+| `registry_mark_all_notifications_read` | write | notifications |
+
+Selected by demand: endpoints the frontend actually calls (`ui-wired`), cross-checked so each was a
+genuine gap against the live tool list rather than a duplicate.
+
+### Danger classification rule
+
+Classify by **reversibility and blast radius, never by row count**:
+
+- `read` — no persistent side effect.
+- `write` — creates or mutates data, or sends anything outward to a human. Fan-out inherent to ONE
+  logical object is still `write`: creating a meeting that writes a participant row per member is
+  `write`, because it is one object and deleting it undoes the work. Marking the caller's own
+  notifications read is `write`.
+- `destructive` — irreversible deletion/overwrite, or fan-out across MANY independent objects or
+  people (bulk delete, orphan cleanup, spreadsheet import, a packet for every TWG, mass messaging).
+  Not agent-callable by default.
+
+An earlier automated pass used "bulk = destructive" and tagged *creating a meeting* destructive,
+which would have locked the agent out of a core ability. That is why the rule above is worded around
+reversibility instead.
+
+### Shared-logic extraction
+
+A ported capability must not reimplement its endpoint's logic, or the agent and the UI will drift.
+Where a route held logic inline, it was extracted into a service both call:
+`services/meeting_capability_service.py`, plus additions to `notification_service.py` and
+`recurring_meeting_service.py`. Extractions must be behaviour-preserving; verify by comparing route
+counts and every `@router` path before and after, and by confirming outbound side effects (email,
+webhook, PDF, audit log) moved rather than disappeared.
+
+### Known limitations
+
+1. **Reads are exposed as `POST .../query`, not `GET`.** `emit_http` binds `input_model` as a request
+   body, and GET with a body is not viable, so read capabilities with parameters take POST. Harmless
+   to the agent (tool schemas are unaffected) but the generated HTTP surface diverges from the UI's
+   REST convention. Adding GET + query-parameter binding to `emit_http` is the fix.
+2. **Multipart upload cannot be declared.** `POST /documents/upload` takes `UploadFile` bytes, which a
+   Pydantic `input_model` cannot express, so `registry_upload_document` was left unported rather than
+   forced into a JSON shape that would change behaviour. It needs either a reference-by-id upload
+   service or multipart support in the emitter.
+3. **Testing must never send.** `tests/test_tool_calling_live.py::test_send_email` awaits the real
+   sender with no skip marker or env gate, so a plain `pytest tests/` on a networked machine with a
+   live key would email real recipients. Always pass
+   `--ignore=tests/test_tool_calling_live.py`, never run anything in `backend/scripts/`, and block the
+   transmit chokepoints (`EmailService._send_via_resend` / `._send_via_smtp`) in tests. Note that
+   `EMAIL_TEST_REDIRECT_TO` only reroutes mail to one inbox: a redirect still sends.
+
 ## Worked before/after: create action item
 
 Before, action-item creation has three manually synchronized pieces: the `/action-items/` route with `ActionItemCreate`, a separately written `create_action_item` tool schema, and `_execute_create_action_item` dispatch in `agents.py`.

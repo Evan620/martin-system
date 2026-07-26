@@ -75,6 +75,12 @@ def test_double_load_is_idempotent_and_discovers_reference_capabilities():
 
     assert set(CAPABILITIES) == {
         "registry_create_action_item",
+        "registry_create_project",
+        "registry_get_pipeline_settings",
+        "registry_ingest_document",
+        "registry_list_buyer_matches",
+        "registry_list_dfi_matches",
+        "registry_list_dfi_windows",
         "registry_list_twg_members",
     }
     assert CAPABILITIES == first_load

@@ -19,6 +19,17 @@ from functools import wraps
 logger = logging.getLogger(__name__)
 
 
+def _get_enabled_capability(tool_name: str):
+    """Resolve registry capabilities without importing them when the flag is off."""
+    from app.core.config import settings
+
+    if not settings.CAPABILITY_REGISTRY_ENABLED:
+        return None
+    from app.capabilities.spec import get_capability
+
+    return get_capability(tool_name)
+
+
 # =============================================================================
 # Access Control Policies
 # =============================================================================
@@ -237,6 +248,14 @@ class ToolRegistry:
         self._register_deal_pipeline_tools()
         self._register_supervisor_tools()
         self._register_whatsapp_tools()
+        from app.core.config import settings
+        if settings.CAPABILITY_REGISTRY_ENABLED:
+            from app.capabilities import load_all_capabilities, validate_registry
+            from app.capabilities.emit_tool import register_capability_tools
+
+            load_all_capabilities()
+            validate_registry()
+            register_capability_tools(self)
         # Note: knowledge_tools are used for RAG in _process_query_node,
         # not as LLM-callable tools. They remain separate for now.
 
@@ -580,6 +599,20 @@ class ToolRegistry:
         Raises:
             ToolAccessDenied: If access is denied
         """
+        capability = _get_enabled_capability(tool_name)
+        if capability is not None:
+            from app.capabilities.emit_tool import ensure_agent_access
+            from app.capabilities.spec import CapabilityAccessDenied
+            from app.tools._rbac import get_user_context
+
+            bound_context = get_user_context()
+            user_role = bound_context[1] if bound_context is not None else None
+            try:
+                ensure_agent_access(capability, agent_id, user_role)
+            except CapabilityAccessDenied as exc:
+                raise ToolAccessDenied(str(exc)) from exc
+            return True
+
         # Member scope: TWG_MEMBER app sessions. Strictly the member allowlist.
         # Anything not in MEMBER_TOOLS is denied here, before any broader branch
         # can grant it — this is the safety line from spec §3.
@@ -692,7 +725,13 @@ class ToolRegistry:
             try:
                 self.validate_tool_access(name, agent_id, twg_id)
                 tool_defs.append(registration.openai_tool_def)
-                tool_map[name] = registration.handler
+                capability = _get_enabled_capability(name)
+                if capability is not None:
+                    from app.capabilities.emit_tool import build_tool_handler
+
+                    tool_map[name] = build_tool_handler(capability, agent_id)
+                else:
+                    tool_map[name] = registration.handler
             except ToolAccessDenied:
                 # This agent is not allowed to use this tool — skip it
                 continue
@@ -740,6 +779,15 @@ class ToolRegistry:
 
         # 2. Validate access
         self.validate_tool_access(tool_name, agent_id, twg_id)
+
+        capability = _get_enabled_capability(tool_name)
+        if capability is not None:
+            from app.capabilities.emit_tool import execute_registry_tool
+
+            result = await execute_registry_tool(capability, tool_args, agent_id)
+            if isinstance(result, (dict, list)):
+                return json.dumps(result, default=str)
+            return str(result)
 
         # 3. Auto-inject contextual parameters
         func = registration.handler

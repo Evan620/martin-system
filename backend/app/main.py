@@ -18,7 +18,7 @@ logger.add(
     diagnose=False,
 )
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.routes import twgs, meetings, auth, projects, action_items, documents, audit, agents, dashboard, users, notifications, supervisor, debug, pipeline, conflicts, settings as settings_router, shared_documents, organization_invitations, public_invitations, recurring_meetings, subgroups, martin, reminders
@@ -274,6 +274,13 @@ app.include_router(public_invitations.router, prefix=f"{settings.API_V1_STR}")
 from app.api.routes import webhooks
 app.include_router(webhooks.router, prefix=f"{settings.API_V1_STR}/webhooks", tags=["Webhooks"])
 app.include_router(recurring_meetings.router, prefix=f"{settings.API_V1_STR}")
+
+if settings.CAPABILITY_REGISTRY_ENABLED:
+    from app.capabilities.emit_http import mount_capability_routes
+
+    capability_router = APIRouter(tags=["Capabilities"])
+    mount_capability_routes(capability_router)
+    app.include_router(capability_router, prefix=f"{settings.API_V1_STR}")
 
 @app.get("/")
 async def root():

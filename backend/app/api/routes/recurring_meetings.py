@@ -39,7 +39,9 @@ from app.schemas.schemas import (
     MeetingRead,
 )
 from app.api.deps import get_current_active_user, require_facilitator, has_twg_access
-from app.services.recurring_meeting_service import RecurringMeetingService
+from app.services import recurring_meeting_service
+
+RecurringMeetingService = recurring_meeting_service.RecurringMeetingService
 
 router = APIRouter(prefix="/recurring-meetings", tags=["Recurring Meetings"])
 logger = logging.getLogger(__name__)
@@ -47,20 +49,7 @@ logger = logging.getLogger(__name__)
 
 def _meeting_to_read(m: Meeting) -> MeetingRead:
     """Convert a Meeting ORM instance to MeetingRead without triggering lazy loads."""
-    return MeetingRead(
-        id=m.id,
-        twg_id=m.twg_id,
-        title=m.title,
-        scheduled_at=m.scheduled_at,
-        duration_minutes=m.duration_minutes,
-        location=m.location,
-        status=m.status,
-        meeting_type=m.meeting_type,
-        transcript=m.transcript,
-        video_link=m.video_link,
-        recurring_meeting_id=m.recurring_meeting_id,
-        is_recurring_exception=m.is_recurring_exception,
-    )
+    return recurring_meeting_service.meeting_to_read(m)
 
 
 @router.post("/preview", response_model=RecurringMeetingPreview)
@@ -191,56 +180,10 @@ async def get_recurring_meeting(
 
     Includes upcoming instances that haven't occurred yet.
     """
-    result = await db.execute(
-        select(RecurringMeeting)
-        .where(RecurringMeeting.id == recurring_meeting_id)
-        .options(
-            selectinload(RecurringMeeting.twg),
-            selectinload(RecurringMeeting.instances),
-        )
-    )
-    recurring = result.scalar_one_or_none()
-
-    if not recurring:
-        raise HTTPException(status_code=404, detail="Recurring meeting not found")
-
-    # Check access
-    if not has_twg_access(current_user, recurring.twg_id):
-        raise HTTPException(
-            status_code=403,
-            detail="You do not have access to this recurring meeting"
-        )
-
-    # Filter to upcoming instances
-    from datetime import datetime
-    now = datetime.utcnow()
-    upcoming = [
-        _meeting_to_read(m)
-        for m in recurring.instances
-        if m.scheduled_at > now and m.status != "CANCELLED"
-    ]
-
-    return RecurringMeetingRead(
-        id=recurring.id,
-        twg_id=recurring.twg_id,
-        title_template=recurring.title_template,
-        duration_minutes=recurring.duration_minutes,
-        location=recurring.location,
-        meeting_type=recurring.meeting_type,
-        frequency=recurring.frequency,
-        interval_weeks=recurring.interval_weeks,
-        day_of_week=recurring.day_of_week,
-        start_date=recurring.start_date,
-        start_time=recurring.start_time,
-        timezone=recurring.timezone,
-        end_type=recurring.end_type,
-        end_date=recurring.end_date,
-        max_occurrences=recurring.max_occurrences,
-        status=recurring.status,
-        occurrences_created=recurring.occurrences_created,
-        created_at=recurring.created_at,
-        created_by_id=recurring.created_by_id,
-        upcoming_instances=upcoming[:10],  # Limit to 10 upcoming
+    return await recurring_meeting_service.get_recurring_meeting_details(
+        db,
+        recurring_meeting_id,
+        current_user,
     )
 
 

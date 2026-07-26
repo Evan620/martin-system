@@ -1500,6 +1500,31 @@ async def execute_action(
             }
 
         else:
+            from app.core.config import settings
+
+            if settings.CAPABILITY_REGISTRY_ENABLED:
+                from pydantic import ValidationError
+                from app.capabilities.gate import execute_confirmed_capability
+                from app.capabilities.spec import (
+                    CapabilityAccessDenied,
+                    CapabilityContext,
+                    get_capability,
+                )
+
+                declaration = get_capability(action_type)
+                if declaration is not None:
+                    try:
+                        result = await execute_confirmed_capability(
+                            declaration,
+                            payload,
+                            CapabilityContext(user=current_user, db=db),
+                        )
+                    except CapabilityAccessDenied as exc:
+                        raise HTTPException(status_code=403, detail=str(exc)) from exc
+                    except ValidationError as exc:
+                        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+                    _finalize_action(request.action_id)
+                    return result
             raise HTTPException(status_code=400, detail=f"Unknown action type: {action_type}")
 
     except HTTPException:

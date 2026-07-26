@@ -9,7 +9,12 @@ from pydantic import BaseModel, Field
 
 from app.capabilities.spec import CapabilityContext, capability
 from app.models.models import UserRole
-from app.schemas.pipeline_schemas import ProjectIngest
+from app.schemas.pipeline_schemas import (
+    BuyerMatchRead,
+    DFIMatchRead,
+    DFIWindowRead,
+    ProjectIngest,
+)
 
 
 _STAFF_AGENT_SCOPES = [
@@ -120,6 +125,7 @@ async def registry_create_project(
     ),
     danger="read",
     input_model=ProjectReferenceInput,
+    output_model=list[BuyerMatchRead],
     scopes=[*_STAFF_AGENT_SCOPES, *_ALL_USER_ROLES],
     http=("POST", "/capabilities/pipeline/buyer-matches/query"),
     summary_template="List buyer matches for project {project_id}",
@@ -149,6 +155,7 @@ async def registry_list_buyer_matches(
     ),
     danger="read",
     input_model=ProjectReferenceInput,
+    output_model=list[DFIMatchRead],
     scopes=[*_STAFF_AGENT_SCOPES, *_ALL_USER_ROLES],
     http=("POST", "/capabilities/pipeline/dfi-matches/query"),
     summary_template="List DFI matches for project {project_id}",
@@ -176,6 +183,7 @@ async def registry_list_dfi_matches(
     ),
     danger="read",
     input_model=ListDFIWindowsInput,
+    output_model=list[DFIWindowRead],
     scopes=[*_STAFF_AGENT_SCOPES, *_ALL_USER_ROLES],
     http=("POST", "/capabilities/pipeline/dfi-windows/query"),
     summary_template="List active DFI windows",

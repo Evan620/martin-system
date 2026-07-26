@@ -83,7 +83,9 @@ class GetRecurringMeetingInput(BaseModel):
     ),
     danger="read",
     input_model=GetMeetingAgendaInput,
+    output_model=AgendaRead,
     scopes=[*_AGENT_SCOPES, *_ALL_USER_ROLES],
+    http=("POST", "/capabilities/meetings/agenda/query"),
     summary_template="Get agenda for meeting {meeting_id}",
 )
 async def registry_get_meeting_agenda(
@@ -113,6 +115,7 @@ async def registry_get_meeting_agenda(
     danger="write",
     input_model=ApproveMeetingMinutesInput,
     scopes=_APPROVAL_SCOPES,
+    http=("POST", "/capabilities/meetings/minutes/approve"),
     summary_template="Approve and publish minutes for meeting {meeting_id}",
 )
 async def registry_approve_meeting_minutes(
@@ -138,7 +141,9 @@ async def registry_approve_meeting_minutes(
     ),
     danger="read",
     input_model=ListNotificationsInput,
+    output_model=list[NotificationRead],
     scopes=[*_AGENT_SCOPES, *_ALL_USER_ROLES],
+    http=("POST", "/capabilities/notifications/query"),
     summary_template="List notifications with skip {skip} and limit {limit}",
 )
 async def registry_list_notifications(
@@ -169,6 +174,7 @@ async def registry_list_notifications(
     danger="write",
     input_model=MarkAllNotificationsReadInput,
     scopes=[*_AGENT_SCOPES, *_ALL_USER_ROLES],
+    http=("POST", "/capabilities/notifications/mark-all-read"),
     summary_template="Mark all of your notifications as read",
 )
 async def registry_mark_all_notifications_read(
@@ -193,7 +199,9 @@ async def registry_mark_all_notifications_read(
     ),
     danger="read",
     input_model=GetRecurringMeetingInput,
+    output_model=RecurringMeetingRead,
     scopes=[*_AGENT_SCOPES, *_ALL_USER_ROLES],
+    http=("POST", "/capabilities/meetings/recurring/query"),
     summary_template="Get recurring meeting {recurring_meeting_id}",
 )
 async def registry_get_recurring_meeting(

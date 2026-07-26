@@ -22,6 +22,10 @@ class LoaderInput(BaseModel):
     value: str
 
 
+class LoaderOutput(BaseModel):
+    value: str
+
+
 async def async_handler(
     payload: LoaderInput,
     context: CapabilityContext,
@@ -37,6 +41,7 @@ def make_capability(
     scopes: list[str] | None = None,
     summary_template: str = "Use {value}",
     agent_allowed: bool | None = None,
+    output_model: Any = None,
 ) -> Capability:
     return Capability(
         name=name,
@@ -46,6 +51,7 @@ def make_capability(
         handler=async_handler,
         scopes=["test_agent"] if scopes is None else scopes,
         http=http,
+        output_model=output_model,
         summary_template=summary_template,
         agent_allowed=agent_allowed,
     )
@@ -200,6 +206,26 @@ def test_validate_registry_rejects_non_pydantic_model_and_sync_handler():
     assert {"invalid_input_model", "handler_not_async"}.issubset(
         validation_error_codes(error)
     )
+
+
+def test_validate_registry_rejects_non_pydantic_output_model():
+    invalid_output = make_capability("invalid_output", output_model=object)
+    CAPABILITIES[invalid_output.name] = invalid_output
+
+    with pytest.raises(RegistryValidationError) as error:
+        validate_registry(existing_routes=[])
+
+    assert "invalid_output_model" in validation_error_codes(error)
+
+
+def test_validate_registry_accepts_typed_collection_of_pydantic_outputs():
+    declaration = make_capability(
+        "collection_output",
+        output_model=list[LoaderOutput],
+    )
+    CAPABILITIES[declaration.name] = declaration
+
+    assert validate_registry(existing_routes=[]).valid is True
 
 
 def test_validate_registry_rejects_empty_scopes():

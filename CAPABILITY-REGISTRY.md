@@ -1,31 +1,30 @@
 # Martin Capability Registry
 
-The capability registry makes a Pydantic input model and one async handler the source of truth for an agent tool, an optional authenticated HTTP route, and the existing confirmation gate. It is disabled by default through `CAPABILITY_REGISTRY_ENABLED=false`.
+The capability registry makes Pydantic input/output contracts and one async handler the source of truth for an agent tool, an optional authenticated HTTP route, and the existing confirmation gate. It is disabled by default through `CAPABILITY_REGISTRY_ENABLED=false`.
 
 ## Declaration format
 
 Declarations live under `backend/app/capabilities/declarations/` and use `@capability`:
 
 ```python
-class CreateThingInput(BaseModel):
-    name: str
-    twg_id: UUID
+class GetThingInput(BaseModel):
+    thing_id: UUID
 
 
 @capability(
-    name="registry_create_thing",
-    description="Create a thing for a TWG after confirmation.",
-    danger="write",
-    input_model=CreateThingInput,
+    name="registry_get_thing",
+    description="Get a thing by ID.",
+    danger="read",
+    input_model=GetThingInput,
+    output_model=ThingRead,
     scopes=["supervisor", "twg_*", "ADMIN", "TWG_FACILITATOR"],
-    http=("POST", "/capabilities/things"),
-    summary_template='Create thing: "{name}"',
+    http=("POST", "/capabilities/things/query"),
 )
-async def registry_create_thing(
-    payload: CreateThingInput,
+async def registry_get_thing(
+    payload: GetThingInput,
     context: CapabilityContext,
 ):
-    return await create_thing(payload, context.user, context.db)
+    return await get_thing(payload, context.user, context.db)
 ```
 
 The fields mean:
@@ -34,6 +33,10 @@ The fields mean:
 - `description`: text shown to the LLM.
 - `danger`: `read`, `write`, or `destructive`.
 - `input_model`: the only parameter declaration; tool JSON Schema and HTTP body validation are derived from it.
+- `output_model`: optional Pydantic response contract (including typed collections such as
+  `list[ThingRead]`). Generated HTTP routes use it as `response_model`, and agent results are
+  validated and JSON-serialized through the same contract. With no output model, response
+  behavior is unchanged.
 - `handler`: an async function receiving the validated model and `CapabilityContext(user, db)`.
 - `scopes`: agent IDs/patterns plus `UserRole` names. Agent scopes control tool visibility; role scopes are rechecked at invocation and confirmation.
 - `http`: `(method, path)`, or `None` for a tool-only capability.
@@ -45,24 +48,28 @@ The fields mean:
 
 `load_all_capabilities()` walks `app.capabilities.declarations` in sorted module order. Adding a domain module anywhere under that package is enough for it to be discovered; startup code and central import lists do not change. Loading is idempotent, and it is a no-op while `CAPABILITY_REGISTRY_ENABLED` is false. The old `load_reference_capabilities()` name remains as a compatibility wrapper around the central loader.
 
-Enabled HTTP and tool startup paths call `validate_registry()` after loading. The validator raises `RegistryValidationError` with a structured report for duplicate names, capability or legacy route-path collisions, invalid summary fields, non-Pydantic input models, synchronous handlers, and empty scope lists. A destructive capability explicitly marked `agent_allowed=True` remains valid but is listed in the report's `destructive_agent_exceptions` audit field.
+Enabled HTTP and tool startup paths call `validate_registry()` after loading. The validator raises `RegistryValidationError` with a structured report for duplicate names, capability or legacy route-path collisions, invalid summary fields, non-Pydantic input/output models, synchronous handlers, and empty scope lists. A destructive capability explicitly marked `agent_allowed=True` remains valid but is listed in the report's `destructive_agent_exceptions` audit field.
 
 `read` handlers run immediately. `write` and `destructive` handlers do not run until the user confirms through `/api/v1/agents/execute`; destructive cards additionally carry `irreversible: true`. Pending actions use the existing route-level store, including its ten-minute expiry and user-ownership check.
 
 ## Porting an existing endpoint
 
 1. Identify the endpoint's request model and business logic. Reuse its Pydantic model when it already represents the complete input contract.
-2. Add a uniquely named declaration. During migration, prefix the name (for example, `registry_...`) so it cannot collide with a live tool.
-3. Put agent IDs and allowed `UserRole` values in `scopes`. Keep resource-level checks such as TWG membership in the handler or reused service.
-4. Point `http` at a new non-colliding path, or use `None` for tool-only behavior.
-5. For writes, put all mutation inside the handler. The registry calls it only after confirmation.
-6. Add the declaration module under `app.capabilities.declarations`, enable the flag locally, and test tool, HTTP, confirmation, ownership, and expiry behavior before removing any legacy surface. The central loader discovers it automatically.
+2. For a read capability, reuse the endpoint's Pydantic `response_model` as `output_model` when it
+   has one. For list responses, keep the complete type (for example, `list[ThingRead]`). When the
+   legacy endpoint has no response model, make the handler return only explicit dictionaries/lists
+   of JSON primitives.
+3. Add a uniquely named declaration. During migration, prefix the name (for example, `registry_...`) so it cannot collide with a live tool.
+4. Put agent IDs and allowed `UserRole` values in `scopes`. Keep resource-level checks such as TWG membership in the handler or reused service.
+5. Point `http` at a new non-colliding path, or use `None` for tool-only behavior.
+6. For writes, put all mutation inside the handler. The registry calls it only after confirmation.
+7. Add the declaration module under `app.capabilities.declarations`, enable the flag locally, and test tool, HTTP, confirmation, ownership, expiry, and response serialization behavior before removing any legacy surface. The central loader discovers it automatically.
 
 ## Ported capabilities (batch 1)
 
 13 declarations, all namespaced `registry_*` during migration so none can collide with the 47 live
-tools. **8 read, 5 write, 0 destructive.** Destructive endpoints are deliberately absent: they stay
-out of the agent's reach unless a declaration explicitly opts in.
+tools. **8 read, 5 write, 0 destructive, and 13 generated HTTP routes.** Destructive endpoints are
+deliberately absent: they stay out of the agent's reach unless a declaration explicitly opts in.
 
 | capability | danger | domain |
 |---|---|---|

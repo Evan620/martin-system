@@ -31,6 +31,10 @@ class ExampleInput(BaseModel):
     optional_count: int = 1
 
 
+class ExampleOutput(BaseModel):
+    handled: str
+
+
 @pytest.fixture(autouse=True)
 def isolated_registry(monkeypatch):
     original_capabilities = dict(CAPABILITIES)
@@ -109,6 +113,29 @@ async def test_read_capability_executes_immediately(user):
 
     assert result == {"handled": "now"}
     assert calls == ["now"]
+
+
+@pytest.mark.asyncio
+async def test_agent_read_is_coerced_through_shared_output_model(user):
+    @capability(
+        name="output_probe",
+        description="Test capability output_probe",
+        danger="read",
+        input_model=ExampleInput,
+        output_model=ExampleOutput,
+        scopes=["test_agent", UserRole.ADMIN.value],
+    )
+    async def handler(payload: ExampleInput, context: CapabilityContext):
+        return SimpleNamespace(handled=payload.required_text)
+
+    result = await invoke_capability(
+        CAPABILITIES["output_probe"],
+        {"required_text": "serialized"},
+        CapabilityContext(user=user, db=object()),
+        agent_id="test_agent",
+    )
+
+    assert result == {"handled": "serialized"}
 
 
 @pytest.mark.asyncio

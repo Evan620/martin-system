@@ -62,11 +62,15 @@ def mount_capability_routes(router: APIRouter) -> None:
         method, path = declaration.http
         if (method, path) in mounted:
             continue
+        response_options = {}
+        if declaration.output_model is not None:
+            response_options["response_model"] = declaration.output_model
         router.add_api_route(
             path,
             _endpoint_for(declaration),
             methods=[method],
             name=declaration.name,
             summary=declaration.description,
+            **response_options,
         )
         mounted.add((method, path))

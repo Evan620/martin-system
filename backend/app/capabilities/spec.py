@@ -38,6 +38,7 @@ class Capability:
     handler: CapabilityHandler
     scopes: list[str]
     http: Optional[tuple[str, str]]
+    output_model: Any = None
     tool_exposed: bool = True
     summary_template: str = ""
     # None is an internal declaration-time sentinel. __post_init__ resolves it
@@ -96,6 +97,7 @@ def capability(
     input_model: type[BaseModel],
     scopes: list[str],
     http: Optional[tuple[str, str]] = None,
+    output_model: Any = None,
     tool_exposed: bool = True,
     summary_template: str = "",
     agent_allowed: Optional[bool] = None,
@@ -114,6 +116,7 @@ def capability(
             handler=handler,
             scopes=list(scopes),
             http=http,
+            output_model=output_model,
             tool_exposed=tool_exposed,
             summary_template=summary_template,
             agent_allowed=agent_allowed,

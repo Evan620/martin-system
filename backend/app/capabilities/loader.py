@@ -8,11 +8,21 @@ import importlib.util
 import inspect
 import pkgutil
 import re
+import types
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from string import Formatter
-from typing import Any, Iterable, Iterator, Optional
+from typing import (
+    Annotated,
+    Any,
+    Iterable,
+    Iterator,
+    Optional,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from pydantic import BaseModel
 
@@ -139,6 +149,33 @@ def _is_pydantic_model(model: Any) -> bool:
         return inspect.isclass(model) and issubclass(model, BaseModel)
     except TypeError:
         return False
+
+
+def _is_pydantic_output_model(model: Any) -> bool:
+    """Accept a Pydantic model or a typed collection/union of those models."""
+
+    if _is_pydantic_model(model):
+        return True
+
+    origin = get_origin(model)
+    arguments = get_args(model)
+    if origin is Annotated:
+        return bool(arguments) and _is_pydantic_output_model(arguments[0])
+    if origin in {list, set, frozenset}:
+        return len(arguments) == 1 and _is_pydantic_output_model(arguments[0])
+    if origin is tuple:
+        item_types = [argument for argument in arguments if argument is not Ellipsis]
+        return bool(item_types) and all(
+            _is_pydantic_output_model(argument) for argument in item_types
+        )
+    if origin is dict:
+        return len(arguments) == 2 and _is_pydantic_output_model(arguments[1])
+    if origin in {Union, types.UnionType}:
+        item_types = [argument for argument in arguments if argument is not type(None)]
+        return bool(item_types) and all(
+            _is_pydantic_output_model(argument) for argument in item_types
+        )
+    return False
 
 
 def _template_fields(template: str) -> Iterator[str]:
@@ -292,6 +329,20 @@ def validate_registry(
                     message=(
                         f"Capability '{name}' input_model is not a Pydantic "
                         "BaseModel subclass"
+                    ),
+                    capability_names=(name,),
+                )
+            )
+
+        output_model = getattr(declaration, "output_model", None)
+        if output_model is not None and not _is_pydantic_output_model(output_model):
+            errors.append(
+                RegistryValidationIssue(
+                    code="invalid_output_model",
+                    message=(
+                        f"Capability '{name}' output_model is not a Pydantic "
+                        "BaseModel subclass or typed collection of BaseModel "
+                        "subclasses"
                     ),
                     capability_names=(name,),
                 )

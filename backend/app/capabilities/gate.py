@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from app.capabilities.spec import (
     Capability,
@@ -23,6 +23,16 @@ def validate_input(
     if isinstance(payload, capability.input_model):
         return payload
     return capability.input_model.model_validate(payload)
+
+
+def serialize_output(capability: Capability, result: Any) -> Any:
+    """Coerce a handler result through its shared HTTP/tool output contract."""
+
+    if capability.output_model is None:
+        return result
+    adapter = TypeAdapter(capability.output_model)
+    validated = adapter.validate_python(result, from_attributes=True)
+    return adapter.dump_python(validated, mode="json")
 
 
 def _role_scopes(capability: Capability) -> set[UserRole]:
@@ -91,7 +101,8 @@ async def invoke_capability(
     validated = validate_input(capability, payload)
 
     if capability.danger == "read":
-        return await capability.handler(validated, context)
+        result = await capability.handler(validated, context)
+        return serialize_output(capability, result)
 
     envelope = propose_action(
         action_type=capability.name,
@@ -123,7 +134,8 @@ async def invoke_http_capability(
     _ensure_user_role(capability, context)
     validated = validate_input(capability, payload)
     if capability.danger == "read":
-        return await capability.handler(validated, context)
+        result = await capability.handler(validated, context)
+        return serialize_output(capability, result)
 
     envelope = propose_action(
         action_type=capability.name,
@@ -153,4 +165,5 @@ async def execute_confirmed_capability(
         raise ValueError(f"Read capability '{capability.name}' has no pending action")
     _ensure_confirmation_role(capability, context)
     validated = validate_input(capability, payload)
-    return await capability.handler(validated, context)
+    result = await capability.handler(validated, context)
+    return serialize_output(capability, result)

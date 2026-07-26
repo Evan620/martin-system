@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 import pytest
 import resend
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from app.api.routes import agents, documents, pipeline
 from app.capabilities.declarations import documents_pipeline as declarations
@@ -297,7 +297,34 @@ async def test_read_capabilities_return_legacy_route_data_without_side_effects(
     agent_id,
 ):
     declaration = CAPABILITIES_UNDER_TEST[name]
-    route_result = {"source": route_name}
+    window = {
+        "id": str(uuid.uuid4()),
+        "name": "Regional Climate Facility",
+        "institution": "Generic DFI",
+        "instrument_type": "BLENDED",
+    }
+    route_results = {
+        "registry_list_buyer_matches": [
+            {
+                "match_id": str(uuid.uuid4()),
+                "buyer": {"id": str(uuid.uuid4()), "name": "Generic Buyer"},
+                "score": 87,
+                "status": "identified",
+                "match_rationale": "Mandate aligns",
+            }
+        ],
+        "registry_list_dfi_matches": [
+            {
+                "match_id": str(uuid.uuid4()),
+                "dfi_window": window,
+                "fit_score": 91,
+                "status": "identified",
+            }
+        ],
+        "registry_list_dfi_windows": [window],
+        "registry_get_pipeline_settings": {"source": route_name},
+    }
+    route_result = route_results[name]
     route_handler = AsyncMock(return_value=route_result)
     monkeypatch.setattr(pipeline, route_name, route_handler)
     db = object()
@@ -309,7 +336,12 @@ async def test_read_capabilities_return_legacy_route_data_without_side_effects(
         agent_id=agent_id,
     )
 
-    assert result is route_result
+    if declaration.output_model is None:
+        assert result is route_result
+    else:
+        adapter = TypeAdapter(declaration.output_model)
+        validated = adapter.validate_python(route_result, from_attributes=True)
+        assert result == adapter.dump_python(validated, mode="json")
     assert agents._pending_actions == {}
     assert _rbac._pending_actions == {}
     if "project_id" in payload:

@@ -185,6 +185,11 @@ class Settings(BaseSettings):
         description="Timeout for agent responses (seconds)"
     )
 
+    CAPABILITY_REGISTRY_ENABLED: bool = Field(
+        default=False,
+        description="Enable generated capability tools and HTTP routes"
+    )
+
     # Agent Settings
     AGENT_USE_REDIS_MEMORY: bool = Field(
         default=True,

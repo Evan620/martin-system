@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, delete
 from typing import List
 import uuid
 
@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.models.models import Notification, User
 from app.schemas.schemas import NotificationRead, NotificationUpdate
 from app.api.deps import get_current_active_user
+from app.services import notification_service
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
@@ -21,12 +22,12 @@ async def get_notifications(
     """
     Get all notifications for the current user.
     """
-    query = select(Notification).where(
-        Notification.user_id == current_user.id
-    ).order_by(Notification.created_at.desc()).offset(skip).limit(limit)
-    
-    result = await db.execute(query)
-    return result.scalars().all()
+    return await notification_service.list_notifications(
+        db,
+        current_user,
+        skip=skip,
+        limit=limit,
+    )
 
 @router.patch("/{notification_id}/read", response_model=NotificationRead)
 async def mark_as_read(
@@ -60,14 +61,10 @@ async def mark_all_as_read(
     """
     Mark all notifications for the current user as read.
     """
-    query = update(Notification).where(
-        Notification.user_id == current_user.id,
-        Notification.is_read == False
-    ).values(is_read=True)
-    
-    await db.execute(query)
-    await db.commit()
-    return {"status": "success", "message": "All notifications marked as read"}
+    return await notification_service.mark_all_notifications_read(
+        db,
+        current_user,
+    )
 
 @router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_notification(

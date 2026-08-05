@@ -1,4 +1,6 @@
 from contextlib import contextmanager, nullcontext
+import ast
+from pathlib import Path
 import runpy
 from unittest.mock import MagicMock, patch
 
@@ -15,6 +17,16 @@ def _load_env_without_running_online_migrations():
         alembic.context, "begin_transaction", return_value=nullcontext()
     ), patch.object(alembic.context, "run_migrations"):
         return runpy.run_path("alembic/env.py")
+
+
+def test_alembic_env_never_prints_runtime_configuration():
+    """Migration startup must not emit database URLs or other runtime secrets."""
+    tree = ast.parse(Path("alembic/env.py").read_text())
+    print_calls = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "print"
+    ]
+    assert print_calls == []
 
 
 def test_postgresql_lock_wraps_migration_plan_and_unlocks_on_failure(monkeypatch):

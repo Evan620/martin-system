@@ -88,7 +88,6 @@ async def run_migrations_online() -> None:
     
     # create_async_engine requires the URL to be suitable for an async driver
     url = config.get_main_option("sqlalchemy.url")
-    print(f"ALEMBIC DEBUG: url={url}")
     connectable = create_async_engine(
         url,
         poolclass=pool.NullPool,

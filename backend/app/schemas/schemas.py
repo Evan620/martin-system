@@ -126,6 +126,10 @@ class RecurringMeetingStatus(str, enum.Enum):
     ENDED = "ended"
     CANCELLED = "cancelled"
 
+class AttendanceMode(str, enum.Enum):
+    ALL_TWG_MEMBERS = "all_twg_members"
+    SPECIFIC_TWG_MEMBERS = "specific_twg_members"
+
 # --- Base Schema ---
 
 class SchemaBase(BaseModel):
@@ -273,9 +277,10 @@ class MeetingBase(SchemaBase):
     # Optional sub-group attribution (R4 sub-group health). Must belong to twg_id;
     # validated server-side. NULL = meeting belongs to the TWG at large.
     subgroup_id: Optional[uuid.UUID] = None
+    attendance_mode: AttendanceMode = AttendanceMode.ALL_TWG_MEMBERS
 
 class MeetingCreate(MeetingBase):
-    pass
+    selected_member_ids: List[uuid.UUID] = Field(default_factory=list)
 
 class MeetingUpdate(SchemaBase):
     title: Optional[str] = None
@@ -367,6 +372,7 @@ class MeetingRead(MeetingBase):
     # Recurring meeting fields
     recurring_meeting_id: Optional[uuid.UUID] = None
     is_recurring_exception: bool = False
+    selected_member_ids: List[uuid.UUID] = Field(default_factory=list)
 
 # --- Recurring Meeting Schemas ---
 
@@ -386,6 +392,7 @@ class RecurringMeetingBase(SchemaBase):
     duration_minutes: int = 60
     location: Optional[str] = None
     meeting_type: str = "virtual"
+    attendance_mode: AttendanceMode = AttendanceMode.ALL_TWG_MEMBERS
 
 class RecurringMeetingCreate(RecurringMeetingBase):
     recurrence_rule: RecurrenceRule
@@ -393,6 +400,7 @@ class RecurringMeetingCreate(RecurringMeetingBase):
     start_date: datetime
     start_time: str  # "14:00" format
     timezone: str = "Africa/Nairobi"
+    selected_member_ids: List[uuid.UUID] = Field(default_factory=list)
 
 class RecurringMeetingUpdate(SchemaBase):
     title_template: Optional[str] = None
@@ -421,6 +429,7 @@ class RecurringMeetingRead(RecurringMeetingBase):
     created_at: datetime
     created_by_id: uuid.UUID
     upcoming_instances: List[MeetingRead] = []
+    selected_member_ids: List[uuid.UUID] = Field(default_factory=list)
 
 class RecurringMeetingPreview(SchemaBase):
     """Preview of dates that will be generated for a recurring meeting"""
@@ -790,4 +799,3 @@ class TwgSettingsRead(TwgSettingsBase):
     id: uuid.UUID
     twg_id: uuid.UUID
     updated_at: datetime
-

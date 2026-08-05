@@ -241,7 +241,7 @@ async def run_weekly_invite_dispatch():
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
     from sqlalchemy import func, text
-    from app.models.models import Meeting, MeetingParticipant, MeetingStatus, User, twg_members
+    from app.models.models import AttendanceMode, Meeting, MeetingParticipant, MeetingStatus, User, twg_members
 
     WINDOW_DAYS = 7
     SCOPES = ["https://www.googleapis.com/auth/calendar"]
@@ -279,17 +279,32 @@ async def run_weekly_invite_dispatch():
                 return {"sent": 0, "skipped": 0, "errors": 0}
             svc = _calendar()
             for m in meetings:
-                cnt = (await db.execute(
+                participant_count = (await db.execute(
                     select(func.count()).select_from(MeetingParticipant)
                     .where(MeetingParticipant.meeting_id == m.id))).scalar() or 0
-                if cnt > 0:
-                    skipped += 1
-                    continue
-                members = (await db.execute(
-                    select(User).join(twg_members, twg_members.c.user_id == User.id)
-                    .where(twg_members.c.twg_id == m.twg_id))).scalars().all()
-                members = [u for u in members if u.email]
-                if not members:
+                if participant_count == 0 and m.attendance_mode == AttendanceMode.ALL_TWG_MEMBERS:
+                    members = (await db.execute(
+                        select(User).join(twg_members, twg_members.c.user_id == User.id)
+                        .where(twg_members.c.twg_id == m.twg_id, User.is_active.is_(True))
+                    )).scalars().all()
+                    for user in members:
+                        db.add(MeetingParticipant(
+                            id=_uuid.uuid4(), meeting_id=m.id, user_id=user.id,
+                            email=user.email, name=getattr(user, "full_name", None),
+                        ))
+                    await db.flush()
+
+                participant_rows = (await db.execute(
+                    select(MeetingParticipant, User)
+                    .outerjoin(User, MeetingParticipant.user_id == User.id)
+                    .where(MeetingParticipant.meeting_id == m.id)
+                )).all()
+                attendee_emails = list(dict.fromkeys(
+                    participant.email or (user.email if user else None)
+                    for participant, user in participant_rows
+                    if participant.email or (user and user.email)
+                ))
+                if not attendee_emails:
                     skipped += 1
                     continue
                 try:
@@ -305,15 +320,11 @@ async def run_weekly_invite_dispatch():
                         continue
                     svc.events().patch(
                         calendarId="primary", eventId=ev["id"],
-                        body={"attendees": [{"email": u.email} for u in members]},
+                        body={"attendees": [{"email": email} for email in attendee_emails]},
                         sendUpdates="all", conferenceDataVersion=1).execute()
-                    for u in members:
-                        db.add(MeetingParticipant(id=_uuid.uuid4(), meeting_id=m.id,
-                                                  user_id=u.id, email=u.email,
-                                                  name=getattr(u, "full_name", None)))
                     await db.commit()
                     sent += 1
-                    logger.info("[invite-dispatch] invited %s to %s (%s)", len(members), m.title, m.id)
+                    logger.info("[invite-dispatch] invited %s to %s (%s)", len(attendee_emails), m.title, m.id)
                 except Exception as e:
                     errs += 1
                     await db.rollback()

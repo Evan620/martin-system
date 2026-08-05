@@ -52,6 +52,41 @@ def _meeting_to_read(m: Meeting) -> MeetingRead:
     return recurring_meeting_service.meeting_to_read(m)
 
 
+def _series_load_options():
+    return (
+        selectinload(RecurringMeeting.twg),
+        selectinload(RecurringMeeting.selected_members),
+        selectinload(RecurringMeeting.instances).selectinload(Meeting.participants),
+    )
+
+
+def _series_to_read(recurring: RecurringMeeting, upcoming: list[MeetingRead]) -> RecurringMeetingRead:
+    return RecurringMeetingRead(
+        id=recurring.id, twg_id=recurring.twg_id, title_template=recurring.title_template,
+        duration_minutes=recurring.duration_minutes, location=recurring.location,
+        meeting_type=recurring.meeting_type, attendance_mode=recurring.attendance_mode,
+        selected_member_ids=recurring.selected_member_ids, frequency=recurring.frequency,
+        interval_weeks=recurring.interval_weeks, day_of_week=recurring.day_of_week,
+        start_date=recurring.start_date, start_time=recurring.start_time,
+        timezone=recurring.timezone, end_type=recurring.end_type, end_date=recurring.end_date,
+        max_occurrences=recurring.max_occurrences, status=recurring.status,
+        occurrences_created=recurring.occurrences_created, created_at=recurring.created_at,
+        created_by_id=recurring.created_by_id, upcoming_instances=upcoming,
+    )
+
+
+async def _load_authorized_series(db, recurring_meeting_id, current_user):
+    result = await db.execute(
+        select(RecurringMeeting).where(RecurringMeeting.id == recurring_meeting_id).options(*_series_load_options())
+    )
+    recurring = result.scalar_one_or_none()
+    if not recurring:
+        raise HTTPException(status_code=404, detail="Recurring meeting not found")
+    if not has_twg_access(current_user, recurring.twg_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+    return recurring
+
+
 @router.post("/preview", response_model=RecurringMeetingPreview)
 async def preview_recurring_meeting(
     preview_data: RecurringMeetingCreate,
@@ -146,6 +181,8 @@ async def create_recurring_meeting(
             duration_minutes=recurring_meeting.duration_minutes,
             location=recurring_meeting.location,
             meeting_type=recurring_meeting.meeting_type,
+            attendance_mode=recurring_meeting.attendance_mode,
+            selected_member_ids=list(create_data.selected_member_ids),
             frequency=recurring_meeting.frequency,
             interval_weeks=recurring_meeting.interval_weeks,
             day_of_week=recurring_meeting.day_of_week,
@@ -161,6 +198,8 @@ async def create_recurring_meeting(
             created_by_id=recurring_meeting.created_by_id,
             upcoming_instances=upcoming_instances,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create recurring meeting: {e}")
         raise HTTPException(
@@ -204,8 +243,7 @@ async def list_recurring_meetings(
     - status: Filter by status (active, paused, ended, cancelled)
     """
     query = select(RecurringMeeting).options(
-        selectinload(RecurringMeeting.twg),
-        selectinload(RecurringMeeting.instances),
+        *_series_load_options(),
     )
 
     # Filter by TWG access
@@ -245,6 +283,8 @@ async def list_recurring_meetings(
             duration_minutes=rm.duration_minutes,
             location=rm.location,
             meeting_type=rm.meeting_type,
+            attendance_mode=rm.attendance_mode,
+            selected_member_ids=rm.selected_member_ids,
             frequency=rm.frequency,
             interval_weeks=rm.interval_weeks,
             day_of_week=rm.day_of_week,
@@ -282,8 +322,7 @@ async def update_recurring_meeting(
         select(RecurringMeeting)
         .where(RecurringMeeting.id == recurring_meeting_id)
         .options(
-            selectinload(RecurringMeeting.twg),
-            selectinload(RecurringMeeting.instances),
+            *_series_load_options(),
         )
     )
     recurring = result.scalar_one_or_none()
@@ -408,8 +447,7 @@ async def update_recurring_meeting(
         select(RecurringMeeting)
         .where(RecurringMeeting.id == recurring_meeting_id)
         .options(
-            selectinload(RecurringMeeting.twg),
-            selectinload(RecurringMeeting.instances),
+            *_series_load_options(),
         )
     )
     recurring = result.scalar_one()
@@ -539,28 +577,7 @@ async def update_recurring_meeting(
         if m.scheduled_at > now and m.status != "CANCELLED"
     ]
 
-    return RecurringMeetingRead(
-        id=recurring.id,
-        twg_id=recurring.twg_id,
-        title_template=recurring.title_template,
-        duration_minutes=recurring.duration_minutes,
-        location=recurring.location,
-        meeting_type=recurring.meeting_type,
-        frequency=recurring.frequency,
-        interval_weeks=recurring.interval_weeks,
-        day_of_week=recurring.day_of_week,
-        start_date=recurring.start_date,
-        start_time=recurring.start_time,
-        timezone=recurring.timezone,
-        end_type=recurring.end_type,
-        end_date=recurring.end_date,
-        max_occurrences=recurring.max_occurrences,
-        status=recurring.status,
-        occurrences_created=recurring.occurrences_created,
-        created_at=recurring.created_at,
-        created_by_id=recurring.created_by_id,
-        upcoming_instances=upcoming[:10],
-    )
+    return _series_to_read(recurring, upcoming[:10])
 
 
 @router.delete("/{recurring_meeting_id}")
@@ -576,6 +593,7 @@ async def cancel_recurring_meeting(
     Query params:
     - cancel_future: If true, cancels all future instances (default: true)
     """
+    await _load_authorized_series(db, recurring_meeting_id, current_user)
     service = RecurringMeetingService(db)
 
     try:
@@ -605,6 +623,7 @@ async def pause_recurring_meeting(
     No new instances will be generated until resumed.
     Existing instances are not affected.
     """
+    await _load_authorized_series(db, recurring_meeting_id, current_user)
     service = RecurringMeetingService(db)
 
     try:
@@ -612,28 +631,8 @@ async def pause_recurring_meeting(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    return RecurringMeetingRead(
-        id=recurring.id,
-        twg_id=recurring.twg_id,
-        title_template=recurring.title_template,
-        duration_minutes=recurring.duration_minutes,
-        location=recurring.location,
-        meeting_type=recurring.meeting_type,
-        frequency=recurring.frequency,
-        interval_weeks=recurring.interval_weeks,
-        day_of_week=recurring.day_of_week,
-        start_date=recurring.start_date,
-        start_time=recurring.start_time,
-        timezone=recurring.timezone,
-        end_type=recurring.end_type,
-        end_date=recurring.end_date,
-        max_occurrences=recurring.max_occurrences,
-        status=recurring.status,
-        occurrences_created=recurring.occurrences_created,
-        created_at=recurring.created_at,
-        created_by_id=recurring.created_by_id,
-        upcoming_instances=[],
-    )
+    recurring = await _load_authorized_series(db, recurring_meeting_id, current_user)
+    return _series_to_read(recurring, [])
 
 
 @router.post("/{recurring_meeting_id}/resume", response_model=RecurringMeetingRead)
@@ -648,6 +647,7 @@ async def resume_recurring_meeting(
     Will generate any instances that should have been created
     during the pause period (up to 30 days ahead).
     """
+    await _load_authorized_series(db, recurring_meeting_id, current_user)
     service = RecurringMeetingService(db)
 
     try:
@@ -662,7 +662,7 @@ async def resume_recurring_meeting(
         select(RecurringMeeting)
         .where(RecurringMeeting.id == recurring.id)
         .options(
-            selectinload(RecurringMeeting.instances),
+            *_series_load_options(),
         )
     )
     recurring = result.scalar_one()
@@ -673,25 +673,4 @@ async def resume_recurring_meeting(
         if m.scheduled_at > now and m.status != "CANCELLED"
     ]
 
-    return RecurringMeetingRead(
-        id=recurring.id,
-        twg_id=recurring.twg_id,
-        title_template=recurring.title_template,
-        duration_minutes=recurring.duration_minutes,
-        location=recurring.location,
-        meeting_type=recurring.meeting_type,
-        frequency=recurring.frequency,
-        interval_weeks=recurring.interval_weeks,
-        day_of_week=recurring.day_of_week,
-        start_date=recurring.start_date,
-        start_time=recurring.start_time,
-        timezone=recurring.timezone,
-        end_type=recurring.end_type,
-        end_date=recurring.end_date,
-        max_occurrences=recurring.max_occurrences,
-        status=recurring.status,
-        occurrences_created=recurring.occurrences_created,
-        created_at=recurring.created_at,
-        created_by_id=recurring.created_by_id,
-        upcoming_instances=upcoming[:10],
-    )
+    return _series_to_read(recurring, upcoming[:10])

@@ -51,6 +51,7 @@ class AgentLoop:
         thread_id: str,
         user_timezone: Optional[str] = None,
         stream_callback: Optional[Callable] = None,
+        auth_binding_token: Optional[str] = None,
     ) -> AgentResponse:
         history = self._get_history(thread_id)
         history.append({"role": "user", "content": query})
@@ -107,7 +108,9 @@ class AgentLoop:
                 final_content = content
                 break
 
-            tool_results = await self._execute_tools(tool_calls, thread_id, user_timezone)
+            tool_results = await self._execute_tools(
+                tool_calls, thread_id, user_timezone, auth_binding_token
+            )
             for name, tc_id, result_str in tool_results:
                 tool_calls_made.append(name)
                 history.append({
@@ -131,7 +134,7 @@ class AgentLoop:
                     import json as _json
                     from app.tools._rbac import store_pending_action, get_user_for_thread
                     parsed = _json.loads(_confirm_payload)
-                    _ctx = get_user_for_thread(thread_id)
+                    _ctx = get_user_for_thread(thread_id, auth_binding_token)
                     _uid_for_store = _ctx[0] if _ctx else ""
                     store_pending_action(
                         action_id=parsed["action_id"],
@@ -161,6 +164,7 @@ class AgentLoop:
         query: str,
         thread_id: str,
         user_timezone: Optional[str] = None,
+        auth_binding_token: Optional[str] = None,
     ) -> AsyncGenerator[Dict, None]:
         tokens: asyncio.Queue = asyncio.Queue()
 
@@ -168,7 +172,10 @@ class AgentLoop:
             await tokens.put({"type": "token", "content": t})
 
         async def run_task():
-            resp = await self.run(query, thread_id, user_timezone, stream_callback=on_token)
+            resp = await self.run(
+                query, thread_id, user_timezone, stream_callback=on_token,
+                auth_binding_token=auth_binding_token,
+            )
             await tokens.put({"type": "done", "response": resp})
 
         task = asyncio.create_task(run_task())
@@ -233,6 +240,7 @@ class AgentLoop:
         tool_calls: List[Dict],
         thread_id: str,
         user_timezone: Optional[str],
+        auth_binding_token: Optional[str] = None,
     ) -> List[tuple]:
         async def execute_one(tc: Dict) -> tuple:
             name = tc["name"]
@@ -263,7 +271,16 @@ class AgentLoop:
                         result_str = json.dumps({"error": f"Tool '{name}' not found: {reg_err}"})
                 else:
                     sig = inspect.signature(func)
-                    if "twg_id" in sig.parameters and self.twg_id and "twg_id" not in args:
+                    accepts_kwargs = any(
+                        parameter.kind is inspect.Parameter.VAR_KEYWORD
+                        for parameter in sig.parameters.values()
+                    )
+                    if self.twg_id and ("twg_id" in sig.parameters or accepts_kwargs):
+                        if args.get("twg_id") not in (None, self.twg_id):
+                            logger.warning(
+                                f"[{self.agent_id}] Replacing mismatched twg_id "
+                                f"for scoped tool '{name}'"
+                            )
                         args["twg_id"] = self.twg_id
                     if "user_timezone" in sig.parameters and user_timezone and "user_timezone" not in args:
                         args["user_timezone"] = user_timezone
@@ -273,7 +290,7 @@ class AgentLoop:
                     # agent delegation hops where ContextVars get dropped.
                     if "user_id" in sig.parameters or "user_role" in sig.parameters:
                         from app.tools._rbac import get_user_for_thread
-                        _ctx = get_user_for_thread(thread_id)
+                        _ctx = get_user_for_thread(thread_id, auth_binding_token)
                         if _ctx is not None:
                             _uid, _urole = _ctx
                             if "user_id" in sig.parameters and "user_id" not in args:

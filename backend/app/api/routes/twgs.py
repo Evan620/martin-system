@@ -13,7 +13,7 @@ import io
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.models.models import TWG, User, UserRole, Meeting, Project, ActionItem, Document, MeetingStatus, ActionItemStatus, MeetingParticipant, RsvpStatus, SubGroup
+from app.models.models import AttendanceMode, TWG, User, UserRole, Meeting, Project, ActionItem, Document, MeetingStatus, ActionItemStatus, MeetingParticipant, RsvpStatus, SubGroup
 
 logger = logging.getLogger(__name__)
 from app.schemas.schemas import TWGCreate, TWGRead, TWGUpdate
@@ -66,6 +66,7 @@ async def _sync_new_members_to_future_meetings(
                 Meeting.twg_id == twg_id,
                 Meeting.scheduled_at > now,
                 Meeting.status.in_([MeetingStatus.SCHEDULED, MeetingStatus.REQUESTED]),
+                Meeting.attendance_mode == AttendanceMode.ALL_TWG_MEMBERS,
             )
         )
     )

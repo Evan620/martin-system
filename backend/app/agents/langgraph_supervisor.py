@@ -91,6 +91,7 @@ class LangGraphSupervisor:
         twg_id: Optional[str] = None,
         user_timezone: Optional[str] = None,
         force_agent_id: Optional[str] = None,
+        auth_binding_token: Optional[str] = None,
     ) -> dict:
         loop = self._get_loop()
         resp = await loop.run(
@@ -99,6 +100,7 @@ class LangGraphSupervisor:
             twg_id=twg_id,
             user_timezone=user_timezone,
             force_agent_id=force_agent_id,
+            auth_binding_token=auth_binding_token,
         )
         return {
             "response": resp.content,
@@ -118,6 +120,7 @@ class LangGraphSupervisor:
         twg_id: Optional[str] = None,
         user_timezone: Optional[str] = None,
         force_agent_id: Optional[str] = None,
+        auth_binding_token: Optional[str] = None,
     ) -> AsyncGenerator[Dict, None]:
         loop = self._get_loop()
         async for event in loop.stream(
@@ -126,6 +129,7 @@ class LangGraphSupervisor:
             twg_id=twg_id,
             user_timezone=user_timezone,
             force_agent_id=force_agent_id,
+            auth_binding_token=auth_binding_token,
         ):
             yield event
 

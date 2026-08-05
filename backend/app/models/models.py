@@ -172,6 +172,10 @@ class RecurringMeetingStatus(str, enum.Enum):
     ENDED = "ended"
     CANCELLED = "cancelled"
 
+class AttendanceMode(str, enum.Enum):
+    ALL_TWG_MEMBERS = "all_twg_members"
+    SPECIFIC_TWG_MEMBERS = "specific_twg_members"
+
 # --- Association Tables ---
 
 twg_members = Table(
@@ -417,6 +421,11 @@ class Meeting(Base):
     transcript: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # Text or link to transcript
     video_link: Mapped[Optional[str]] = mapped_column(String(512), nullable=True) # Google Meet / Zoom link
     attendee_bot_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Attendee bot ID for transcript retrieval
+    attendance_mode: Mapped[AttendanceMode] = mapped_column(
+        Enum(AttendanceMode, values_callable=lambda x: [e.value for e in x]),
+        default=AttendanceMode.ALL_TWG_MEMBERS,
+        server_default=AttendanceMode.ALL_TWG_MEMBERS.value,
+    )
 
     # Recurring Meeting Fields
     recurring_meeting_id: Mapped[Optional[uuid.UUID]] = mapped_column(
@@ -453,6 +462,12 @@ class Meeting(Base):
     # Recurring Meeting Relationship
     recurring_parent: Mapped[Optional["RecurringMeeting"]] = relationship(back_populates="instances")
 
+    @property
+    def selected_member_ids(self) -> List[uuid.UUID]:
+        if self.attendance_mode != AttendanceMode.SPECIFIC_TWG_MEMBERS:
+            return []
+        return [participant.user_id for participant in self.participants if participant.user_id]
+
 class RecurringMeeting(Base):
     """
     Template for recurring meetings that automatically generates Meeting instances.
@@ -469,6 +484,11 @@ class RecurringMeeting(Base):
     duration_minutes: Mapped[int] = mapped_column(default=60)
     location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     meeting_type: Mapped[str] = mapped_column(String(50), default="virtual")
+    attendance_mode: Mapped[AttendanceMode] = mapped_column(
+        Enum(AttendanceMode, values_callable=lambda x: [e.value for e in x]),
+        default=AttendanceMode.ALL_TWG_MEMBERS,
+        server_default=AttendanceMode.ALL_TWG_MEMBERS.value,
+    )
 
     # Recurrence Configuration
     frequency: Mapped[RecurrenceFrequency] = mapped_column(
@@ -503,6 +523,30 @@ class RecurringMeeting(Base):
     twg: Mapped["TWG"] = relationship(back_populates="recurring_meetings")
     instances: Mapped[List["Meeting"]] = relationship(back_populates="recurring_parent")
     created_by: Mapped["User"] = relationship("User")
+    selected_members: Mapped[List["RecurringMeetingSelectedMember"]] = relationship(
+        back_populates="recurring_meeting", cascade="all, delete-orphan"
+    )
+
+    @property
+    def selected_member_ids(self) -> List[uuid.UUID]:
+        return [member.user_id for member in self.selected_members]
+
+class RecurringMeetingSelectedMember(Base):
+    __tablename__ = "recurring_meeting_selected_members"
+    __table_args__ = (
+        UniqueConstraint("recurring_meeting_id", "user_id", name="uq_recurring_selected_member"),
+        {'extend_existing': True},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    recurring_meeting_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("recurring_meetings.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    recurring_meeting: Mapped["RecurringMeeting"] = relationship(back_populates="selected_members")
+    user: Mapped["User"] = relationship("User")
 
 class Agenda(Base):
     __tablename__ = "agendas"

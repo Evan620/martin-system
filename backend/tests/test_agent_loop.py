@@ -1,5 +1,6 @@
 import pytest
 import asyncio
+import uuid
 from unittest.mock import AsyncMock
 
 class MockLLM:
@@ -204,3 +205,111 @@ async def test_agent_loop_max_iterations():
     )
     resp = await loop.run("loop forever", thread_id="t4")
     assert mock_tool.call_count <= 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "model_twg_id",
+    ["Carren Feature Test", str(uuid.uuid4())],
+    ids=["display-name", "different-uuid"],
+)
+async def test_agent_loop_raw_handler_replaces_model_twg_id_with_context(model_twg_id):
+    """Raw tool_map handlers must obey the agent's authorized TWG scope.
+
+    The model may emit a display name or a valid but unrelated UUID. Neither may
+    reach a scoped handler when the AgentLoop already has an authorized twg_id.
+    """
+    from app.agents.agent_loop import AgentLoop
+
+    contextual_twg_id = str(uuid.uuid4())
+    received = []
+
+    async def raw_handler(twg_id, title):
+        received.append({"twg_id": twg_id, "title": title})
+        return {"status": "ok"}
+
+    loop = AgentLoop(
+        agent_id="energy",
+        system_prompt="Expert.",
+        tools=[],
+        tool_map={"create_meeting": raw_handler},
+        llm=MockLLM([]),
+        twg_id=contextual_twg_id,
+    )
+
+    await loop._execute_tools(
+        [{
+            "id": "create-1",
+            "name": "create_meeting",
+            "args": {"twg_id": model_twg_id, "title": "Scoped meeting"},
+        }],
+        thread_id="scope-test",
+        user_timezone=None,
+    )
+
+    assert received == [{
+        "twg_id": contextual_twg_id,
+        "title": "Scoped meeting",
+    }]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "model_twg_id",
+    ["Carren Feature Test", str(uuid.uuid4())],
+    ids=["kwargs-display-name", "kwargs-foreign-uuid"],
+)
+async def test_agent_loop_kwargs_handler_replaces_model_twg_id_with_context(model_twg_id):
+    """A **kwargs raw handler accepts scope injection and must not trust the model."""
+    from app.agents.agent_loop import AgentLoop
+
+    contextual_twg_id = str(uuid.uuid4())
+    received = []
+
+    async def raw_handler(**kwargs):
+        received.append(kwargs)
+        return {"status": "ok"}
+
+    loop = AgentLoop(
+        agent_id="energy",
+        system_prompt="Expert.",
+        tools=[],
+        tool_map={"create_meeting": raw_handler},
+        llm=MockLLM([]),
+        twg_id=contextual_twg_id,
+    )
+
+    await loop._execute_tools(
+        [{
+            "id": "create-kwargs-1",
+            "name": "create_meeting",
+            "args": {"twg_id": model_twg_id, "title": "Scoped meeting"},
+        }],
+        thread_id="kwargs-scope-test",
+        user_timezone=None,
+    )
+
+    assert received == [{
+        "twg_id": contextual_twg_id,
+        "title": "Scoped meeting",
+    }]
+
+
+@pytest.mark.asyncio
+async def test_agent_loop_kwargs_handler_preserves_unscoped_supervisor_twg_argument():
+    from app.agents.agent_loop import AgentLoop
+
+    received = []
+
+    async def raw_handler(**kwargs):
+        received.append(kwargs)
+        return {"status": "ok"}
+
+    loop = AgentLoop("supervisor", "General.", [], {"tool": raw_handler}, MockLLM([]))
+    await loop._execute_tools(
+        [{"id": "unscoped", "name": "tool", "args": {"twg_id": "energy"}}],
+        thread_id="unscoped-supervisor",
+        user_timezone=None,
+    )
+
+    assert received == [{"twg_id": "energy"}]

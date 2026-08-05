@@ -78,6 +78,7 @@ class TestAccessControl:
         from app.tools.tool_registry import SUPERVISOR_ONLY_TOOLS, UNRESTRICTED_TOOLS, TWG_SCOPED_TOOLS
         supervisor_accessible = SUPERVISOR_ONLY_TOOLS | UNRESTRICTED_TOOLS | {
             "send_email", "create_email_draft", "create_meeting_invite",
+            "create_meeting", "create_recurring_meeting",
             "search_documents", "retrieve_document_content",
         }
         for tool_name in registry.list_tools():
@@ -150,6 +151,7 @@ class TestToolRetrieval:
         # Supervisor must NOT have TWG-scoped tools it doesn't explicitly whitelist
         supervisor_accessible = SUPERVISOR_ONLY_TOOLS | UNRESTRICTED_TOOLS | {
             "send_email", "create_email_draft", "create_meeting_invite",
+            "create_meeting", "create_recurring_meeting",
             "search_documents", "retrieve_document_content",
         }
         for t in TWG_SCOPED_TOOLS:

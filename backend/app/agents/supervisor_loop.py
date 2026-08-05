@@ -4,8 +4,10 @@ SupervisorLoop — replaces the 5-node LangGraph supervisor graph.
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import re
+import uuid
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 
 from loguru import logger
@@ -62,6 +64,65 @@ class SupervisorLoop:
         )
         return member_agent._loop
 
+    def _build_scoped_pillar_agent(self, agent_id: str, twg_id: str):
+        """Build a pillar agent bound to the exact authorized request TWG.
+
+        Cached pillar agents resolve their scope from the pillar and may bind to
+        the first database row when multiple TWGs share that pillar. Scoped
+        requests must instead carry their authorized UUID through to every tool.
+        AgentLoop history remains keyed by thread_id, so constructing this wrapper
+        per request does not discard the conversation.
+        """
+        cached_loop = self.twg_agents[agent_id]
+        scoped_loop = copy.copy(cached_loop)
+        scoped_loop.tools = list(cached_loop.tools)
+        scoped_loop.tool_map = dict(cached_loop.tool_map)
+        scoped_loop.twg_id = twg_id
+        return scoped_loop
+
+    async def _thread_user_has_twg_access(
+        self, thread_id: str, twg_id: str, auth_binding_token: Optional[str] = None
+    ) -> bool:
+        """Authorize an exact TWG scope from the thread-bound user context.
+
+        This is deliberately independent of route checks because supervisors can
+        be called from non-route paths. A missing/invalid context fails closed.
+        """
+        from sqlalchemy import select
+
+        from app.core.database import get_db_session_context
+        from app.models.models import UserRole, twg_members
+        from app.tools._rbac import get_thread_user_context
+
+        context = get_thread_user_context(thread_id, auth_binding_token)
+        if context is None:
+            return False
+
+        user_id, role = context
+        if role in (UserRole.ADMIN, UserRole.SECRETARIAT_LEAD):
+            return True
+        if role not in (UserRole.TWG_FACILITATOR, UserRole.TWG_MEMBER):
+            return False
+
+        try:
+            user_uuid = uuid.UUID(str(user_id))
+            twg_uuid = uuid.UUID(str(twg_id))
+        except (TypeError, ValueError, AttributeError):
+            return False
+
+        try:
+            async with get_db_session_context() as db:
+                result = await db.execute(
+                    select(twg_members.c.user_id).where(
+                        twg_members.c.user_id == user_uuid,
+                        twg_members.c.twg_id == twg_uuid,
+                    )
+                )
+                return result.scalar_one_or_none() is not None
+        except Exception as exc:
+            logger.error(f"[SUPERVISOR] TWG scope authorization failed: {exc}")
+            return False
+
     async def run(
         self,
         query: str,
@@ -70,7 +131,19 @@ class SupervisorLoop:
         user_timezone: Optional[str] = None,
         stream_callback: Optional[Callable] = None,
         force_agent_id: Optional[str] = None,
+        auth_binding_token: Optional[str] = None,
     ) -> AgentResponse:
+        if twg_id and not await self._thread_user_has_twg_access(
+            thread_id, twg_id, auth_binding_token
+        ):
+            logger.warning(
+                f"[SUPERVISOR] Denied unauthorized request scope: twg_id={twg_id}"
+            )
+            return AgentResponse(
+                content="Access denied: unauthorized TWG scope.",
+                agent_id="supervisor",
+            )
+
         # Member-scoped routing (the safety line): a TWG_MEMBER chat runs under the
         # "member" agent (gated to MEMBER_TOOLS) bound to the caller's twg_id —
         # NOT the pillar/facilitator agent. Bypasses the twg_id → pillar routing below.
@@ -80,15 +153,18 @@ class SupervisorLoop:
             return await member_loop.run(
                 query, thread_id, user_timezone=user_timezone,
                 stream_callback=stream_callback,
+                auth_binding_token=auth_binding_token,
             )
 
         if twg_id:
             forced = get_agent_id_by_twg_id(twg_id)
             if forced and forced in self.twg_agents:
-                logger.info(f"[SUPERVISOR] RBAC → {forced}")
-                return await self.twg_agents[forced].run(
+                logger.info(f"[SUPERVISOR] RBAC → {forced} (request-scoped TWG)")
+                scoped_loop = self._build_scoped_pillar_agent(forced, twg_id)
+                return await scoped_loop.run(
                     query, thread_id, user_timezone=user_timezone,
                     stream_callback=stream_callback,
+                    auth_binding_token=auth_binding_token,
                 )
             else:
                 logger.warning(f"[SUPERVISOR] RBAC failure: twg_id={twg_id}")
@@ -120,6 +196,7 @@ class SupervisorLoop:
         twg_id: Optional[str] = None,
         user_timezone: Optional[str] = None,
         force_agent_id: Optional[str] = None,
+        auth_binding_token: Optional[str] = None,
     ) -> AsyncGenerator[Dict, None]:
         tokens: asyncio.Queue = asyncio.Queue()
 
@@ -130,6 +207,7 @@ class SupervisorLoop:
             resp = await self.run(
                 query, thread_id, twg_id, user_timezone,
                 stream_callback=on_token, force_agent_id=force_agent_id,
+                auth_binding_token=auth_binding_token,
             )
             # The API route (POST /agents/chat/stream) only understands
             # "final_response" — a bare "done" carrying the AgentResponse was

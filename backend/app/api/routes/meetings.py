@@ -14,7 +14,7 @@ import traceback
 import io
 
 from app.core.database import get_db
-from app.models.models import Meeting, Agenda, Minutes, User, UserRole, MinutesStatus, MeetingParticipant, RsvpStatus, ActionItem, ActionItemStatus, TWG, Document, MeetingStatus, MeetingDependency, DependencyType, twg_members
+from app.models.models import AttendanceMode, Meeting, Agenda, Minutes, User, UserRole, MinutesStatus, MeetingParticipant, RsvpStatus, ActionItem, ActionItemStatus, TWG, Document, MeetingStatus, MeetingDependency, DependencyType, RecurringMeeting, RecurringMeetingSelectedMember, twg_members
 from app.schemas.schemas import (
     MeetingCreate, MeetingRead, MeetingUpdate, MeetingCancel, MeetingUpdateNotification,
     AgendaCreate, AgendaRead, MinutesCreate, MinutesRead, MinutesUpdate, MinutesRejectionRequest,
@@ -59,6 +59,7 @@ from app.core.ws_manager import ws_manager
 from app.core.database import get_db, get_db_session_context
 from app.services.storage_service import get_storage_service
 from app.services import meeting_capability_service
+from app.services.meeting_participant_service import add_meeting_participants, resolve_meeting_members
 
 from difflib import SequenceMatcher
 
@@ -358,40 +359,22 @@ async def create_meeting(
         generated_video_link = None
         # GCal event creation happens in background — continuous_monitor fills in the link
 
-        # Create meeting with video_link
+        resolved_members = await resolve_meeting_members(
+            db,
+            meeting_in.twg_id,
+            meeting_in.attendance_mode,
+            meeting_in.selected_member_ids,
+        )
+
+        # Create meeting and participant rows in one transaction.
         meeting_data = meeting_in.model_dump()
+        meeting_data.pop('selected_member_ids', None)
+        meeting_data['attendance_mode'] = AttendanceMode(meeting_in.attendance_mode.value)
         meeting_data['id'] = meeting_id
         meeting_data['video_link'] = generated_video_link
         db_meeting = Meeting(**meeting_data)
         db.add(db_meeting)
-        await db.commit()
-
-        # Auto-include all TWG members as participants
-        twg_member_result = await db.execute(
-            select(User).join(twg_members, twg_members.c.user_id == User.id).where(
-                and_(twg_members.c.twg_id == db_meeting.twg_id, User.is_active == True)
-            )
-        )
-        twg_member_users = twg_member_result.scalars().all()
-
-        for member in twg_member_users:
-            existing_participant = await db.execute(
-                select(MeetingParticipant).where(
-                    and_(
-                        MeetingParticipant.meeting_id == db_meeting.id,
-                        MeetingParticipant.user_id == member.id
-                    )
-                )
-            )
-            if not existing_participant.scalar_one_or_none():
-                participant = MeetingParticipant(
-                    id=uuid.uuid4(),
-                    meeting_id=db_meeting.id,
-                    user_id=member.id,
-                    rsvp_status=RsvpStatus.PENDING
-                )
-                db.add(participant)
-
+        add_meeting_participants(db, db_meeting.id, resolved_members)
         await db.commit()
 
         # Collect participant emails for background GCal sync + email
@@ -544,12 +527,9 @@ async def list_meetings(
     # Exclude cancelled meetings from normal listing
     query = query.where(Meeting.status != MeetingStatus.CANCELLED)
 
-    # BUG #4: hide test/internal meetings from member-facing views.
-    # No is_test flag exists on Meeting, so fall back to a title-based filter.
-    # Admins / Secretariat Lead keep full visibility (incl. test meetings).
+    # Visibility is governed by TWG access below. Meeting titles are user content
+    # and must never be used as an authorization or environment signal.
     is_privileged = current_user.role in [UserRole.ADMIN, UserRole.SECRETARIAT_LEAD]
-    if not is_privileged:
-        query = query.where(~Meeting.title.ilike("%test%"))
 
     if twg_id:
         if not has_twg_access(current_user, twg_id):
@@ -1782,7 +1762,19 @@ async def add_participants(
     if not has_twg_access(current_user, db_meeting.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
 
+    locked_series = None
+    if apply_to_series and db_meeting.recurring_meeting_id:
+        locked_result = await db.execute(
+            select(RecurringMeeting)
+            .where(RecurringMeeting.id == db_meeting.recurring_meeting_id)
+            .with_for_update()
+        )
+        locked_series = locked_result.scalar_one_or_none()
+        if locked_series is None:
+            raise HTTPException(status_code=404, detail="Recurring meeting not found")
+
     new_participants = []
+    sibling_meetings = []
     
     # 1. Identify emails that need lookup (no user_id provided)
     print(f"DEBUG: add_participants payload: {participants}")
@@ -1799,6 +1791,34 @@ async def add_participants(
         for u in found_users:
             email_to_userid_map[u.email.lower()] = u.id
 
+    # Resolve identities before staging anything. External guests are valid for
+    # one occurrence, but cannot be persisted in a fixed-member series template.
+    resolved_inputs = []
+    for p_in in participants:
+        final_user_id = p_in.user_id
+        if not final_user_id and p_in.email:
+            final_user_id = email_to_userid_map.get(p_in.email.lower())
+        resolved_inputs.append((p_in, final_user_id))
+
+    is_specific_series_update = bool(
+        locked_series
+        and locked_series.attendance_mode == AttendanceMode.SPECIFIC_TWG_MEMBERS
+    )
+    selected_users = []
+    if is_specific_series_update:
+        if any(user_id is None for _, user_id in resolved_inputs):
+            raise HTTPException(
+                status_code=422,
+                detail="External guests cannot be added to a fixed selected-member series",
+            )
+        requested_user_ids = list(dict.fromkeys(user_id for _, user_id in resolved_inputs))
+        selected_users = await resolve_meeting_members(
+            db,
+            db_meeting.twg_id,
+            AttendanceMode.SPECIFIC_TWG_MEMBERS,
+            requested_user_ids,
+        )
+
     # 3. Check for EXISTING participants to avoid duplicates
     existing_query = select(MeetingParticipant).where(MeetingParticipant.meeting_id == meeting_id)
     existing_res = await db.execute(existing_query)
@@ -1807,12 +1827,7 @@ async def add_participants(
     existing_user_ids = {p.user_id for p in existing_participants if p.user_id}
     existing_emails = {p.email.lower() for p in existing_participants if p.email}
 
-    for p_in in participants:
-         # Determine User ID: Provided > Looked Up > None
-         final_user_id = p_in.user_id
-         if not final_user_id and p_in.email:
-             final_user_id = email_to_userid_map.get(p_in.email.lower())
-
+    for p_in, final_user_id in resolved_inputs:
          # Check Duplicates
          if final_user_id and final_user_id in existing_user_ids:
              continue # Skip
@@ -1828,15 +1843,37 @@ async def add_participants(
          )
          db.add(db_p)
          new_participants.append(db_p)
+         if final_user_id:
+             existing_user_ids.add(final_user_id)
+         if p_in.email:
+             existing_emails.add(p_in.email.lower())
          
-    await db.commit()
-
     # Apply to all future meetings in the series
-    if apply_to_series and db_meeting.recurring_meeting_id:
+    if locked_series is not None:
+        if is_specific_series_update:
+            selected_ids = {user.id for user in selected_users}
+            template_result = await db.execute(
+                select(RecurringMeetingSelectedMember).where(
+                    and_(
+                        RecurringMeetingSelectedMember.recurring_meeting_id
+                        == locked_series.id,
+                        RecurringMeetingSelectedMember.user_id.in_(selected_ids),
+                    )
+                )
+            )
+            existing_template_ids = {
+                row.user_id for row in template_result.scalars().all()
+            }
+            for user_id in selected_ids - existing_template_ids:
+                db.add(RecurringMeetingSelectedMember(
+                    recurring_meeting_id=locked_series.id,
+                    user_id=user_id,
+                ))
+
         sibling_result = await db.execute(
             select(Meeting).where(
                 and_(
-                    Meeting.recurring_meeting_id == db_meeting.recurring_meeting_id,
+                    Meeting.recurring_meeting_id == locked_series.id,
                     Meeting.id != meeting_id,
                     Meeting.scheduled_at >= datetime.utcnow(),
                     Meeting.status != MeetingStatus.CANCELLED
@@ -1854,11 +1891,7 @@ async def add_participants(
             sib_user_ids = {p.user_id for p in existing if p.user_id}
             sib_emails = {p.email.lower() for p in existing if p.email}
 
-            for p_in in participants:
-                final_user_id = p_in.user_id
-                if not final_user_id and p_in.email:
-                    final_user_id = email_to_userid_map.get(p_in.email.lower())
-
+            for p_in, final_user_id in resolved_inputs:
                 if final_user_id and final_user_id in sib_user_ids:
                     continue
                 if p_in.email and p_in.email.lower() in sib_emails:
@@ -1871,8 +1904,18 @@ async def add_participants(
                     name=p_in.name,
                     rsvp_status=RsvpStatus.PENDING
                 ))
+                if final_user_id:
+                    sib_user_ids.add(final_user_id)
+                if p_in.email:
+                    sib_emails.add(p_in.email.lower())
 
+    try:
+        # Current occurrence, fixed template, and future occurrences commit as
+        # one unit. A uniqueness or database failure cannot leave series drift.
         await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
 
     # Sync new participants to Google Calendar + send email invites
     emails_to_add = list(set(
@@ -1881,18 +1924,8 @@ async def add_participants(
 
     # Determine all meeting IDs that were updated (current + siblings if apply_to_series)
     meeting_ids_to_sync = [str(meeting_id)]
-    if apply_to_series and db_meeting.recurring_meeting_id:
-        sibling_result2 = await db.execute(
-            select(Meeting.id).where(
-                and_(
-                    Meeting.recurring_meeting_id == db_meeting.recurring_meeting_id,
-                    Meeting.id != meeting_id,
-                    Meeting.scheduled_at >= datetime.utcnow(),
-                    Meeting.status != MeetingStatus.CANCELLED
-                )
-            )
-        )
-        meeting_ids_to_sync.extend(str(r[0]) for r in sibling_result2.all())
+    if locked_series is not None:
+        meeting_ids_to_sync.extend(str(sibling.id) for sibling in sibling_meetings)
 
     if emails_to_add:
         # GCal: add attendees to ALL affected calendar events
@@ -1980,6 +2013,17 @@ async def remove_participant(
     if not has_twg_access(current_user, db_meeting.twg_id):
         raise HTTPException(status_code=403, detail="Access denied")
 
+    locked_series = None
+    if apply_to_series and db_meeting.recurring_meeting_id:
+        locked_result = await db.execute(
+            select(RecurringMeeting)
+            .where(RecurringMeeting.id == db_meeting.recurring_meeting_id)
+            .with_for_update()
+        )
+        locked_series = locked_result.scalar_one_or_none()
+        if locked_series is None:
+            raise HTTPException(status_code=404, detail="Recurring meeting not found")
+
     result = await db.execute(
         select(MeetingParticipant).where(
             and_(MeetingParticipant.id == participant_id, MeetingParticipant.meeting_id == meeting_id)
@@ -1994,14 +2038,30 @@ async def remove_participant(
     removed_email = participant.email.lower() if participant.email else None
 
     await db.delete(participant)
-    await db.commit()
 
     # Apply to all future meetings in the series
-    if apply_to_series and db_meeting.recurring_meeting_id:
+    if locked_series is not None:
+        if (
+            locked_series.attendance_mode == AttendanceMode.SPECIFIC_TWG_MEMBERS
+            and removed_user_id
+        ):
+            template_result = await db.execute(
+                select(RecurringMeetingSelectedMember).where(
+                    and_(
+                        RecurringMeetingSelectedMember.recurring_meeting_id
+                        == locked_series.id,
+                        RecurringMeetingSelectedMember.user_id == removed_user_id,
+                    )
+                )
+            )
+            template_member = template_result.scalar_one_or_none()
+            if template_member:
+                await db.delete(template_member)
+
         sibling_result = await db.execute(
             select(Meeting).where(
                 and_(
-                    Meeting.recurring_meeting_id == db_meeting.recurring_meeting_id,
+                    Meeting.recurring_meeting_id == locked_series.id,
                     Meeting.id != meeting_id,
                     Meeting.scheduled_at >= datetime.utcnow(),
                     Meeting.status != MeetingStatus.CANCELLED
@@ -2027,7 +2087,13 @@ async def remove_participant(
             if match:
                 await db.delete(match)
 
+    try:
+        # Current occurrence, fixed template, and future occurrences are one
+        # transaction so failure cannot partially mutate the series.
         await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
 
 @router.post("/{meeting_id}/agenda", response_model=AgendaRead)
 async def upsert_agenda(

@@ -36,6 +36,8 @@ from app.models.models import (
     User,
     UserRole,
     twg_members,
+    AttendanceMode,
+    RecurringMeetingSelectedMember,
 )
 from app.schemas.schemas import (
     RecurringMeetingCreate,
@@ -45,6 +47,7 @@ from app.schemas.schemas import (
     MeetingRead,
 )
 from app.api.deps import has_twg_access
+from app.services.meeting_participant_service import add_meeting_participants, resolve_meeting_members
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +71,10 @@ def meeting_to_read(meeting: Meeting) -> MeetingRead:
         video_link=meeting.video_link,
         recurring_meeting_id=meeting.recurring_meeting_id,
         is_recurring_exception=meeting.is_recurring_exception,
+        attendance_mode=meeting.attendance_mode,
+        selected_member_ids=[
+            p.user_id for p in meeting.__dict__.get("participants", []) if p.user_id
+        ],
     )
 
 
@@ -83,7 +90,8 @@ async def get_recurring_meeting_details(
         .where(RecurringMeeting.id == recurring_meeting_id)
         .options(
             selectinload(RecurringMeeting.twg),
-            selectinload(RecurringMeeting.instances),
+            selectinload(RecurringMeeting.instances).selectinload(Meeting.participants),
+            selectinload(RecurringMeeting.selected_members),
         )
     )
     recurring = result.scalar_one_or_none()
@@ -110,6 +118,8 @@ async def get_recurring_meeting_details(
         duration_minutes=recurring.duration_minutes,
         location=recurring.location,
         meeting_type=recurring.meeting_type,
+        attendance_mode=getattr(recurring, "attendance_mode", AttendanceMode.ALL_TWG_MEMBERS),
+        selected_member_ids=getattr(recurring, "selected_member_ids", []),
         frequency=recurring.frequency,
         interval_weeks=recurring.interval_weeks,
         day_of_week=recurring.day_of_week,
@@ -329,6 +339,29 @@ class RecurringMeetingService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _resolve_series_members(self, recurring_meeting: RecurringMeeting) -> list[User]:
+        if recurring_meeting.attendance_mode == AttendanceMode.SPECIFIC_TWG_MEMBERS:
+            result = await self.db.execute(
+                select(User)
+                .join(
+                    RecurringMeetingSelectedMember,
+                    RecurringMeetingSelectedMember.user_id == User.id,
+                )
+                .join(twg_members, twg_members.c.user_id == User.id)
+                .where(
+                    and_(
+                        RecurringMeetingSelectedMember.recurring_meeting_id
+                        == recurring_meeting.id,
+                        twg_members.c.twg_id == recurring_meeting.twg_id,
+                        User.is_active == True,
+                    )
+                )
+            )
+            return list(result.scalars().all())
+        return await resolve_meeting_members(
+            self.db, recurring_meeting.twg_id, AttendanceMode.ALL_TWG_MEMBERS, []
+        )
+
     def calculate_occurrence_dates(
         self,
         recurring_meeting: RecurringMeeting,
@@ -493,7 +526,18 @@ class RecurringMeetingService:
         Returns:
             List of newly created Meeting instances
         """
-        # Get existing instances
+        # Serialize generation with every series-wide participant mutation.
+        # Reload rather than trusting the caller's potentially stale ORM object.
+        locked_result = await self.db.execute(
+            select(RecurringMeeting)
+            .where(RecurringMeeting.id == recurring_meeting.id)
+            .with_for_update()
+        )
+        recurring_meeting = locked_result.scalar_one_or_none()
+        if recurring_meeting is None:
+            raise ValueError("Recurring meeting not found")
+
+        # Get existing instances only after the parent row lock is held.
         result = await self.db.execute(
             select(Meeting)
             .where(Meeting.recurring_meeting_id == recurring_meeting.id)
@@ -519,6 +563,7 @@ class RecurringMeetingService:
         if recurring_meeting.end_type == RecurrenceEndType.AFTER_OCCURRENCES:
             remaining = recurring_meeting.max_occurrences - recurring_meeting.occurrences_created
             if remaining <= 0:
+                await self.db.commit()
                 return []
             new_dates = new_dates[:remaining]
 
@@ -536,6 +581,7 @@ class RecurringMeetingService:
                 status=MeetingStatus.SCHEDULED,
                 recurring_meeting_id=recurring_meeting.id,
                 original_scheduled_at=occurrence_date,
+                attendance_mode=recurring_meeting.attendance_mode,
             )
             self.db.add(meeting)
             new_instances.append(meeting)
@@ -545,32 +591,9 @@ class RecurringMeetingService:
             recurring_meeting.occurrences_created += len(new_instances)
             self.db.add(recurring_meeting)
 
-        # Auto-include all TWG members as participants
-        twg_member_result = await self.db.execute(
-            select(User).join(twg_members, twg_members.c.user_id == User.id).where(
-                and_(twg_members.c.twg_id == recurring_meeting.twg_id, User.is_active == True)
-            )
-        )
-        twg_member_users = twg_member_result.scalars().all()
-
+        participant_users = await self._resolve_series_members(recurring_meeting)
         for meeting in new_instances:
-            for member in twg_member_users:
-                existing_participant = await self.db.execute(
-                    select(MeetingParticipant).where(
-                        and_(
-                            MeetingParticipant.meeting_id == meeting.id,
-                            MeetingParticipant.user_id == member.id
-                        )
-                    )
-                )
-                if not existing_participant.scalar_one_or_none():
-                    participant = MeetingParticipant(
-                        id=uuid.uuid4(),
-                        meeting_id=meeting.id,
-                        user_id=member.id,
-                        rsvp_status=RsvpStatus.PENDING
-                    )
-                    self.db.add(participant)
+            add_meeting_participants(self.db, meeting.id, participant_users)
 
         # Single atomic commit — instances + participants all or nothing
         await self.db.commit()
@@ -600,14 +623,6 @@ class RecurringMeetingService:
                 elif mp.email:
                     # External guest participant
                     all_emails.add(mp.email)
-
-            # Always include the creator
-            creator_result = await self.db.execute(
-                select(User.email).where(User.id == recurring_meeting.created_by_id)
-            )
-            creator_email = creator_result.scalar_one_or_none()
-            if creator_email:
-                all_emails.add(creator_email)
 
             participant_emails = list(all_emails)
             logger.info(f"Recurring series emails → {len(participant_emails)} recipients: {participant_emails}")
@@ -786,10 +801,23 @@ class RecurringMeetingService:
             max_occurrences=create_data.recurrence_end.max_occurrences,
             status=RecurringMeetingStatus.ACTIVE,
             created_by_id=user.id,
+            attendance_mode=AttendanceMode(create_data.attendance_mode.value),
         )
 
+        selected_users = await resolve_meeting_members(
+            self.db,
+            create_data.twg_id,
+            create_data.attendance_mode,
+            create_data.selected_member_ids,
+        )
         self.db.add(recurring_meeting)
         await self.db.flush()  # Get the ID
+        if create_data.attendance_mode.value == AttendanceMode.SPECIFIC_TWG_MEMBERS.value:
+            for member in selected_users:
+                self.db.add(RecurringMeetingSelectedMember(
+                    recurring_meeting_id=recurring_meeting.id, user_id=member.id
+                ))
+            await self.db.flush()
 
         # Calculate horizon large enough to cover the full requested series.
         # The default 30-day horizon is fine for the daily cron job, but on
@@ -818,8 +846,9 @@ class RecurringMeetingService:
             select(RecurringMeeting)
             .where(RecurringMeeting.id == recurring_meeting.id)
             .options(
-                selectinload(RecurringMeeting.instances),
+                selectinload(RecurringMeeting.instances).selectinload(Meeting.participants),
                 selectinload(RecurringMeeting.twg),
+                selectinload(RecurringMeeting.selected_members),
             )
         )
 
@@ -963,27 +992,38 @@ async def generate_all_upcoming_recurring_instances(db: AsyncSession) -> int:
     """
     service = RecurringMeetingService(db)
 
-    # Get all active recurring meetings
+    # Queue immutable IDs. A rollback expires ORM instances in the session, so
+    # retaining series objects here would make later iteration/logging unsafe.
     result = await db.execute(
-        select(RecurringMeeting).where(
+        select(RecurringMeeting.id).where(
             RecurringMeeting.status == RecurringMeetingStatus.ACTIVE
         )
     )
-    active_recurring = result.scalars().all()
+    active_recurring_ids = list(result.scalars().all())
 
     total_generated = 0
-    for recurring in active_recurring:
+    for recurring_id in active_recurring_ids:
         try:
+            recurring_result = await db.execute(
+                select(RecurringMeeting).where(RecurringMeeting.id == recurring_id)
+            )
+            recurring = recurring_result.scalar_one_or_none()
+            if recurring is None:
+                logger.warning(
+                    f"Recurring meeting {recurring_id} no longer exists; skipping"
+                )
+                continue
             instances = await service.generate_instances(recurring)
             total_generated += len(instances)
         except Exception as e:
+            await db.rollback()
             logger.error(
-                f"Error generating instances for recurring meeting {recurring.id}: {e}"
+                f"Error generating instances for recurring meeting {recurring_id}: {e}"
             )
             continue
 
     logger.info(
-        f"Generated {total_generated} instances across {len(active_recurring)} recurring meetings"
+        f"Generated {total_generated} instances across {len(active_recurring_ids)} recurring meetings"
     )
 
     # Drain pending background GCal/email tasks before returning

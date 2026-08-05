@@ -7,6 +7,7 @@ from pathlib import Path
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy import text
 
 from alembic import context
 
@@ -41,6 +42,8 @@ config.set_main_option("sqlalchemy.url", database_url)
 # for 'autogenerate' support
 target_metadata = Base.metadata
 
+_MIGRATION_LOCK_KEY = 81420260805
+
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
@@ -62,10 +65,22 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection):
-    context.configure(connection=connection, target_metadata=target_metadata)
+    is_postgresql = connection.dialect.name == "postgresql"
+    if is_postgresql:
+        # Session-level locking must precede configure/run_migrations so two
+        # Alembic processes cannot compute and apply the same revision plan.
+        connection.execute(text(f"SELECT pg_advisory_lock({_MIGRATION_LOCK_KEY})"))
+        # End SQLAlchemy's implicit transaction. Session advisory locks survive
+        # commit, allowing Alembic to open its own migration transaction.
+        connection.commit()
+    try:
+        context.configure(connection=connection, target_metadata=target_metadata)
 
-    with context.begin_transaction():
-        context.run_migrations()
+        with context.begin_transaction():
+            context.run_migrations()
+    finally:
+        if is_postgresql:
+            connection.execute(text(f"SELECT pg_advisory_unlock({_MIGRATION_LOCK_KEY})"))
 
 
 async def run_migrations_online() -> None:
@@ -79,10 +94,11 @@ async def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
 
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-
-    await connectable.dispose()
+    try:
+        async with connectable.connect() as connection:
+            await connection.run_sync(do_run_migrations)
+    finally:
+        await connectable.dispose()
 
 
 if context.is_offline_mode():

@@ -12,6 +12,7 @@ These call the route function directly (deterministic — no reliance on when
 Starlette runs the background task) and assert what gets scheduled.
 """
 import uuid
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
@@ -36,8 +37,13 @@ def _task(twg_id):
     )
 
 
+def _user(role):
+    return SimpleNamespace(id=uuid.uuid4(), role=role)
+
+
 @pytest.mark.asyncio
-async def test_member_task_is_scoped_to_member_agent(test_user, monkeypatch):
+async def test_member_task_is_scoped_to_member_agent(monkeypatch):
+    test_user = _user(UserRole.TWG_MEMBER)
     assert test_user.role == UserRole.TWG_MEMBER  # conftest default
     monkeypatch.setattr(agents_module, "has_twg_access", lambda user, tid: True)
     twg_id = uuid.uuid4()
@@ -55,7 +61,8 @@ async def test_member_task_is_scoped_to_member_agent(test_user, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_member_task_denied_without_twg_access(test_user, monkeypatch):
+async def test_member_task_denied_without_twg_access(monkeypatch):
+    test_user = _user(UserRole.TWG_MEMBER)
     monkeypatch.setattr(agents_module, "has_twg_access", lambda user, tid: False)
     bg = BackgroundTasks()
 
@@ -67,7 +74,8 @@ async def test_member_task_denied_without_twg_access(test_user, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_admin_task_not_member_scoped(admin_user):
+async def test_admin_task_not_member_scoped():
+    admin_user = _user(UserRole.ADMIN)
     bg = BackgroundTasks()
 
     result = await assign_agent_task(_task(uuid.uuid4()), bg, _FakeRequest(), current_user=admin_user)
@@ -83,10 +91,141 @@ async def test_run_background_task_forwards_force_agent_id(monkeypatch):
 
     class _FakeSup:
         async def chat_with_tools(self, message, twg_id=None, thread_id=None,
-                                  user_timezone=None, force_agent_id=None):
+                                  user_timezone=None, force_agent_id=None,
+                                  auth_binding_token=None):
             calls.append(force_agent_id)
             return {"response": "ok"}
 
     monkeypatch.setattr(agents_module, "get_supervisor", lambda: _FakeSup())
-    await run_background_task("tid", "hello", "twg-1", "UTC", force_agent_id="member")
+    await run_background_task(
+        "tid", "hello", "twg-1", "UTC", force_agent_id="member",
+        user_id=str(uuid.uuid4()), user_role=UserRole.TWG_MEMBER,
+    )
     assert calls == ["member"]
+
+
+@pytest.mark.asyncio
+async def test_task_background_entry_binds_initiating_user_and_cleans_up(monkeypatch):
+    """Execute the real queued BackgroundTask and authorize its supervisor entry."""
+    from app.tools._rbac import get_thread_user_context
+
+    observed = []
+
+    admin_user = SimpleNamespace(id=uuid.uuid4(), role=UserRole.ADMIN)
+
+    class _FakeSup:
+        async def chat_with_tools(self, message, twg_id=None, thread_id=None,
+                                  user_timezone=None, force_agent_id=None,
+                                  auth_binding_token=None):
+            observed.append((
+                thread_id,
+                get_thread_user_context(thread_id, auth_binding_token),
+            ))
+            return {"response": "ok"}
+
+    monkeypatch.setattr(agents_module, "get_supervisor", lambda: _FakeSup())
+    bg = BackgroundTasks()
+    result = await assign_agent_task(
+        _task(uuid.uuid4()), bg, _FakeRequest(), current_user=admin_user
+    )
+
+    queued = bg.tasks[0]
+    assert "user_id" in queued.kwargs and "user_role" in queued.kwargs
+    assert "user_id" not in result and "user_role" not in result
+    await queued()
+
+    task_id = result["task_id"]
+    assert observed == [(task_id, (str(admin_user.id), admin_user.role))]
+    assert get_thread_user_context(task_id) is None
+
+
+@pytest.mark.asyncio
+async def test_task_background_entry_rejects_rebound_owner(monkeypatch):
+    """A queued run cannot consume a newer binding owned by another run."""
+    from app.tools._rbac import get_thread_user_context, set_user_for_thread
+
+    observed = []
+
+    admin_user = SimpleNamespace(id=uuid.uuid4(), role=UserRole.ADMIN)
+
+    class _FakeSup:
+        async def chat_with_tools(self, message, twg_id=None, thread_id=None,
+                                  user_timezone=None, force_agent_id=None,
+                                  auth_binding_token=None):
+            observed.append(
+                get_thread_user_context(thread_id, auth_binding_token)
+            )
+            return {"response": "ok"}
+
+    monkeypatch.setattr(agents_module, "get_supervisor", lambda: _FakeSup())
+    bg = BackgroundTasks()
+    result = await assign_agent_task(
+        _task(uuid.uuid4()), bg, _FakeRequest(), current_user=admin_user
+    )
+    task_id = result["task_id"]
+    newer_user = str(uuid.uuid4())
+    newer_token = set_user_for_thread(task_id, newer_user, UserRole.TWG_MEMBER)
+
+    await bg.tasks[0]()
+
+    assert observed == [(str(admin_user.id), UserRole.ADMIN)]
+    assert get_thread_user_context(task_id, newer_token) is None
+
+
+@pytest.mark.asyncio
+async def test_task_background_entry_denies_unauthorized_facilitator_scope(monkeypatch):
+    """The real queued entry reaches central scope auth and never runs the agent."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from app.agents.agent_loop import AgentResponse
+    from app.agents.supervisor_loop import SupervisorLoop
+
+    class _Agent:
+        def __init__(self):
+            self.run = AsyncMock(
+                return_value=AgentResponse(content="must not run", agent_id="energy")
+            )
+
+    agent = _Agent()
+    loop = SupervisorLoop(llm=object(), twg_agents={"energy": agent})
+    responses = []
+
+    class _Adapter:
+        async def chat_with_tools(self, message, twg_id=None, thread_id=None,
+                                  user_timezone=None, force_agent_id=None,
+                                  auth_binding_token=None):
+            response = await loop.run(
+                message,
+                thread_id,
+                twg_id=twg_id,
+                force_agent_id=force_agent_id,
+                auth_binding_token=auth_binding_token,
+            )
+            responses.append(response.content)
+
+    facilitator = _user(UserRole.TWG_FACILITATOR)
+    bg = BackgroundTasks()
+    monkeypatch.setattr(agents_module, "get_supervisor", lambda: _Adapter())
+    membership_result = MagicMock()
+    membership_result.scalar_one_or_none.return_value = None
+    db = AsyncMock()
+    db.execute.return_value = membership_result
+
+    class _DbContext:
+        async def __aenter__(self):
+            return db
+
+        async def __aexit__(self, *args):
+            return False
+
+    with (
+        patch("app.agents.supervisor_loop.get_agent_id_by_twg_id", return_value="energy"),
+        patch("app.core.database.get_db_session_context", return_value=_DbContext()),
+    ):
+        await assign_agent_task(
+            _task(uuid.uuid4()), bg, _FakeRequest(), current_user=facilitator
+        )
+        await bg.tasks[0]()
+
+    assert responses == ["Access denied: unauthorized TWG scope."]
+    agent.run.assert_not_awaited()

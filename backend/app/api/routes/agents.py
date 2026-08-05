@@ -177,7 +177,7 @@ def has_twg_access(user: User, twg_id: uuid.UUID) -> bool:
 
 # Command and Mention Handlers (Phase 2)
 
-async def handle_command(supervisor: SupervisorWithTools, parsed: dict, original_message: str, twg_id: str = None, thread_id: str = None) -> str:
+async def handle_command(supervisor: SupervisorWithTools, parsed: dict, original_message: str, twg_id: str = None, thread_id: str = None, auth_binding_token: str = None) -> str:
     """Handle slash command execution."""
     command = parsed["command"]
     params = parsed["parameters"]
@@ -186,7 +186,7 @@ async def handle_command(supervisor: SupervisorWithTools, parsed: dict, original
     # Map commands to supervisor methods
     if command == "/search":
         query = params.get("query", clean_query)
-        return await supervisor.chat_with_tools(f"Search the knowledge base for: {query}", twg_id=twg_id, thread_id=thread_id)
+        return await supervisor.chat_with_tools(f"Search the knowledge base for: {query}", twg_id=twg_id, thread_id=thread_id, auth_binding_token=auth_binding_token)
 
     elif command == "/email":
         # Check if it's a send or search operation
@@ -200,38 +200,39 @@ async def handle_command(supervisor: SupervisorWithTools, parsed: dict, original
                 f"Send an email to {to} with subject '{subject}' and message: {body}" +
                 (f" and CC {cc}" if cc else ""),
                 twg_id=twg_id,
-                thread_id=thread_id
+                thread_id=thread_id,
+                auth_binding_token=auth_binding_token,
             )
         else:
             # Search emails
             search_term = params.get("search", clean_query)
-            return await supervisor.chat_with_tools(f"Search my emails for: {search_term}", twg_id=twg_id, thread_id=thread_id)
+            return await supervisor.chat_with_tools(f"Search my emails for: {search_term}", twg_id=twg_id, thread_id=thread_id, auth_binding_token=auth_binding_token)
 
     elif command == "/schedule":
-        return await supervisor.chat_with_tools(f"Help me with scheduling: {clean_query}", twg_id=twg_id, thread_id=thread_id)
+        return await supervisor.chat_with_tools(f"Help me with scheduling: {clean_query}", twg_id=twg_id, thread_id=thread_id, auth_binding_token=auth_binding_token)
 
     elif command == "/draft":
         doc_type = params.get("type", "document")
         topic = params.get("topic", clean_query)
-        return await supervisor.chat_with_tools(f"Draft a {doc_type} about: {topic}", twg_id=twg_id, thread_id=thread_id)
+        return await supervisor.chat_with_tools(f"Draft a {doc_type} about: {topic}", twg_id=twg_id, thread_id=thread_id, auth_binding_token=auth_binding_token)
 
     elif command == "/analyze":
         target = params.get("target", clean_query)
-        return await supervisor.chat_with_tools(f"Analyze: {target}", twg_id=twg_id, thread_id=thread_id)
+        return await supervisor.chat_with_tools(f"Analyze: {target}", twg_id=twg_id, thread_id=thread_id, auth_binding_token=auth_binding_token)
 
     elif command == "/broadcast":
         message = params.get("message", clean_query)
-        return await supervisor.chat_with_tools(f"Broadcast this message to all TWGs: {message}", twg_id=twg_id, thread_id=thread_id)
+        return await supervisor.chat_with_tools(f"Broadcast this message to all TWGs: {message}", twg_id=twg_id, thread_id=thread_id, auth_binding_token=auth_binding_token)
 
     elif command == "/summarize":
         target = params.get("target", clean_query)
-        return await supervisor.chat_with_tools(f"Summarize: {target}", twg_id=twg_id, thread_id=thread_id)
+        return await supervisor.chat_with_tools(f"Summarize: {target}", twg_id=twg_id, thread_id=thread_id, auth_binding_token=auth_binding_token)
 
     else:
         return f"Command {command} recognized but handler not implemented yet. Query: {clean_query}"
 
 
-async def handle_mention(supervisor: SupervisorWithTools, parsed: dict, twg_id: str = None, thread_id: str = None) -> str:
+async def handle_mention(supervisor: SupervisorWithTools, parsed: dict, twg_id: str = None, thread_id: str = None, auth_binding_token: str = None) -> str:
     """Handle @mention routing to specific agents."""
     agent_ids = parsed["agent_mentions"]
     clean_query = parsed["clean_query"]
@@ -249,13 +250,15 @@ async def handle_mention(supervisor: SupervisorWithTools, parsed: dict, twg_id: 
         return await supervisor.chat_with_tools(
             f"[ROUTING TO {agent_id.upper()} TWG AGENT] {clean_query}",
             twg_id=twg_id,
-            thread_id=thread_id
+            thread_id=thread_id,
+            auth_binding_token=auth_binding_token,
         )
     else:
         return await supervisor.chat_with_tools(
             f"[ROUTING TO MULTIPLE AGENTS: {', '.join(agent_ids)}] {clean_query}",
             twg_id=twg_id,
-            thread_id=thread_id
+            thread_id=thread_id,
+            auth_binding_token=auth_binding_token,
         )
 
 
@@ -273,7 +276,7 @@ async def chat_with_martin(
     """
     from langgraph.errors import GraphInterrupt
     from app.models.models import UserRole
-    from app.tools._rbac import set_user_context, set_user_for_thread
+    from app.tools._rbac import clear_user_for_thread, set_user_context, set_user_for_thread
 
     # Bind user context for the lifetime of this request so role-gated tools
     # see who's calling them (auto-injected into tool kwargs by agent_loop).
@@ -284,7 +287,9 @@ async def chat_with_martin(
 
     conv_id = chat_in.conversation_id or uuid.uuid4()
     # Thread-id-keyed fallback survives supervisor → TWG delegation hops.
-    set_user_for_thread(str(conv_id), str(current_user.id), current_user.role)
+    auth_binding_token = set_user_for_thread(
+        str(conv_id), str(current_user.id), current_user.role
+    )
 
     try:
         # ROLE-BASED ROUTING
@@ -293,7 +298,7 @@ async def chat_with_martin(
             supervisor = get_supervisor()
             twg_context = str(chat_in.twg_id) if chat_in.twg_id else None
             # Call supervisor (now returns dict or str)
-            raw_response = await supervisor.chat_with_tools(chat_in.message, twg_id=twg_context, thread_id=str(conv_id), user_timezone=user_timezone)
+            raw_response = await supervisor.chat_with_tools(chat_in.message, twg_id=twg_context, thread_id=str(conv_id), user_timezone=user_timezone, auth_binding_token=auth_binding_token)
             agent_id = "supervisor_v1"
             
         elif current_user.role in [UserRole.TWG_FACILITATOR, UserRole.TWG_MEMBER]:
@@ -323,6 +328,7 @@ async def chat_with_martin(
                 thread_id=str(conv_id),
                 user_timezone=user_timezone,
                 force_agent_id=force_agent_id,
+                auth_binding_token=auth_binding_token,
             )
             agent_id = "member" if current_user.role == UserRole.TWG_MEMBER else f"twg_{chat_in.twg_id}_agent"
             
@@ -450,6 +456,8 @@ async def chat_with_martin(
             "citations": [],
             "agent_id": agent_id
         }
+    finally:
+        clear_user_for_thread(str(conv_id), auth_binding_token)
 
 @router.post("/chat/enhanced", response_model=EnhancedChatResponse)
 async def enhanced_chat(
@@ -465,11 +473,13 @@ async def enhanced_chat(
     - Tool execution visibility
     - File attachment support
     """
-    from app.tools._rbac import set_user_context, set_user_for_thread
+    from app.tools._rbac import clear_user_for_thread, set_user_context, set_user_for_thread
     set_user_context(str(current_user.id), current_user.role)
 
     conv_id = chat_in.conversation_id or uuid.uuid4()
-    set_user_for_thread(str(conv_id), str(current_user.id), current_user.role)
+    auth_binding_token = set_user_for_thread(
+        str(conv_id), str(current_user.id), current_user.role
+    )
 
     try:
         # Get the supervisor agent
@@ -519,15 +529,15 @@ async def enhanced_chat(
         # Handle based on parse type
         if parsed["type"] == MessageParseType.COMMAND:
             # Command execution
-            response_text = await handle_command(supervisor, parsed, chat_in.message, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=str(conv_id))
+            response_text = await handle_command(supervisor, parsed, chat_in.message, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=str(conv_id), auth_binding_token=auth_binding_token)
             message_type = ChatMessageType.COMMAND_RESULT
         elif parsed["type"] == MessageParseType.MENTION:
             # Route to specific agent(s)
-            response_text = await handle_mention(supervisor, parsed, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=str(conv_id))
+            response_text = await handle_mention(supervisor, parsed, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=str(conv_id), auth_binding_token=auth_binding_token)
             message_type = ChatMessageType.AGENT_TEXT
         elif parsed["type"] == MessageParseType.MIXED:
             # Both command and mention - prioritize command
-            response_text = await handle_command(supervisor, parsed, chat_in.message, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=str(conv_id))
+            response_text = await handle_command(supervisor, parsed, chat_in.message, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=str(conv_id), auth_binding_token=auth_binding_token)
             message_type = ChatMessageType.COMMAND_RESULT
         else:
             # Natural language - regular chat. Members are scoped to the
@@ -537,6 +547,7 @@ async def enhanced_chat(
                 twg_id=member_twg_context,
                 thread_id=str(conv_id),
                 force_agent_id=force_agent_id,
+                auth_binding_token=auth_binding_token,
             )
             # chat_with_tools may return a dict (response + citations) or a str.
             if isinstance(raw_response, dict):
@@ -568,7 +579,6 @@ async def enhanced_chat(
             tool_executions=tool_executions,
             conversation_id=conv_id
         )
-
     except HTTPException:
         # RBAC gate denials (missing/forbidden twg_id) must surface as real
         # HTTP errors, not be masked as a 200 agent message by the catch-all.
@@ -593,6 +603,8 @@ async def enhanced_chat(
             tool_executions=[],
             conversation_id=conv_id
         )
+    finally:
+        clear_user_for_thread(str(conv_id), auth_binding_token)
 
 
 @router.get("/chat/stream")
@@ -616,10 +628,12 @@ async def stream_chat_get(
     user_timezone = request.headers.get("X-User-Timezone") if request else None
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        from app.tools._rbac import set_user_context, set_user_for_thread
+        from app.tools._rbac import clear_user_for_thread, set_user_context, set_user_for_thread
         conv_id = conversation_id or str(uuid.uuid4())
         set_user_context(str(current_user.id), current_user.role)
-        set_user_for_thread(conv_id, str(current_user.id), current_user.role)
+        auth_binding_token = set_user_for_thread(
+            conv_id, str(current_user.id), current_user.role
+        )
 
         def _sse(data: dict) -> str:
             return f"data: {json.dumps(data)}\n\n"
@@ -674,6 +688,7 @@ async def stream_chat_get(
                     thread_id=conv_id,
                     user_timezone=user_timezone,
                     force_agent_id=force_agent_id,
+                    auth_binding_token=auth_binding_token,
                 )
             )
 
@@ -749,6 +764,7 @@ async def stream_chat_get(
 
         finally:
             unregister_queue(conv_id)
+            clear_user_for_thread(conv_id, auth_binding_token)
 
     return StreamingResponse(
         event_generator(),
@@ -779,12 +795,14 @@ async def stream_chat(
 
     async def event_generator() -> AsyncGenerator[str, None]:
         """Generate SSE events for streaming."""
-        from app.tools._rbac import set_user_context, set_user_for_thread
+        from app.tools._rbac import clear_user_for_thread, set_user_context, set_user_for_thread
         set_user_context(str(current_user.id), current_user.role)
 
         # Ensure conv_id is always a string for JSON serialization
         conv_id = str(chat_in.conversation_id) if chat_in.conversation_id else str(uuid.uuid4())
-        set_user_for_thread(conv_id, str(current_user.id), current_user.role)
+        auth_binding_token = set_user_for_thread(
+            conv_id, str(current_user.id), current_user.role
+        )
 
         # Extract user timezone from header
         user_timezone = request.headers.get("X-User-Timezone") if request else None
@@ -863,7 +881,7 @@ async def stream_chat(
                     yield f"data: {json.dumps({'type': 'tool_start', 'tool': 'analyzer', 'status': 'Analyzing data...'})}\n\n"
 
                 # Execute command
-                response_text = await handle_command(supervisor, parsed, chat_in.message, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=conv_id)
+                response_text = await handle_command(supervisor, parsed, chat_in.message, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=conv_id, auth_binding_token=auth_binding_token)
                 message_type = ChatMessageType.COMMAND_RESULT
 
             elif parsed["type"] == MessageParseType.MENTION:
@@ -874,7 +892,7 @@ async def stream_chat(
                 yield f"data: {json.dumps({'type': 'agent_routing', 'agents': agent_ids, 'status': routing_status})}\n\n"
 
                 # Execute with mentioned agent
-                raw_response = await handle_mention(supervisor, parsed, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=conv_id)
+                raw_response = await handle_mention(supervisor, parsed, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=conv_id, auth_binding_token=auth_binding_token)
                 # Handle dict response
                 citations = []
                 if isinstance(raw_response, dict):
@@ -886,7 +904,7 @@ async def stream_chat(
 
             elif parsed["type"] == MessageParseType.MIXED:
                 yield f"data: {json.dumps({'type': 'mixed_execution', 'status': 'Processing command with agent mention...'})}\n\n"
-                raw_response = await handle_command(supervisor, parsed, chat_in.message, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=conv_id)
+                raw_response = await handle_command(supervisor, parsed, chat_in.message, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=conv_id, auth_binding_token=auth_binding_token)
                 # Handle dict response
                 citations = []
                 if isinstance(raw_response, dict):
@@ -907,7 +925,7 @@ async def stream_chat(
                 citations = []
                 
                 # Stream events from LangGraph
-                async for event in supervisor.stream_chat_events(chat_in.message, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=conv_id, user_timezone=user_timezone, force_agent_id=force_agent_id):
+                async for event in supervisor.stream_chat_events(chat_in.message, twg_id=str(chat_in.twg_id) if chat_in.twg_id else None, thread_id=conv_id, user_timezone=user_timezone, force_agent_id=force_agent_id, auth_binding_token=auth_binding_token):
                     if event["type"] == "node_update":
                         node = event["node"]
                         status_msg = f"Processing step: {node}"
@@ -1031,6 +1049,8 @@ async def stream_chat(
                 'message': f'I apologize, but I encountered an error: {str(e)}'
             }
             yield f"data: {json.dumps(error_data)}\n\n"
+        finally:
+            clear_user_for_thread(conv_id, auth_binding_token)
 
     return StreamingResponse(
         event_generator(),
@@ -1043,8 +1063,22 @@ async def stream_chat(
     )
 
 
-async def run_background_task(task_id: str, prompt: str, twg_id: str, user_timezone: str, force_agent_id: str | None = None):
+async def run_background_task(
+    task_id: str,
+    prompt: str,
+    twg_id: str,
+    user_timezone: str,
+    force_agent_id: str | None = None,
+    user_id: str | None = None,
+    user_role: UserRole | None = None,
+):
+    from app.tools._rbac import clear_user_for_thread, set_user_for_thread
+
+    auth_binding_token = None
     try:
+        if user_id is None or user_role is None:
+            raise ValueError("Background agent task is missing initiating user context")
+        auth_binding_token = set_user_for_thread(task_id, user_id, user_role)
         logger.info(f"[{task_id}] Starting background task logic...")
         supervisor = get_supervisor()
         # Execute the heavy lifting using the supervisor. force_agent_id="member"
@@ -1056,10 +1090,13 @@ async def run_background_task(task_id: str, prompt: str, twg_id: str, user_timez
             thread_id=task_id,
             user_timezone=user_timezone,
             force_agent_id=force_agent_id,
+            auth_binding_token=auth_binding_token,
         )
         logger.info(f"[{task_id}] Background task finished successfully.")
     except Exception as e:
         logger.error(f"[{task_id}] Background task failed: {str(e)}")
+    finally:
+        clear_user_for_thread(task_id, auth_binding_token)
 
 @router.post("/task", status_code=status.HTTP_202_ACCEPTED)
 async def assign_agent_task(
@@ -1100,6 +1137,8 @@ async def assign_agent_task(
         twg_id=twg_context,
         user_timezone=user_timezone,
         force_agent_id=force_agent_id,
+        user_id=str(current_user.id),
+        user_role=current_user.role,
     )
     
     return {

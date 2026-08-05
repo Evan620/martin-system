@@ -472,15 +472,21 @@ async def create_meeting(
     duration_minutes: int = 60,
     meeting_type: str = "virtual",
     location: Optional[str] = None,
+    attendance_mode: str = "all_twg_members",
+    selected_member_ids: Optional[list[str]] = None,
     db=None,
     current_user=None,
 ) -> str:
     """Create a single (non-recurring) meeting for a TWG."""
     try:
         from app.core.database import AsyncSessionLocal
-        from app.models.models import Meeting, TWG
+        from app.models.models import AttendanceMode, Meeting, TWG, User
         from app.models.models import MeetingStatus
+        from app.services.meeting_participant_service import add_meeting_participants, resolve_meeting_members
         from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from app.api.deps import has_twg_access
+        from app.tools._rbac import get_user_context
         import uuid as _uuid
         from datetime import timezone
         from zoneinfo import ZoneInfo
@@ -496,11 +502,26 @@ async def create_meeting(
             dt = dt.replace(tzinfo=ZoneInfo("Africa/Nairobi")).astimezone(timezone.utc).replace(tzinfo=None)
 
         async with AsyncSessionLocal() as session:
+            authorized_user = current_user
+            if authorized_user is None:
+                bound = get_user_context()
+                if bound:
+                    authorized_user = (await session.execute(
+                        select(User).where(User.id == _uuid.UUID(bound[0])).options(selectinload(User.twgs))
+                    )).scalar_one_or_none()
+            if authorized_user is None or not has_twg_access(authorized_user, _uuid.UUID(twg_id)):
+                return json.dumps({"error": "You do not have access to manage meetings for this TWG"})
+
             # Validate TWG exists
             twg_result = await session.execute(select(TWG).where(TWG.id == _uuid.UUID(twg_id)))
             twg_obj = twg_result.scalar_one_or_none()
             if not twg_obj:
                 return json.dumps({"error": f"TWG {twg_id} not found"})
+
+            selected_ids = [_uuid.UUID(value) for value in (selected_member_ids or [])]
+            members = await resolve_meeting_members(
+                session, _uuid.UUID(twg_id), AttendanceMode(attendance_mode), selected_ids
+            )
 
             meeting_id = _uuid.uuid4()
             meeting = Meeting(
@@ -512,8 +533,10 @@ async def create_meeting(
                 meeting_type=meeting_type,
                 location=location,
                 status=MeetingStatus.SCHEDULED,
+                attendance_mode=AttendanceMode(attendance_mode),
             )
             session.add(meeting)
+            add_meeting_participants(session, meeting_id, members)
             await session.commit()
             await session.refresh(meeting)
 
@@ -535,6 +558,7 @@ CREATE_MEETING_TOOL = {
         "Create a new single meeting for a TWG. Use when the user asks to schedule or book a meeting. "
         "Requires: TWG ID (get from context or ask), title, and date/time. "
         "Example: 'Schedule an Energy TWG meeting next Tuesday at 2pm' → call create_meeting with twg_id, title, scheduled_at_iso. "
+        "For named specific attendees, MUST call get_twg_members first, then pass their user UUIDs in selected_member_ids with attendance_mode='specific_twg_members'. "
         "Returns the created meeting ID and details."
     ),
     "input_schema": {
@@ -564,6 +588,15 @@ CREATE_MEETING_TOOL = {
             "location": {
                 "type": "string",
                 "description": "Location or video link (optional)"
+            },
+            "attendance_mode": {
+                "type": "string",
+                "enum": ["all_twg_members", "specific_twg_members"],
+                "description": "Who attends. Defaults to all_twg_members."
+            },
+            "selected_member_ids": {
+                "type": "array", "items": {"type": "string"},
+                "description": "Active TWG member UUIDs. Required in specific_twg_members mode."
             }
         },
         "required": ["twg_id", "title", "scheduled_at_iso"]
@@ -589,16 +622,21 @@ async def create_recurring_meeting(
     meeting_type: str = "virtual",
     location: Optional[str] = None,
     timezone_str: str = "Africa/Nairobi",
+    attendance_mode: str = "all_twg_members",
+    selected_member_ids: Optional[list[str]] = None,
     db=None,
     current_user=None,
 ) -> str:
     """Create a recurring meeting series for a TWG."""
     try:
         from app.core.database import AsyncSessionLocal
-        from app.models.models import TWG
+        from app.models.models import TWG, User as _User
         from app.schemas.schemas import RecurringMeetingCreate, RecurrenceRule, RecurrenceEnd, RecurrenceEndType, RecurrenceFrequency
         from app.services.recurring_meeting_service import RecurringMeetingService
         from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from app.api.deps import has_twg_access
+        from app.tools._rbac import get_user_context
         import uuid as _uuid
 
         start_dt = datetime.fromisoformat(start_date_iso)
@@ -625,28 +663,28 @@ async def create_recurring_meeting(
             start_date=start_dt,
             start_time=start_time,
             timezone=timezone_str,
+            attendance_mode=attendance_mode,
+            selected_member_ids=[_uuid.UUID(value) for value in (selected_member_ids or [])],
         )
 
         async with AsyncSessionLocal() as session:
+            authorized_user = current_user
+            if authorized_user is None:
+                bound = get_user_context()
+                if bound:
+                    authorized_user = (await session.execute(
+                        select(_User).where(_User.id == _uuid.UUID(bound[0])).options(selectinload(_User.twgs))
+                    )).scalar_one_or_none()
+            if authorized_user is None or not has_twg_access(authorized_user, _uuid.UUID(twg_id)):
+                return json.dumps({"error": "You do not have access to manage meetings for this TWG"})
+
             twg_result = await session.execute(select(TWG).where(TWG.id == _uuid.UUID(twg_id)))
             twg_obj = twg_result.scalar_one_or_none()
             if not twg_obj:
                 return json.dumps({"error": f"TWG {twg_id} not found"})
 
-            # Find a system user to attribute the series to. Prefer an ADMIN.
-            from app.models.models import User as _User, UserRole as _UserRole
-            sys_user_row = await session.execute(
-                select(_User).where(_User.role == _UserRole.ADMIN).limit(1)
-            )
-            sys_user = sys_user_row.scalar_one_or_none()
-            if not sys_user:
-                sys_user_row = await session.execute(select(_User).limit(1))
-                sys_user = sys_user_row.scalar_one_or_none()
-            if not sys_user:
-                return json.dumps({"error": "No user available to attribute the recurring series to."})
-
             service = RecurringMeetingService(session)
-            series = await service.create_recurring_meeting(payload, user=sys_user)
+            series = await service.create_recurring_meeting(payload, user=authorized_user)
             return json.dumps({
                 "success": True,
                 "series_id": str(series.id),
@@ -668,7 +706,8 @@ CREATE_RECURRING_MEETING_TOOL = {
         "start_time='10:00', frequency='weekly', day_of_week=0, end_type='after_occurrences', max_occurrences=8). "
         "frequency options: 'weekly', 'biweekly', 'monthly'. "
         "day_of_week: 0=Monday … 6=Sunday. "
-        "end_type: 'after_occurrences' (use max_occurrences) or 'after_date' (use end_date_iso) or 'indefinite'."
+        "end_type: 'after_occurrences' (use max_occurrences) or 'after_date' (use end_date_iso) or 'indefinite'. "
+        "For named specific attendees, MUST call get_twg_members first, then pass their user UUIDs in selected_member_ids with attendance_mode='specific_twg_members'."
     ),
     "input_schema": {
         "type": "object",
@@ -731,6 +770,15 @@ CREATE_RECURRING_MEETING_TOOL = {
             "timezone_str": {
                 "type": "string",
                 "description": "Timezone name, e.g. 'Africa/Nairobi' (default)"
+            },
+            "attendance_mode": {
+                "type": "string",
+                "enum": ["all_twg_members", "specific_twg_members"],
+                "description": "Who attends each occurrence. Defaults to all_twg_members."
+            },
+            "selected_member_ids": {
+                "type": "array", "items": {"type": "string"},
+                "description": "Fixed active TWG member UUID list for every occurrence."
             }
         },
         "required": ["twg_id", "title_template", "start_date_iso", "start_time", "frequency"]

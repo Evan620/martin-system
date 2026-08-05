@@ -460,7 +460,7 @@ class ToolRegistry:
         # twg_id is auto-injected for TWG agents; supervisor can use twg_name instead
         self.register(
             name="get_twg_members",
-            description="Fetch all members of a TWG with their names and email addresses. Returns JSON array of {name, email, role}. MUST be called before send_email to get real email addresses. Use when the user asks to email the team, look up members, or check who belongs to a TWG. Example: User asks 'send an email to the team' → FIRST call get_twg_members() to get emails, THEN call send_email with those addresses.",
+            description="Fetch active members of a TWG with their UUIDs, names, and email addresses. Returns JSON array of {id, name, email, role}. MUST be called before send_email or before scheduling a meeting with named specific attendees. Use returned id values as selected_member_ids.",
             parameters={
                 "twg_id": {"type": "string", "description": "TWG UUID (auto-injected for TWG agents)"},
                 "twg_name": {"type": "string", "description": "TWG name to search for (e.g. 'energy', 'agriculture', 'minerals', 'digital', 'protocol', 'resource')"},
@@ -793,8 +793,9 @@ class ToolRegistry:
         func = registration.handler
         sig = inspect.signature(func)
         
-        if "twg_id" in sig.parameters and twg_id and "twg_id" not in tool_args:
-            logger.info(f"[ToolRegistry] Auto-injecting twg_id={twg_id} into {tool_name}")
+        if "twg_id" in sig.parameters and twg_id and agent_id not in {"supervisor", "supervisor_v1"}:
+            if tool_args.get("twg_id") not in (None, twg_id):
+                logger.warning("[ToolRegistry] Replacing mismatched twg_id for scoped agent '%s'", agent_id)
             tool_args["twg_id"] = twg_id
 
         if "user_timezone" in sig.parameters and user_timezone and "user_timezone" not in tool_args:

@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import uuid as _uuid
 from contextvars import ContextVar
+from dataclasses import dataclass
+from threading import RLock
+from time import monotonic as _monotonic
 from typing import Iterable, Optional, Set, Tuple
 
 from app.models.models import UserRole
@@ -27,31 +30,96 @@ def get_user_context() -> Optional[Tuple[str, UserRole]]:
 # Cross-task fallback: ContextVars don't always propagate across the supervisor's
 # delegation hops (consult_twg_agents_tool spawns new task chains). Stash user
 # context by chat thread_id, which the agent loop receives explicitly.
-_user_by_thread: dict[str, Tuple[str, UserRole]] = {}
+@dataclass(frozen=True)
+class _ThreadUserBinding:
+    user_id: str
+    user_role: UserRole
+    owner_token: str
+    expires_at: float
+
+
+_user_by_thread: dict[str, _ThreadUserBinding] = {}
+_thread_user_lock = RLock()
 _MAX_THREADS = 256
+_THREAD_BINDING_TTL_SECONDS = 300.0
 
 
-def set_user_for_thread(thread_id: str, user_id: str, user_role: UserRole) -> None:
-    """Stash user context keyed by chat thread_id for cross-task retrieval."""
+def set_user_for_thread(
+    thread_id: str,
+    user_id: str,
+    user_role: UserRole,
+    *,
+    ttl_seconds: float = _THREAD_BINDING_TTL_SECONDS,
+) -> Optional[str]:
+    """Create a short-lived thread binding and return its unguessable owner token."""
     if not thread_id:
-        return
-    # Bounded — drop the oldest entry when full. Good enough; we don't expect
-    # 256 concurrent active chats.
-    if len(_user_by_thread) >= _MAX_THREADS:
-        try:
-            _user_by_thread.pop(next(iter(_user_by_thread)))
-        except StopIteration:
-            pass
-    _user_by_thread[str(thread_id)] = (str(user_id), user_role)
+        return None
+    owner_token = _uuid.uuid4().hex
+    now = _monotonic()
+    binding = _ThreadUserBinding(
+        user_id=str(user_id),
+        user_role=user_role,
+        owner_token=owner_token,
+        expires_at=now + max(0.0, float(ttl_seconds)),
+    )
+    with _thread_user_lock:
+        expired = [key for key, value in _user_by_thread.items() if value.expires_at <= now]
+        for key in expired:
+            _user_by_thread.pop(key, None)
+        if str(thread_id) not in _user_by_thread and len(_user_by_thread) >= _MAX_THREADS:
+            _user_by_thread.pop(next(iter(_user_by_thread)), None)
+        _user_by_thread[str(thread_id)] = binding
+    return owner_token
 
 
-def get_user_for_thread(thread_id: Optional[str]) -> Optional[Tuple[str, UserRole]]:
-    """Resolve user context by thread_id, falling back to the ContextVar."""
+def get_user_for_thread(
+    thread_id: Optional[str], owner_token: Optional[str] = None
+) -> Optional[Tuple[str, UserRole]]:
+    """Resolve a token-owned thread, or use ContextVar only without a thread.
+
+    Supplying a thread makes this a security-sensitive lookup. It must fail closed
+    rather than accidentally consume request context belonging to another run.
+    """
     if thread_id:
-        hit = _user_by_thread.get(str(thread_id))
-        if hit is not None:
-            return hit
+        return get_thread_user_context(thread_id, owner_token)
     return _user_ctx.get()
+
+
+def get_thread_user_context(
+    thread_id: Optional[str], owner_token: Optional[str] = None
+) -> Optional[Tuple[str, UserRole]]:
+    """Return only context explicitly bound to ``thread_id``.
+
+    Security-sensitive scope decisions must not use the ContextVar fallback from
+    ``get_user_for_thread`` because that context may belong to a different thread.
+    """
+    if not thread_id or not owner_token:
+        return None
+    key = str(thread_id)
+    now = _monotonic()
+    with _thread_user_lock:
+        binding = _user_by_thread.get(key)
+        if binding is None:
+            return None
+        if binding.expires_at <= now:
+            _user_by_thread.pop(key, None)
+            return None
+        if binding.owner_token != owner_token:
+            return None
+        return binding.user_id, binding.user_role
+
+
+def clear_user_for_thread(thread_id: str, owner_token: Optional[str]) -> bool:
+    """Remove a binding only when the caller still owns the current entry."""
+    if not thread_id or not owner_token:
+        return False
+    key = str(thread_id)
+    with _thread_user_lock:
+        binding = _user_by_thread.get(key)
+        if binding is None or binding.owner_token != owner_token:
+            return False
+        _user_by_thread.pop(key, None)
+        return True
 
 
 # ---------------------------------------------------------------------------

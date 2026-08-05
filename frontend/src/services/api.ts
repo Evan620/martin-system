@@ -280,6 +280,9 @@ export const recurringMeetings = {
         };
         start_date: string;
         start_time: string;
+        timezone?: string;
+        attendance_mode?: 'all_twg_members' | 'specific_twg_members';
+        selected_member_ids?: string[];
     }) => api.post('/recurring-meetings/', data),
 
     update: (id: string, data: {
@@ -329,4 +332,3 @@ export const recurringMeetings = {
 
     resume: (id: string) => api.post(`/recurring-meetings/${id}/resume`),
 };
-

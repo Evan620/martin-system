@@ -70,24 +70,18 @@ async def get_twg_members(twg_id: Optional[str] = None, twg_name: Optional[str] 
 
         members = []
         for user in twg.members:
+            if not user.is_active:
+                continue
             members.append({
+                "id": str(user.id),
                 "name": user.full_name,
                 "email": user.email,
-                "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
+                "role": (
+                    "technical_lead" if user.id == twg.technical_lead_id else
+                    "political_lead" if user.id == twg.political_lead_id else
+                    user.role.value if hasattr(user.role, 'value') else str(user.role)
+                ),
             })
-
-        # Also include leads if assigned
-        if twg.political_lead_id:
-            lead_result = await session.execute(select(User).where(User.id == twg.political_lead_id))
-            lead = lead_result.scalar_one_or_none()
-            if lead and not any(m["email"] == lead.email for m in members):
-                members.append({"name": lead.full_name, "email": lead.email, "role": "political_lead"})
-
-        if twg.technical_lead_id:
-            lead_result = await session.execute(select(User).where(User.id == twg.technical_lead_id))
-            lead = lead_result.scalar_one_or_none()
-            if lead and not any(m["email"] == lead.email for m in members):
-                members.append({"name": lead.full_name, "email": lead.email, "role": "technical_lead"})
 
         return members
 

@@ -26,7 +26,7 @@ class SupervisorAPIAdapter:
         )
         logger.info("[ADAPTER] LangGraph supervisor initialized for API")
 
-    async def chat_with_tools(self, message: str, twg_id: str = None, thread_id: str = None, user_timezone: str = None, force_agent_id: str = None) -> dict:
+    async def chat_with_tools(self, message: str, twg_id: str = None, thread_id: str = None, user_timezone: str = None, force_agent_id: str = None, auth_binding_token: str = None) -> dict:
         """
         Async wrapper around LangGraph supervisor chat.
 
@@ -47,7 +47,7 @@ class SupervisorAPIAdapter:
         """
         try:
             # Call the async method (LangGraph handles state internally)
-            response = await self.supervisor.chat(message, twg_id=twg_id, thread_id=thread_id, user_timezone=user_timezone, force_agent_id=force_agent_id)
+            response = await self.supervisor.chat(message, twg_id=twg_id, thread_id=thread_id, user_timezone=user_timezone, force_agent_id=force_agent_id, auth_binding_token=auth_binding_token)
             
             # If response is a dict (new format with citations), pass it through.
             # If string (legacy), wrap it to ensure consistent dict output or just return string 
@@ -64,9 +64,9 @@ class SupervisorAPIAdapter:
                 "citations": []
             }
 
-    async def stream_chat_events(self, message: str, twg_id: str = None, thread_id: str = None, user_timezone: str = None, force_agent_id: str = None):
+    async def stream_chat_events(self, message: str, twg_id: str = None, thread_id: str = None, user_timezone: str = None, force_agent_id: str = None, auth_binding_token: str = None):
         """Stream events from the underlying graph."""
-        async for event in self.supervisor.stream_chat(message, twg_id=twg_id, thread_id=thread_id, user_timezone=user_timezone, force_agent_id=force_agent_id):
+        async for event in self.supervisor.stream_chat(message, twg_id=twg_id, thread_id=thread_id, user_timezone=user_timezone, force_agent_id=force_agent_id, auth_binding_token=auth_binding_token):
             yield event
 
     async def resume_chat(self, thread_id: str, resume_value: dict) -> str:
@@ -100,4 +100,3 @@ class SupervisorWithTools(SupervisorAPIAdapter):
     Alias for SupervisorAPIAdapter to maintain backward compatibility.
     """
     pass
-

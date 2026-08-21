@@ -671,7 +671,7 @@ async def add_twg_member(
     # Find user by email
     email = body.email.strip().lower()
     result = await db.execute(
-        select(User).where(User.email == email).options(selectinload(User.twgs))
+        select(User).where(func.lower(User.email) == email).options(selectinload(User.twgs))
     )
     user_to_add = result.scalar_one_or_none()
     created_new = False
@@ -804,7 +804,7 @@ async def bulk_add_twg_members(
         try:
             # Find or create user
             result = await db.execute(
-                select(User).where(User.email == email).options(selectinload(User.twgs))
+                select(User).where(func.lower(User.email) == email).options(selectinload(User.twgs))
             )
             user_to_add = result.scalar_one_or_none()
             created_new = False

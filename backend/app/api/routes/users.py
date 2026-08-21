@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, func
 import uuid
 import io
 import csv
@@ -151,7 +151,7 @@ async def update_user(
 
     # Check for email duplicate if email is being updated
     if user_update.email is not None and user_update.email != user.email:
-        existing = await db.execute(select(User).where(User.email == user_update.email))
+        existing = await db.execute(select(User).where(func.lower(User.email) == (user_update.email or '').strip().lower()))
         if existing.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -258,7 +258,7 @@ async def invite_user(
     temp_password = ''.join(combined)
 
     # Check if user already exists
-    existing = await db.execute(select(User).where(User.email == invite_data.email))
+    existing = await db.execute(select(User).where(func.lower(User.email) == (invite_data.email or '').strip().lower()))
     if existing.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -268,7 +268,7 @@ async def invite_user(
     # Create user via auth service
     auth_service = AuthService(db)
     user_register = UserRegister(
-        email=invite_data.email,
+        email=(invite_data.email or '').strip().lower(),
         password=temp_password,
         full_name=invite_data.full_name,
         organization=invite_data.organization
@@ -442,7 +442,7 @@ async def bulk_invite_users(
     for user_data in request.users:
         try:
             # Check if user already exists
-            existing = await db.execute(select(User).where(User.email == user_data.email))
+            existing = await db.execute(select(User).where(func.lower(User.email) == (user_data.email or '').strip().lower()))
             if existing.scalar_one_or_none():
                 failed.append({
                     "email": user_data.email,
@@ -467,7 +467,7 @@ async def bulk_invite_users(
             # Create user via auth service
             auth_service = AuthService(db)
             user_register = UserRegister(
-                email=user_data.email,
+                email=(user_data.email or '').strip().lower(),
                 password=temp_password,
                 full_name=user_data.full_name,
                 organization=user_data.organization

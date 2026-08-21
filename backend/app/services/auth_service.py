@@ -7,7 +7,7 @@ Handles user authentication, registration, and token management.
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from fastapi import HTTPException, status
 import uuid
 from google.oauth2 import id_token
@@ -41,8 +41,12 @@ class AuthService:
         Returns:
             User object if found, None otherwise
         """
+        # Email is matched case-insensitively. Addresses are handed out by third parties in
+        # whatever case their organisation uses (e.g. C.ACOLATSE@unido.org), and users type
+        # them in lower case. An exact match made those accounts unreachable and surfaced as
+        # "Incorrect email or password", which pointed people at the wrong thing entirely.
         result = await self.db.execute(
-            select(User).where(User.email == email)
+            select(User).where(func.lower(User.email) == (email or "").strip().lower())
         )
         return result.scalar_one_or_none()
     
@@ -93,7 +97,7 @@ class AuthService:
         # Create new user
         hashed_pwd = hash_password(user_data.password)
         new_user = User(
-            email=user_data.email,
+            email=(user_data.email or '').strip().lower(),
             hashed_password=hashed_pwd,
             full_name=user_data.full_name,
             role=UserRole.TWG_MEMBER, # Default to TWG MEMBER, must be promoted by admin

@@ -53,6 +53,13 @@ const NewProject: React.FC = () => {
     site_lon: null as number | null,
     site_location_name: '' as string,
     financing_structure: '',
+    technicalStudies: '',
+    permitsLicences: '',
+    ghgAvoidedTarget: '',
+    jobsConstruction: '',
+    jobsOm: '',
+    smallholderFarmersReached: '',
+    macroeconomicRoi: '',
   });
 
   const pillars = [
@@ -203,6 +210,13 @@ const NewProject: React.FC = () => {
         site_lon: formData.site_lon ?? undefined,
         site_location_name: formData.site_location_name || undefined,
         financing_structure: formData.financing_structure || undefined,
+        technical_studies: formData.technicalStudies || undefined,
+        permits_licences: formData.permitsLicences || undefined,
+        ghg_avoided_target: formData.ghgAvoidedTarget || undefined,
+        jobs_construction: formData.jobsConstruction || undefined,
+        jobs_om: formData.jobsOm || undefined,
+        smallholder_farmers_reached: formData.smallholderFarmersReached || undefined,
+        macroeconomic_roi: formData.macroeconomicRoi || undefined,
         start_in_incubation: startInIncubation,
       };
 
@@ -785,6 +799,98 @@ const NewProject: React.FC = () => {
             />
           </div>
 
+          {/* Readiness, Impact & Economics — drives AfCEN score */}
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">
+              Readiness, Impact &amp; Economics
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+              These fields directly drive your AfCEN readiness &amp; bankability score and move the project up the Deal Room continuum. Please complete what you can — leave blank only if genuinely unknown.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="technicalStudies" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                  Technical / Feasibility Studies
+                </label>
+                <textarea
+                  id="technicalStudies"
+                  rows={2}
+                  value={formData.technicalStudies}
+                  onChange={(e) => setFormData({ ...formData, technicalStudies: e.target.value })}
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                  placeholder="e.g., feasibility study complete; ESIA underway; pre-FEED done"
+                />
+              </div>
+              <div>
+                <label htmlFor="permitsLicences" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                  Permits &amp; Licences
+                </label>
+                <textarea
+                  id="permitsLicences"
+                  rows={2}
+                  value={formData.permitsLicences}
+                  onChange={(e) => setFormData({ ...formData, permitsLicences: e.target.value })}
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                  placeholder="e.g., mining licence granted; generation licence pending"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+              <div>
+                <label htmlFor="jobsConstruction" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                  Jobs — Construction
+                </label>
+                <input
+                  id="jobsConstruction"
+                  type="text"
+                  value={formData.jobsConstruction}
+                  onChange={(e) => setFormData({ ...formData, jobsConstruction: e.target.value })}
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="e.g., 500 (temporary)"
+                />
+              </div>
+              <div>
+                <label htmlFor="jobsOm" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                  Jobs — O&amp;M (ongoing)
+                </label>
+                <input
+                  id="jobsOm"
+                  type="text"
+                  value={formData.jobsOm}
+                  onChange={(e) => setFormData({ ...formData, jobsOm: e.target.value })}
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="e.g., 120 (permanent)"
+                />
+              </div>
+              <div>
+                <label htmlFor="smallholderFarmersReached" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                  Smallholder farmers reached
+                </label>
+                <input
+                  id="smallholderFarmersReached"
+                  type="text"
+                  value={formData.smallholderFarmersReached}
+                  onChange={(e) => setFormData({ ...formData, smallholderFarmersReached: e.target.value })}
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="e.g., 5,000 (if applicable)"
+                />
+              </div>
+            </div>
+            <div className="mt-4">
+              <label htmlFor="macroeconomicRoi" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                Macroeconomic ROI
+              </label>
+              <input
+                id="macroeconomicRoi"
+                type="text"
+                value={formData.macroeconomicRoi}
+                onChange={(e) => setFormData({ ...formData, macroeconomicRoi: e.target.value })}
+                className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder="e.g., USD 2.40 of GDP per USD 1 invested"
+              />
+            </div>
+          </div>
+
           {/* Climate & ESG Section */}
           <div className="pt-6" style={{ borderTop: '1px solid var(--border)' }}>
             <h3 className="text-base font-semibold mb-4" style={{ color: 'var(--ink-900)' }}>
@@ -818,6 +924,19 @@ const NewProject: React.FC = () => {
                   placeholder="Describe ESG compliance measures..."
                 />
               </div>
+            </div>
+            <div className="mt-4">
+              <label htmlFor="ghgAvoidedTarget" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+                GHG Emissions Avoided (target)
+              </label>
+              <input
+                id="ghgAvoidedTarget"
+                type="text"
+                value={formData.ghgAvoidedTarget}
+                onChange={(e) => setFormData({ ...formData, ghgAvoidedTarget: e.target.value })}
+                className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder="e.g., 120,000 tCO2e/year"
+              />
             </div>
           </div>
 

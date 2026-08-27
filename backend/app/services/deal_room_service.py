@@ -21,33 +21,34 @@ class DealRoomService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_featured_projects(self, limit: int = 20) -> List[Dict[str, Any]]:
+    async def get_featured_projects(self, limit: int = 20, max_tier: int = 2) -> List[Dict[str, Any]]:
         """
-        Get the automated 'Deal Room Selection'.
-        Criteria:
-        1. Flagship projects (manual override)
-        2. High AfCEN Score (>80)
-        3. Diversity of Pillars (ensure representation)
+        Get the Deal Room selection, surfaced by the readiness continuum.
+
+        Returns the Boardroom (tier 1) and Deal Room (tier 2) tiers by default,
+        ordered most-ready first (flagship, then AfCEN score within tier). Pass a
+        higher ``max_tier`` to widen the lens toward Preparation / Early-stage.
         """
-        # Logic: 
-        # Select * from projects where status = DEAL_ROOM or (status = FINANCING and score > 80)
-        # Order by is_flagship desc, afcen_score desc
-        
+        from app.services.deal_room_tier import DEAL_ROOM_TIERS
+
         stmt = (
             select(Project)
             .where(
-                or_(
-                    Project.status == ProjectStatus.SUMMIT_READY,
-                    and_(Project.status == ProjectStatus.DEAL_ROOM_FEATURED, Project.readiness_score >= 7.0)
-                )
+                Project.deleted_at.is_(None),
+                Project.deal_room_priority.isnot(None),
+                Project.deal_room_priority <= max_tier,
             )
-            .order_by(Project.is_flagship.desc(), Project.afcen_score.desc())
+            .order_by(
+                Project.deal_room_priority.asc(),
+                Project.is_flagship.desc(),
+                Project.afcen_score.desc(),
+            )
             .limit(limit)
         )
-        
+
         result = await self.db.execute(stmt)
         projects = result.scalars().all()
-        
+
         return [
             {
                 "id": str(p.id),
@@ -56,8 +57,11 @@ class DealRoomService:
                 "country": p.lead_country,
                 "score": float(p.afcen_score or 0),
                 "is_flagship": p.is_flagship,
-                "status": p.status.value,
-                "investment_size": float(p.investment_size)
+                "status": p.status.value if hasattr(p.status, "value") else str(p.status),
+                "investment_size": float(p.investment_size or 0),
+                "tier_rank": p.deal_room_priority,
+                "tier": (p.investment_stage_label
+                         or DEAL_ROOM_TIERS.get(p.deal_room_priority, (None,))[0]),
             }
             for p in projects
         ]
